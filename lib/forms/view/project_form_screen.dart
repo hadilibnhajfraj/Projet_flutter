@@ -10,7 +10,7 @@ import '../../pages/google_map/location_picker_screen.dart';
 import '../controller/project_form_controller.dart';
 import '../../widgets/address_autocomplete_field.dart';
 import '../../services/address_service.dart';
-
+import '../../providers/api_client.dart';
 class ProjectFormScreen extends StatefulWidget {
   const ProjectFormScreen({super.key});
 
@@ -440,67 +440,66 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     }
   }
 
-  Future<void> _submit() async {
-    final ok = c.formKey.currentState?.validate() ?? false;
-    if (!ok) return;
+Future<void> _submit() async {
+  final ok = c.formKey.currentState?.validate() ?? false;
+  if (!ok) return;
 
-    if (!c.hasLocation) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("La localisation (carte) est obligatoire")),
-      );
-      return;
-    }
-
-    final payload = {
-      "nomProjet": c.nomProjet.text.trim(),
-      "dateDemarrage": c.dateDemarrage.text.trim(),
-      "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
-      "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
-      "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
-      "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
-      "architecte": c.architecte.text.trim(),
-      "telephoneArchitecte": c.telephoneArchitecte.text.trim(),
-      "entreprise": c.entreprise.text.trim(),
-      "promoteur": c.promoteur.text.trim(),
-      "bureauEtude": c.bureauEtude.text.trim(),
-      "bureauControle": c.bureauControle.text.trim(),
-      "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty
-          ? null
-          : c.entrepriseFluide.text.trim(),
-      "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty
-          ? null
-          : c.entrepriseElectricite.text.trim(),
-      "adresse": c.localisationAdresse.text.trim().isEmpty
-          ? null
-          : c.localisationAdresse.text.trim(),
-      "location": {"lat": c.latitude.value, "lng": c.longitude.value},
-      "comments": c.locationComments.toList(),
-    };
-
-    try {
-      final uri = Uri.parse("http://localhost:4000/projects");
-
-      final res = await http.post(
-        uri,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(payload),
-      );
-
-      if (res.statusCode == 201 || res.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Projet enregistré avec succès ✅")),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur API (${res.statusCode}) : ${res.body}")),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur réseau : $e")),
-      );
-    }
+  if (!c.hasLocation) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("La localisation (carte) est obligatoire")),
+    );
+    return;
   }
+
+  final payload = {
+    "nomProjet": c.nomProjet.text.trim(),
+    "dateDemarrage": c.dateDemarrage.text.trim(),
+    "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
+    "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
+    "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
+    "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
+    "architecte": c.architecte.text.trim(),
+    "telephoneArchitecte": c.telephoneArchitecte.text.trim(),
+    "entreprise": c.entreprise.text.trim(),
+    "promoteur": c.promoteur.text.trim(),
+    "bureauEtude": c.bureauEtude.text.trim(),
+    "bureauControle": c.bureauControle.text.trim(),
+    "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty
+        ? null
+        : c.entrepriseFluide.text.trim(),
+    "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty
+        ? null
+        : c.entrepriseElectricite.text.trim(),
+    "adresse": c.localisationAdresse.text.trim().isEmpty
+        ? null
+        : c.localisationAdresse.text.trim(),
+    "location": {"lat": c.latitude.value, "lng": c.longitude.value},
+    "comments": c.locationComments.toList(),
+  };
+
+  try {
+    // ✅ IMPORTANT: on utilise Dio => token ajouté automatiquement
+    final res = await ApiClient.instance.dio.post('/projects', data: payload);
+
+    if (res.statusCode == 201 || res.statusCode == 200) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Projet enregistré avec succès ✅")),
+      );
+    } else if (res.statusCode == 401) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Session expirée. Reconnecte-toi.")),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur API (${res.statusCode}) : ${res.data}")),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Erreur réseau : $e")),
+    );
+  }
+}
 
   // ----------------- UI HELPERS -----------------
   Widget _twoCols({required bool isMobile, required Widget left, required Widget right}) {

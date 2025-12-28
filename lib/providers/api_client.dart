@@ -13,29 +13,79 @@ class ApiClient {
         ? envUrl
         : (kIsWeb ? 'http://localhost:4000' : 'http://10.0.2.2:4000');
 
-    _dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
-      headers: {'Content-Type': 'application/json'},
-    ));
+    _box = GetStorage();
+
+    _dio = Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: const Duration(seconds: 15),
+        receiveTimeout: const Duration(seconds: 15),
+        headers: const {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+
+        // ✅ évite que Dio throw automatiquement sur 400/500
+        validateStatus: (status) => status != null && status >= 200 && status < 600,
+      ),
+    );
 
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
-          final box = GetStorage();
-          final token = box.read<String>('accessToken');
+          final token = _box.read<String>('accessToken');
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }
+
+          // ✅ logs debug
+          if (kDebugMode) {
+            debugPrint("➡️ [${options.method}] ${options.baseUrl}${options.path}");
+            debugPrint("Headers: ${options.headers}");
+            if (options.data != null) debugPrint("Body: ${options.data}");
+          }
+
           return handler.next(options);
+        },
+
+        onResponse: (response, handler) {
+          if (kDebugMode) {
+            debugPrint("✅ Response [${response.statusCode}] ${response.requestOptions.path}");
+            debugPrint("Data: ${response.data}");
+          }
+          return handler.next(response);
+        },
+
+        onError: (DioException e, handler) async {
+          // ✅ logs
+          if (kDebugMode) {
+            debugPrint("❌ DioError: ${e.message}");
+            if (e.response != null) {
+              debugPrint("Status: ${e.response?.statusCode}");
+              debugPrint("Data: ${e.response?.data}");
+            }
+          }
+
+          // ✅ si token expiré / non autorisé, on nettoie (optionnel)
+          final status = e.response?.statusCode;
+          if (status == 401) {
+            await _box.remove('accessToken');
+            await _box.write('isLoggedIn', false);
+            await _box.remove('userId');
+            await _box.remove('userEmail');
+            await _box.remove('userRole');
+          }
+
+          return handler.next(e);
         },
       ),
     );
   }
 
   static final ApiClient instance = ApiClient._internal();
+
   late final Dio _dio;
+  late final GetStorage _box;
 
   Dio get dio => _dio;
 }

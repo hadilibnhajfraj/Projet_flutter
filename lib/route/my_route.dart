@@ -13,7 +13,7 @@ import 'package:dash_master_toolkit/dashboard/sales/view/sales_dashboard_screen.
 import 'package:dash_master_toolkit/forms/view/basic_form_fields_screen.dart';
 import 'package:dash_master_toolkit/forms/view/custom_form_screen.dart';
 import 'package:dash_master_toolkit/forms/view/validation_form_screen.dart';
-import 'package:dash_master_toolkit/forms/view/project_form_screen.dart'; // ✅ IMPORTANT (écran Projects Form)
+import 'package:dash_master_toolkit/forms/view/project_form_screen.dart';
 import 'package:dash_master_toolkit/others/chart/view/chart_screen.dart';
 import 'package:dash_master_toolkit/others/components/view/avtar_screen.dart';
 import 'package:dash_master_toolkit/others/components/view/buttons_screen.dart';
@@ -37,10 +37,10 @@ import 'package:dash_master_toolkit/tables/view/drag_and_drop_table_screen.dart'
 import 'package:dash_master_toolkit/tables/view/hover_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/stripped_row_table_screen.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 
 import '../providers/auth_service.dart';
 import '../providers/language_provider.dart';
+import 'package:provider/provider.dart';
 
 class MyRoute {
   static const login = '/login';
@@ -76,7 +76,6 @@ class MyRoute {
   static const customFormScreen = '/forms/custom_form';
   static const validationFormScreen = '/forms/validation_form';
 
-  // ✅ Route de ton formulaire projets
   static const projectFormScreen = '/forms/project';
 
   static const buttonsScreen = '/components/buttons';
@@ -103,30 +102,35 @@ class MyRoute {
   static final rootNavigatorKey = GlobalKey<NavigatorState>();
 
   static final GoRouter router = GoRouter(
-    initialLocation: initialPath,
+    // ✅ IMPORTANT: démarre toujours sur Sign In
+    initialLocation: signInScreen,
+
     refreshListenable: AuthService(),
 
+    // ✅ redirect corrigé
     redirect: (context, state) {
       final loggedIn = AuthService().isLoggedIn;
 
       final isAuthRoute = state.matchedLocation == signInScreen ||
           state.matchedLocation == signUpScreen ||
           state.matchedLocation == forgotPasswordScreen ||
-          state.matchedLocation == resetPasswordScreen ||
-          state.matchedLocation == initialPath;
+          state.matchedLocation == resetPasswordScreen;
 
-      if (!loggedIn && !isAuthRoute) return signInScreen;
-
-      if (loggedIn &&
-          (state.matchedLocation == signInScreen ||
-              state.matchedLocation == signUpScreen)) {
-        return dashboardAcademicAdmin;
+      // ✅ si quelqu’un arrive sur "/" => on force Sign In
+      if (state.matchedLocation == initialPath) {
+        return signInScreen;
       }
 
+      // ✅ protège les routes privées: si pas connecté -> Sign In
+      if (!loggedIn && !isAuthRoute) return signInScreen;
+
+      // ✅ IMPORTANT: même si loggedIn == true, on reste sur Sign In au lancement
+      // donc on ne redirige PAS automatiquement signin -> dashboard
       return null;
     },
 
     routes: [
+      // "/" -> Sign In (sécurité)
       GoRoute(
         path: initialPath,
         redirect: (context, state) {
@@ -134,7 +138,7 @@ class MyRoute {
           if (state.uri.queryParameters['rtl'] == 'true') {
             appLangProvider.isRTL = true;
           }
-          return AuthService().isLoggedIn ? dashboardAcademicAdmin : signInScreen;
+          return signInScreen;
         },
       ),
 
@@ -321,8 +325,6 @@ class MyRoute {
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: ValidationFormScreen()),
               ),
-
-              // ✅ /forms/projects
               GoRoute(
                 path: 'project',
                 pageBuilder: (context, state) =>

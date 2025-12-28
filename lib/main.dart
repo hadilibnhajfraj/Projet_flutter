@@ -43,7 +43,9 @@ class MyApp extends StatefulWidget {
 }
 
 class MyAppState extends State<MyApp> {
-  final ThemeController controller = Get.put(ThemeController());
+  // ✅ une seule instance
+  final ThemeController controller =
+      Get.isRegistered<ThemeController>() ? Get.find() : Get.put(ThemeController());
 
   @override
   Widget build(BuildContext context) {
@@ -90,10 +92,11 @@ class MyAppState extends State<MyApp> {
         ],
         child: MaterialApp.router(
           debugShowCheckedModeBanner: false,
-          theme: controller.isDarkMode
-              ? Styles.darkTheme
-              : Styles.lightTheme,
+          theme: controller.isDarkMode ? Styles.darkTheme : Styles.lightTheme,
+
+          // ✅ la page de démarrage sera contrôlée par MyRoute.router
           routerConfig: MyRoute.router,
+
           locale: appLanguage.currentLocale,
           supportedLocales: appLanguage.locales.values.toList(),
           localizationsDelegates: const [
@@ -108,9 +111,8 @@ class MyAppState extends State<MyApp> {
                 textScaler: const TextScaler.linear(1.0),
               ),
               child: Directionality(
-                textDirection: appLanguage.isRTL
-                    ? TextDirection.rtl
-                    : TextDirection.ltr,
+                textDirection:
+                    appLanguage.isRTL ? TextDirection.rtl : TextDirection.ltr,
                 child: child ?? const SizedBox.shrink(),
               ),
             );
