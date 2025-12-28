@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
 import 'package:flutter/material.dart';
 import 'package:dash_master_toolkit/forms/form_imports.dart';
+import 'package:intl/intl.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'package:http/http.dart' as http;
 
@@ -27,10 +28,10 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   void initState() {
     super.initState();
 
-    // ✅ IMPORTANT: une seule instance (sinon la date ne s'affiche pas)
+    // ✅ IMPORTANT: une seule instance + permanent (sinon date peut rester vide)
     c = Get.isRegistered<ProjectFormController>()
         ? Get.find<ProjectFormController>()
-        : Get.put(ProjectFormController());
+        : Get.put(ProjectFormController(), permanent: true);
 
     themeController = Get.isRegistered<ThemeController>()
         ? Get.find<ThemeController>()
@@ -81,11 +82,14 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                     controller: c.nomProjet,
                     validator: (v) => c.requiredValidator(v, "Nom du Projet"),
                   ),
-                  right: _dateField(
-                    theme: theme,
-                    title: "Date de Démarrage",
-                    controller: c.dateDemarrage,
-                    validator: (v) => c.requiredValidator(v, "Date de Démarrage"),
+                  right: GetBuilder<ProjectFormController>(
+                    id: 'dateDemarrage',
+                    builder: (_) => _dateField(
+                      theme: theme,
+                      title: "Date de Démarrage",
+                      controller: c.dateDemarrage,
+                      validator: (v) => c.requiredValidator(v, "Date de Démarrage"),
+                    ),
                   ),
                 ),
 
@@ -174,9 +178,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                 ),
 
                 const SizedBox(height: 14),
-
                 _locationBlock(theme),
-
                 const SizedBox(height: 18),
 
                 CommonButton(
@@ -193,7 +195,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     );
   }
 
-  // ----------------- DATE PICKER FIELD (CORRIGÉ) -----------------
+  // ----------------- ✅ DATE FIELD (popup calendrier) -----------------
   Widget _dateField({
     required ThemeData theme,
     required String title,
@@ -211,19 +213,20 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
             controller: controller,
             validator: validator,
             readOnly: true,
-            decoration: inputDecoration(context, hintText: "Choisir une date").copyWith(
+            onTap: () async {
+              await c.pickDateDemarrage(context);
+              setState(() {});
+            },
+            decoration: inputDecoration(context, hintText: "Sélectionner une date")
+                .copyWith(
               suffixIcon: IconButton(
                 icon: const Icon(Icons.calendar_month_outlined),
                 onPressed: () async {
-                  await c.pickDateDemarrage(context); // ✅
-                  setState(() {}); // ✅ (ne change pas le design)
+                  await c.pickDateDemarrage(context);
+                  setState(() {});
                 },
               ),
             ),
-            onTap: () async {
-              await c.pickDateDemarrage(context); // ✅
-              setState(() {});
-            },
           ),
         ],
       ),
@@ -272,7 +275,10 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
               child: AddressAutocompleteField(
                 controller: c.localisationAdresse,
                 hintText: "Saisir une adresse (ex: Tunisie, Tunis, Sfax...)",
-                validator: (v) => c.requiredValidator(c.localisationAdresse.text, "Localisation"),
+                validator: (v) => c.requiredValidator(
+                  c.localisationAdresse.text,
+                  "Localisation",
+                ),
                 onSelected: (AddressSuggestion s) {
                   c.setLocation(lat: s.lat, lng: s.lon, address: s.displayName);
                 },
@@ -379,9 +385,17 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(comment, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                      Text(
+                        comment,
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
                       const SizedBox(height: 4),
-                      Text(createdAt, style: theme.textTheme.bodySmall?.copyWith(color: colorGrey500)),
+                      Text(
+                        createdAt,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: colorGrey500),
+                      ),
                     ],
                   ),
                 ),
@@ -450,9 +464,15 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       "promoteur": c.promoteur.text.trim(),
       "bureauEtude": c.bureauEtude.text.trim(),
       "bureauControle": c.bureauControle.text.trim(),
-      "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty ? null : c.entrepriseFluide.text.trim(),
-      "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty ? null : c.entrepriseElectricite.text.trim(),
-      "adresse": c.localisationAdresse.text.trim().isEmpty ? null : c.localisationAdresse.text.trim(),
+      "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty
+          ? null
+          : c.entrepriseFluide.text.trim(),
+      "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty
+          ? null
+          : c.entrepriseElectricite.text.trim(),
+      "adresse": c.localisationAdresse.text.trim().isEmpty
+          ? null
+          : c.localisationAdresse.text.trim(),
       "location": {"lat": c.latitude.value, "lng": c.longitude.value},
       "comments": c.locationComments.toList(),
     };

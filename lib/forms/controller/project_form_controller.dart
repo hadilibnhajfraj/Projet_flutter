@@ -37,6 +37,9 @@ class ProjectFormController extends GetxController {
   final RxList<Map<String, dynamic>> locationComments =
       <Map<String, dynamic>>[].obs;
 
+  // ✅ Date sélectionnée
+  final Rxn<DateTime> selectedDateDemarrage = Rxn<DateTime>();
+
   Timer? _debounce;
   String _lastAuto = "";
 
@@ -44,41 +47,75 @@ class ProjectFormController extends GetxController {
   void onInit() {
     super.onInit();
     localisationAdresse.addListener(_onAddressChanged);
+
+    // init selectedDateDemarrage si l'input a déjà une valeur
+    final txt = dateDemarrage.text.trim();
+    if (txt.isNotEmpty) {
+      try {
+        selectedDateDemarrage.value = DateFormat('yyyy-MM-dd').parseStrict(txt);
+      } catch (_) {}
+    }
   }
 
   // =========================
-  // ✅ DATE PICKER (IMPORTANT)
+  // ✅ DATE PICKER (clic date = sélection directe)
   // =========================
   Future<void> pickDateDemarrage(BuildContext context) async {
     FocusScope.of(context).unfocus();
 
     final now = DateTime.now();
+    DateTime initialDate = selectedDateDemarrage.value ?? now;
 
-    // si date déjà dans input => initialDate
-    DateTime initialDate = now;
     final txt = dateDemarrage.text.trim();
     if (txt.isNotEmpty) {
       try {
-        // Support "yyyy-MM-dd"
         initialDate = DateFormat('yyyy-MM-dd').parseStrict(txt);
       } catch (_) {
         initialDate = now;
       }
     }
 
-    final picked = await showDatePicker(
+    // ✅ DIALOG calendrier : CLIC sur une date => ferme + retourne la date
+    final picked = await showDialog<DateTime>(
       context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text("Sélectionner une date"),
+          content: SizedBox(
+            width: 420,
+            height: 360,
+            child: CalendarDatePicker(
+              initialDate: initialDate,
+              firstDate: DateTime(2000),
+              lastDate: DateTime(2100),
+              onDateChanged: (d) {
+                Navigator.of(ctx).pop(d); // ✅ choix direct
+              },
+            ),
+          ),
+        );
+      },
     );
 
     if (picked == null) return;
+    setDateDemarrage(picked);
+  }
 
-    // ✅ écrire dans le controller
-    dateDemarrage.text = DateFormat('yyyy-MM-dd').format(picked);
+  // =========================
+  // ✅ SET DATE + FORCER MAJ INPUT
+  // =========================
+  void setDateDemarrage(DateTime d) {
+    selectedDateDemarrage.value = d;
 
-    // ✅ force rebuild du GetBuilder(id: 'dateDemarrage')
+    final formatted = DateFormat('yyyy-MM-dd').format(d);
+
+    // ✅ force l'affichage dans l'input (anti bug)
+    dateDemarrage.value = dateDemarrage.value.copyWith(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+      composing: TextRange.empty,
+    );
+
     update(['dateDemarrage']);
   }
 
@@ -139,7 +176,7 @@ class ProjectFormController extends GetxController {
       }
     }
 
-    update(['location']); // si tu utilises GetBuilder(id:'location')
+    update(['location']);
   }
 
   @override
