@@ -4,10 +4,7 @@ import 'package:get_storage/get_storage.dart';
 
 class ApiClient {
   ApiClient._internal() {
-    final envUrl = const String.fromEnvironment(
-      'API_BASE_URL',
-      defaultValue: '',
-    );
+    final envUrl = const String.fromEnvironment('API_BASE_URL', defaultValue: '');
 
     final baseUrl = envUrl.isNotEmpty
         ? envUrl
@@ -24,9 +21,8 @@ class ApiClient {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-
-        // ✅ évite que Dio throw automatiquement sur 400/500
-        validateStatus: (status) => status != null && status >= 200 && status < 600,
+        // ✅ Laisse Dio throw sur 400/500 (par défaut)
+        // validateStatus: (status) => status != null && status < 300,
       ),
     );
 
@@ -38,7 +34,6 @@ class ApiClient {
             options.headers['Authorization'] = 'Bearer $token';
           }
 
-          // ✅ logs debug
           if (kDebugMode) {
             debugPrint("➡️ [${options.method}] ${options.baseUrl}${options.path}");
             debugPrint("Headers: ${options.headers}");
@@ -47,7 +42,6 @@ class ApiClient {
 
           return handler.next(options);
         },
-
         onResponse: (response, handler) {
           if (kDebugMode) {
             debugPrint("✅ Response [${response.statusCode}] ${response.requestOptions.path}");
@@ -55,9 +49,7 @@ class ApiClient {
           }
           return handler.next(response);
         },
-
         onError: (DioException e, handler) async {
-          // ✅ logs
           if (kDebugMode) {
             debugPrint("❌ DioError: ${e.message}");
             if (e.response != null) {
@@ -66,7 +58,7 @@ class ApiClient {
             }
           }
 
-          // ✅ si token expiré / non autorisé, on nettoie (optionnel)
+          // ✅ si 401 => clear session
           final status = e.response?.statusCode;
           if (status == 401) {
             await _box.remove('accessToken');

@@ -46,6 +46,9 @@ class GroupedMenuModel {
 
 enum SidebarItemType { tile, submenu }
 
+// =======================
+// ✅ TOP MENUS
+// =======================
 List<SidebarItemModel> get _topMenus {
   return <SidebarItemModel>[
     SidebarItemModel(
@@ -75,6 +78,9 @@ List<SidebarItemModel> get _topMenus {
   ];
 }
 
+// =======================
+// ✅ GROUPED MENUS
+// =======================
 List<GroupedMenuModel> get _groupedMenus {
   return <GroupedMenuModel>[
     // Application Group
@@ -105,22 +111,21 @@ List<GroupedMenuModel> get _groupedMenus {
             SidebarSubmenuModel(
               name: "usersList",
               navigationPath: 'user_list',
-              // isPage: true,
             ),
             SidebarSubmenuModel(
               name: "usersGrid",
               navigationPath: 'user_grid',
-              // isPage: true,
             ),
             SidebarSubmenuModel(
               name: "usersProfile",
               navigationPath: 'user_profile',
-              // isPage: true,
             ),
           ],
         ),
       ],
     ),
+
+    // Pages Group
     GroupedMenuModel(
       name: 'Pages',
       menus: [
@@ -175,6 +180,7 @@ List<GroupedMenuModel> get _groupedMenus {
       ],
     ),
 
+    // Tables and Form Group
     GroupedMenuModel(
       name: 'tablesAndForm',
       menus: [
@@ -184,50 +190,24 @@ List<GroupedMenuModel> get _groupedMenus {
           sidebarItemType: SidebarItemType.submenu,
           navigationPath: '/tables',
           submenus: [
-            SidebarSubmenuModel(
-              name: 'basicTables',
-              navigationPath: "basic_tables",
-            ),
-            SidebarSubmenuModel(
-              name: 'stripedRowTable',
-              navigationPath: "striped_row_table",
-            ),
-            SidebarSubmenuModel(
-              name: 'hoverTable',
-              navigationPath: "hover_table",
-            ),
-            SidebarSubmenuModel(
-              name: 'dragDropTable',
-              navigationPath: "drag_drop_table",
-            ),
+            SidebarSubmenuModel(name: 'basicTables', navigationPath: "basic_tables"),
+            SidebarSubmenuModel(name: 'stripedRowTable', navigationPath: "striped_row_table"),
+            SidebarSubmenuModel(name: 'hoverTable', navigationPath: "hover_table"),
+            SidebarSubmenuModel(name: 'dragDropTable', navigationPath: "drag_drop_table"),
           ],
         ),
+
+        // ✅ PROJECTS DIRECT (sans submenu)
         SidebarItemModel(
-          name: 'forms',
-          iconPath: formsIcon,
-          sidebarItemType: SidebarItemType.submenu,
-          navigationPath: '/forms',
-          submenus: [
-            SidebarSubmenuModel(
-              name: 'formsBasicFields',
-              navigationPath: "forms_basic_fields",
-            ),
-            SidebarSubmenuModel(
-              name: 'customForm',
-              navigationPath: "custom_form",
-            ),
-            SidebarSubmenuModel(
-              name: 'validationForm',
-              navigationPath: "validation_form",
-            ),
-            SidebarSubmenuModel(
-              name: 'Project', // ✅ texte direct
-              navigationPath: "project",
-            ),
-          ],
+          name: 'projects',
+          iconPath: formsIcon, // ou projectsIcon si tu veux
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.projectFormScreen, // ✅ route du ProjectForm
         ),
       ],
     ),
+
+    // Others
     GroupedMenuModel(
       name: 'others',
       menus: [
@@ -242,38 +222,14 @@ List<GroupedMenuModel> get _groupedMenus {
           sidebarItemType: SidebarItemType.submenu,
           navigationPath: '/components',
           submenus: [
-            SidebarSubmenuModel(
-              name: 'buttons',
-              navigationPath: "buttons",
-            ),
-            SidebarSubmenuModel(
-              name: 'tabs',
-              navigationPath: "tabs",
-            ),
-            SidebarSubmenuModel(
-              name: 'dialog',
-              navigationPath: "dialog",
-            ),
-            SidebarSubmenuModel(
-              name: 'carousel',
-              navigationPath: "carousel",
-            ),
-            SidebarSubmenuModel(
-              name: 'avatar',
-              navigationPath: "avatar",
-            ),
-            SidebarSubmenuModel(
-              name: 'card',
-              navigationPath: "card",
-            ),
-            SidebarSubmenuModel(
-              name: 'rating',
-              navigationPath: "rating",
-            ),
-            SidebarSubmenuModel(
-              name: 'toast',
-              navigationPath: "toast",
-            ),
+            SidebarSubmenuModel(name: 'buttons', navigationPath: "buttons"),
+            SidebarSubmenuModel(name: 'tabs', navigationPath: "tabs"),
+            SidebarSubmenuModel(name: 'dialog', navigationPath: "dialog"),
+            SidebarSubmenuModel(name: 'carousel', navigationPath: "carousel"),
+            SidebarSubmenuModel(name: 'avatar', navigationPath: "avatar"),
+            SidebarSubmenuModel(name: 'card', navigationPath: "card"),
+            SidebarSubmenuModel(name: 'rating', navigationPath: "rating"),
+            SidebarSubmenuModel(name: 'toast', navigationPath: "toast"),
           ],
         ),
       ],

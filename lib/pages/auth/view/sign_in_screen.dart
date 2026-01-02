@@ -462,16 +462,23 @@ class SignInScreenState extends State<SignInScreen> {
                                                           password: password);
 
                                                       if (!mounted) return;
+
+                                                      // ✅ Tous les rôles vont vers la même interface
                                                       context.go(MyRoute
-                                                          .dashboardAcademicAdmin); // ✅ vers dashboard
+                                                          .dashboardAcademicAdmin);
                                                     } catch (e) {
                                                       if (!mounted) return;
+
+                                                      final msg = e
+                                                          .toString()
+                                                          .replaceFirst(
+                                                              'Exception: ',
+                                                              '');
                                                       ScaffoldMessenger.of(
                                                               context)
                                                           .showSnackBar(
                                                         SnackBar(
-                                                            content: Text(
-                                                                e.toString())),
+                                                            content: Text(msg)),
                                                       );
                                                     }
                                                   },

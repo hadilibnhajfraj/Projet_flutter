@@ -30,10 +30,14 @@ class ProjectFormController extends GetxController {
   // Adresse editable
   final localisationAdresse = TextEditingController();
 
+  // ✅ Commentaires (manuel textarea)
+  final commentaireCtrl = TextEditingController();
+
   // lat/lng
   final RxnDouble latitude = RxnDouble();
   final RxnDouble longitude = RxnDouble();
 
+  // ✅ commentaires depuis map + autres
   final RxList<Map<String, dynamic>> locationComments =
       <Map<String, dynamic>>[].obs;
 
@@ -75,7 +79,6 @@ class ProjectFormController extends GetxController {
       }
     }
 
-    // ✅ DIALOG calendrier : CLIC sur une date => ferme + retourne la date
     final picked = await showDialog<DateTime>(
       context: context,
       builder: (ctx) {
@@ -109,7 +112,7 @@ class ProjectFormController extends GetxController {
 
     final formatted = DateFormat('yyyy-MM-dd').format(d);
 
-    // ✅ force l'affichage dans l'input (anti bug)
+    // ✅ force l'affichage dans l'input
     dateDemarrage.value = dateDemarrage.value.copyWith(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
@@ -168,7 +171,6 @@ class ProjectFormController extends GetxController {
     latitude.value = lat;
     longitude.value = lng;
 
-    // éviter boucle listener
     if (address != null && address.trim().isNotEmpty) {
       final newText = address.trim();
       if (localisationAdresse.text.trim() != newText) {
@@ -199,6 +201,7 @@ class ProjectFormController extends GetxController {
     entrepriseFluide.dispose();
     entrepriseElectricite.dispose();
     localisationAdresse.dispose();
+    commentaireCtrl.dispose();
 
     super.onClose();
   }

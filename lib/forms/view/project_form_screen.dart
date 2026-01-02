@@ -1,16 +1,15 @@
-import 'dart:convert';
-import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
 import 'package:flutter/material.dart';
-import 'package:dash_master_toolkit/forms/form_imports.dart';
-import 'package:intl/intl.dart';
+import 'package:get/get.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
-import 'package:http/http.dart' as http;
 
 import '../../pages/google_map/location_picker_screen.dart';
 import '../controller/project_form_controller.dart';
-import '../../widgets/address_autocomplete_field.dart';
-import '../../services/address_service.dart';
 import '../../providers/api_client.dart';
+
+// ⚠️ ces imports existent déjà chez toi selon ton template
+import 'package:dash_master_toolkit/forms/form_imports.dart';
+import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
+
 class ProjectFormScreen extends StatefulWidget {
   const ProjectFormScreen({super.key});
 
@@ -28,7 +27,6 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   void initState() {
     super.initState();
 
-    // ✅ IMPORTANT: une seule instance + permanent (sinon date peut rester vide)
     c = Get.isRegistered<ProjectFormController>()
         ? Get.find<ProjectFormController>()
         : Get.put(ProjectFormController(), permanent: true);
@@ -43,6 +41,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     final theme = Theme.of(context);
 
     final screenWidth = MediaQuery.of(context).size.width;
+
     final isMobile = responsiveValue<bool>(
       context,
       xs: true,
@@ -88,7 +87,8 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                       theme: theme,
                       title: "Date de Démarrage",
                       controller: c.dateDemarrage,
-                      validator: (v) => c.requiredValidator(v, "Date de Démarrage"),
+                      validator: (v) =>
+                          c.requiredValidator(v, "Date de Démarrage"),
                     ),
                   ),
                 ),
@@ -108,7 +108,8 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                     theme: theme,
                     title: "Ingénieur Responsable",
                     controller: c.ingenieurResponsable,
-                    validator: (v) => c.requiredValidator(v, "Ingénieur Responsable"),
+                    validator: (v) =>
+                        c.requiredValidator(v, "Ingénieur Responsable"),
                   ),
                   right: _field(
                     theme: theme,
@@ -131,7 +132,8 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                     theme: theme,
                     title: "Téléphone Architecte",
                     controller: c.telephoneArchitecte,
-                    validator: (v) => c.phoneValidator(v, "Téléphone Architecte"),
+                    validator: (v) =>
+                        c.phoneValidator(v, "Téléphone Architecte"),
                     keyboardType: TextInputType.phone,
                   ),
                 ),
@@ -179,6 +181,17 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
                 const SizedBox(height: 14),
                 _locationBlock(theme),
+
+                // ✅ COMMENTAIRES MANUEL
+                _field(
+                  theme: theme,
+                  title: "Commentaires (optionnel)",
+                  controller: c.commentaireCtrl,
+                  validator: null,
+                  keyboardType: TextInputType.multiline,
+                  maxLines: 4,
+                ),
+
                 const SizedBox(height: 18),
 
                 CommonButton(
@@ -195,7 +208,27 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     );
   }
 
-  // ----------------- ✅ DATE FIELD (popup calendrier) -----------------
+  // ✅ TITRE avec étoile automatique
+  Widget _requiredTitle(ThemeData theme, String title, {required bool required}) {
+    return RichText(
+      text: TextSpan(
+        style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+        children: [
+          TextSpan(text: title),
+          if (required)
+            TextSpan(
+              text: " *",
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: Colors.red,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ----------------- DATE FIELD -----------------
   Widget _dateField({
     required ThemeData theme,
     required String title,
@@ -207,7 +240,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _title(theme, title),
+          _requiredTitle(theme, title, required: validator != null),
           const SizedBox(height: 6),
           TextFormField(
             controller: controller,
@@ -243,7 +276,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _title(theme, "Statut du Projet"),
+          _requiredTitle(theme, "Statut du Projet", required: false),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
             value: currentValue,
@@ -255,7 +288,34 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
               c.statut.text = val ?? "";
               setState(() {});
             },
-            validator: null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ----------------- FIELD -----------------
+  Widget _field({
+    required ThemeData theme,
+    required String title,
+    required TextEditingController controller,
+    String? Function(String?)? validator,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16, top: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _requiredTitle(theme, title, required: validator != null),
+          const SizedBox(height: 6),
+          TextFormField(
+            controller: controller,
+            validator: validator,
+            keyboardType: keyboardType,
+            maxLines: maxLines,
+            decoration: inputDecoration(context, hintText: title),
           ),
         ],
       ),
@@ -267,21 +327,16 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _title(theme, "Localisation (obligatoire)"),
+        _requiredTitle(theme, "Localisation", required: true),
         const SizedBox(height: 6),
         Row(
           children: [
             Expanded(
-              child: AddressAutocompleteField(
+              child: TextFormField(
                 controller: c.localisationAdresse,
-                hintText: "Saisir une adresse (ex: Tunisie, Tunis, Sfax...)",
-                validator: (v) => c.requiredValidator(
-                  c.localisationAdresse.text,
-                  "Localisation",
-                ),
-                onSelected: (AddressSuggestion s) {
-                  c.setLocation(lat: s.lat, lng: s.lon, address: s.displayName);
-                },
+                validator: (v) => c.requiredValidator(v, "Localisation"),
+                decoration: inputDecoration(context,
+                    hintText: "Saisir une adresse ou choisir sur la carte"),
               ),
             ),
             const SizedBox(width: 10),
@@ -301,114 +356,13 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                 ? "Lat: ${c.latitude.value}, Lng: ${c.longitude.value}"
                 : "Sélectionne une adresse ou choisis sur la carte.",
             style: theme.textTheme.bodySmall?.copyWith(
-              color: hasLoc
-                  ? colorPrimary100
-                  : (themeController.isDarkMode ? colorGrey300 : colorGrey700),
+              color: hasLoc ? colorPrimary100 : colorGrey700,
               fontWeight: FontWeight.w600,
             ),
           );
         }),
-        const SizedBox(height: 12),
-        _title(theme, "Commentaire(s)"),
-        const SizedBox(height: 6),
-        _addCommentUI(theme),
-        const SizedBox(height: 10),
-        _commentsList(theme),
       ],
     );
-  }
-
-  Widget _addCommentUI(ThemeData theme) {
-    final commentCtrl = TextEditingController();
-
-    return Row(
-      children: [
-        Expanded(
-          child: TextFormField(
-            controller: commentCtrl,
-            decoration: inputDecoration(
-              context,
-              hintText: "Ajouter un commentaire (ex: accès chantier, repère...)",
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        CommonButton(
-          borderRadius: 10,
-          width: 120,
-          onPressed: () {
-            final txt = commentCtrl.text.trim();
-            if (txt.isEmpty) return;
-
-            c.locationComments.add({
-              "comment": txt,
-              "createdAt": DateTime.now().toIso8601String(),
-            });
-            commentCtrl.clear();
-          },
-          text: "Ajouter",
-        ),
-      ],
-    );
-  }
-
-  Widget _commentsList(ThemeData theme) {
-    return Obx(() {
-      if (c.locationComments.isEmpty) {
-        return Text(
-          "Aucun commentaire.",
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: themeController.isDarkMode ? colorGrey300 : colorGrey600,
-          ),
-        );
-      }
-
-      return Column(
-        children: c.locationComments.map((item) {
-          final comment = (item["comment"] ?? "").toString();
-          final createdAt = (item["createdAt"] ?? "").toString();
-
-          return Container(
-            width: double.infinity,
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: themeController.isDarkMode ? colorGrey800 : colorGrey50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: themeController.isDarkMode ? colorGrey700 : colorGrey200,
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        comment,
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        createdAt,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: colorGrey500),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => c.locationComments.remove(item),
-                  icon: const Icon(Icons.delete_outline),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      );
-    });
   }
 
   Future<void> _pickLocation() async {
@@ -440,106 +394,90 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     }
   }
 
-Future<void> _submit() async {
-  final ok = c.formKey.currentState?.validate() ?? false;
-  if (!ok) return;
+  // ✅ SUBMIT avec DIO (token auto)
+  Future<void> _submit() async {
+    final ok = c.formKey.currentState?.validate() ?? false;
+    if (!ok) return;
 
-  if (!c.hasLocation) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("La localisation (carte) est obligatoire")),
-    );
-    return;
-  }
-
-  final payload = {
-    "nomProjet": c.nomProjet.text.trim(),
-    "dateDemarrage": c.dateDemarrage.text.trim(),
-    "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
-    "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
-    "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
-    "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
-    "architecte": c.architecte.text.trim(),
-    "telephoneArchitecte": c.telephoneArchitecte.text.trim(),
-    "entreprise": c.entreprise.text.trim(),
-    "promoteur": c.promoteur.text.trim(),
-    "bureauEtude": c.bureauEtude.text.trim(),
-    "bureauControle": c.bureauControle.text.trim(),
-    "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty
-        ? null
-        : c.entrepriseFluide.text.trim(),
-    "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty
-        ? null
-        : c.entrepriseElectricite.text.trim(),
-    "adresse": c.localisationAdresse.text.trim().isEmpty
-        ? null
-        : c.localisationAdresse.text.trim(),
-    "location": {"lat": c.latitude.value, "lng": c.longitude.value},
-    "comments": c.locationComments.toList(),
-  };
-
-  try {
-    // ✅ IMPORTANT: on utilise Dio => token ajouté automatiquement
-    final res = await ApiClient.instance.dio.post('/projects', data: payload);
-
-    if (res.statusCode == 201 || res.statusCode == 200) {
+    if (!c.hasLocation) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Projet enregistré avec succès ✅")),
+        const SnackBar(content: Text("La localisation est obligatoire")),
       );
-    } else if (res.statusCode == 401) {
+      return;
+    }
+
+    final manualComment = c.commentaireCtrl.text.trim();
+    final allComments = [
+      ...c.locationComments.toList(),
+      if (manualComment.isNotEmpty)
+        {"comment": manualComment, "createdAt": DateTime.now().toIso8601String()},
+    ];
+
+    final payload = {
+      "nomProjet": c.nomProjet.text.trim(),
+      "dateDemarrage": c.dateDemarrage.text.trim(),
+      "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
+      "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
+      "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
+      "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
+      "architecte": c.architecte.text.trim(),
+      "telephoneArchitecte": c.telephoneArchitecte.text.trim(),
+      "entreprise": c.entreprise.text.trim(),
+      "promoteur": c.promoteur.text.trim(),
+      "bureauEtude": c.bureauEtude.text.trim(),
+      "bureauControle": c.bureauControle.text.trim(),
+      "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty
+          ? null
+          : c.entrepriseFluide.text.trim(),
+      "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty
+          ? null
+          : c.entrepriseElectricite.text.trim(),
+      "adresse": c.localisationAdresse.text.trim().isEmpty
+          ? null
+          : c.localisationAdresse.text.trim(),
+      "location": {"lat": c.latitude.value, "lng": c.longitude.value},
+      "comments": allComments,
+    };
+
+    try {
+      final res = await ApiClient.instance.dio.post('/projects', data: payload);
+
+      if (res.statusCode == 201 || res.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Projet enregistré ✅")),
+        );
+
+        // optionnel: clear form
+        // c.formKey.currentState?.reset();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erreur API (${res.statusCode}): ${res.data}")),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Session expirée. Reconnecte-toi.")),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur API (${res.statusCode}) : ${res.data}")),
+        SnackBar(content: Text("Erreur réseau : $e")),
       );
     }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Erreur réseau : $e")),
-    );
   }
-}
 
   // ----------------- UI HELPERS -----------------
-  Widget _twoCols({required bool isMobile, required Widget left, required Widget right}) {
-    if (isMobile) return Column(children: [left, right]);
-    return Row(children: [Expanded(child: left), const SizedBox(width: 10), Expanded(child: right)]);
-  }
-
-  Widget _title(ThemeData theme, String title) {
-    return Text(title, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700));
-  }
-
-  Widget _field({
-    required ThemeData theme,
-    required String title,
-    required TextEditingController controller,
-    String? Function(String?)? validator,
-    TextInputType? keyboardType,
+  Widget _twoCols({
+    required bool isMobile,
+    required Widget left,
+    required Widget right,
   }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16, top: 5),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _title(theme, title),
-          const SizedBox(height: 6),
-          TextFormField(
-            controller: controller,
-            validator: validator,
-            keyboardType: keyboardType,
-            decoration: inputDecoration(context, hintText: title),
-          ),
-        ],
-      ),
+    if (isMobile) return Column(children: [left, right]);
+    return Row(
+      children: [
+        Expanded(child: left),
+        const SizedBox(width: 10),
+        Expanded(child: right),
+      ],
     );
   }
 
-  Widget _commonBackgroundWidget({
-    required Widget child,
-    required double? screenWidth,
-  }) {
+  Widget _commonBackgroundWidget({required Widget child, required double? screenWidth}) {
     return Container(
       width: screenWidth,
       padding: const EdgeInsets.all(20),
