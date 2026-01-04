@@ -1,53 +1,53 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:get_storage/get_storage.dart';
 
 class ApiClient {
-  // Android emulator => 10.0.2.2
-  // iOS simulator => localhost
-  // device réel => IP de ton PC
-  static const String baseUrl = 'http://10.0.2.2:4000';
-
-  Future<Map<String, dynamic>> post(
-    String path, {
-    Map<String, dynamic>? body,
-    Map<String, String>? headers,
-  }) async {
-    final uri = Uri.parse('$baseUrl$path');
-    final res = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(headers ?? {}),
-      },
-      body: jsonEncode(body ?? {}),
+  ApiClient._internal() {
+    dio = Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: const Duration(seconds: 20),
+        receiveTimeout: const Duration(seconds: 20),
+        headers: {'Content-Type': 'application/json'},
+      ),
     );
 
-    final data = res.body.isNotEmpty ? jsonDecode(res.body) : {};
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      return (data as Map<String, dynamic>);
-    }
+    // ✅ Log (utile pour debug)
+    dio.interceptors.add(
+      LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        requestHeader: true,
+        responseHeader: false,
+      ),
+    );
 
-    final msg = (data is Map && data['message'] != null)
-        ? data['message'].toString()
-        : 'HTTP ${res.statusCode}';
-    throw Exception(msg);
+    // ✅ Inject token automatiquement
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          final token = _box.read<String>('accessToken');
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
+          return handler.next(options);
+        },
+      ),
+    );
   }
 
-  Future<Map<String, dynamic>> get(
-    String path, {
-    Map<String, String>? headers,
-  }) async {
-    final uri = Uri.parse('$baseUrl$path');
-    final res = await http.get(uri, headers: headers);
+  static final ApiClient instance = ApiClient._internal();
 
-    final data = res.body.isNotEmpty ? jsonDecode(res.body) : {};
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      return (data as Map<String, dynamic>);
-    }
-
-    final msg = (data is Map && data['message'] != null)
-        ? data['message'].toString()
-        : 'HTTP ${res.statusCode}';
-    throw Exception(msg);
+  // ✅ IMPORTANT :
+  // - Flutter Web => localhost
+  // - Android Emulator => 10.0.2.2
+  // - Device réel => IP de ton PC (ex: http://192.168.1.xx:4000)
+  static String get baseUrl {
+    if (kIsWeb) return 'http://localhost:4000';
+    return 'http://10.0.2.2:4000';
   }
+
+  late final Dio dio;
+  final GetStorage _box = GetStorage();
 }

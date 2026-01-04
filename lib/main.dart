@@ -9,6 +9,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 
+import 'application/common/safe_snack.dart';
 import 'constant/breakpoint.dart';
 import 'localization/app_localizations.dart';
 import 'theme/styles.dart';
@@ -16,7 +17,6 @@ import 'theme/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await GetStorage.init();
 
   SystemChrome.setPreferredOrientations([
@@ -37,13 +37,11 @@ Future<void> main() async {
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
-
   @override
   MyAppState createState() => MyAppState();
 }
 
 class MyAppState extends State<MyApp> {
-  // ✅ une seule instance
   final ThemeController controller =
       Get.isRegistered<ThemeController>() ? Get.find() : Get.put(ThemeController());
 
@@ -54,48 +52,27 @@ class MyAppState extends State<MyApp> {
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarBrightness:
-            controller.isDarkMode ? Brightness.dark : Brightness.light,
-        statusBarIconBrightness:
-            controller.isDarkMode ? Brightness.light : Brightness.dark,
+        statusBarBrightness: controller.isDarkMode ? Brightness.dark : Brightness.light,
+        statusBarIconBrightness: controller.isDarkMode ? Brightness.light : Brightness.dark,
       ),
     );
 
     return Obx(() {
       return rf.ResponsiveBreakpoints.builder(
         breakpoints: [
-          rf.Breakpoint(
-            start: BreakpointName.XS.start,
-            end: BreakpointName.XS.end,
-            name: BreakpointName.XS.name,
-          ),
-          rf.Breakpoint(
-            start: BreakpointName.SM.start,
-            end: BreakpointName.SM.end,
-            name: BreakpointName.SM.name,
-          ),
-          rf.Breakpoint(
-            start: BreakpointName.MD.start,
-            end: BreakpointName.MD.end,
-            name: BreakpointName.MD.name,
-          ),
-          rf.Breakpoint(
-            start: BreakpointName.LG.start,
-            end: BreakpointName.LG.end,
-            name: BreakpointName.LG.name,
-          ),
-          rf.Breakpoint(
-            start: BreakpointName.XL.start,
-            end: BreakpointName.XL.end,
-            name: BreakpointName.XL.name,
-          ),
+          rf.Breakpoint(start: BreakpointName.XS.start, end: BreakpointName.XS.end, name: BreakpointName.XS.name),
+          rf.Breakpoint(start: BreakpointName.SM.start, end: BreakpointName.SM.end, name: BreakpointName.SM.name),
+          rf.Breakpoint(start: BreakpointName.MD.start, end: BreakpointName.MD.end, name: BreakpointName.MD.name),
+          rf.Breakpoint(start: BreakpointName.LG.start, end: BreakpointName.LG.end, name: BreakpointName.LG.name),
+          rf.Breakpoint(start: BreakpointName.XL.start, end: BreakpointName.XL.end, name: BreakpointName.XL.name),
         ],
         child: MaterialApp.router(
           debugShowCheckedModeBanner: false,
           theme: controller.isDarkMode ? Styles.darkTheme : Styles.lightTheme,
-
-          // ✅ la page de démarrage sera contrôlée par MyRoute.router
           routerConfig: MyRoute.router,
+
+          // ✅ FIX snackbar crash
+          scaffoldMessengerKey: SafeSnack.messengerKey,
 
           locale: appLanguage.currentLocale,
           supportedLocales: appLanguage.locales.values.toList(),
@@ -107,12 +84,9 @@ class MyAppState extends State<MyApp> {
           ],
           builder: (context, child) {
             return MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                textScaler: const TextScaler.linear(1.0),
-              ),
+              data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.0)),
               child: Directionality(
-                textDirection:
-                    appLanguage.isRTL ? TextDirection.rtl : TextDirection.ltr,
+                textDirection: appLanguage.isRTL ? TextDirection.rtl : TextDirection.ltr,
                 child: child ?? const SizedBox.shrink(),
               ),
             );

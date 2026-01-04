@@ -1,6 +1,4 @@
 import 'package:dash_master_toolkit/application/users/users_imports.dart';
-import 'package:dash_master_toolkit/application/users/view/add_new_user_dialog.dart';
-
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 
 class UserListScreen extends StatefulWidget {
@@ -12,36 +10,45 @@ class UserListScreen extends StatefulWidget {
 
 class _UserListScreenState extends State<UserListScreen> {
   final UserListController controller = Get.put(UserListController());
-  ThemeController themeController = Get.put(ThemeController());
-  late UserDataSource _dataSource;
+  final ThemeController themeController = Get.put(ThemeController());
 
-  int _rowsPerPage = 10; // ✅ Track rows per page
-
+  late UserDataSource _dataSource; // ✅ initialisé dans initState
+  int _rowsPerPage = 10;
 
   @override
   void initState() {
     super.initState();
-    List<UserModel> users = generateUsers(50);
-    _dataSource = UserDataSource(users, themeController, context, resetPage);
+
+    // ✅ Toujours initialiser (même vide) => plus d’erreur late init
+    _dataSource = UserDataSource(
+      [],
+      themeController,
+      context,
+      resetPage,
+      onToggleActive: (u) => controller.toggleActive(u),
+    );
   }
 
   void resetPage() {
     setState(() {
-      _rowsPerPage = (_dataSource.filteredUsers.length < 10)
-          ? _dataSource.filteredUsers.length
-          : 10;
+      final len = _dataSource.filteredUsers.length;
+      _rowsPerPage = (len < 10) ? (len == 0 ? 1 : len) : 10;
     });
   }
 
+  void _applySearch(String query) {
+    setState(() {
+      _dataSource.filterData(query);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    AppLocalizations lang = AppLocalizations.of(context);
-    ThemeData theme = Theme.of(context);
-    // double screenWidth = MediaQuery.of(context).size.width;
-    var borderColor = themeController.isDarkMode ? colorGrey700 : colorGrey100;
+    final lang = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final borderColor = themeController.isDarkMode ? colorGrey700 : colorGrey100;
 
-    var titleTextStyle = theme.textTheme.bodyMedium
+    final titleTextStyle = theme.textTheme.bodyMedium
         ?.copyWith(fontWeight: FontWeight.w500, color: colorGrey500);
 
     return Scaffold(
@@ -50,36 +57,40 @@ class _UserListScreenState extends State<UserListScreen> {
         padding: EdgeInsets.all(
           rf.ResponsiveValue<double>(
             context,
-            conditionalValues: [
-              const rf.Condition.between(start: 0, end: 340, value: 10),
-              const rf.Condition.between(start: 341, end: 992, value: 16),
+            conditionalValues: const [
+              rf.Condition.between(start: 0, end: 340, value: 10),
+              rf.Condition.between(start: 341, end: 992, value: 16),
             ],
             defaultValue: 24,
           ).value,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: CommonSearchField(
-                    controller: controller.searchController,
-                    focusNode: controller.f1,
-                    isDarkMode: themeController.isDarkMode,
-                    onChanged: (query) {
-                      setState(() {
-                        _dataSource = UserDataSource(
-                          _dataSource.originalUsers,  // Ensure latest user list
-                          themeController,
-                          context,
-                          resetPage,
-                        );
-                        _dataSource.filterData(query);
-                      });
-                    },
-                    inputDecoration: inputDecoration(context,
+        child: Obx(() {
+          // ✅ Recréer datasource quand la liste change
+          _dataSource = UserDataSource(
+            controller.users.toList(),
+            themeController,
+            context,
+            resetPage,
+            onToggleActive: (u) => controller.toggleActive(u),
+          );
+
+          // ✅ Réappliquer filtre si موجود
+          final q = controller.searchController.text;
+          if (q.isNotEmpty) _dataSource.filterData(q);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: CommonSearchField(
+                      controller: controller.searchController,
+                      focusNode: controller.f1,
+                      isDarkMode: themeController.isDarkMode,
+                      onChanged: _applySearch,
+                      inputDecoration: inputDecoration(
+                        context,
                         borderColor: Colors.transparent,
                         prefixIcon: searchIcon,
                         fillColor: Colors.transparent,
@@ -87,54 +98,46 @@ class _UserListScreenState extends State<UserListScreen> {
                         hintText: lang.translate("search"),
                         borderRadius: 8,
                         topContentPadding: 0,
-                        bottomContentPadding: 0),
+                        bottomContentPadding: 0,
+                      ),
+                    ),
                   ),
-                ),
-                SizedBox(
-                  width: 10,
-                ),
-                IntrinsicWidth(
-                  // width: 180,
-                  // height: 45,
-                  child: SizedBox(
+                  const SizedBox(width: 10),
+                  SizedBox(
                     height: 45,
                     child: CommonButtonWithIcon(
-                      onPressed: () async {
-                        final result = await showDialog<UserModel?>(
-                          context: context,
-                          builder: (context) => const AddNewUserDialog(),
-                        );
-
-                        if (result != null) {
-                        }
-                      },
-                      text: lang.translate('addNewUser'),
-                      icon: Icons.add,
+                      onPressed: () => controller.loadUsers(),
+                      text: lang.translate('refresh') ?? 'Refresh',
+                      icon: Icons.refresh,
                       backgroundColor: colorPrimary100,
                     ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(
-              height: 15,
-            ),
-            _dataSource.filteredUsers.isEmpty
-                ? Center(
-                    child: Text(
-                      lang.translate('noDataFound'),
-                      style: titleTextStyle?.copyWith(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: colorPrimary100),
+                ],
+              ),
+              const SizedBox(height: 15),
+
+              if (controller.loading.value)
+                const Center(child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator(),
+                ))
+              else if (_dataSource.filteredUsers.isEmpty)
+                Center(
+                  child: Text(
+                    lang.translate('noDataFound'),
+                    style: titleTextStyle?.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: colorPrimary100,
                     ),
-                  )
-                : LayoutBuilder(builder: (context, constraints) {
-                    // bool isMobile = constraints.maxWidth < 600;
+                  ),
+                )
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) {
                     return SingleChildScrollView(
                       child: ConstrainedBox(
-                        constraints:
-                            BoxConstraints(minWidth: constraints.maxWidth),
+                        constraints: BoxConstraints(minWidth: constraints.maxWidth),
                         child: Theme(
                           data: Theme.of(context).copyWith(
                             cardTheme: CardThemeData(
@@ -143,9 +146,7 @@ class _UserListScreenState extends State<UserListScreen> {
                                 borderRadius: BorderRadius.circular(0),
                                 side: BorderSide(color: borderColor),
                               ),
-                              color: themeController.isDarkMode
-                                  ? colorGrey800
-                                  : colorWhite,
+                              color: themeController.isDarkMode ? colorGrey800 : colorWhite,
                             ),
                             dividerColor: Colors.transparent,
                             dividerTheme: DividerThemeData(
@@ -158,178 +159,133 @@ class _UserListScreenState extends State<UserListScreen> {
                           ),
                           child: PaginatedDataTable(
                             key: ValueKey(_dataSource),
-                            // border: TableBorder.all(color: Colors.blue),
                             dataRowMaxHeight: 65,
                             headingRowColor: WidgetStatePropertyAll(
-                                themeController.isDarkMode
-                                    ? colorDark
-                                    : colorGrey25),
-                            // columnSpacing: 20,
+                              themeController.isDarkMode ? colorDark : colorGrey25,
+                            ),
                             headingRowHeight: 50,
-                            // header: const Text("Employee Directory"),
                             rowsPerPage: _rowsPerPage,
-                            // ✅ Dynamically set rowsPerPage
-
                             columns: [
-                              DataColumn(
-                                label: Text(
-                                  lang.translate("name"),
-                                  style: titleTextStyle,
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  lang.translate("designation"),
-                                  style: titleTextStyle,
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  lang.translate("department"),
-                                  style: titleTextStyle,
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  lang.translate("email"),
-                                  style: titleTextStyle,
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  lang.translate("phoneNumber"),
-                                  style: titleTextStyle,
-                                ),
-                              ),
-                              DataColumn(
-                                label: Text(
-                                  lang.translate("status"),
-                                  style: titleTextStyle,
-                                ),
-                              ),
+                              DataColumn(label: Text(lang.translate("name"), style: titleTextStyle)),
+                              DataColumn(label: Text(lang.translate("designation"), style: titleTextStyle)),
+                              DataColumn(label: Text(lang.translate("department"), style: titleTextStyle)),
+                              DataColumn(label: Text(lang.translate("email"), style: titleTextStyle)),
+                              DataColumn(label: Text(lang.translate("phoneNumber"), style: titleTextStyle)),
+                              DataColumn(label: Text(lang.translate("status"), style: titleTextStyle)),
+                              DataColumn(label: Text(lang.translate("actions") ?? "Actions", style: titleTextStyle)),
                             ],
                             source: _dataSource,
                           ),
                         ),
                       ),
                     );
-                  }),
-            SizedBox(
-              height: 15,
-            ),
-          ],
-        ),
+                  },
+                ),
+
+              const SizedBox(height: 15),
+            ],
+          );
+        }),
       ),
     );
   }
 }
 
+typedef ToggleCallback = Future<void> Function(UserModel user);
+
 class UserDataSource extends DataTableSource {
   final ThemeController themeController;
   final BuildContext context;
+  final VoidCallback resetPage;
+  final ToggleCallback onToggleActive;
 
-  List<UserModel> originalUsers;
+  final List<UserModel> originalUsers;
   List<UserModel> filteredUsers;
 
-  final VoidCallback resetPage; // ✅ Callback to reset pagination
-
-
-  UserDataSource(this.originalUsers, this.themeController, this.context, this.resetPage)
-      : filteredUsers = List.from(originalUsers);
+  UserDataSource(
+    this.originalUsers,
+    this.themeController,
+    this.context,
+    this.resetPage, {
+    required this.onToggleActive,
+  }) : filteredUsers = List.from(originalUsers);
 
   void filterData(String query) {
     if (query.isEmpty) {
       filteredUsers = List.from(originalUsers);
     } else {
-      filteredUsers = originalUsers.where((user) {
-        return user.name.toLowerCase().contains(query.toLowerCase()) ||
-            user.email.toLowerCase().contains(query.toLowerCase()) ||
-            user.designation.toLowerCase().contains(query.toLowerCase()) ||
-            user.department.toLowerCase().contains(query.toLowerCase()) ||
-            user.phone.contains(query);
+      final q = query.toLowerCase();
+      filteredUsers = originalUsers.where((u) {
+        return u.name.toLowerCase().contains(q) ||
+            u.email.toLowerCase().contains(q) ||
+            u.designation.toLowerCase().contains(q) ||
+            u.department.toLowerCase().contains(q) ||
+            u.phone.contains(query);
       }).toList();
     }
-
     resetPage();
     notifyListeners();
-
   }
-
-
-
 
   @override
   DataRow getRow(int index) {
-    var cellDataTextStyle = TextStyle(
-        fontWeight: FontWeight.w500,
-        color: themeController.isDarkMode ? colorWhite : colorGrey900);
-
-    if (filteredUsers.isEmpty) {
-      return DataRow(cells: [
-        DataCell(
-            Center(
-              child: Text(
-                AppLocalizations.of(context).translate('noDataFound'),
-                style: cellDataTextStyle.copyWith(color: colorPrimary100),
-              ),
-            ),
-            placeholder: true),
-        DataCell.empty,
-        DataCell.empty,
-        DataCell.empty,
-        DataCell.empty,
-        DataCell.empty,
-      ]);
-    }
-
-    // if (index >= filteredUsers.length) return const DataRow(cells: []);
+    final cellStyle = TextStyle(
+      fontWeight: FontWeight.w500,
+      color: themeController.isDarkMode ? colorWhite : colorGrey900,
+    );
 
     final user = filteredUsers[index];
+
     return DataRow(
       color: WidgetStateProperty.all(
-          themeController.isDarkMode ? colorGrey800 : colorWhite),
+        themeController.isDarkMode ? colorGrey800 : colorWhite,
+      ),
       cells: [
-        DataCell(
-          Row(
-            children: [
-              CircleAvatar(backgroundImage: AssetImage(user.imageUrl),),
-              const SizedBox(width: 10),
-              Text(user.name,
-                  style:
-                      cellDataTextStyle.copyWith(fontWeight: FontWeight.w600)),
-            ],
+        DataCell(Row(
+          children: [
+            CircleAvatar(backgroundImage: AssetImage(user.imageUrl)),
+            const SizedBox(width: 10),
+            Text(user.name, style: cellStyle.copyWith(fontWeight: FontWeight.w600)),
+          ],
+        )),
+        DataCell(Text(user.designation, style: cellStyle)),
+        DataCell(Text(user.department, style: cellStyle)),
+        DataCell(Text(user.email, style: cellStyle)),
+        DataCell(Text(user.phone, style: cellStyle)),
+
+        // ✅ Status badge
+        DataCell(Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: user.isActive
+                ? Colors.green.withValues(alpha: 0.2)
+                : Colors.red.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(8),
           ),
-        ),
-        DataCell(
-          Text(user.designation, style: cellDataTextStyle),
-        ),
-        DataCell(
-          Text(user.department, style: cellDataTextStyle),
-        ),
-        DataCell(
-          Text(user.email, style: cellDataTextStyle),
-        ),
-        DataCell(
-          Text(user.phone, style: cellDataTextStyle),
-        ),
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: user.status == "Active"
-                  ? Colors.green.withValues(alpha: 0.2)
-                  : Colors.red.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              user.status,
-              style: cellDataTextStyle.copyWith(
-                color: user.status == "Active" ? Colors.green : Colors.red,
-                fontWeight: FontWeight.w600,
-              ),
+          child: Text(
+            user.status,
+            style: cellStyle.copyWith(
+              color: user.isActive ? Colors.green : Colors.red,
+              fontWeight: FontWeight.w600,
             ),
           ),
-        ),
+        )),
+
+        // ✅ Actions (activation)
+        DataCell(Row(
+          children: [
+            Switch(
+              value: user.isActive,
+              onChanged: (_) => onToggleActive(user),
+            ),
+            const SizedBox(width: 6),
+            IconButton(
+              tooltip: user.isActive ? "Disable" : "Enable",
+              icon: Icon(user.isActive ? Icons.lock_open : Icons.lock),
+              onPressed: () => onToggleActive(user),
+            ),
+          ],
+        )),
       ],
     );
   }
@@ -338,7 +294,7 @@ class UserDataSource extends DataTableSource {
   bool get isRowCountApproximate => false;
 
   @override
-  int get rowCount =>filteredUsers.length; // ✅ Keeps "No Data Found"
+  int get rowCount => filteredUsers.length;
 
   @override
   int get selectedRowCount => 0;
