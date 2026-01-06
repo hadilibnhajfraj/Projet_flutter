@@ -488,7 +488,9 @@ class SignInScreenState extends State<SignInScreen> {
                                                 height: 30,
                                               ),
                                               InkWell(
-                                                onTap: () async {},
+                                                onTap: () {
+    context.go(MyRoute.signUpScreen); 
+  },
                                                 child: Text.rich(
                                                   textAlign: TextAlign.center,
                                                   TextSpan(

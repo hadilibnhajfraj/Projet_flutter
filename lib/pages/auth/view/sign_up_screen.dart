@@ -50,7 +50,8 @@ class SignUpScreenState extends State<SignUpScreen> {
         // theme: theme,
         builder: (controller) {
           return Scaffold(
-            backgroundColor: themeController.isDarkMode ? colorDark : colorGrey50,
+            backgroundColor:
+                themeController.isDarkMode ? colorDark : colorGrey50,
             body: Padding(
               padding: EdgeInsets.only(
                 bottom: 20.0,
@@ -78,7 +79,9 @@ class SignUpScreenState extends State<SignUpScreen> {
                         ),
                         decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(15),
-                            color: themeController.isDarkMode ? colorGrey900 : Colors.white
+                            color: themeController.isDarkMode
+                                ? colorGrey900
+                                : Colors.white
                             // color: theme.colorScheme.primaryContainer,
                             ),
                         child: SafeArea(
@@ -171,7 +174,8 @@ class SignUpScreenState extends State<SignUpScreen> {
                                                       child: _buildSocialButton(
                                                           lang.translate(
                                                               "twitter"),
-                                                          themeController.isDarkMode
+                                                          themeController
+                                                                  .isDarkMode
                                                               ? twitterWhiteIcon
                                                               : twitterIcon,
                                                           theme),
@@ -190,7 +194,8 @@ class SignUpScreenState extends State<SignUpScreen> {
                                                   Flexible(
                                                     child: Container(
                                                       height: 1,
-                                                      color: themeController.isDarkMode
+                                                      color: themeController
+                                                              .isDarkMode
                                                           ? colorGrey700
                                                           : colorGrey100,
                                                     ),
@@ -204,7 +209,8 @@ class SignUpScreenState extends State<SignUpScreen> {
                                                         ?.copyWith(
                                                       fontWeight:
                                                           FontWeight.w500,
-                                                      color: themeController.isDarkMode
+                                                      color: themeController
+                                                              .isDarkMode
                                                           ? colorGrey500
                                                           : colorGrey400,
                                                     ),
@@ -213,7 +219,8 @@ class SignUpScreenState extends State<SignUpScreen> {
                                                   Flexible(
                                                     child: Container(
                                                       height: 1,
-                                                      color: themeController.isDarkMode
+                                                      color: themeController
+                                                              .isDarkMode
                                                           ? colorGrey700
                                                           : colorGrey100,
                                                     ),
@@ -228,7 +235,8 @@ class SignUpScreenState extends State<SignUpScreen> {
                                                   style: theme
                                                       .textTheme.bodyLarge
                                                       ?.copyWith(
-                                                    color: themeController.isDarkMode
+                                                    color: themeController
+                                                            .isDarkMode
                                                         ? colorWhite
                                                         : colorGrey900, // Set your desired text color
                                                   ),
@@ -285,7 +293,8 @@ class SignUpScreenState extends State<SignUpScreen> {
                                                   style: theme
                                                       .textTheme.bodyLarge
                                                       ?.copyWith(
-                                                    color: themeController.isDarkMode
+                                                    color: themeController
+                                                            .isDarkMode
                                                         ? colorWhite
                                                         : colorGrey900, // Set your desired text color
                                                   ),
@@ -301,7 +310,8 @@ class SignUpScreenState extends State<SignUpScreen> {
                                                             controller.f3);
                                                   },
                                                   validator: (value) =>
-                                                      validateEmail(value,context),
+                                                      validateEmail(
+                                                          value, context),
                                                   onChanged: (value) {
                                                     controller
                                                         .fullNameFieldFocused
@@ -340,7 +350,8 @@ class SignUpScreenState extends State<SignUpScreen> {
                                                   style: theme
                                                       .textTheme.bodyLarge
                                                       ?.copyWith(
-                                                    color: themeController.isDarkMode
+                                                    color: themeController
+                                                            .isDarkMode
                                                         ? colorWhite
                                                         : colorGrey900, // Set your desired text color
                                                   ),
@@ -380,7 +391,8 @@ class SignUpScreenState extends State<SignUpScreen> {
                                                           isMobile ? 15 : 20,
                                                       bottomContentPadding:
                                                           isMobile ? 15 : 20,
-                                                      context, onSuffixPressed: () {
+                                                      context,
+                                                      onSuffixPressed: () {
                                                     controller
                                                             .isShowPasswordIcon
                                                             .value =
@@ -479,43 +491,64 @@ class SignUpScreenState extends State<SignUpScreen> {
                                               SizedBox(
                                                 height: 30,
                                               ),
-                                             CommonButton(
-  height: 55,
-  onPressed: () async {
-    if (!controller.formKey.currentState!.validate()) return;
-    if (!controller.isTermAccepted.value) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Veuillez accepter les conditions.")),
-      );
-      return;
-    }
+                                              CommonButton(
+                                                height: 55,
+                                                onPressed: () async {
+                                                  if (!controller
+                                                      .formKey.currentState!
+                                                      .validate()) return;
+                                                  if (!controller
+                                                      .isTermAccepted.value) {
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      const SnackBar(
+                                                          content: Text(
+                                                              "Veuillez accepter les conditions.")),
+                                                    );
+                                                    return;
+                                                  }
 
-    try {
-      final authService = AuthService();
-      final email = controller.emailController.text.trim();
-      final password = controller.passwordController.text;
+                                                  try {
+                                                    final authService =
+                                                        AuthService();
+                                                    final email = controller
+                                                        .emailController.text
+                                                        .trim();
+                                                    final password = controller
+                                                        .passwordController
+                                                        .text;
 
-      await authService.signup(email: email, password: password);
+                                                    await authService.signup(
+                                                        email: email,
+                                                        password: password);
 
-      if (!mounted) return;
+                                                    if (!mounted) return;
 
-      // ✅ REDIRECTION CORRECTE APRÈS SIGNUP
-      context.go(MyRoute.signInScreen);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    }
-  },
-  text: lang.translate("signUp"),
-),
-
+                                                    // ✅ REDIRECTION CORRECTE APRÈS SIGNUP
+                                                    context.go(
+                                                        MyRoute.signInScreen);
+                                                  } catch (e) {
+                                                    if (!mounted) return;
+                                                    ScaffoldMessenger.of(
+                                                            context)
+                                                        .showSnackBar(
+                                                      SnackBar(
+                                                          content: Text(
+                                                              e.toString())),
+                                                    );
+                                                  }
+                                                },
+                                                text: lang.translate("signUp"),
+                                              ),
                                               SizedBox(
                                                 height: 30,
                                               ),
                                               InkWell(
-                                                onTap: () {},
+                                                onTap: () {
+                                                  context
+                                                      .go(MyRoute.signInScreen);
+                                                },
                                                 child: Text.rich(
                                                   textAlign: TextAlign.center,
                                                   TextSpan(
@@ -628,11 +661,15 @@ class SignUpScreenState extends State<SignUpScreen> {
                   offset: Offset(0, themeController.isDarkMode ? 1.52 : 2),
                   spreadRadius: 0)
             ],
-            border:
-                Border.all(color: themeController.isDarkMode ? colorGrey700 : colorGrey100),
+            border: Border.all(
+                color:
+                    themeController.isDarkMode ? colorGrey700 : colorGrey100),
             shape: BoxShape.circle),
         child: SvgPicture.asset(
-          userIcon,colorFilter: ColorFilter.mode(themeController.isDarkMode ? Colors.white : colorGrey500, BlendMode.srcIn),
+          userIcon,
+          colorFilter: ColorFilter.mode(
+              themeController.isDarkMode ? Colors.white : colorGrey500,
+              BlendMode.srcIn),
         ),
       ),
     );
