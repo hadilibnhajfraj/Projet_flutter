@@ -108,6 +108,7 @@ class ProjectFormController extends GetxController {
 
     localisationAdresse.text = (j['adresse'] ?? '').toString();
 
+    // ✅ date picker sync
     final dt = dateDemarrage.text.trim();
     if (dt.isNotEmpty) {
       try {
@@ -115,16 +116,37 @@ class ProjectFormController extends GetxController {
       } catch (_) {}
     }
 
-    final loc = j['location'];
-    if (loc is Map) {
-      final lat = loc['lat'];
-      final lng = loc['lng'];
-      if (lat != null && lng != null) {
-        latitude.value = (lat as num).toDouble();
-        longitude.value = (lng as num).toDouble();
-      }
+    // ✅ LOCATION (supporte plusieurs formats)
+    double? _toDouble(dynamic v) {
+      if (v == null) return null;
+      if (v is num) return v.toDouble();
+      if (v is String) return double.tryParse(v.replaceAll(',', '.'));
+      return null;
     }
 
+    double? lat;
+    double? lng;
+
+    // cas 1: location: { lat, lng }
+    final loc = j['location'];
+    if (loc is Map) {
+      lat = _toDouble(loc['lat'] ?? loc['latitude']);
+      lng = _toDouble(loc['lng'] ?? loc['lon'] ?? loc['longitude']);
+    }
+
+    // cas 2: champs plats latitude/longitude
+    lat ??= _toDouble(j['lat'] ?? j['latitude']);
+    lng ??= _toDouble(j['lng'] ?? j['lon'] ?? j['longitude']);
+
+    if (lat != null && lng != null) {
+      latitude.value = lat;
+      longitude.value = lng;
+    } else {
+      latitude.value = null;
+      longitude.value = null;
+    }
+
+    // ✅ comments
     final cmts = j['comments'];
     if (cmts is List) {
       locationComments.value =
@@ -233,7 +255,8 @@ class ProjectFormController extends GetxController {
 
   bool get hasLocation => latitude.value != null && longitude.value != null;
 
-  void setLocation({required double lat, required double lng, String? address}) {
+  void setLocation(
+      {required double lat, required double lng, String? address}) {
     latitude.value = lat;
     longitude.value = lng;
 
