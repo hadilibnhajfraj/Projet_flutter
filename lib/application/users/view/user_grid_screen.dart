@@ -1,5 +1,16 @@
-import 'package:dash_master_toolkit/application/users/users_imports.dart';
-
+import 'package:dash_master_toolkit/application/users/controller/user_grid_controller.dart';
+import 'package:dash_master_toolkit/application/users/model/project_grid_data.dart';
+import 'package:dash_master_toolkit/constant/app_color.dart';
+import 'package:dash_master_toolkit/constant/app_images.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/route/my_route.dart';
+import 'package:dash_master_toolkit/theme/theme_controller.dart';
+import 'package:dash_master_toolkit/widgets/common_app_widget.dart';
+import 'package:dash_master_toolkit/widgets/common_search_field.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:go_router/go_router.dart';
+import 'package:responsive_grid/responsive_grid.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 
 class UserGridScreen extends StatefulWidget {
@@ -11,13 +22,12 @@ class UserGridScreen extends StatefulWidget {
 
 class _UserGridScreenState extends State<UserGridScreen> {
   final UserGridController controller = Get.put(UserGridController());
-  ThemeController themeController = Get.put(ThemeController());
+  final ThemeController themeController = Get.put(ThemeController());
 
   @override
   Widget build(BuildContext context) {
-    AppLocalizations lang = AppLocalizations.of(context);
-    ThemeData theme = Theme.of(context);
-    // double screenWidth = MediaQuery.of(context).size.width;
+    final lang = AppLocalizations.of(context);
+    final theme = Theme.of(context);
 
     return Scaffold(
       backgroundColor: themeController.isDarkMode ? colorGrey900 : colorWhite,
@@ -36,160 +46,191 @@ class _UserGridScreenState extends State<UserGridScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding:  EdgeInsetsDirectional.only(start: 10.0,end: 10.0),
+              padding: const EdgeInsetsDirectional.only(start: 10, end: 10),
               child: CommonSearchField(
                 controller: controller.searchController,
                 focusNode: controller.f1,
                 isDarkMode: themeController.isDarkMode,
-                onChanged: (query) {
-                  controller.searchUser(query);
-                },
-                inputDecoration: inputDecoration(context,
-                    borderColor: Colors.transparent,
-                    prefixIcon: searchIcon,
-                    fillColor: Colors.transparent,
-                    prefixIconColor: colorGrey400,
-                    hintText: lang.translate("search"),
-                    borderRadius: 8,
-                    topContentPadding: 0,
-                    bottomContentPadding: 0),
+                onChanged: controller.searchProject,
+                inputDecoration: inputDecoration(
+                  context,
+                  borderColor: Colors.transparent,
+                  prefixIcon: searchIcon,
+                  fillColor: Colors.transparent,
+                  prefixIconColor: colorGrey400,
+                  hintText: lang.translate("search"),
+                  borderRadius: 8,
+                  topContentPadding: 0,
+                  bottomContentPadding: 0,
+                ),
               ),
             ),
-            SizedBox(
-              height: 15,
-            ),
-            Obx(
-              () {
-                return ResponsiveGridRow(
-                  // crossAxisAlignment: CrossAxisAlignment.center,
-                  children: List.generate(
-                    controller.filteredUsersList.length,
-                    (index) {
-                      return ResponsiveGridCol(
-                        lg: 4,
-                        xl: 4,
-                        md: 4,
-                        xs: 12,
-                        child: Padding(
-                          padding:  EdgeInsetsDirectional.only(top: 20.0,start: 10.0,end: 10.0),
-                          child: _buildUserCard(controller.filteredUsersList[index], theme),
-                        ),
-                      );
-                    },
-                  ),
+            const SizedBox(height: 15),
+
+            Obx(() {
+              if (controller.loading.value) {
+                return const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: CircularProgressIndicator()),
                 );
-              },
-            ),
-            SizedBox(
-              height: 15,
-            ),
+              }
+
+              if (controller.filtered.isEmpty) {
+                return const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text("Aucun projet trouvé."),
+                );
+              }
+
+              return ResponsiveGridRow(
+                children: List.generate(
+                  controller.filtered.length,
+                  (index) {
+                    return ResponsiveGridCol(
+                      lg: 4,
+                      xl: 4,
+                      md: 4,
+                      xs: 12,
+                      child: Padding(
+                        padding: const EdgeInsetsDirectional.only(
+                          top: 20,
+                          start: 10,
+                          end: 10,
+                        ),
+                        child: _buildProjectCard(
+                          context,
+                          controller.filtered[index],
+                          theme,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            }),
+
+            const SizedBox(height: 15),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildUserCard(UserGridData user, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: themeController.isDarkMode ? colorDark : colorWhite,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black12)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // Star Rating
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+  String _editUrl(String id) {
+    return Uri(
+      path: MyRoute.projectFormScreen, // "/forms/project"
+      queryParameters: {'id': id},
+    ).toString();
+  }
+
+  Widget _buildProjectCard(
+    BuildContext context,
+    ProjectGridData p,
+    ThemeData theme,
+  ) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => context.go(_editUrl(p.id)),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: themeController.isDarkMode ? colorDark : colorWhite,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black12)],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    p.nomProjet.isEmpty ? "Projet" : p.nomProjet,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    Text("${user.rating}",
-                        style: theme.textTheme.bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),),
-                    const SizedBox(width: 5),
-                    Icon(Icons.star, color: Colors.orange, size: 16),
-                  ],
-                ),
-              ),
-              Spacer(),
-              Icon(Icons.more_vert),
-            ],
-          ),
-          const SizedBox(height: 16),
-          CircleAvatar(
-            radius: 30,
-            backgroundImage: NetworkImage(user.imageUrl),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            user.name,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w600,
+                const Icon(Icons.more_vert),
+              ],
             ),
-          ),
-          Text(
-            user.email,
-            style: theme.textTheme.bodyMedium
-                ?.copyWith(color: colorGrey500, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              Column(
-                children: [
-                  Text("Category",
-                      style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorGrey500, fontWeight: FontWeight.w500),),
-                  Text(user.category,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: Colors.blue,fontWeight: FontWeight.w500),),
-                ],
-              ),
-              Column(
-                children: [
-                  Text("Amount",
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: colorGrey500,fontWeight: FontWeight.w500)),
-                  Text("\$${user.amount}",
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: Colors.green,fontWeight: FontWeight.w500)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              OutlinedButton.icon(
-                onPressed: () {},
-                icon: Icon(Icons.email, size: 16,color: themeController.isDarkMode ? colorWhite : colorGrey900,),
-                label: Text("Email",style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500,
-                ),),
-              ),
-              ElevatedButton.icon(
-                onPressed: () {},
-                icon: Icon(Icons.call, size: 16),
-                label: Text("Call",style: theme.textTheme.bodySmall
-                    ?.copyWith(fontWeight: FontWeight.w500,color: Colors.white),),
+            const SizedBox(height: 8),
+
+            Text(
+              p.entreprise.isEmpty ? "Entreprise: -" : "Entreprise: ${p.entreprise}",
+              style: theme.textTheme.bodyMedium?.copyWith(color: colorGrey500),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 12),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _miniInfo(theme, "Statut", p.statut.isEmpty ? "-" : p.statut),
+                _miniInfo(theme, "Démarrage", p.dateDemarrage.isEmpty ? "-" : p.dateDemarrage),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            Text(
+              p.adresse.isEmpty ? "Adresse: -" : "Adresse: ${p.adresse}",
+              style: theme.textTheme.bodySmall?.copyWith(color: colorGrey500),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+
+            const SizedBox(height: 14),
+
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: () => context.go(_editUrl(p.id)),
+                icon: const Icon(Icons.edit, size: 16),
+                label: Text(
+                  "Edit",
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colorPrimary100,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
               ),
-            ],
-          )
-        ],
+            )
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _miniInfo(ThemeData theme, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colorGrey500,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Colors.blue,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:go_router/go_router.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
+
+import 'package:dash_master_toolkit/route/my_route.dart';
+import 'package:dash_master_toolkit/theme/theme_controller.dart';
+import 'package:dash_master_toolkit/constant/app_color.dart';
+import 'package:dash_master_toolkit/widgets/common_app_widget.dart';
 
 import '../../pages/google_map/location_picker_screen.dart';
 import '../controller/project_form_controller.dart';
 import '../../providers/api_client.dart';
 
-// ⚠️ ces imports existent déjà chez toi selon ton template
+// template imports chez toi
 import 'package:dash_master_toolkit/forms/form_imports.dart';
 import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
 
@@ -23,6 +29,10 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
   final List<String> _statusOptions = const ["En cours", "Préparation", "Terminé"];
 
+  String? _projectId;
+  bool _loadedOnce = false;
+  bool _loading = false;
+
   @override
   void initState() {
     super.initState();
@@ -37,9 +47,38 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_loadedOnce) return;
+    _loadedOnce = true;
+
+    final id = GoRouterState.of(context).uri.queryParameters['id'];
+    if (id != null && id.isNotEmpty) {
+      _projectId = id;
+      _loadForEdit(id);
+    } else {
+      _projectId = null;
+      c.resetForm();
+    }
+  }
+
+  Future<void> _loadForEdit(String id) async {
+    setState(() => _loading = true);
+    try {
+      await c.loadProject(id);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur chargement projet : $e")),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     final screenWidth = MediaQuery.of(context).size.width;
 
     final isMobile = responsiveValue<bool>(
@@ -53,178 +92,156 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
     return Scaffold(
       backgroundColor: themeController.isDarkMode ? colorGrey900 : colorWhite,
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(
-          rf.ResponsiveValue<double>(
-            context,
-            conditionalValues: [
-              const rf.Condition.between(start: 0, end: 340, value: 10),
-              const rf.Condition.between(start: 341, end: 992, value: 16),
-            ],
-            defaultValue: 24,
-          ).value,
-        ),
-        child: Form(
-          key: c.formKey,
-          child: _commonBackgroundWidget(
-            screenWidth: screenWidth,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 20),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: EdgeInsets.all(
+                rf.ResponsiveValue<double>(
+                  context,
+                  conditionalValues: [
+                    const rf.Condition.between(start: 0, end: 340, value: 10),
+                    const rf.Condition.between(start: 341, end: 992, value: 16),
+                  ],
+                  defaultValue: 24,
+                ).value,
+              ),
+              child: Form(
+                key: c.formKey,
+                child: _commonBackgroundWidget(
+                  screenWidth: screenWidth,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 20),
 
-                _twoCols(
-                  isMobile: isMobile,
-                  left: _field(
-                    theme: theme,
-                    title: "Nom du Projet",
-                    controller: c.nomProjet,
-                    validator: (v) => c.requiredValidator(v, "Nom du Projet"),
+                      _twoCols(
+                        isMobile: isMobile,
+                        left: _field(
+                          theme: theme,
+                          title: "Nom du Projet",
+                          controller: c.nomProjet,
+                          validator: (v) => c.requiredValidator(v, "Nom du Projet"),
+                        ),
+                        right: GetBuilder<ProjectFormController>(
+                          id: 'dateDemarrage',
+                          builder: (_) => _dateField(
+                            theme: theme,
+                            title: "Date de Démarrage",
+                            controller: c.dateDemarrage,
+                            validator: (v) => c.requiredValidator(v, "Date de Démarrage"),
+                          ),
+                        ),
+                      ),
+
+                      _statusDropdown(theme),
+
+                      _field(
+                        theme: theme,
+                        title: "Type de projet et Adresse du Chantier",
+                        controller: c.typeAdresseChantier,
+                        validator: (v) => c.requiredValidator(v, "Type + Adresse"),
+                      ),
+
+                      _twoCols(
+                        isMobile: isMobile,
+                        left: _field(
+                          theme: theme,
+                          title: "Ingénieur Responsable",
+                          controller: c.ingenieurResponsable,
+                          validator: (v) => c.requiredValidator(v, "Ingénieur Responsable"),
+                        ),
+                        right: _field(
+                          theme: theme,
+                          title: "Téléphone Ingénieur",
+                          controller: c.telephoneIngenieur,
+                          validator: (v) => c.phoneValidator(v, "Téléphone Ingénieur"),
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ),
+
+                      _twoCols(
+                        isMobile: isMobile,
+                        left: _field(
+                          theme: theme,
+                          title: "Architecte",
+                          controller: c.architecte,
+                          validator: (v) => c.requiredValidator(v, "Architecte"),
+                        ),
+                        right: _field(
+                          theme: theme,
+                          title: "Téléphone Architecte",
+                          controller: c.telephoneArchitecte,
+                          validator: (v) => c.phoneValidator(v, "Téléphone Architecte"),
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ),
+
+                      _field(
+                        theme: theme,
+                        title: "Entreprise",
+                        controller: c.entreprise,
+                        validator: (v) => c.requiredValidator(v, "Entreprise"),
+                      ),
+                      _field(
+                        theme: theme,
+                        title: "Promoteur",
+                        controller: c.promoteur,
+                        validator: (v) => c.requiredValidator(v, "Promoteur"),
+                      ),
+                      _field(
+                        theme: theme,
+                        title: "Bureau d’étude",
+                        controller: c.bureauEtude,
+                        validator: (v) => c.requiredValidator(v, "Bureau d’étude"),
+                      ),
+                      _field(
+                        theme: theme,
+                        title: "Bureau de contrôle",
+                        controller: c.bureauControle,
+                        validator: (v) => c.requiredValidator(v, "Bureau de contrôle"),
+                      ),
+
+                      _twoCols(
+                        isMobile: isMobile,
+                        left: _field(
+                          theme: theme,
+                          title: "Entreprise Fluide (optionnel)",
+                          controller: c.entrepriseFluide,
+                          validator: null,
+                        ),
+                        right: _field(
+                          theme: theme,
+                          title: "Entreprise Électricité (optionnel)",
+                          controller: c.entrepriseElectricite,
+                          validator: null,
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+                      _locationBlock(theme),
+
+                      _field(
+                        theme: theme,
+                        title: "Commentaires (optionnel)",
+                        controller: c.commentaireCtrl,
+                        validator: null,
+                        keyboardType: TextInputType.multiline,
+                        maxLines: 4,
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      CommonButton(
+                        borderRadius: 8,
+                        width: 180,
+                        onPressed: _submit,
+                        text: _projectId == null ? "Créer" : "Mettre à jour",
+                      ),
+                    ],
                   ),
-                  right: GetBuilder<ProjectFormController>(
-                    id: 'dateDemarrage',
-                    builder: (_) => _dateField(
-                      theme: theme,
-                      title: "Date de Démarrage",
-                      controller: c.dateDemarrage,
-                      validator: (v) =>
-                          c.requiredValidator(v, "Date de Démarrage"),
-                    ),
-                  ),
                 ),
-
-                _statusDropdown(theme),
-
-                _field(
-                  theme: theme,
-                  title: "Type de projet et Adresse du Chantier",
-                  controller: c.typeAdresseChantier,
-                  validator: (v) => c.requiredValidator(v, "Type + Adresse"),
-                ),
-
-                _twoCols(
-                  isMobile: isMobile,
-                  left: _field(
-                    theme: theme,
-                    title: "Ingénieur Responsable",
-                    controller: c.ingenieurResponsable,
-                    validator: (v) =>
-                        c.requiredValidator(v, "Ingénieur Responsable"),
-                  ),
-                  right: _field(
-                    theme: theme,
-                    title: "Téléphone Ingénieur",
-                    controller: c.telephoneIngenieur,
-                    validator: (v) => c.phoneValidator(v, "Téléphone Ingénieur"),
-                    keyboardType: TextInputType.phone,
-                  ),
-                ),
-
-                _twoCols(
-                  isMobile: isMobile,
-                  left: _field(
-                    theme: theme,
-                    title: "Architecte",
-                    controller: c.architecte,
-                    validator: (v) => c.requiredValidator(v, "Architecte"),
-                  ),
-                  right: _field(
-                    theme: theme,
-                    title: "Téléphone Architecte",
-                    controller: c.telephoneArchitecte,
-                    validator: (v) =>
-                        c.phoneValidator(v, "Téléphone Architecte"),
-                    keyboardType: TextInputType.phone,
-                  ),
-                ),
-
-                _field(
-                  theme: theme,
-                  title: "Entreprise",
-                  controller: c.entreprise,
-                  validator: (v) => c.requiredValidator(v, "Entreprise"),
-                ),
-                _field(
-                  theme: theme,
-                  title: "Promoteur",
-                  controller: c.promoteur,
-                  validator: (v) => c.requiredValidator(v, "Promoteur"),
-                ),
-                _field(
-                  theme: theme,
-                  title: "Bureau d’étude",
-                  controller: c.bureauEtude,
-                  validator: (v) => c.requiredValidator(v, "Bureau d’étude"),
-                ),
-                _field(
-                  theme: theme,
-                  title: "Bureau de contrôle",
-                  controller: c.bureauControle,
-                  validator: (v) => c.requiredValidator(v, "Bureau de contrôle"),
-                ),
-
-                _twoCols(
-                  isMobile: isMobile,
-                  left: _field(
-                    theme: theme,
-                    title: "Entreprise Fluide (optionnel)",
-                    controller: c.entrepriseFluide,
-                    validator: null,
-                  ),
-                  right: _field(
-                    theme: theme,
-                    title: "Entreprise Électricité (optionnel)",
-                    controller: c.entrepriseElectricite,
-                    validator: null,
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-                _locationBlock(theme),
-
-                // ✅ COMMENTAIRES MANUEL
-                _field(
-                  theme: theme,
-                  title: "Commentaires (optionnel)",
-                  controller: c.commentaireCtrl,
-                  validator: null,
-                  keyboardType: TextInputType.multiline,
-                  maxLines: 4,
-                ),
-
-                const SizedBox(height: 18),
-
-                CommonButton(
-                  borderRadius: 8,
-                  width: 160,
-                  onPressed: _submit,
-                  text: "Enregistrer",
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ✅ TITRE avec étoile automatique
-  Widget _requiredTitle(ThemeData theme, String title, {required bool required}) {
-    return RichText(
-      text: TextSpan(
-        style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
-        children: [
-          TextSpan(text: title),
-          if (required)
-            TextSpan(
-              text: " *",
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: Colors.red,
               ),
             ),
-        ],
-      ),
     );
   }
 
@@ -250,8 +267,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
               await c.pickDateDemarrage(context);
               setState(() {});
             },
-            decoration: inputDecoration(context, hintText: "Sélectionner une date")
-                .copyWith(
+            decoration: inputDecoration(context, hintText: "Sélectionner une date").copyWith(
               suffixIcon: IconButton(
                 icon: const Icon(Icons.calendar_month_outlined),
                 onPressed: () async {
@@ -281,9 +297,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
           DropdownButtonFormField<String>(
             value: currentValue,
             decoration: inputDecoration(context, hintText: "Choisir un statut"),
-            items: _statusOptions
-                .map((s) => DropdownMenuItem<String>(value: s, child: Text(s)))
-                .toList(),
+            items: _statusOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
             onChanged: (val) {
               c.statut.text = val ?? "";
               setState(() {});
@@ -322,6 +336,25 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     );
   }
 
+  Widget _requiredTitle(ThemeData theme, String title, {required bool required}) {
+    return RichText(
+      text: TextSpan(
+        style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+        children: [
+          TextSpan(text: title),
+          if (required)
+            TextSpan(
+              text: " *",
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: Colors.red,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   // ----------------- LOCATION -----------------
   Widget _locationBlock(ThemeData theme) {
     return Column(
@@ -335,8 +368,10 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
               child: TextFormField(
                 controller: c.localisationAdresse,
                 validator: (v) => c.requiredValidator(v, "Localisation"),
-                decoration: inputDecoration(context,
-                    hintText: "Saisir une adresse ou choisir sur la carte"),
+                decoration: inputDecoration(
+                  context,
+                  hintText: "Saisir une adresse ou choisir sur la carte",
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -394,7 +429,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     }
   }
 
-  // ✅ SUBMIT avec DIO (token auto)
+  // ✅ SUBMIT : POST (create) / PUT (edit) + redirect
   Future<void> _submit() async {
     final ok = c.formKey.currentState?.validate() ?? false;
     if (!ok) return;
@@ -440,21 +475,23 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     };
 
     try {
-      final res = await ApiClient.instance.dio.post('/projects', data: payload);
-
-      if (res.statusCode == 201 || res.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Projet enregistré ✅")),
-        );
-
-        // optionnel: clear form
-        // c.formKey.currentState?.reset();
+      if (_projectId == null) {
+        await ApiClient.instance.dio.post('/projects', data: payload);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur API (${res.statusCode}): ${res.data}")),
-        );
+        await ApiClient.instance.dio.put('/projects/$_projectId', data: payload);
       }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_projectId == null ? "Projet créé ✅" : "Projet mis à jour ✅"),
+        ),
+      );
+
+      context.go(MyRoute.userGridScreen);
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Erreur réseau : $e")),
       );

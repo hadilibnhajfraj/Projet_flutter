@@ -1,35 +1,34 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../providers/api_client.dart';
+import '../application/users/model/project_grid_data.dart';
 
 class ProjectApi {
-  final String baseUrl;
-  final Future<String?> Function() getToken;
+  ProjectApi._();
+  static final ProjectApi instance = ProjectApi._();
 
-  ProjectApi({
-    required this.baseUrl,
-    required this.getToken,
-  });
+  Future<List<ProjectGridData>> getProjects() async {
+    final res = await ApiClient.instance.dio.get('/projects');
+    final data = res.data;
 
-  Future<Map<String, dynamic>> create(Map<String, dynamic> payload) async {
-    final token = await getToken();
-
-    final uri = Uri.parse("$baseUrl/projects");
-    final res = await http.post(
-      uri,
-      headers: {
-        "Content-Type": "application/json",
-        if (token != null) "Authorization": "Bearer $token",
-      },
-      body: jsonEncode(payload),
-    );
-
-    final body = res.body.isNotEmpty ? jsonDecode(res.body) : null;
-
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      return (body as Map).cast<String, dynamic>();
+    if (data is List) {
+      return data
+          .map((e) => ProjectGridData.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
     }
+    return [];
+  }
 
-    final msg = (body is Map && body["message"] != null) ? body["message"].toString() : "Erreur API";
-    throw Exception("$msg (code ${res.statusCode})");
+  Future<Map<String, dynamic>> getProjectById(String id) async {
+    final res = await ApiClient.instance.dio.get('/projects/$id');
+    return Map<String, dynamic>.from(res.data);
+  }
+
+  Future<Map<String, dynamic>> createProject(Map<String, dynamic> payload) async {
+    final res = await ApiClient.instance.dio.post('/projects', data: payload);
+    return Map<String, dynamic>.from(res.data);
+  }
+
+  Future<Map<String, dynamic>> updateProject(String id, Map<String, dynamic> payload) async {
+    final res = await ApiClient.instance.dio.put('/projects/$id', data: payload);
+    return Map<String, dynamic>.from(res.data);
   }
 }

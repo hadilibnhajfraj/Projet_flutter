@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+
 import '../../services/address_service.dart';
+import '../../providers/api_client.dart';
 
 class ProjectFormController extends GetxController {
   final formKey = GlobalKey<FormState>();
@@ -27,21 +29,15 @@ class ProjectFormController extends GetxController {
   final entrepriseFluide = TextEditingController();
   final entrepriseElectricite = TextEditingController();
 
-  // Adresse editable
   final localisationAdresse = TextEditingController();
-
-  // ✅ Commentaires (manuel textarea)
   final commentaireCtrl = TextEditingController();
 
-  // lat/lng
   final RxnDouble latitude = RxnDouble();
   final RxnDouble longitude = RxnDouble();
 
-  // ✅ commentaires depuis map + autres
   final RxList<Map<String, dynamic>> locationComments =
       <Map<String, dynamic>>[].obs;
 
-  // ✅ Date sélectionnée
   final Rxn<DateTime> selectedDateDemarrage = Rxn<DateTime>();
 
   Timer? _debounce;
@@ -51,18 +47,97 @@ class ProjectFormController extends GetxController {
   void onInit() {
     super.onInit();
     localisationAdresse.addListener(_onAddressChanged);
+  }
 
-    // init selectedDateDemarrage si l'input a déjà une valeur
-    final txt = dateDemarrage.text.trim();
-    if (txt.isNotEmpty) {
-      try {
-        selectedDateDemarrage.value = DateFormat('yyyy-MM-dd').parseStrict(txt);
-      } catch (_) {}
-    }
+  // ✅ reset (mode création)
+  void resetForm() {
+    nomProjet.clear();
+    dateDemarrage.clear();
+    statut.clear();
+    typeAdresseChantier.clear();
+
+    ingenieurResponsable.clear();
+    telephoneIngenieur.clear();
+    architecte.clear();
+    telephoneArchitecte.clear();
+
+    entreprise.clear();
+    promoteur.clear();
+    bureauEtude.clear();
+    bureauControle.clear();
+
+    entrepriseFluide.clear();
+    entrepriseElectricite.clear();
+
+    localisationAdresse.clear();
+    commentaireCtrl.clear();
+
+    latitude.value = null;
+    longitude.value = null;
+    locationComments.clear();
+    selectedDateDemarrage.value = null;
+
+    update();
   }
 
   // =========================
-  // ✅ DATE PICKER (clic date = sélection directe)
+  // ✅ LOAD PROJECT (edit)
+  // =========================
+  Future<void> loadProject(String id) async {
+    final res = await ApiClient.instance.dio.get('/projects/$id');
+    final j = Map<String, dynamic>.from(res.data);
+
+    nomProjet.text = (j['nomProjet'] ?? '').toString();
+    dateDemarrage.text = (j['dateDemarrage'] ?? '').toString();
+    statut.text = (j['statut'] ?? '').toString();
+    typeAdresseChantier.text = (j['typeAdresseChantier'] ?? '').toString();
+
+    ingenieurResponsable.text = (j['ingenieurResponsable'] ?? '').toString();
+    telephoneIngenieur.text = (j['telephoneIngenieur'] ?? '').toString();
+
+    architecte.text = (j['architecte'] ?? '').toString();
+    telephoneArchitecte.text = (j['telephoneArchitecte'] ?? '').toString();
+
+    entreprise.text = (j['entreprise'] ?? '').toString();
+    promoteur.text = (j['promoteur'] ?? '').toString();
+    bureauEtude.text = (j['bureauEtude'] ?? '').toString();
+    bureauControle.text = (j['bureauControle'] ?? '').toString();
+
+    entrepriseFluide.text = (j['entrepriseFluide'] ?? '').toString();
+    entrepriseElectricite.text = (j['entrepriseElectricite'] ?? '').toString();
+
+    localisationAdresse.text = (j['adresse'] ?? '').toString();
+
+    final dt = dateDemarrage.text.trim();
+    if (dt.isNotEmpty) {
+      try {
+        selectedDateDemarrage.value = DateFormat('yyyy-MM-dd').parseStrict(dt);
+      } catch (_) {}
+    }
+
+    final loc = j['location'];
+    if (loc is Map) {
+      final lat = loc['lat'];
+      final lng = loc['lng'];
+      if (lat != null && lng != null) {
+        latitude.value = (lat as num).toDouble();
+        longitude.value = (lng as num).toDouble();
+      }
+    }
+
+    final cmts = j['comments'];
+    if (cmts is List) {
+      locationComments.value =
+          cmts.map((e) => Map<String, dynamic>.from(e)).toList();
+    } else {
+      locationComments.clear();
+    }
+
+    update();
+  }
+
+  // =========================
+  // ✅ DATE PICKER
   // =========================
   Future<void> pickDateDemarrage(BuildContext context) async {
     FocusScope.of(context).unfocus();
@@ -91,9 +166,7 @@ class ProjectFormController extends GetxController {
               initialDate: initialDate,
               firstDate: DateTime(2000),
               lastDate: DateTime(2100),
-              onDateChanged: (d) {
-                Navigator.of(ctx).pop(d); // ✅ choix direct
-              },
+              onDateChanged: (d) => Navigator.of(ctx).pop(d),
             ),
           ),
         );
@@ -104,15 +177,10 @@ class ProjectFormController extends GetxController {
     setDateDemarrage(picked);
   }
 
-  // =========================
-  // ✅ SET DATE + FORCER MAJ INPUT
-  // =========================
   void setDateDemarrage(DateTime d) {
     selectedDateDemarrage.value = d;
-
     final formatted = DateFormat('yyyy-MM-dd').format(d);
 
-    // ✅ force l'affichage dans l'input
     dateDemarrage.value = dateDemarrage.value.copyWith(
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
@@ -140,10 +208,8 @@ class ProjectFormController extends GetxController {
     try {
       final results = await AddressService.search(query);
       if (results.isEmpty) return;
-
       final best = results.first;
       _lastAuto = best.displayName;
-
       setLocation(lat: best.lat, lng: best.lon, address: best.displayName);
     } catch (_) {}
   }

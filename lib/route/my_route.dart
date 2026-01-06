@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:dash_master_toolkit/app_shell_route//app_shell.dart';
+import 'package:dash_master_toolkit/app_shell_route/app_shell.dart';
+
 import 'package:dash_master_toolkit/application/calendar/view/calendar_view_screen.dart';
 import 'package:dash_master_toolkit/application/chat/view/chat_screen.dart';
 import 'package:dash_master_toolkit/application/kanban/view/kanban_view_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/user_grid_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/user_list_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/user_profile_screen.dart';
+
 import 'package:dash_master_toolkit/dashboard/academic/view/academic_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/ecommerce/view/ecommerce_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/finance/view/finance_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/sales/view/sales_dashboard_screen.dart';
+
 import 'package:dash_master_toolkit/forms/view/basic_form_fields_screen.dart';
 import 'package:dash_master_toolkit/forms/view/custom_form_screen.dart';
 import 'package:dash_master_toolkit/forms/view/validation_form_screen.dart';
 import 'package:dash_master_toolkit/forms/view/project_form_screen.dart';
+
 import 'package:dash_master_toolkit/others/chart/view/chart_screen.dart';
 import 'package:dash_master_toolkit/others/components/view/avtar_screen.dart';
 import 'package:dash_master_toolkit/others/components/view/buttons_screen.dart';
@@ -23,19 +27,23 @@ import 'package:dash_master_toolkit/others/components/view/dialogs_screen.dart';
 import 'package:dash_master_toolkit/others/components/view/ratting_screen.dart';
 import 'package:dash_master_toolkit/others/components/view/tabs_screen.dart';
 import 'package:dash_master_toolkit/others/components/view/toast_screen.dart';
+
 import 'package:dash_master_toolkit/pages/auth/view/forgot_password_screen.dart';
 import 'package:dash_master_toolkit/pages/auth/view/reset_password_screen.dart';
 import 'package:dash_master_toolkit/pages/auth/view/sign_in_screen.dart';
 import 'package:dash_master_toolkit/pages/auth/view/sign_up_screen.dart';
+
 import 'package:dash_master_toolkit/pages/faq/view/faq_screen.dart';
 import 'package:dash_master_toolkit/pages/google_map/google_map_screen.dart';
 import 'package:dash_master_toolkit/pages/privacy_term_condition/view/privacy_screen.dart';
 import 'package:dash_master_toolkit/pages/privacy_term_condition/view/terms_condition_screen.dart';
 import 'package:dash_master_toolkit/pages/projects/view/projects_screen.dart';
+
 import 'package:dash_master_toolkit/tables/view/basic_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/drag_and_drop_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/hover_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/stripped_row_table_screen.dart';
+
 import 'package:go_router/go_router.dart';
 
 import '../providers/auth_service.dart';
@@ -76,6 +84,7 @@ class MyRoute {
   static const customFormScreen = '/forms/custom_form';
   static const validationFormScreen = '/forms/validation_form';
 
+  // ✅ IMPORTANT : c’est bien /forms/project (pas null)
   static const projectFormScreen = '/forms/project';
 
   static const buttonsScreen = '/components/buttons';
@@ -102,12 +111,9 @@ class MyRoute {
   static final rootNavigatorKey = GlobalKey<NavigatorState>();
 
   static final GoRouter router = GoRouter(
-    // ✅ IMPORTANT: démarre toujours sur Sign In
     initialLocation: signInScreen,
-
     refreshListenable: AuthService(),
 
-    // ✅ redirect corrigé
     redirect: (context, state) {
       final loggedIn = AuthService().isLoggedIn;
 
@@ -116,21 +122,16 @@ class MyRoute {
           state.matchedLocation == forgotPasswordScreen ||
           state.matchedLocation == resetPasswordScreen;
 
-      // ✅ si quelqu’un arrive sur "/" => on force Sign In
       if (state.matchedLocation == initialPath) {
         return signInScreen;
       }
 
-      // ✅ protège les routes privées: si pas connecté -> Sign In
       if (!loggedIn && !isAuthRoute) return signInScreen;
 
-      // ✅ IMPORTANT: même si loggedIn == true, on reste sur Sign In au lancement
-      // donc on ne redirige PAS automatiquement signin -> dashboard
       return null;
     },
 
     routes: [
-      // "/" -> Sign In (sécurité)
       GoRoute(
         path: initialPath,
         redirect: (context, state) {
@@ -173,7 +174,7 @@ class MyRoute {
           // Dashboard
           GoRoute(
             path: dashboard,
-            redirect: (context, state) async {
+            redirect: (context, state) {
               if (state.fullPath == dashboard) return dashboardAcademicAdmin;
               return null;
             },
@@ -221,7 +222,7 @@ class MyRoute {
           // Users
           GoRoute(
             path: '/users',
-            redirect: (context, state) async {
+            redirect: (context, state) {
               if (state.fullPath == '/users') return userListScreen;
               return null;
             },
@@ -274,7 +275,7 @@ class MyRoute {
           // Tables
           GoRoute(
             path: '/tables',
-            redirect: (context, state) async {
+            redirect: (context, state) {
               if (state.fullPath == '/tables') return basicTablesScreen;
               return null;
             },
@@ -305,7 +306,7 @@ class MyRoute {
           // Forms
           GoRoute(
             path: '/forms',
-            redirect: (context, state) async {
+            redirect: (context, state) {
               if (state.fullPath == '/forms') return formsBasicFieldsScreen;
               return null;
             },
@@ -325,10 +326,11 @@ class MyRoute {
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: ValidationFormScreen()),
               ),
+              // ✅ /forms/project?id=...
               GoRoute(
                 path: 'project',
                 pageBuilder: (context, state) =>
-                    NoTransitionPage(child: ProjectFormScreen()),
+                    const NoTransitionPage(child: ProjectFormScreen()),
               ),
             ],
           ),
@@ -341,7 +343,7 @@ class MyRoute {
           ),
           GoRoute(
             path: '/components',
-            redirect: (context, state) async {
+            redirect: (context, state) {
               if (state.fullPath == '/components') return buttonsScreen;
               return null;
             },
