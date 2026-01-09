@@ -31,4 +31,7 @@ class ProjectApi {
     final res = await ApiClient.instance.dio.put('/projects/$id', data: payload);
     return Map<String, dynamic>.from(res.data);
   }
+   Future<void> deleteProject(String id) async {
+    await ApiClient.instance.dio.delete('/projects/$id');
+  }
 }

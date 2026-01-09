@@ -1,3 +1,5 @@
+import 'package:dash_master_toolkit/application/users/controller/user_grid_controller.dart';
+import 'package:dash_master_toolkit/application/users/model/project_grid_data.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
@@ -39,11 +41,20 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
     c = Get.isRegistered<ProjectFormController>()
         ? Get.find<ProjectFormController>()
-        : Get.put(ProjectFormController(), permanent: true);
+        : Get.put(ProjectFormController()); // ✅ pas permanent
 
     themeController = Get.isRegistered<ThemeController>()
         ? Get.find<ThemeController>()
         : Get.put(ThemeController());
+  }
+
+  @override
+  void dispose() {
+    // ✅ on supprime seulement le form controller (pas le ThemeController)
+    if (Get.isRegistered<ProjectFormController>()) {
+      Get.delete<ProjectFormController>();
+    }
+    super.dispose();
   }
 
   @override
@@ -98,9 +109,9 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
               padding: EdgeInsets.all(
                 rf.ResponsiveValue<double>(
                   context,
-                  conditionalValues: [
-                    const rf.Condition.between(start: 0, end: 340, value: 10),
-                    const rf.Condition.between(start: 341, end: 992, value: 16),
+                  conditionalValues: const [
+                    rf.Condition.between(start: 0, end: 340, value: 10),
+                    rf.Condition.between(start: 341, end: 992, value: 16),
                   ],
                   defaultValue: 24,
                 ).value,
@@ -265,14 +276,14 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
             readOnly: true,
             onTap: () async {
               await c.pickDateDemarrage(context);
-              setState(() {});
+              if (mounted) setState(() {});
             },
             decoration: inputDecoration(context, hintText: "Sélectionner une date").copyWith(
               suffixIcon: IconButton(
                 icon: const Icon(Icons.calendar_month_outlined),
                 onPressed: () async {
                   await c.pickDateDemarrage(context);
-                  setState(() {});
+                  if (mounted) setState(() {});
                 },
               ),
             ),
@@ -300,7 +311,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
             items: _statusOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
             onChanged: (val) {
               c.statut.text = val ?? "";
-              setState(() {});
+              if (mounted) setState(() {});
             },
           ),
         ],
@@ -429,7 +440,6 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     }
   }
 
-  // ✅ SUBMIT : POST (create) / PUT (edit) + redirect
   Future<void> _submit() async {
     final ok = c.formKey.currentState?.validate() ?? false;
     if (!ok) return;
@@ -461,32 +471,38 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       "promoteur": c.promoteur.text.trim(),
       "bureauEtude": c.bureauEtude.text.trim(),
       "bureauControle": c.bureauControle.text.trim(),
-      "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty
-          ? null
-          : c.entrepriseFluide.text.trim(),
-      "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty
-          ? null
-          : c.entrepriseElectricite.text.trim(),
-      "adresse": c.localisationAdresse.text.trim().isEmpty
-          ? null
-          : c.localisationAdresse.text.trim(),
+      "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty ? null : c.entrepriseFluide.text.trim(),
+      "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty ? null : c.entrepriseElectricite.text.trim(),
+      "adresse": c.localisationAdresse.text.trim().isEmpty ? null : c.localisationAdresse.text.trim(),
       "location": {"lat": c.latitude.value, "lng": c.longitude.value},
       "comments": allComments,
     };
 
     try {
+      dynamic data;
+
       if (_projectId == null) {
-        await ApiClient.instance.dio.post('/projects', data: payload);
+        final res = await ApiClient.instance.dio.post('/projects', data: payload);
+        data = res.data;
       } else {
-        await ApiClient.instance.dio.put('/projects/$_projectId', data: payload);
+        final res = await ApiClient.instance.dio.put('/projects/$_projectId', data: payload);
+        data = res.data;
       }
+
+      // ✅ update instantané dans la liste (FIX: controller garanti)
+      final map = Map<String, dynamic>.from(data as Map);
+      final project = ProjectGridData.fromJson(map);
+
+      final gridCtrl = Get.isRegistered<UserGridController>()
+          ? Get.find<UserGridController>()
+          : Get.put(UserGridController(), permanent: true);
+
+      gridCtrl.upsertProject(project);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_projectId == null ? "Projet créé ✅" : "Projet mis à jour ✅"),
-        ),
+        SnackBar(content: Text(_projectId == null ? "Projet créé ✅" : "Projet mis à jour ✅")),
       );
 
       context.go(MyRoute.userGridScreen);
@@ -499,11 +515,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   }
 
   // ----------------- UI HELPERS -----------------
-  Widget _twoCols({
-    required bool isMobile,
-    required Widget left,
-    required Widget right,
-  }) {
+  Widget _twoCols({required bool isMobile, required Widget left, required Widget right}) {
     if (isMobile) return Column(children: [left, right]);
     return Row(
       children: [

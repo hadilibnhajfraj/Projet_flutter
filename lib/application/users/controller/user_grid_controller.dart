@@ -4,6 +4,8 @@ import '../../../services/project_api.dart';
 import '../model/project_grid_data.dart';
 
 class UserGridController extends GetxController {
+  static UserGridController get to => Get.find<UserGridController>();
+
   TextEditingController searchController = TextEditingController();
   FocusNode f1 = FocusNode();
 
@@ -44,6 +46,28 @@ class UserGridController extends GetxController {
           p.statut.toLowerCase().contains(q) ||
           p.adresse.toLowerCase().contains(q);
     }).toList();
+  }
+
+  // ✅ Update instantané (sans re-fetch)
+  void upsertProject(ProjectGridData p) {
+    final idx = projects.indexWhere((x) => x.id == p.id);
+    if (idx == -1) {
+      projects.insert(0, p);
+    } else {
+      projects[idx] = p;
+    }
+    filtered.value = List.from(projects);
+  }
+
+  Future<void> deleteProject(String id) async {
+    loading.value = true;
+    try {
+      await ProjectApi.instance.deleteProject(id);
+      projects.removeWhere((p) => p.id == id);
+      filtered.removeWhere((p) => p.id == id);
+    } finally {
+      loading.value = false;
+    }
   }
 
   @override

@@ -35,9 +35,7 @@ class ProjectFormController extends GetxController {
   final RxnDouble latitude = RxnDouble();
   final RxnDouble longitude = RxnDouble();
 
-  final RxList<Map<String, dynamic>> locationComments =
-      <Map<String, dynamic>>[].obs;
-
+  final RxList<Map<String, dynamic>> locationComments = <Map<String, dynamic>>[].obs;
   final Rxn<DateTime> selectedDateDemarrage = Rxn<DateTime>();
 
   Timer? _debounce;
@@ -127,14 +125,12 @@ class ProjectFormController extends GetxController {
     double? lat;
     double? lng;
 
-    // cas 1: location: { lat, lng }
     final loc = j['location'];
     if (loc is Map) {
       lat = _toDouble(loc['lat'] ?? loc['latitude']);
       lng = _toDouble(loc['lng'] ?? loc['lon'] ?? loc['longitude']);
     }
 
-    // cas 2: champs plats latitude/longitude
     lat ??= _toDouble(j['lat'] ?? j['latitude']);
     lng ??= _toDouble(j['lng'] ?? j['lon'] ?? j['longitude']);
 
@@ -149,8 +145,7 @@ class ProjectFormController extends GetxController {
     // ✅ comments
     final cmts = j['comments'];
     if (cmts is List) {
-      locationComments.value =
-          cmts.map((e) => Map<String, dynamic>.from(e)).toList();
+      locationComments.value = cmts.map((e) => Map<String, dynamic>.from(e)).toList();
     } else {
       locationComments.clear();
     }
@@ -255,8 +250,7 @@ class ProjectFormController extends GetxController {
 
   bool get hasLocation => latitude.value != null && longitude.value != null;
 
-  void setLocation(
-      {required double lat, required double lng, String? address}) {
+  void setLocation({required double lat, required double lng, String? address}) {
     latitude.value = lat;
     longitude.value = lng;
 
@@ -287,7 +281,7 @@ class ProjectFormController extends GetxController {
     promoteur.dispose();
     bureauEtude.dispose();
     bureauControle.dispose();
-    entrepriseFluide.dispose();
+    entrepriseFluide.dispose(); 
     entrepriseElectricite.dispose();
     localisationAdresse.dispose();
     commentaireCtrl.dispose();
