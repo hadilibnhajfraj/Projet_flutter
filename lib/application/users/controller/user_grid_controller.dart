@@ -56,15 +56,25 @@ class UserGridController extends GetxController {
     } else {
       projects[idx] = p;
     }
-    filtered.value = List.from(projects);
+
+    // ✅ garder le filtre actuel (si l'utilisateur a tapé dans search)
+    final q = searchController.text.trim();
+    if (q.isEmpty) {
+      filtered.value = List.from(projects);
+    } else {
+      searchProject(q);
+    }
   }
 
   Future<void> deleteProject(String id) async {
     loading.value = true;
     try {
       await ProjectApi.instance.deleteProject(id);
+
       projects.removeWhere((p) => p.id == id);
       filtered.removeWhere((p) => p.id == id);
+    } catch (e) {
+      rethrow; // ✅ important pour afficher l’erreur dans UI
     } finally {
       loading.value = false;
     }

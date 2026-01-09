@@ -21,8 +21,22 @@ class UserGridScreen extends StatefulWidget {
 }
 
 class _UserGridScreenState extends State<UserGridScreen> {
-  final UserGridController controller = Get.put(UserGridController());
-  final ThemeController themeController = Get.put(ThemeController());
+  // ✅ IMPORTANT: utiliser Get.isRegistered pour éviter double injection
+  late final UserGridController controller;
+  late final ThemeController themeController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    controller = Get.isRegistered<UserGridController>()
+        ? Get.find<UserGridController>()
+        : Get.put(UserGridController(), permanent: true);
+
+    themeController = Get.isRegistered<ThemeController>()
+        ? Get.find<ThemeController>()
+        : Get.put(ThemeController(), permanent: true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,9 +49,9 @@ class _UserGridScreenState extends State<UserGridScreen> {
         padding: EdgeInsets.all(
           rf.ResponsiveValue<double>(
             context,
-            conditionalValues: [
-              const rf.Condition.between(start: 0, end: 340, value: 10),
-              const rf.Condition.between(start: 341, end: 992, value: 10),
+            conditionalValues: const [
+              rf.Condition.between(start: 0, end: 340, value: 10),
+              rf.Condition.between(start: 341, end: 992, value: 10),
             ],
             defaultValue: 10,
           ).value,
@@ -67,6 +81,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
             ),
             const SizedBox(height: 15),
 
+            // ✅ CONTENT
             Obx(() {
               if (controller.loading.value) {
                 return const Padding(
@@ -141,6 +156,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ✅ HEADER (title + menu)
             Row(
               children: [
                 Expanded(
@@ -153,7 +169,40 @@ class _UserGridScreenState extends State<UserGridScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Icon(Icons.more_vert),
+
+                // ✅ MENU ACTIONS
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (value) async {
+                    if (value == 'edit') {
+                      context.go(_editUrl(p.id));
+                    } else if (value == 'delete') {
+                      await _confirmDelete(context, p);
+                    }
+                  },
+                  itemBuilder: (ctx) => const [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 18),
+                          SizedBox(width: 8),
+                          Text('Edit'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, size: 18, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Supprimer'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -232,5 +281,51 @@ class _UserGridScreenState extends State<UserGridScreen> {
         ),
       ],
     );
+  }
+
+  // =========================
+  // ✅ DELETE FLOW
+  // =========================
+  Future<void> _confirmDelete(BuildContext context, ProjectGridData p) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Supprimer le projet"),
+        content: Text(
+          "Voulez-vous vraiment supprimer « ${p.nomProjet.isEmpty ? 'Projet' : p.nomProjet} » ?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text("Annuler"),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            icon: const Icon(Icons.delete, size: 16),
+            label: const Text("Supprimer"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await controller.deleteProject(p.id);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Projet supprimé ✅")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erreur suppression : $e")),
+      );
+    }
   }
 }
