@@ -34,4 +34,13 @@ class ProjectApi {
    Future<void> deleteProject(String id) async {
     await ApiClient.instance.dio.delete('/projects/$id');
   }
+ // services/project_api.dart
+Future<void> addComment(String projectId, String comment) async {
+  await ApiClient.instance.dio.post(
+    '/projects/$projectId/comments',
+    data: {"body": comment},
+  );
+}
+
+
 }

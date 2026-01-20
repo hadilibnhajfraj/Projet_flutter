@@ -48,7 +48,6 @@ class UserGridController extends GetxController {
     }).toList();
   }
 
-  // ✅ Update instantané (sans re-fetch)
   void upsertProject(ProjectGridData p) {
     final idx = projects.indexWhere((x) => x.id == p.id);
     if (idx == -1) {
@@ -57,7 +56,6 @@ class UserGridController extends GetxController {
       projects[idx] = p;
     }
 
-    // ✅ garder le filtre actuel (si l'utilisateur a tapé dans search)
     final q = searchController.text.trim();
     if (q.isEmpty) {
       filtered.value = List.from(projects);
@@ -70,15 +68,17 @@ class UserGridController extends GetxController {
     loading.value = true;
     try {
       await ProjectApi.instance.deleteProject(id);
-
       projects.removeWhere((p) => p.id == id);
       filtered.removeWhere((p) => p.id == id);
-    } catch (e) {
-      rethrow; // ✅ important pour afficher l’erreur dans UI
     } finally {
       loading.value = false;
     }
   }
+Future<void> addComment(String projectId, String comment) async {
+  await ProjectApi.instance.addComment(projectId, comment);
+}
+
+
 
   @override
   void onClose() {

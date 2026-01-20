@@ -5,6 +5,7 @@ class ProjectGridData {
   final String entreprise;
   final String adresse;
   final String dateDemarrage;
+  final String permission;
 
   ProjectGridData({
     required this.id,
@@ -13,16 +14,22 @@ class ProjectGridData {
     required this.entreprise,
     required this.adresse,
     required this.dateDemarrage,
+    required this.permission,
   });
+
+  bool get canEdit => permission == "editor" || permission == "owner";
+bool get canDelete => permission == "owner";
+
 
   factory ProjectGridData.fromJson(Map<String, dynamic> j) {
     return ProjectGridData(
-      id: (j['id'] ?? '').toString(),
-      nomProjet: (j['nomProjet'] ?? '').toString(),
-      statut: (j['statut'] ?? '').toString(),
-      entreprise: (j['entreprise'] ?? '').toString(),
-      adresse: (j['adresse'] ?? '').toString(),
-      dateDemarrage: (j['dateDemarrage'] ?? '').toString(),
+      id: j["id"],
+      nomProjet: j["nomProjet"] ?? "",
+      statut: j["statut"] ?? "",
+      entreprise: j["entreprise"] ?? "",
+      adresse: j["adresse"] ?? "",
+      dateDemarrage: j["dateDemarrage"] ?? "",
+      permission: j["permission"] ?? "viewer",
     );
   }
 }

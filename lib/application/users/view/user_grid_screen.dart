@@ -12,6 +12,9 @@ import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 import 'package:responsive_grid/responsive_grid.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
+import 'package:dash_master_toolkit/forms/view/ProjectCommentScreen.dart';
+
+
 
 class UserGridScreen extends StatefulWidget {
   const UserGridScreen({super.key});
@@ -21,7 +24,6 @@ class UserGridScreen extends StatefulWidget {
 }
 
 class _UserGridScreenState extends State<UserGridScreen> {
-  // ✅ IMPORTANT: utiliser Get.isRegistered pour éviter double injection
   late final UserGridController controller;
   late final ThemeController themeController;
 
@@ -81,7 +83,6 @@ class _UserGridScreenState extends State<UserGridScreen> {
             ),
             const SizedBox(height: 15),
 
-            // ✅ CONTENT
             Obx(() {
               if (controller.loading.value) {
                 return const Padding(
@@ -133,9 +134,20 @@ class _UserGridScreenState extends State<UserGridScreen> {
 
   String _editUrl(String id) {
     return Uri(
-      path: MyRoute.projectFormScreen, // "/forms/project"
+      path: MyRoute.projectFormScreen,
       queryParameters: {'id': id},
     ).toString();
+  }
+
+  void _goToComment(BuildContext context, ProjectGridData p) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ProjectCommentScreen(
+          projectId: p.id,
+          projectName: p.nomProjet,
+        ),
+      ),
+    );
   }
 
   Widget _buildProjectCard(
@@ -145,7 +157,16 @@ class _UserGridScreenState extends State<UserGridScreen> {
   ) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => context.go(_editUrl(p.id)),
+
+      // ✅ viewer => écran commentaire (lecture seule)
+      onTap: () {
+        if (p.canEdit) {
+          context.go(_editUrl(p.id));
+        } else {
+          _goToComment(context, p);
+        }
+      },
+
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -156,7 +177,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ✅ HEADER (title + menu)
+            // HEADER
             Row(
               children: [
                 Expanded(
@@ -170,41 +191,64 @@ class _UserGridScreenState extends State<UserGridScreen> {
                   ),
                 ),
 
-                // ✅ MENU ACTIONS
+                // ✅ MENU PERMISSIONS
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
-                  onSelected: (value) async {
-                    if (value == 'edit') {
-                      context.go(_editUrl(p.id));
-                    } else if (value == 'delete') {
-                      await _confirmDelete(context, p);
+                  onSelected: (v) async {
+                    if (v == "edit") context.go(_editUrl(p.id));
+                    if (v == "delete") await _confirmDelete(context, p);
+
+                    // ✅ ici on ouvre l'écran commentaire
+                    if (v == "comment") {
+                      _goToComment(context, p);
                     }
                   },
-                  itemBuilder: (ctx) => const [
-                    PopupMenuItem(
-                      value: 'edit',
+                  itemBuilder: (_) {
+                    final items = <PopupMenuEntry<String>>[];
+
+                    items.add(const PopupMenuItem(
+                      value: "comment",
                       child: Row(
                         children: [
-                          Icon(Icons.edit, size: 18),
+                          Icon(Icons.comment, size: 18),
                           SizedBox(width: 8),
-                          Text('Edit'),
+                          Text("Commenter"),
                         ],
                       ),
-                    ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete, size: 18, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text('Supprimer'),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ));
+
+                    if (p.canEdit) {
+                      items.add(const PopupMenuItem(
+                        value: "edit",
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, size: 18),
+                            SizedBox(width: 8),
+                            Text("Edit"),
+                          ],
+                        ),
+                      ));
+                    }
+
+                    if (p.canDelete) {
+                      items.add(const PopupMenuItem(
+                        value: "delete",
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, size: 18, color: Colors.red),
+                            SizedBox(width: 8),
+                            Text("Supprimer"),
+                          ],
+                        ),
+                      ));
+                    }
+
+                    return items;
+                  },
                 ),
               ],
             ),
+
             const SizedBox(height: 8),
 
             Text(
@@ -213,13 +257,18 @@ class _UserGridScreenState extends State<UserGridScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
+
             const SizedBox(height: 12),
 
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _miniInfo(theme, "Statut", p.statut.isEmpty ? "-" : p.statut),
-                _miniInfo(theme, "Démarrage", p.dateDemarrage.isEmpty ? "-" : p.dateDemarrage),
+                _miniInfo(
+                  theme,
+                  "Démarrage",
+                  p.dateDemarrage.isEmpty ? "-" : p.dateDemarrage,
+                ),
               ],
             ),
 
@@ -236,24 +285,45 @@ class _UserGridScreenState extends State<UserGridScreen> {
 
             Align(
               alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                onPressed: () => context.go(_editUrl(p.id)),
-                icon: const Icon(Icons.edit, size: 16),
-                label: Text(
-                  "Edit",
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorPrimary100,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            )
+
+              // ✅ Bouton change selon permission
+              child: p.canEdit
+                  ? ElevatedButton.icon(
+                      onPressed: () => context.go(_editUrl(p.id)),
+                      icon: const Icon(Icons.edit, size: 16),
+                      label: Text(
+                        "Edit",
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorPrimary100,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    )
+                  : ElevatedButton.icon(
+                      // ✅ ici aussi -> écran commentaire
+                      onPressed: () => _goToComment(context, p),
+                      icon: const Icon(Icons.comment, size: 16),
+                      label: Text(
+                        "Commenter",
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                    ),
+            ),
           ],
         ),
       ),
@@ -283,9 +353,43 @@ class _UserGridScreenState extends State<UserGridScreen> {
     );
   }
 
-  // =========================
-  // ✅ DELETE FLOW
-  // =========================
+  // ✅ tu peux supprimer cette méthode si tu veux, elle n'est plus utilisée
+  Future<void> _openCommentDialog(BuildContext context, ProjectGridData p) async {
+    final c = TextEditingController();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text("Commenter ${p.nomProjet.isEmpty ? 'Projet' : p.nomProjet}"),
+        content: TextField(
+          controller: c,
+          maxLines: 4,
+          decoration: const InputDecoration(hintText: "Votre commentaire"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Annuler"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Envoyer"),
+          ),
+        ],
+      ),
+    );
+
+    final txt = c.text.trim();
+    if (ok == true && txt.isNotEmpty) {
+      await controller.addComment(p.id, txt);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Commentaire ajouté ✅")),
+      );
+    }
+  }
+
   Future<void> _confirmDelete(BuildContext context, ProjectGridData p) async {
     final confirmed = await showDialog<bool>(
       context: context,
