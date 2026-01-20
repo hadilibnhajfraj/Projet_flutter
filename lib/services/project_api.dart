@@ -1,12 +1,18 @@
-import '../providers/api_client.dart';
-import '../application/users/model/project_grid_data.dart';
+// lib/application/services/project_api.dart
+
+import 'package:dio/dio.dart';
+import 'package:dash_master_toolkit/application/services/api_client.dart';
+import 'package:dash_master_toolkit/application/users/model/project_grid_data.dart';
+import 'package:dash_master_toolkit/application/users/model/project_comment_model.dart';
 
 class ProjectApi {
   ProjectApi._();
-  static final ProjectApi instance = ProjectApi._();
+  static final instance = ProjectApi._();
+
+  Dio get dio => ApiClient.instance.dio;
 
   Future<List<ProjectGridData>> getProjects() async {
-    final res = await ApiClient.instance.dio.get('/projects');
+    final res = await dio.get('/projects');
     final data = res.data;
 
     if (data is List) {
@@ -17,30 +23,44 @@ class ProjectApi {
     return [];
   }
 
-  Future<Map<String, dynamic>> getProjectById(String id) async {
-    final res = await ApiClient.instance.dio.get('/projects/$id');
-    return Map<String, dynamic>.from(res.data);
+  Future<void> deleteProject(String id) async {
+    await dio.delete('/projects/$id');
   }
 
-  Future<Map<String, dynamic>> createProject(Map<String, dynamic> payload) async {
-    final res = await ApiClient.instance.dio.post('/projects', data: payload);
-    return Map<String, dynamic>.from(res.data);
+  // ✅ ajouter commentaire / réponse
+  Future<void> addComment(String projectId, String body,
+      {String? parentId}) async {
+    await dio.post(
+      '/projects/$projectId/comments',
+      data: {
+        "body": body,
+        if (parentId != null && parentId.isNotEmpty) "parentId": parentId,
+      },
+    );
   }
 
-  Future<Map<String, dynamic>> updateProject(String id, Map<String, dynamic> payload) async {
-    final res = await ApiClient.instance.dio.put('/projects/$id', data: payload);
-    return Map<String, dynamic>.from(res.data);
+  // ✅ modifier commentaire
+  Future<void> updateComment(String projectId, String commentId, String body) async {
+    await dio.put(
+      '/projects/$projectId/comments/$commentId',
+      data: {"body": body},
+    );
   }
-   Future<void> deleteProject(String id) async {
-    await ApiClient.instance.dio.delete('/projects/$id');
+
+  // ✅ supprimer commentaire
+  Future<void> deleteComment(String projectId, String commentId) async {
+    await dio.delete('/projects/$projectId/comments/$commentId');
   }
- // services/project_api.dart
-Future<void> addComment(String projectId, String comment) async {
-  await ApiClient.instance.dio.post(
-    '/projects/$projectId/comments',
-    data: {"body": comment},
-  );
-}
 
+  Future<List<ProjectCommentModel>> getComments(String projectId) async {
+    final res = await dio.get('/projects/$projectId/comments');
+    final data = res.data;
 
+    if (data is List) {
+      return data
+          .map((e) => ProjectCommentModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+    return [];
+  }
 }

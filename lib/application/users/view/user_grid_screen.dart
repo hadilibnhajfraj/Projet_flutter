@@ -310,7 +310,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
                       onPressed: () => _goToComment(context, p),
                       icon: const Icon(Icons.comment, size: 16),
                       label: Text(
-                        "Commenter",
+                        "Commenter (${p.commentCount})",
                         style: theme.textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
