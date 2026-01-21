@@ -1,19 +1,31 @@
 import 'package:dash_master_toolkit/application/users/users_imports.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 class UserProfileController extends GetxController {
-  TextEditingController searchController = TextEditingController();
-  FocusNode f1 = FocusNode();
-
   Rx<ProfileModel?> profile = Rx<ProfileModel?>(null);
+
+  // ✅ Mode édition
+  RxBool isEditing = false.obs;
+
+  // ✅ Controllers pour édition
+  final nameCtrl = TextEditingController();
+  final designationCtrl = TextEditingController();
+  final emailCtrl = TextEditingController();
+  final birthdayCtrl = TextEditingController();
+  final phoneCtrl = TextEditingController();
+  final countryCtrl = TextEditingController();
+  final stateCtrl = TextEditingController();
+  final addressCtrl = TextEditingController();
 
   @override
   void onInit() {
     super.onInit();
-
     loadProfile();
   }
 
   void loadProfile() {
+    // ⚠️ Ici tu peux remplacer par un GET /me
     profile.value = ProfileModel(
       name: 'Sara Smith GC',
       designation: 'Software Developer',
@@ -23,85 +35,79 @@ class UserProfileController extends GetxController {
       country: 'United States of America',
       state: 'West Virginia',
       address: 'Baker Street No.6',
-      occupationType: [
-        OccupationModel(
-            icon: 'https://i.ibb.co/nNbQfC1Z/clock.png', type: 'Full-Time'),
-        OccupationModel(
-            icon: 'https://i.ibb.co/934cZDqB/code.png', type: 'Engineering'),
-        OccupationModel(
-            icon: 'https://i.ibb.co/gZV86Qdt/global-search.png',
-            type: 'Seattle, WA'),
-        OccupationModel(
-            icon: 'https://i.ibb.co/1Yc2cpgN/coding-2.png', type: 'Engineering')
-      ],
+      occupationType: [],
       department: 'Engineering',
       location: 'Seattle, WA',
-      about:
-          'Presentations about company initiatives product launches, and employee successes. You can also find information about upcoming events training opportunities and resource for your work.',
-      activities: [
-        ActivityModel(
-            deviceName: 'MacOS',
-            status: 'Active now',
-            imei: '324123543126',
-            icon: "https://i.ibb.co/Zv7bhP3/shop.png",
-            isActive: false),
-        ActivityModel(
-            deviceName: 'iPhone 14pro max',
-            status: 'Active now',
-            imei: '324123543126',
-            icon: "https://i.ibb.co/Zv7bhP3/shop.png",
-            isActive: true),
-        ActivityModel(
-            deviceName: 'iPhone 14pro max',
-            status: 'Active now',
-            imei: '324123543126',
-            icon: "https://i.ibb.co/Zv7bhP3/shop.png",
-            isActive: true),
-        ActivityModel(
-            deviceName: 'iPhone 14pro max',
-            status: 'Active now',
-            icon: "https://i.ibb.co/Zv7bhP3/shop.png",
-            imei: '324123543126',
-            isActive: true),
-        ActivityModel(
-            deviceName: 'iPhone 14pro max',
-            status: 'Active now',
-            imei: '324123543126',
-            icon: "https://i.ibb.co/Zv7bhP3/shop.png",
-            isActive: true),
-        ActivityModel(
-            deviceName: 'iPhone 14pro max',
-            status: 'Active now',
-            imei: '324123543126',
-            icon: "https://i.ibb.co/Zv7bhP3/shop.png",
-            isActive: true),
-        ActivityModel(
-            deviceName: 'iPhone 14pro max',
-            status: 'Active now',
-            imei: '324123543126',
-            icon: "https://i.ibb.co/Zv7bhP3/shop.png",
-            isActive: true),
-      ],
-      experiences: [
-        ExperienceModel(
-            company: 'Trendyol.com',
-            position: 'Front-End Developer',
-            duration: '2 years',
-            type: 'Fulltime',
-            icon: 'https://i.ibb.co/qMbDkcJR/netflix-1.png'),
-        ExperienceModel(
-            company: 'TiklaGelsin',
-            position: 'Front-End Developer',
-            duration: '2 years',
-            type: 'Internship',
-            icon: 'https://i.ibb.co/qMbDkcJR/netflix-1.png'),
-        ExperienceModel(
-            company: 'TiklaGelsin',
-            position: 'Front-End Developer',
-            duration: '2 years',
-            type: 'Internship',
-            icon: 'https://i.ibb.co/qMbDkcJR/netflix-1.png'),
-      ],
+      about: '...',
+      activities: [],
+      experiences: [],
     );
+
+    _fillControllersFromProfile();
+  }
+
+  void _fillControllersFromProfile() {
+    final p = profile.value;
+    if (p == null) return;
+
+    nameCtrl.text = p.name;
+    designationCtrl.text = p.designation;
+    emailCtrl.text = p.email;
+    birthdayCtrl.text = p.birthday;
+    phoneCtrl.text = p.phone;
+    countryCtrl.text = p.country;
+    stateCtrl.text = p.state;
+    addressCtrl.text = p.address;
+  }
+
+  void startEdit() {
+    _fillControllersFromProfile();
+    isEditing.value = true;
+  }
+
+  void cancelEdit() {
+    _fillControllersFromProfile();
+    isEditing.value = false;
+  }
+
+  Future<void> saveEdit() async {
+    final p = profile.value;
+    if (p == null) return;
+
+    // ✅ Update local (et après tu peux faire PUT /profile)
+    profile.value = ProfileModel(
+      name: nameCtrl.text.trim(),
+      designation: designationCtrl.text.trim(),
+      email: emailCtrl.text.trim(),
+      birthday: birthdayCtrl.text.trim(),
+      phone: phoneCtrl.text.trim(),
+      country: countryCtrl.text.trim(),
+      state: stateCtrl.text.trim(),
+      address: addressCtrl.text.trim(),
+      occupationType: p.occupationType,
+      department: p.department,
+      location: p.location,
+      about: p.about,
+      activities: p.activities,
+      experiences: p.experiences,
+    );
+
+    isEditing.value = false;
+
+    // TODO (si API):
+    // await ApiClient.instance.dio.put("/users/me", data: {...});
+  }
+
+  @override
+  void onClose() {
+    nameCtrl.dispose();
+    designationCtrl.dispose();
+    emailCtrl.dispose();
+    birthdayCtrl.dispose();
+    phoneCtrl.dispose();
+    countryCtrl.dispose();
+    stateCtrl.dispose();
+    addressCtrl.dispose();
+    super.onClose();
   }
 }

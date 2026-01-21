@@ -9,7 +9,7 @@ import '../../providers/api_client.dart';
 class ProjectFormController extends GetxController {
   final formKey = GlobalKey<FormState>();
 
-  // Champs
+  // ---------------- Champs existants ----------------
   final nomProjet = TextEditingController();
   final dateDemarrage = TextEditingController();
   final statut = TextEditingController();
@@ -32,6 +32,13 @@ class ProjectFormController extends GetxController {
   final localisationAdresse = TextEditingController();
   final commentaireCtrl = TextEditingController();
 
+  // ---------------- ✅ NOUVEAUX CHAMPS ----------------
+  final typeProjet = TextEditingController();
+  final surfaceProspectee = TextEditingController();       // numérique (m²)
+  final pourcentageReussite = TextEditingController();     // numérique (0-100)
+  final validationStatut = TextEditingController(text: "Non validé"); // enum
+
+  // ---------------- Localisation ----------------
   final RxnDouble latitude = RxnDouble();
   final RxnDouble longitude = RxnDouble();
 
@@ -45,6 +52,16 @@ class ProjectFormController extends GetxController {
   void onInit() {
     super.onInit();
     localisationAdresse.addListener(_onAddressChanged);
+  }
+
+  // ---------------- Utils ----------------
+  String _trim(String v) => v.trim();
+
+  double? _toDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v.replaceAll(',', '.'));
+    return null;
   }
 
   // ✅ reset (mode création)
@@ -69,6 +86,12 @@ class ProjectFormController extends GetxController {
 
     localisationAdresse.clear();
     commentaireCtrl.clear();
+
+    // ✅ nouveaux champs reset
+    typeProjet.clear();
+    surfaceProspectee.clear();
+    pourcentageReussite.clear();
+    validationStatut.text = "Non validé";
 
     latitude.value = null;
     longitude.value = null;
@@ -106,6 +129,16 @@ class ProjectFormController extends GetxController {
 
     localisationAdresse.text = (j['adresse'] ?? '').toString();
 
+    // ✅ nouveaux champs (load)
+    typeProjet.text = (j['typeProjet'] ?? '').toString();
+    validationStatut.text = (j['validationStatut'] ?? 'Non validé').toString();
+
+    final pr = _toDouble(j['pourcentageReussite']);
+    pourcentageReussite.text = pr == null ? '' : pr.toString();
+
+    final sp = _toDouble(j['surfaceProspectee']);
+    surfaceProspectee.text = sp == null ? '' : sp.toString();
+
     // ✅ date picker sync
     final dt = dateDemarrage.text.trim();
     if (dt.isNotEmpty) {
@@ -115,13 +148,6 @@ class ProjectFormController extends GetxController {
     }
 
     // ✅ LOCATION (supporte plusieurs formats)
-    double? _toDouble(dynamic v) {
-      if (v == null) return null;
-      if (v is num) return v.toDouble();
-      if (v is String) return double.tryParse(v.replaceAll(',', '.'));
-      return null;
-    }
-
     double? lat;
     double? lng;
 
@@ -248,6 +274,23 @@ class ProjectFormController extends GetxController {
     return null;
   }
 
+  // ✅ numeric validators
+  String? numberValidator(String? v, String label, {double? min, double? max}) {
+    final s = (v ?? "").trim();
+    if (s.isEmpty) return null; // champ optionnel
+    final n = double.tryParse(s.replaceAll(',', '.'));
+    if (n == null) return "$label doit être un nombre";
+    if (min != null && n < min) return "$label doit être >= $min";
+    if (max != null && n > max) return "$label doit être <= $max";
+    return null;
+  }
+
+  String? percentValidator(String? v) =>
+      numberValidator(v, "Pourcentage de réussite", min: 0, max: 100);
+
+  String? surfaceValidator(String? v) =>
+      numberValidator(v, "Surface prospectée", min: 0);
+
   bool get hasLocation => latitude.value != null && longitude.value != null;
 
   void setLocation({required double lat, required double lng, String? address}) {
@@ -262,6 +305,19 @@ class ProjectFormController extends GetxController {
     }
 
     update(['location']);
+  }
+
+  // ✅ helpers to get double from controllers
+  double? get surfaceProspecteeValue {
+    final s = _trim(surfaceProspectee.text);
+    if (s.isEmpty) return null;
+    return double.tryParse(s.replaceAll(',', '.'));
+  }
+
+  double? get pourcentageReussiteValue {
+    final s = _trim(pourcentageReussite.text);
+    if (s.isEmpty) return null;
+    return double.tryParse(s.replaceAll(',', '.'));
   }
 
   @override
@@ -281,10 +337,16 @@ class ProjectFormController extends GetxController {
     promoteur.dispose();
     bureauEtude.dispose();
     bureauControle.dispose();
-    entrepriseFluide.dispose(); 
+    entrepriseFluide.dispose();
     entrepriseElectricite.dispose();
     localisationAdresse.dispose();
     commentaireCtrl.dispose();
+
+    // ✅ nouveaux champs dispose
+    typeProjet.dispose();
+    surfaceProspectee.dispose();
+    pourcentageReussite.dispose();
+    validationStatut.dispose();
 
     super.onClose();
   }

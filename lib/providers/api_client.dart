@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiClient {
   ApiClient._internal() {
@@ -73,7 +74,15 @@ class ApiClient {
       ),
     );
   }
+  Future<void> clearAuth() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove("accessToken");
+    await prefs.remove("refreshToken");
+    await prefs.remove("token");
 
+    // si tu utilises localStorage web:
+    // html.window.localStorage.remove("accessToken");
+  }
   static final ApiClient instance = ApiClient._internal();
 
   late final Dio _dio;

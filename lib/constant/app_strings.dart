@@ -1,4 +1,4 @@
-const appName = 'DashMaster Toolkit';
+const appName = 'Probar';
 const organizationName = 'ImperiaThemes';
 
 

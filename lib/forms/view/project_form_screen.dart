@@ -3,7 +3,6 @@ import 'package:dash_master_toolkit/application/users/model/project_grid_data.da
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
-import 'package:responsive_framework/responsive_framework.dart' as rf;
 
 import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/theme/theme_controller.dart';
@@ -30,6 +29,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   late final ThemeController themeController;
 
   final List<String> _statusOptions = const ["En cours", "Préparation", "Terminé"];
+  final List<String> _validationOptions = const ["Validé", "Non validé"];
 
   String? _projectId;
   bool _loadedOnce = false;
@@ -77,6 +77,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     setState(() => _loading = true);
     try {
       await c.loadProject(id);
+      if (mounted) setState(() {}); // refresh dropdowns
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -92,30 +93,15 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
 
-    final isMobile = responsiveValue<bool>(
-      context,
-      xs: true,
-      sm: true,
-      md: false,
-      lg: false,
-      xl: false,
-    );
+    // ✅ FIX: plus de responsive_framework TABLET => compile OK sur web
+    final isMobile = screenWidth < 992;
 
     return Scaffold(
       backgroundColor: themeController.isDarkMode ? colorGrey900 : colorWhite,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: EdgeInsets.all(
-                rf.ResponsiveValue<double>(
-                  context,
-                  conditionalValues: const [
-                    rf.Condition.between(start: 0, end: 340, value: 10),
-                    rf.Condition.between(start: 341, end: 992, value: 16),
-                  ],
-                  defaultValue: 24,
-                ).value,
-              ),
+              padding: EdgeInsets.all(isMobile ? 14 : 24),
               child: Form(
                 key: c.formKey,
                 child: _commonBackgroundWidget(
@@ -146,11 +132,43 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
                       _statusDropdown(theme),
 
+                      // ✅ typeProjet + typeAdresseChantier
+                      _twoCols(
+                        isMobile: isMobile,
+                        left: _field(
+                          theme: theme,
+                          title: "Type de projet (optionnel)",
+                          controller: c.typeProjet,
+                          validator: null,
+                        ),
+                        right: _field(
+                          theme: theme,
+                          title: "Type + Adresse du Chantier",
+                          controller: c.typeAdresseChantier,
+                          validator: (v) => c.requiredValidator(v, "Type + Adresse"),
+                        ),
+                      ),
+
+                      // ✅ validation + pourcentage
+                      _twoCols(
+                        isMobile: isMobile,
+                        left: _validationDropdown(theme),
+                        right: _field(
+                          theme: theme,
+                          title: "Pourcentage de réussite (0 - 100)",
+                          controller: c.pourcentageReussite,
+                          validator: c.percentValidator,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        ),
+                      ),
+
+                      // ✅ surface
                       _field(
                         theme: theme,
-                        title: "Type de projet et Adresse du Chantier",
-                        controller: c.typeAdresseChantier,
-                        validator: (v) => c.requiredValidator(v, "Type + Adresse"),
+                        title: "Surface prospectée (m²) (optionnel)",
+                        controller: c.surfaceProspectee,
+                        validator: c.surfaceValidator,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       ),
 
                       _twoCols(
@@ -319,6 +337,32 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     );
   }
 
+  // ----------------- ✅ VALIDATION -----------------
+  Widget _validationDropdown(ThemeData theme) {
+    final current = c.validationStatut.text.trim();
+    final currentValue = _validationOptions.contains(current) ? current : "Non validé";
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16, top: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _requiredTitle(theme, "Validation", required: false),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            value: currentValue,
+            decoration: inputDecoration(context, hintText: "Choisir"),
+            items: _validationOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+            onChanged: (val) {
+              c.validationStatut.text = val ?? "Non validé";
+              if (mounted) setState(() {});
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   // ----------------- FIELD -----------------
   Widget _field({
     required ThemeData theme,
@@ -475,7 +519,13 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty ? null : c.entrepriseElectricite.text.trim(),
       "adresse": c.localisationAdresse.text.trim().isEmpty ? null : c.localisationAdresse.text.trim(),
       "location": {"lat": c.latitude.value, "lng": c.longitude.value},
-      "comments": allComments,
+      "localisationCommentaire": manualComment.isEmpty ? null : manualComment,
+
+      // ✅ nouveaux champs
+      "typeProjet": c.typeProjet.text.trim().isEmpty ? null : c.typeProjet.text.trim(),
+      "validationStatut": c.validationStatut.text.trim().isEmpty ? "Non validé" : c.validationStatut.text.trim(),
+      "pourcentageReussite": c.pourcentageReussiteValue,
+      "surfaceProspectee": c.surfaceProspecteeValue,
     };
 
     try {
@@ -489,7 +539,6 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         data = res.data;
       }
 
-      // ✅ update instantané dans la liste (FIX: controller garanti)
       final map = Map<String, dynamic>.from(data as Map);
       final project = ProjectGridData.fromJson(map);
 

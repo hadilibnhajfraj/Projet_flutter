@@ -1,6 +1,9 @@
 import 'package:flutter/cupertino.dart';
-import 'package:dash_master_toolkit/application/users/users_imports.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
+
+import 'package:dash_master_toolkit/application/users/users_imports.dart';
 
 class UserProfileScreen extends StatefulWidget {
   const UserProfileScreen({super.key});
@@ -11,13 +14,13 @@ class UserProfileScreen extends StatefulWidget {
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
   final UserProfileController controller = Get.put(UserProfileController());
-  ThemeController themeController = Get.put(ThemeController());
+  final ThemeController themeController = Get.put(ThemeController());
 
   @override
   Widget build(BuildContext context) {
-    AppLocalizations lang = AppLocalizations.of(context);
-    ThemeData theme = Theme.of(context);
-    double screenWidth = MediaQuery.of(context).size.width;
+    final AppLocalizations lang = AppLocalizations.of(context);
+    final ThemeData theme = Theme.of(context);
+    final double screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       backgroundColor: themeController.isDarkMode ? colorGrey900 : colorWhite,
@@ -25,67 +28,121 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         padding: EdgeInsets.all(
           rf.ResponsiveValue<double>(
             context,
-            conditionalValues: [
-              const rf.Condition.between(start: 0, end: 340, value: 10),
-              const rf.Condition.between(start: 341, end: 992, value: 16),
+            conditionalValues: const [
+              rf.Condition.between(start: 0, end: 340, value: 10),
+              rf.Condition.between(start: 341, end: 992, value: 16),
             ],
             defaultValue: 24,
           ).value,
         ),
-        child: Obx(
-          () => Column(
+        child: Obx(() {
+          final p = controller.profile.value;
+
+          // ✅ éviter crash avant load
+          if (p == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // user name and designation widget
+              // ---------------- HEADER ----------------
               _commonBackgroundWidget(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Image.asset(
-                        profileIcon,
-                        width: 60,
-                        height: 60,
-                      ),
-                      SizedBox(
-                        width: 10,
-                      ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              controller.profile.value!.name,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  overflow: TextOverflow.ellipsis),
-                            ),
-                            Text(
-                              controller.profile.value!.designation,
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SvgPicture.asset(
-                        verticalDotIcon,
-                        width: 24,
-                        height: 24,
-                        colorFilter: ColorFilter.mode(
-                            themeController.isDarkMode
-                                ? colorGrey500
-                                : colorGrey400,
-                            BlendMode.srcIn),
-                      ),
-                    ],
-                  ),
-                  screenWidth: screenWidth),
+                screenWidth: screenWidth,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Image.asset(profileIcon, width: 60, height: 60),
+                    const SizedBox(width: 10),
 
-              SizedBox(
-                height: 15,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Obx(() {
+                            final editing = controller.isEditing.value;
+                            return editing
+                                ? TextFormField(
+                                    controller: controller.nameCtrl,
+                                    decoration: inputDecoration(context, hintText: "Name"),
+                                  )
+                                : Text(
+                                    p.name,
+                                    style: theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  );
+                          }),
+                          const SizedBox(height: 6),
+                          Obx(() {
+                            final editing = controller.isEditing.value;
+                            return editing
+                                ? TextFormField(
+                                    controller: controller.designationCtrl,
+                                    decoration: inputDecoration(context, hintText: "Designation"),
+                                  )
+                                : Text(
+                                    p.designation,
+                                    style: theme.textTheme.bodyLarge?.copyWith(
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  );
+                          }),
+                        ],
+                      ),
+                    ),
+
+                    // ✅ actions edit/save/cancel
+                    Obx(() {
+                      final editing = controller.isEditing.value;
+
+                      if (!editing) {
+                        return CommonButton(
+                          onPressed: controller.startEdit,
+                          text: "Edit",
+                          width: 90,
+                          height: 38,
+                          borderRadius: 8,
+                          fontSize: 14,
+                        );
+                      }
+
+                      return Row(
+                        children: [
+                          CommonButton(
+                            onPressed: () async {
+                              await controller.saveEdit();
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Profil mis à jour ✅")),
+                              );
+                            },
+                            text: "Save",
+                            width: 90,
+                            height: 38,
+                            borderRadius: 8,
+                            fontSize: 14,
+                          ),
+                          const SizedBox(width: 10),
+                          CommonButton(
+                            onPressed: controller.cancelEdit,
+                            text: "Cancel",
+                            width: 90,
+                            height: 38,
+                            borderRadius: 8,
+                            fontSize: 14,
+                          ),
+                        ],
+                      );
+                    }),
+                  ],
+                ),
               ),
 
+              const SizedBox(height: 15),
+
+              // ---------------- GRID ----------------
               ResponsiveGridRow(
                 children: [
                   ResponsiveGridCol(
@@ -96,17 +153,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     xl: 5,
                     child: Padding(
                       padding: EdgeInsetsDirectional.only(
-                          end: screenWidth > 768 ? 10 : 0),
+                        end: screenWidth > 768 ? 10 : 0,
+                      ),
                       child: Column(
                         children: [
                           _buildPersonalInfoWidget(theme, lang, screenWidth),
-                          SizedBox(
-                            height: 15,
-                          ),
+                          const SizedBox(height: 15),
                           _buildOccupationInfoWidget(theme, lang, screenWidth),
-                          SizedBox(
-                            height: 15,
-                          ),
+                          const SizedBox(height: 15),
                           _buildAboutMeWidget(theme, lang, screenWidth),
                         ],
                       ),
@@ -120,13 +174,12 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                     xl: 7,
                     child: Padding(
                       padding: EdgeInsetsDirectional.only(
-                          start: screenWidth > 768 ? 10 : 0),
+                        start: screenWidth > 768 ? 10 : 0,
+                      ),
                       child: Column(
                         children: [
                           _buildActivityWidget(theme, lang, screenWidth),
-                          SizedBox(
-                            height: 15,
-                          ),
+                          const SizedBox(height: 15),
                           _buildAllExperienceWidget(theme, lang, screenWidth),
                         ],
                       ),
@@ -135,407 +188,375 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 ],
               ),
             ],
-          ),
-        ),
+          );
+        }),
       ),
     );
   }
 
-  _commonBackgroundWidget(
-      {required Widget child, required double? screenWidth}) {
+  // =====================================================
+  // UI HELPERS
+  // =====================================================
+
+  Widget _commonBackgroundWidget({required Widget child, required double? screenWidth}) {
     return Container(
       width: screenWidth,
-      padding: EdgeInsets.all(10),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: themeController.isDarkMode ? colorDark : colorWhite,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black12)],
+        boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black12)],
       ),
       child: child,
     );
   }
 
-  _buildPersonalInfoWidget(
-      ThemeData theme, AppLocalizations lang, double? screenWidth) {
-    return _commonBackgroundWidget(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              lang.translate("personalInformation"),
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            SizedBox(
-              height: 5,
-            ),
-            _buildCommonInfoWidget(theme, userIcon, lang.translate("fullName"),
-                controller.profile.value!.name),
-            _buildCommonInfoWidget(theme, emailIcon, lang.translate("email"),
-                controller.profile.value!.email),
-            _buildCommonInfoWidget(theme, birthdayIcon, lang.translate("birthDay"),
-                controller.profile.value!.birthday),
-            _buildCommonInfoWidget(theme, phoneIcon, lang.translate("phone"),
-                controller.profile.value!.phone),
-            _buildCommonInfoWidget(theme, countryIcon, lang.translate("country"),
-                controller.profile.value!.country),
-            _buildCommonInfoWidget(theme, regionIcon,
-                lang.translate("stateRegion"), controller.profile.value!.state),
-            _buildCommonInfoWidget(theme, addressIcon, lang.translate("address"),
-                controller.profile.value!.address),
-          ],
-        ),
-        screenWidth: screenWidth);
-  }
+  // ✅ row texte / input selon isEditing
+  Widget _editableRow({
+    required ThemeData theme,
+    required String iconAsset,
+    required String label,
+    required TextEditingController ctrl,
+    TextInputType? keyboardType,
+  }) {
+    return Obx(() {
+      final editing = controller.isEditing.value;
 
-  _buildOccupationInfoWidget(
-      ThemeData theme, AppLocalizations lang, double? screenWidth) {
-    return _commonBackgroundWidget(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      return Padding(
+        padding: const EdgeInsets.only(top: 10.0),
+        child: Row(
           children: [
-            Text(
-              lang.translate("occupationInfo"),
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
+            SvgPicture.asset(
+              iconAsset,
+              width: 18,
+              height: 18,
+              colorFilter: ColorFilter.mode(
+                themeController.isDarkMode ? colorGrey500 : colorGrey700,
+                BlendMode.srcIn,
+              ),
             ),
-            ResponsiveGridRow(
-              // crossAxisAlignment: CrossAxisAlignment.center,
-              children: List.generate(
-                controller.profile.value!.occupationType.length,
-                (index) {
-                  OccupationModel occupationType =
-                      controller.profile.value!.occupationType[index];
-                  return ResponsiveGridCol(
-                    lg: 6,
-                    xl: 6,
-                    md: 6,
-                    xs: 6,
-                    child: Padding(
-                      padding:
-                          EdgeInsetsDirectional.only(top: 10.0, bottom: 10.0),
-                      child: Row(
-                        children: [
-                          Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(4),
-                                  color: themeController.isDarkMode
-                                      ? colorGrey700
-                                      : colorGrey100),
-                              child: Padding(
-                                padding: const EdgeInsets.all(5.0),
-                                child: commonCacheImageWidget(
-                                  occupationType.icon,
-                                  24,
-                                  width: 24,
-                                  fit: BoxFit.contain,
-                                ),
-                              ),),
-                          SizedBox(
-                            width: 5,
-                          ),
-                          Text(
-                            occupationType.type,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+            const SizedBox(width: 5),
+            SizedBox(
+              width: 110,
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w400,
+                  color: themeController.isDarkMode ? colorGrey500 : colorGrey700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              ":",
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w400,
+                color: themeController.isDarkMode ? colorGrey500 : colorGrey400,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: editing
+                  ? TextFormField(
+                      controller: ctrl,
+                      keyboardType: keyboardType,
+                      decoration: inputDecoration(context, hintText: label),
+                    )
+                  : Text(
+                      ctrl.text,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),
-        screenWidth: screenWidth);
+      );
+    });
   }
 
-  _buildAboutMeWidget(
-      ThemeData theme, AppLocalizations lang, double? screenWidth) {
+  // =====================================================
+  // SECTIONS
+  // =====================================================
+
+  Widget _buildPersonalInfoWidget(ThemeData theme, AppLocalizations lang, double? screenWidth) {
     return _commonBackgroundWidget(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              lang.translate("aboutMe"),
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            SizedBox(
-              height: 5,
-            ),
-            Text(
-              controller.profile.value!.about,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500, color: colorGrey500),
-            ),
-          ],
-        ),
-        screenWidth: screenWidth);
+      screenWidth: screenWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            lang.translate("personalInformation"),
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 5),
+
+          _editableRow(theme: theme, iconAsset: userIcon, label: lang.translate("fullName"), ctrl: controller.nameCtrl),
+          _editableRow(theme: theme, iconAsset: emailIcon, label: lang.translate("email"), ctrl: controller.emailCtrl, keyboardType: TextInputType.emailAddress),
+          _editableRow(theme: theme, iconAsset: birthdayIcon, label: lang.translate("birthDay"), ctrl: controller.birthdayCtrl),
+          _editableRow(theme: theme, iconAsset: phoneIcon, label: lang.translate("phone"), ctrl: controller.phoneCtrl, keyboardType: TextInputType.phone),
+          _editableRow(theme: theme, iconAsset: countryIcon, label: lang.translate("country"), ctrl: controller.countryCtrl),
+          _editableRow(theme: theme, iconAsset: regionIcon, label: lang.translate("stateRegion"), ctrl: controller.stateCtrl),
+          _editableRow(theme: theme, iconAsset: addressIcon, label: lang.translate("address"), ctrl: controller.addressCtrl),
+        ],
+      ),
+    );
   }
 
-  _buildActivityWidget(
-      ThemeData theme, AppLocalizations lang, double? screenWidth) {
+  Widget _buildOccupationInfoWidget(ThemeData theme, AppLocalizations lang, double? screenWidth) {
+    final p = controller.profile.value!;
     return _commonBackgroundWidget(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              lang.translate("activity"),
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            SizedBox(
-              height: 5,
-            ),
-            SizedBox(
-                height: MediaQuery.of(context).size.height * 0.35,
-                child: ListView.builder(
-                  itemBuilder: (context, index) {
-                    ActivityModel activity =
-                        controller.profile.value!.activities[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 10.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          ClipOval(
-                            child: commonCacheImageWidget(activity.icon, 48,
-                                width: 48, fit: BoxFit.contain),
-                          ),
-                          SizedBox(
-                            width: 10,
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  activity.deviceName,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                SizedBox(
-                                  height: 2,
-                                ),
-                                Text(
-                                  '${lang.translate("lastSeen")} : ${activity.status}',
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                      fontWeight: FontWeight.w400,
-                                      color: themeController.isDarkMode
-                                          ? colorGrey500
-                                          : colorGrey400),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(
-                            width: 10,
-                          ),
-                          Text(
-                            'IME : ${activity.imei}',
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w400,
-                                color: themeController.isDarkMode
-                                    ? colorGrey500
-                                    : colorGrey400),
-                          ),
-                          SizedBox(
-                            width: 10,
-                          ),
-                          Obx(
-                            () => Transform.scale(
-                                scale: 0.9,
-                                // Adjust the scale factor to change the size
-                                child: CupertinoSwitch(
-                                  activeTrackColor: colorPrimary100,
-                                  value: activity.isActive.value,
-                                  onChanged: (value) {
-                                    activity.isActive.value = value;
-                                  },
-                                )),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  shrinkWrap: true,
-                  itemCount: controller.profile.value!.activities.length,
-                )),
-            SizedBox(
-              height: 10,
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: CommonButton(
-                onPressed: () {},
-                text: lang.translate("save"),
-                width: 90,
-                height: 38,
-                borderRadius: 8,
-                fontSize: 14,
-              ),
-            )
-          ],
-        ),
-        screenWidth: screenWidth);
-  }
-
-  _buildAllExperienceWidget(
-      ThemeData theme, AppLocalizations lang, double? screenWidth) {
-    return _commonBackgroundWidget(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              lang.translate("allExperience"),
-              style: theme.textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            SizedBox(
-              height: 5,
-            ),
-            SizedBox(
-              height: MediaQuery.of(context).size.height * 0.2,
-              child: ListView.builder(
-                itemBuilder: (context, index) {
-                  ExperienceModel experience =
-                      controller.profile.value!.experiences[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 10.0),
+      screenWidth: screenWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            lang.translate("occupationInfo"),
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          ResponsiveGridRow(
+            children: List.generate(
+              p.occupationType.length,
+              (index) {
+                final occupationType = p.occupationType[index];
+                return ResponsiveGridCol(
+                  lg: 6,
+                  xl: 6,
+                  md: 6,
+                  xs: 6,
+                  child: Padding(
+                    padding: const EdgeInsetsDirectional.only(top: 10.0, bottom: 10.0),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          width: 48,
-                          height: 48,
+                          width: 24,
+                          height: 24,
                           decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: themeController.isDarkMode
-                                  ? colorGrey700
-                                  : colorGrey100),
+                            borderRadius: BorderRadius.circular(4),
+                            color: themeController.isDarkMode ? colorGrey700 : colorGrey100,
+                          ),
                           child: Padding(
-                            padding: const EdgeInsets.all(10.0),
-                            child: commonCacheImageWidget(experience.icon, 48,
-                                width: 48, fit: BoxFit.contain),
+                            padding: const EdgeInsets.all(5.0),
+                            child: commonCacheImageWidget(
+                              occupationType.icon,
+                              24,
+                              width: 24,
+                              fit: BoxFit.contain,
+                            ),
                           ),
                         ),
-                        SizedBox(
-                          width: 10,
-                        ),
+                        const SizedBox(width: 5),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                experience.company,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              SizedBox(
-                                height: 2,
-                              ),
-                              Text(
-                                experience.position,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                    fontWeight: FontWeight.w400,
-                                    color: themeController.isDarkMode
-                                        ? colorGrey500
-                                        : colorGrey400),
-                              ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(
-                          width: 10,
-                        ),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: colorPrimary100.withValues(alpha: 0.20),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           child: Text(
-                            experience.type,
+                            occupationType.type,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w400,
-                                color: colorPrimary100),
+                            style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
                           ),
                         ),
                       ],
                     ),
-                  );
-                },
-                shrinkWrap: true,
-                itemCount: controller.profile.value!.experiences.length,
-              ),
+                  ),
+                );
+              },
             ),
-          ],
-        ),
-        screenWidth: screenWidth);
+          ),
+        ],
+      ),
+    );
   }
 
-  _buildCommonInfoWidget(
-      ThemeData theme, String assetName, String data, String answer) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 10.0),
-      child: Row(
-        // mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildAboutMeWidget(ThemeData theme, AppLocalizations lang, double? screenWidth) {
+    final p = controller.profile.value!;
+    return _commonBackgroundWidget(
+      screenWidth: screenWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SvgPicture.asset(
-            assetName,
-            width: 18,
-            height: 18,
-            colorFilter: ColorFilter.mode(
-                themeController.isDarkMode ? colorGrey500 : colorGrey700,
-                BlendMode.srcIn),
+          Text(
+            lang.translate("aboutMe"),
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
-          SizedBox(
-            width: 5,
-          ),
-          SizedBox(
-            width: 100,
-            child: Text(
-              data,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w400,
-                  color:
-                      themeController.isDarkMode ? colorGrey500 : colorGrey700),
+          const SizedBox(height: 5),
+          Text(
+            p.about,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+              color: colorGrey500,
             ),
           ),
-          SizedBox(
-            width: 10,
-          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityWidget(ThemeData theme, AppLocalizations lang, double? screenWidth) {
+    final p = controller.profile.value!;
+    return _commonBackgroundWidget(
+      screenWidth: screenWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            ":",
-            style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w400,
-                color:
-                    themeController.isDarkMode ? colorGrey500 : colorGrey400),
+            lang.translate("activity"),
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
+          const SizedBox(height: 5),
           SizedBox(
-            width: 10,
+            height: MediaQuery.of(context).size.height * 0.35,
+            child: ListView.builder(
+              itemCount: p.activities.length,
+              itemBuilder: (context, index) {
+                final activity = p.activities[index];
+                return Padding(
+                  padding: const EdgeInsets.only(top: 10.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      ClipOval(
+                        child: commonCacheImageWidget(activity.icon, 48, width: 48, fit: BoxFit.contain),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              activity.deviceName,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${lang.translate("lastSeen")} : ${activity.status}',
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w400,
+                                color: themeController.isDarkMode ? colorGrey500 : colorGrey400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'IME : ${activity.imei}',
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w400,
+                          color: themeController.isDarkMode ? colorGrey500 : colorGrey400,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Obx(() => Transform.scale(
+                            scale: 0.9,
+                            child: CupertinoSwitch(
+                              activeTrackColor: colorPrimary100,
+                              value: activity.isActive.value,
+                              onChanged: (value) => activity.isActive.value = value,
+                            ),
+                          )),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
-          Flexible(
-            child: Text(
-              answer,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w500),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: CommonButton(
+              onPressed: () {},
+              text: lang.translate("save"),
+              width: 90,
+              height: 38,
+              borderRadius: 8,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAllExperienceWidget(ThemeData theme, AppLocalizations lang, double? screenWidth) {
+    final p = controller.profile.value!;
+    return _commonBackgroundWidget(
+      screenWidth: screenWidth,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            lang.translate("allExperience"),
+            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 5),
+          SizedBox(
+            height: MediaQuery.of(context).size.height * 0.2,
+            child: ListView.builder(
+              itemCount: p.experiences.length,
+              itemBuilder: (context, index) {
+                final experience = p.experiences[index];
+                return Padding(
+                  padding: const EdgeInsets.only(top: 10.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: themeController.isDarkMode ? colorGrey700 : colorGrey100,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(10.0),
+                          child: commonCacheImageWidget(experience.icon, 48, width: 48, fit: BoxFit.contain),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              experience.company,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              experience.position,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w400,
+                                color: themeController.isDarkMode ? colorGrey500 : colorGrey400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: colorPrimary100.withValues(alpha: 0.20),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        child: Text(
+                          experience.type,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w400,
+                            color: colorPrimary100,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],
