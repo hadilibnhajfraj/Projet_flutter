@@ -1,3 +1,4 @@
+// lib/providers/api_client.dart
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_storage/get_storage.dart';
@@ -22,17 +23,22 @@ class ApiClient {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        // ✅ Laisse Dio throw sur 400/500 (par défaut)
-        // validateStatus: (status) => status != null && status < 300,
       ),
     );
 
     _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) {
+        onRequest: (options, handler) async {
+          // ✅ Token depuis GetStorage
           final token = _box.read<String>('accessToken');
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
+          }
+
+          // ✅ IMPORTANT (Web) pour cookies refresh si backend envoie Set-Cookie
+          // (Dio web supporte ça via extra/Options)
+          if (kIsWeb) {
+            options.extra['withCredentials'] = true;
           }
 
           if (kDebugMode) {
@@ -62,11 +68,7 @@ class ApiClient {
           // ✅ si 401 => clear session
           final status = e.response?.statusCode;
           if (status == 401) {
-            await _box.remove('accessToken');
-            await _box.write('isLoggedIn', false);
-            await _box.remove('userId');
-            await _box.remove('userEmail');
-            await _box.remove('userRole');
+            await clearAuth();
           }
 
           return handler.next(e);
@@ -74,19 +76,39 @@ class ApiClient {
       ),
     );
   }
-  Future<void> clearAuth() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove("accessToken");
-    await prefs.remove("refreshToken");
-    await prefs.remove("token");
 
-    // si tu utilises localStorage web:
-    // html.window.localStorage.remove("accessToken");
-  }
   static final ApiClient instance = ApiClient._internal();
 
   late final Dio _dio;
   late final GetStorage _box;
 
   Dio get dio => _dio;
+
+  // =====================================================
+  // ✅ Helpers Token
+  // =====================================================
+  String? getAccessToken() => _box.read<String>('accessToken');
+
+  Future<void> setAccessToken(String token) async {
+    await _box.write('accessToken', token);
+    await _box.write('isLoggedIn', true);
+  }
+
+  // =====================================================
+  // ✅ Clear Auth (GetStorage + SharedPreferences)
+  // =====================================================
+  Future<void> clearAuth() async {
+    // GetStorage
+    await _box.remove('accessToken');
+    await _box.write('isLoggedIn', false);
+    await _box.remove('userId');
+    await _box.remove('userEmail');
+    await _box.remove('userRole');
+
+    // SharedPreferences (si tu l’utilises ailleurs)
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove("accessToken");
+    await prefs.remove("refreshToken");
+    await prefs.remove("token");
+  }
 }

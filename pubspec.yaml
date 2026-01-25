@@ -39,6 +39,7 @@ dependencies:
   flutter_svg: ^2.0.17
   fluttertoast: ^8.2.12
   dots_indicator: ^2.1.1
+  image_picker: ^1.0.7
   fl_chart: ^0.70.2
   google_fonts: ^6.2.1
   table_calendar: ^3.1.0

@@ -9,6 +9,7 @@ class ProfileModel {
   final String country;
   final String state;
   final String address;
+
   final List<OccupationModel> occupationType;
   final String department;
   final String location;
@@ -32,6 +33,36 @@ class ProfileModel {
     required this.activities,
     required this.experiences,
   });
+
+  // ✅ copyWith ICI (dans la classe)
+  ProfileModel copyWith({
+    String? name,
+    String? designation,
+    String? email,
+    String? birthday,
+    String? phone,
+    String? country,
+    String? state,
+    String? address,
+    String? about,
+  }) {
+    return ProfileModel(
+      name: name ?? this.name,
+      designation: designation ?? this.designation,
+      email: email ?? this.email,
+      birthday: birthday ?? this.birthday,
+      phone: phone ?? this.phone,
+      country: country ?? this.country,
+      state: state ?? this.state,
+      address: address ?? this.address,
+      occupationType: occupationType,
+      department: department,
+      location: location,
+      about: about ?? this.about,
+      activities: activities,
+      experiences: experiences,
+    );
+  }
 }
 
 class ActivityModel {
@@ -41,13 +72,13 @@ class ActivityModel {
   final String icon;
   RxBool isActive = false.obs;
 
-  ActivityModel(
-      {required this.deviceName,
-      required this.status,
-      required this.imei,
-      required this.icon,
-      bool isActive = false})
-      : isActive = isActive.obs;
+  ActivityModel({
+    required this.deviceName,
+    required this.status,
+    required this.imei,
+    required this.icon,
+    bool isActive = false,
+  }) : isActive = isActive.obs;
 }
 
 class ExperienceModel {
