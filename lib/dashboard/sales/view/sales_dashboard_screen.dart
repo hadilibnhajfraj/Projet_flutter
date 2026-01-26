@@ -56,7 +56,6 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
                 _commonCard(5, _buildTodaySaleWidget(lang, theme)),
                 _commonCard(7, _buildVisitorChart(lang, theme, isMobileScreen)),
                 _commonCard(5, _buildRevenueChart(lang, theme, isMobileScreen)),
-                _commonCard(3, _buildTargetRealityChart(lang)),
                 _commonCard(5, _buildTopProductsWidget(lang, theme)),
                 _commonCard(7, _buildCountryMapSalesWidget(lang)),
                
@@ -344,62 +343,7 @@ Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
     ),
   );
 }
-  // =========================
-  // Target vs Reality
-  // =========================
-  Widget _buildTargetRealityChart(AppLocalizations lang) {
-    return Padding(
-      padding: const EdgeInsets.all(7.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _titleTextStyle(lang.translate('TargetVsReality')),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 200,
-            child: TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 800),
-              curve: Curves.easeOut,
-              tween: Tween(begin: 0, end: 1),
-              builder: (context, animationValue, _) {
-                return BarChart(
-                  BarChartData(
-                    alignment: BarChartAlignment.spaceAround,
-                    maxY: 15000,
-                    barTouchData: BarTouchData(enabled: false),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (value, meta) {
-                            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June', 'July'];
-                            return Text(months[value.toInt()], style: const TextStyle(fontSize: 12));
-                          },
-                        ),
-                      ),
-                    ),
-                    gridData: FlGridData(show: false),
-                    borderData: FlBorderData(show: false),
-                    barGroups: _buildTargetRealityBarGroups(animationValue: animationValue),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              // (les widgets LegendWithIcon doivent exister dans sales_imports.dart)
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  
 
   List<BarChartGroupData> _buildTargetRealityBarGroups({double animationValue = 1.0}) {
     final realitySales = [8000, 8200, 9000, 8800, 9500, 9700, 8800];
@@ -588,88 +532,106 @@ Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
   // Visitors chart (uses controller.visitors)
   // =========================
   Widget _buildVisitorChart(AppLocalizations lang, ThemeData theme, bool isMobileScreen) {
-    return Padding(
-      padding: const EdgeInsets.all(7.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _titleTextStyle(lang.translate('VisitorInsights')),
-          const SizedBox(height: 30),
-          SizedBox(
-            height: 300,
-            child: TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 800),
-              curve: Curves.easeOutCubic,
-              tween: Tween(begin: 0, end: 1),
-              builder: (context, animationValue, _) {
-                return Obx(() {
-                  final data = controller.visitors;
+  return Padding(
+    padding: const EdgeInsets.all(7.0),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _titleTextStyle(lang.translate('ProjectStatusInsights')),
+        const SizedBox(height: 30),
+        SizedBox(
+          height: 300,
+          child: TweenAnimationBuilder<double>(
+            duration: const Duration(milliseconds: 800),
+            curve: Curves.easeOutCubic,
+            tween: Tween(begin: 0, end: 1),
+            builder: (context, animationValue, _) {
+              return Obx(() {
+                final rows = controller.projectStatusData;
 
-                  return LineChart(
-                    LineChartData(
-                      minY: 0,
-                      maxY: 400,
-                      borderData: FlBorderData(show: false),
-                      titlesData: FlTitlesData(
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            interval: 1,
-                            getTitlesWidget: (value, _) {
-                              const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sept','Oct','Nov','Dec'];
-                              return Text(
-                                months[value.toInt()],
-                                style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, fontWeight: FontWeight.w500),
-                              );
-                            },
-                          ),
-                        ),
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            interval: 100,
-                            reservedSize: 40,
-                            getTitlesWidget: (value, meta) {
-                              return Text(
-                                value.toInt().toString(),
-                                style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
-                                textAlign: TextAlign.left,
-                              );
-                            },
-                          ),
-                        ),
-                        rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      ),
-                      lineBarsData: [
-                        _line(data, (e) => e.loyal, Colors.purple, animationValue: animationValue),
-                        _line(data, (e) => e.newCustomer, Colors.red, animationValue: animationValue),
-                        _line(data, (e) => e.unique, Colors.green, animationValue: animationValue),
-                      ],
-                      gridData: FlGridData(drawHorizontalLine: true, drawVerticalLine: false),
-                      extraLinesData: ExtraLinesData(
-                        verticalLines: [
-                          VerticalLine(
-                            x: 6,
-                            color: Colors.red.withValues(alpha: 0.5),
-                            strokeWidth: 1,
-                            dashArray: [4, 4],
-                          ),
-                        ],
-                      ),
+                if (controller.isLoadingKpi.value) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (controller.kpiError.value.isNotEmpty) {
+                  return Center(
+                    child: Text(
+                      controller.kpiError.value,
+                      style: const TextStyle(color: Colors.red),
                     ),
                   );
-                });
-              },
-            ),
+                }
+                if (rows.isEmpty) {
+                  return const Center(child: Text("No status data"));
+                }
+
+                // Convert project status data to chart-friendly format
+                List<double> projectCounts = [];
+                List<String> projectStatuses = [];
+                
+                for (var item in rows) {
+                  projectStatuses.add(item["statut"]);
+                  projectCounts.add(_toDouble(item["projectCount"]));
+                }
+
+                return LineChart(
+                  LineChartData(
+                    minY: 0,
+                    maxY: projectCounts.isNotEmpty ? projectCounts.reduce((a, b) => a > b ? a : b) * 1.2 : 400,
+                    borderData: FlBorderData(show: false),
+                    titlesData: FlTitlesData(
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          interval: 1,
+                          getTitlesWidget: (value, _) {
+                            return Text(
+                              projectStatuses[value.toInt()],
+                              style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, fontWeight: FontWeight.w500),
+                            );
+                          },
+                        ),
+                      ),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          interval: 50,
+                          reservedSize: 40,
+                          getTitlesWidget: (value, meta) {
+                            return Text(
+                              value.toInt().toString(),
+                              style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
+                              textAlign: TextAlign.left,
+                            );
+                          },
+                        ),
+                      ),
+                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    ),
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: List.generate(
+                          projectCounts.length,
+                          (index) => FlSpot(index.toDouble(), projectCounts[index] * animationValue),
+                        ),
+                        isCurved: true,
+                        barWidth: 3,
+                        color: Colors.blue,
+                        belowBarData: BarAreaData(show: false),
+                        dotData: FlDotData(show: true),
+                      ),
+                    ],
+                    gridData: FlGridData(drawHorizontalLine: true, drawVerticalLine: false),
+                  ),
+                );
+              });
+            },
           ),
-          const SizedBox(height: 20),
-          _buildLegend(lang, isMobileScreen),
-          const SizedBox(height: 15),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   LineChartBarData _line(
     List<VisitorData> data,

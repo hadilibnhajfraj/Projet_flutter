@@ -42,47 +42,50 @@ class SalesDashboardController extends GetxController {
   final projectValidationStatus = <Map<String, dynamic>>[].obs; // validationStatusCount
   final topUsers = <Map<String, dynamic>>[].obs;
   final latestProjects = <Map<String, dynamic>>[].obs;
-// ================== ✅ PAGINATION (Surface table) ==================
-final surfacePage = 1.obs;
-final surfacePerPage = 4.obs; // ✅ 4 rows per page
 
-int get surfaceTotalPages {
-  final total = projectSurfaceKpi.length;
-  final per = surfacePerPage.value <= 0 ? 4 : surfacePerPage.value;
-  final pages = (total / per).ceil();
-  return pages <= 0 ? 1 : pages;
-}
+  // ================== ✅ PAGINATION (Surface table) ==================
+  final surfacePage = 1.obs;
+  final surfacePerPage = 4.obs; // ✅ 4 rows per page
+  final projectStatusData = <Map<String, dynamic>>[].obs;
 
-List<Map<String, dynamic>> get surfacePagedRows {
-  final all = projectSurfaceKpi;
-  if (all.isEmpty) return [];
+  int get surfaceTotalPages {
+    final total = projectSurfaceKpi.length;
+    final per = surfacePerPage.value <= 0 ? 4 : surfacePerPage.value;
+    final pages = (total / per).ceil();
+    return pages <= 0 ? 1 : pages;
+  }
 
-  final per = surfacePerPage.value <= 0 ? 4 : surfacePerPage.value;
-  final page = surfacePage.value <= 0 ? 1 : surfacePage.value;
+  List<Map<String, dynamic>> get surfacePagedRows {
+    final all = projectSurfaceKpi;
+    if (all.isEmpty) return [];
 
-  final start = (page - 1) * per;
-  if (start < 0 || start >= all.length) return [];
+    final per = surfacePerPage.value <= 0 ? 4 : surfacePerPage.value;
+    final page = surfacePage.value <= 0 ? 1 : surfacePage.value;
 
-  final end = (start + per).clamp(0, all.length);
-  return all.sublist(start, end);
-}
+    final start = (page - 1) * per;
+    if (start < 0 || start >= all.length) return [];
 
-void nextSurfacePage() {
-  if (surfacePage.value < surfaceTotalPages) surfacePage.value++;
-}
+    final end = (start + per).clamp(0, all.length);
+    return all.sublist(start, end);
+  }
 
-void prevSurfacePage() {
-  if (surfacePage.value > 1) surfacePage.value--;
-}
+  void nextSurfacePage() {
+    if (surfacePage.value < surfaceTotalPages) surfacePage.value++;
+  }
 
-void resetSurfacePagination() {
-  surfacePage.value = 1;
-}
+  void prevSurfacePage() {
+    if (surfacePage.value > 1) surfacePage.value--;
+  }
+
+  void resetSurfacePagination() {
+    surfacePage.value = 1;
+  }
 
   @override
   void onInit() {
     super.onInit();
     fetchProjectKpis();
+    fetchProjectsByStatus(); // Fetching the project status data as well
   }
 
   // ================== Helpers parsing ==================
@@ -166,7 +169,42 @@ void resetSurfacePagination() {
       // surfData = [ {surfaceProspectee, totalProjects, validatedProjects, validatedPercentage, avgReussite}, ... ]
       projectSurfaceKpi.assignAll(_asListOfMap(surfData));
       // ✅ reset pagination after refresh
-resetSurfacePagination();
+      resetSurfacePagination();
+
+      update(["sales_dashboard"]);
+    } catch (e) {
+      kpiError.value = "KPI error: $e";
+      update(["sales_dashboard"]);
+    } finally {
+      isLoadingKpi.value = false;
+      update(["sales_dashboard"]);
+    }
+  }
+
+  // ================== Projects By Status ==================
+  Future<void> fetchProjectsByStatus() async {
+    try {
+      isLoadingKpi.value = true;
+      kpiError.value = "";
+
+      final headers = await _headers();
+
+      // Call the /kpi/projects-by-status API
+      final statusReq = http.get(
+        Uri.parse("$baseUrl/projects/kpi/projects-by-status"),
+        headers: headers,
+      );
+
+      final statusRes = await statusReq;
+
+      if (statusRes.statusCode != 200) {
+        throw Exception("Projects by Status: ${statusRes.statusCode} ${statusRes.body}");
+      }
+
+      final statusData = json.decode(statusRes.body);
+
+      // Parse the data for projects by status
+      projectStatusData.assignAll(_asListOfMap(statusData));
 
       update(["sales_dashboard"]);
     } catch (e) {
@@ -204,5 +242,4 @@ resetSurfacePagination();
   double mapLat(Map<String, dynamic> item) => _toDouble(item["latitude"]);
   double mapLng(Map<String, dynamic> item) => _toDouble(item["longitude"]);
   String mapTitle(Map<String, dynamic> item) => (item["nomProjet"] ?? "Projet").toString();
-  
 }
