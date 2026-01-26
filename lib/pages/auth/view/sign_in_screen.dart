@@ -226,18 +226,21 @@ class SignInScreenState extends State<SignInScreen> {
                                                     ],
                                                   ),
                                                 ),
-                                                GestureDetector(
-                                                  onTap: () {},
-                                                  child: Text(
-                                                    lang.translate("forgotPassword"),
-                                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                                      decorationColor: colorPrimary300,
-                                                      decoration: TextDecoration.underline,
-                                                      fontWeight: FontWeight.w500,
-                                                      color: colorPrimary300,
-                                                    ),
-                                                  ),
-                                                ),
+                                           /*    GestureDetector(
+  onTap: () {
+    context.go(MyRoute.forgotPasswordScreen);
+  },
+  child: Text(
+    lang.translate("forgotPassword"),
+    style: theme.textTheme.bodyMedium?.copyWith(
+      decorationColor: colorPrimary300,
+      decoration: TextDecoration.underline,
+      fontWeight: FontWeight.w500,
+      color: colorPrimary300,
+    ),
+  ),
+),*/
+
                                               ],
                                             ),
 

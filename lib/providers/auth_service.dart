@@ -101,4 +101,48 @@ class AuthService extends ChangeNotifier {
     await _box.write('isLoggedIn', false);
     notifyListeners();
   }
+    Future<Map<String, dynamic>> forgotPassword({required String email}) async {
+    final res = await ApiClient.instance.dio.post('/auth/forgot-password', data: {
+      'email': email.trim().toLowerCase(),
+    });
+
+    final status = res.statusCode ?? 0;
+    if (status >= 400) {
+      final data = res.data;
+      final msg = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Erreur forgot password';
+      throw Exception(msg);
+    }
+
+    return (res.data is Map<String, dynamic>)
+        ? (res.data as Map<String, dynamic>)
+        : Map<String, dynamic>.from(res.data);
+  }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String token,
+    required String newPassword,
+  }) async {
+    final res = await ApiClient.instance.dio.post('/auth/reset-password', data: {
+      'email': email.trim().toLowerCase(),
+      'token': token,
+      'newPassword': newPassword,
+    });
+
+    final status = res.statusCode ?? 0;
+    if (status >= 400) {
+      final data = res.data;
+      final msg = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Erreur reset password';
+      throw Exception(msg);
+    }
+
+    return (res.data is Map<String, dynamic>)
+        ? (res.data as Map<String, dynamic>)
+        : Map<String, dynamic>.from(res.data);
+  }
+
 }

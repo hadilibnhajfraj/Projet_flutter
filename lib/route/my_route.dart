@@ -187,7 +187,7 @@ class MyRoute {
               GoRoute(
                 path: salesAdmin,
                 pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: SalesDashboardScreen()),
+                    NoTransitionPage(child: SalesDashboardScreen()),
               ),
               GoRoute(
                 path: financeAdmin,
