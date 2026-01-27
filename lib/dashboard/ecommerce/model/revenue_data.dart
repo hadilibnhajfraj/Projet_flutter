@@ -1,7 +1,7 @@
 class RevenueData {
-  final String month;
-  final double earning;
-  final double expense;
+  final String month;    // Jan..Dec
+  final double earning;  // % validés
+  final double expense;  // % réussite moyenne
 
   RevenueData({
     required this.month,

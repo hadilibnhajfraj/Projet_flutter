@@ -1,14 +1,15 @@
 class OrderModel {
-  final String id;
-  final DateTime date;
-  final String customerName;
-  final String customerEmail;
-  final String customerAvatarUrl; // Optional
-  final String paymentStatus;
-  final String orderStatus;
-  final String paymentMethod;
-  final String paymentLast4;
-   bool isSelected=false;
+  final String id;                // => projectId (UUID) ou code affichage
+  final DateTime date;            // => dateDemarrage
+  final String customerName;      // => nomProjet
+  final String customerEmail;     // => username (ou email)
+  final String customerAvatarUrl; // => image placeholder
+  final String paymentStatus;     // => validationStatut (Validé / Non validé)
+  final String orderStatus;       // => statut (Terminé / En cours / Préparation)
+  final String paymentMethod;     // => permission (owner/editor/viewer)
+  final String paymentLast4;      // => typeProjet ou surface
+
+  bool isSelected = false;
 
   OrderModel({
     required this.id,
