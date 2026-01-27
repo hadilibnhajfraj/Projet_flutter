@@ -55,7 +55,6 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
               children: [
                 _commonCard(5, _buildTodaySaleWidget(lang, theme)),
                 _commonCard(7, _buildVisitorChart(lang, theme, isMobileScreen)),
-                _commonCard(5, _buildRevenueChart(lang, theme, isMobileScreen)),
                 _commonCard(5, _buildTopProductsWidget(lang, theme)),
                 _commonCard(7, _buildCountryMapSalesWidget(lang)),
                
@@ -410,78 +409,6 @@ Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
     );
   }
 
-  // =========================
-  // Revenue chart (demo)
-  // =========================
-  Widget _buildRevenueChart(AppLocalizations lang, ThemeData theme, bool isMobileScreen) {
-    return Padding(
-      padding: const EdgeInsets.all(7.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _titleTextStyle(lang.translate('TotalRevenue')),
-          const SizedBox(height: 30),
-          SizedBox(
-            height: 250,
-            child: TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 800),
-              curve: Curves.easeOut,
-              tween: Tween(begin: 0, end: 1),
-              builder: (context, animationValue, _) {
-                return BarChart(
-                  BarChartData(
-                    alignment: BarChartAlignment.spaceAround,
-                    maxY: 25000,
-                    barTouchData: BarTouchData(enabled: false),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          interval: 5000,
-                          reservedSize: 40,
-                          getTitlesWidget: (value, meta) {
-                            return Text(
-                              '${(value ~/ 1000)}k',
-                              style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
-                            );
-                          },
-                        ),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (value, meta) {
-                            const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                days[value.toInt()],
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    ),
-                    gridData: FlGridData(drawHorizontalLine: true, drawVerticalLine: false),
-                    borderData: FlBorderData(show: false),
-                    barGroups: _getRevenueBarGroups(animationValue: animationValue),
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 20),
-          _buildRevenueLegend(lang, isMobileScreen),
-        ],
-      ),
-    );
-  }
 
   List<BarChartGroupData> _getRevenueBarGroups({double animationValue = 1.0}) {
     final online = [12000, 15000, 5000, 14000, 11000, 13000, 20000];

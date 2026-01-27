@@ -42,11 +42,13 @@ class SalesDashboardController extends GetxController {
   final projectValidationStatus = <Map<String, dynamic>>[].obs; // validationStatusCount
   final topUsers = <Map<String, dynamic>>[].obs;
   final latestProjects = <Map<String, dynamic>>[].obs;
+// Déclaration de la variable
+RxList<Map<String, dynamic>> projectStatusData = <Map<String, dynamic>>[].obs;
 
   // ================== ✅ PAGINATION (Surface table) ==================
   final surfacePage = 1.obs;
   final surfacePerPage = 4.obs; // ✅ 4 rows per page
-  final projectStatusData = <Map<String, dynamic>>[].obs;
+ RxList<Map<String, dynamic>> projectStatusAndDateData = <Map<String, dynamic>>[].obs;
 
   int get surfaceTotalPages {
     final total = projectSurfaceKpi.length;
@@ -215,6 +217,24 @@ class SalesDashboardController extends GetxController {
       update(["sales_dashboard"]);
     }
   }
+  // Ajout d'un nouvel appel pour récupérer les projets par validationStatut et dateDemarrage
+Future<void> fetchProjectStatusData() async {
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/projects/kpi/projects-by-status'),
+      headers: await _headers(),
+    );
+    
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      projectStatusData.assignAll(data.map((e) => e as Map<String, dynamic>).toList());
+    } else {
+      throw Exception('Failed to load project status data');
+    }
+  } catch (e) {
+    print("Error fetching project status data: $e");
+  }
+}
 
   // ================== UI summary ==================
   int get totalProjects => _toInt(projectValidationKpi["totalProjects"]);
