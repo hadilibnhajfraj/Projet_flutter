@@ -43,6 +43,7 @@ import 'package:dash_master_toolkit/tables/view/basic_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/drag_and_drop_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/hover_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/stripped_row_table_screen.dart';
+import 'package:dash_master_toolkit/forms/view/ProjectCommentScreen.dart';
 
 import 'package:go_router/go_router.dart';
 
@@ -83,6 +84,7 @@ class MyRoute {
   static const formsBasicFieldsScreen = '/forms/forms_basic_fields';
   static const customFormScreen = '/forms/custom_form';
   static const validationFormScreen = '/forms/validation_form';
+  static const projectCommentScreen = '/users/user_grid';
 
   // ✅ IMPORTANT : c’est bien /forms/project (pas null)
   static const projectFormScreen = '/forms/project';

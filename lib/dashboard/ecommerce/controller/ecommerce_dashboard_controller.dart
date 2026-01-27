@@ -1,3 +1,4 @@
+// lib/dashboard/ecommerce/controller/ecommerce_dashboard_controller.dart
 import 'dart:convert';
 import 'package:dash_master_toolkit/dashboard/ecommerce/ecommerce_imports.dart';
 import 'package:dash_master_toolkit/dashboard/ecommerce/model/order_model.dart';
@@ -57,16 +58,14 @@ class EcommerceDashboardController extends GetxController {
     ]);
 
     // ✅ CustomerGrowth built from orders (top 6)
-    // 🔥 Remplacer l’icône chariot par icône projet
-    const String projectIcon = pieChartIcon;
-
     final list = orders.map((o) {
       final pct = _parsePercent(o.paymentLast4);
       final fallback = (o.paymentStatus == "Validé") ? 100.0 : 0.0;
 
       return CustomerGrowth(
         country: o.customerName,
-        flag: projectIcon,
+        // ✅ icône projet (pas chariot)
+        flag: pieChartIcon,
         percentage: pct ?? fallback,
       );
     }).toList()
@@ -130,7 +129,7 @@ class EcommerceDashboardController extends GetxController {
 
   Future<void> fetchProjectsTable() async {
     try {
-      // ✅ utiliser la nouvelle route qui renvoie owner + members
+      // ✅ route qui renvoie owner + members
       final res = await http.get(
         Uri.parse("$baseUrl/projects/projectsusers"),
         headers: _headers(),
@@ -138,7 +137,6 @@ class EcommerceDashboardController extends GetxController {
       if (res.statusCode != 200) return;
 
       final List list = jsonDecode(res.body);
-
       final myEmail = (AuthService().userEmail ?? "").trim().toLowerCase();
 
       orders.value = list.take(15).map((p) {
@@ -150,20 +148,20 @@ class EcommerceDashboardController extends GetxController {
         final validation = (p["validationStatut"] ?? "Non validé").toString();
         final statut = (p["statut"] ?? "—").toString();
 
-        // ✅ owner venant du backend
+        // ✅ owner
         final owner = (p["owner"] is Map) ? p["owner"] as Map : null;
         final ownerEmail = (owner?["email"] ?? "—").toString();
 
-        // ✅ members venant du backend
+        // ✅ members
         final members = (p["members"] is List) ? (p["members"] as List) : const [];
         String permission = "viewer";
 
-        // 🔥 permission du user connecté (si présent dans members)
+        // permission du user connecté (si présent dans members)
         for (final m in members) {
           if (m is Map) {
             final email = (m["email"] ?? "").toString().trim().toLowerCase();
             if (email == myEmail) {
-              permission = (m["permission"] ?? "viewer").toString().trim().toLowerCase();
+              permission = (m["permission"] ?? "viewer").toString();
               break;
             }
           }
@@ -176,22 +174,42 @@ class EcommerceDashboardController extends GetxController {
           id: id,
           date: date,
           customerName: nomProjet,
-          // ✅ Afficher le vrai user (owner)
-          customerEmail: ownerEmail,
+          customerEmail: ownerEmail, // ✅ afficher owner
           customerAvatarUrl: "https://i.ibb.co/BrPBtpS/48px.png",
           paymentStatus: validation,
           orderStatus: statut,
 
-          // ✅ paymentMethod = permission (owner/editor/viewer)
+          // ✅ on stocke permission ici
           paymentMethod: permission,
 
-          // ✅ % réussite (string)
           paymentLast4: prText,
-
           isSelected: false,
         );
       }).toList();
     } catch (_) {}
+  }
+
+  // ✅ DELETE projet (utilisé par le bouton supprimer)
+  Future<bool> deleteProject(String id) async {
+    try {
+      final res = await http.delete(
+        Uri.parse("$baseUrl/projects/$id"),
+        headers: _headers(),
+      );
+
+      if (res.statusCode != 200 && res.statusCode != 204) {
+        return false;
+      }
+
+      // ✅ update UI sans recharger tout
+      orders.removeWhere((p) => p.id == id);
+
+      // ✅ refresh counts (simple)
+      await fetchSummary();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // ---------------- HELPERS ----------------
@@ -200,7 +218,7 @@ class EcommerceDashboardController extends GetxController {
     final parts = yyyyMM.split("-");
     if (parts.length != 2) return yyyyMM;
     final m = int.tryParse(parts[1]) ?? 1;
-    const names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     return names[(m - 1).clamp(0, 11)];
   }
 
@@ -209,6 +227,7 @@ class EcommerceDashboardController extends GetxController {
     return double.tryParse(raw.replaceAll("%", "").trim());
   }
 
+  // ✅ owner/editor => edit/delete
   bool canEdit(OrderModel p) => p.paymentMethod == "owner" || p.paymentMethod == "editor";
 
   void selectAllRows(bool select) {
