@@ -185,7 +185,7 @@ class _ProjectCommentScreenState extends State<ProjectCommentScreen> {
     final txt = _commentCtrl.text.trim();
     if (txt.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Le commentaire est vide")),
+        const SnackBar(content: Text("Comment is empty")),
       );
       return;
     }
@@ -198,12 +198,12 @@ class _ProjectCommentScreenState extends State<ProjectCommentScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Commentaire envoyé ✅")),
+        const SnackBar(content: Text("Comment posted ✅")),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur envoi : $e")),
+        SnackBar(content: Text("Load error : $e")),
       );
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -499,21 +499,21 @@ class _ProjectCommentScreenState extends State<ProjectCommentScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _roField("Nom du Projet", c.nomProjet),
-                    _roField("Date de Démarrage", c.dateDemarrage),
-                    _roField("Statut du Projet", c.statut),
-                    _roField("Type + Adresse Chantier", c.typeAdresseChantier),
-                    _roField("Ingénieur Responsable", c.ingenieurResponsable),
-                    _roField("Téléphone Ingénieur", c.telephoneIngenieur),
-                    _roField("Architecte", c.architecte),
-                    _roField("Téléphone Architecte", c.telephoneArchitecte),
-                    _roField("Entreprise", c.entreprise),
-                    _roField("Promoteur", c.promoteur),
-                    _roField("Bureau d’étude", c.bureauEtude),
-                    _roField("Bureau de contrôle", c.bureauControle),
-                    _roField("Entreprise Fluide", c.entrepriseFluide),
-                    _roField("Entreprise Électricité", c.entrepriseElectricite),
-                    _roField("Localisation (Adresse)", c.localisationAdresse),
+                    _roField("Project Name", c.nomProjet),
+                    _roField("Start Date", c.dateDemarrage),
+                    _roField("Project Status", c.statut),
+                    _roField("Site Type + Address", c.typeAdresseChantier),
+                    _roField("Responsible Engineer", c.ingenieurResponsable),
+                    _roField("Engineer Phone", c.telephoneIngenieur),
+                    _roField("Architect", c.architecte),
+                    _roField("Architect Phone", c.telephoneArchitecte),
+                    _roField("Company", c.entreprise),
+                    _roField("Developer", c.promoteur),
+                    _roField("Design Office", c.bureauEtude),
+                    _roField("Control Office", c.bureauControle),
+                    _roField("Plumbing/HVAC Company", c.entrepriseFluide),
+                    _roField("Electrical Company", c.entrepriseElectricite),
+                    _roField("Location (Address)", c.localisationAdresse),
 
                     const SizedBox(height: 12),
 

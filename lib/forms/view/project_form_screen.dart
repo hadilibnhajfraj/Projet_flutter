@@ -115,7 +115,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Nom du Projet",
+                          title: "Project Name",
                           controller: c.nomProjet,
                           validator: (v) => c.requiredValidator(v, "Nom du Projet"),
                         ),
@@ -123,7 +123,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                           id: 'dateDemarrage',
                           builder: (_) => _dateField(
                             theme: theme,
-                            title: "Date de Démarrage",
+                            title: "Start Date",
                             controller: c.dateDemarrage,
                             validator: (v) => c.requiredValidator(v, "Date de Démarrage"),
                           ),
@@ -137,13 +137,13 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Type de projet (optionnel)",
+                          title: "Project Type (optional)",
                           controller: c.typeProjet,
                           validator: null,
                         ),
                         right: _field(
                           theme: theme,
-                          title: "Type + Adresse du Chantier",
+                          title: "Site Type + Address",
                           controller: c.typeAdresseChantier,
                           validator: (v) => c.requiredValidator(v, "Type + Adresse"),
                         ),
@@ -155,7 +155,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         left: _validationDropdown(theme),
                         right: _field(
                           theme: theme,
-                          title: "Pourcentage de réussite (0 - 100)",
+                          title: "Success Rate (0 - 100)",
                           controller: c.pourcentageReussite,
                           validator: c.percentValidator,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -165,7 +165,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                       // ✅ surface
                       _field(
                         theme: theme,
-                        title: "Surface prospectée (m²) (optionnel)",
+                        title: "Prospected Area (m²) (optional)",
                         controller: c.surfaceProspectee,
                         validator: c.surfaceValidator,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -175,13 +175,13 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Ingénieur Responsable",
+                          title: "Responsible Engineer",
                           controller: c.ingenieurResponsable,
                           validator: (v) => c.requiredValidator(v, "Ingénieur Responsable"),
                         ),
                         right: _field(
                           theme: theme,
-                          title: "Téléphone Ingénieur",
+                          title: "Engineer Phone",
                           controller: c.telephoneIngenieur,
                           validator: (v) => c.phoneValidator(v, "Téléphone Ingénieur"),
                           keyboardType: TextInputType.phone,
@@ -192,13 +192,13 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Architecte",
+                          title: "Architect",
                           controller: c.architecte,
                           validator: (v) => c.requiredValidator(v, "Architecte"),
                         ),
                         right: _field(
                           theme: theme,
-                          title: "Téléphone Architecte",
+                          title: "Architect Phone",
                           controller: c.telephoneArchitecte,
                           validator: (v) => c.phoneValidator(v, "Téléphone Architecte"),
                           keyboardType: TextInputType.phone,
@@ -207,25 +207,25 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
                       _field(
                         theme: theme,
-                        title: "Entreprise",
+                        title: "Company",
                         controller: c.entreprise,
                         validator: (v) => c.requiredValidator(v, "Entreprise"),
                       ),
                       _field(
                         theme: theme,
-                        title: "Promoteur",
+                        title: "Developer",
                         controller: c.promoteur,
                         validator: (v) => c.requiredValidator(v, "Promoteur"),
                       ),
                       _field(
                         theme: theme,
-                        title: "Bureau d’étude",
+                        title: "Design Office",
                         controller: c.bureauEtude,
                         validator: (v) => c.requiredValidator(v, "Bureau d’étude"),
                       ),
                       _field(
                         theme: theme,
-                        title: "Bureau de contrôle",
+                        title: "Control Office",
                         controller: c.bureauControle,
                         validator: (v) => c.requiredValidator(v, "Bureau de contrôle"),
                       ),
@@ -234,13 +234,13 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Entreprise Fluide (optionnel)",
+                          title: "Plumbing/HVAC Company (optional)",
                           controller: c.entrepriseFluide,
                           validator: null,
                         ),
                         right: _field(
                           theme: theme,
-                          title: "Entreprise Électricité (optionnel)",
+                          title: "Electrical Company (optional)",
                           controller: c.entrepriseElectricite,
                           validator: null,
                         ),
@@ -251,7 +251,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
                       _field(
                         theme: theme,
-                        title: "Commentaires (optionnel)",
+                        title: "Comments (optional)",
                         controller: c.commentaireCtrl,
                         validator: null,
                         keyboardType: TextInputType.multiline,
@@ -264,7 +264,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         borderRadius: 8,
                         width: 180,
                         onPressed: _submit,
-                        text: _projectId == null ? "Créer" : "Mettre à jour",
+                        text: _projectId == null ? "Create" : "Update",
                       ),
                     ],
                   ),
@@ -425,7 +425,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                 validator: (v) => c.requiredValidator(v, "Localisation"),
                 decoration: inputDecoration(
                   context,
-                  hintText: "Saisir une adresse ou choisir sur la carte",
+                  hintText: "Enter an address or pick on the map",
                 ),
               ),
             ),
@@ -434,7 +434,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
               borderRadius: 10,
               width: 170,
               onPressed: _pickLocation,
-              text: "Choisir sur la carte",
+              text: "Enter an address or pick on the map",
             ),
           ],
         ),
