@@ -2,7 +2,10 @@ import 'dart:async';
 import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
+
 import '../../services/address_service.dart';
+import '../../tables/model/project_map_item.dart';
+import '../../services/kpi_service.dart';
 
 class GoogleMapScreen extends StatefulWidget {
   const GoogleMapScreen({super.key});
@@ -23,10 +26,16 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
   static const LatLng initial = LatLng(36.8065, 10.1815);
   LatLng? _selected;
 
+  // ✅ projets venant de l’API
+  List<ProjectMapItem> _projects = [];
+  bool _loading = true;
+  String? _error;
+
   @override
   void initState() {
     super.initState();
     addressCtrl.addListener(_onAddressChanged);
+    _loadProjects();
   }
 
   @override
@@ -37,8 +46,32 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
     super.dispose();
   }
 
+  Future<void> _loadProjects() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final items = await KpiService.fetchMapProjects();
+      if (!mounted) return;
+      setState(() {
+        _projects = items;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
   void _onMapCreated(GoogleMapController controller) async {
     _mapController = controller;
+
+    // ✅ si on a une sélection, centre dessus
     if (_selected != null) {
       await _moveCamera(_selected!, 16);
       if (mounted) setState(() {});
@@ -56,15 +89,46 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
     });
   }
 
+  // ✅ markers: projets + selected
   Set<Marker> get _markers {
-    if (_selected == null) return {};
-    return {
-      Marker(
-        markerId: const MarkerId("project"),
-        position: _selected!,
-        infoWindow: const InfoWindow(title: "Adresse"),
-      ),
-    };
+    final markers = <Marker>{};
+
+    // marker sélectionné (adresse tap/click)
+    if (_selected != null) {
+      markers.add(
+        Marker(
+          markerId: const MarkerId("selected"),
+          position: _selected!,
+          infoWindow: const InfoWindow(title: "Adresse sélectionnée"),
+        ),
+      );
+    }
+
+    // markers projets (API)
+    for (final p in _projects) {
+      if (p.lat == 0 && p.lng == 0) continue;
+
+      markers.add(
+        Marker(
+          markerId: MarkerId("project_${p.id}"),
+          position: LatLng(p.lat, p.lng),
+          infoWindow: InfoWindow(
+            title: p.nomProjet,
+            snippet: [
+              if (p.adresse != null && p.adresse!.trim().isNotEmpty) p.adresse!.trim(),
+              if (p.validationStatut != null) "Validation: ${p.validationStatut}",
+              if (p.statut != null) "Statut: ${p.statut}",
+            ].where((x) => x.trim().isNotEmpty).join(" • "),
+          ),
+          onTap: () async {
+            // ✅ optionnel: centrer sur le projet quand on clique son marker
+            await _moveCamera(LatLng(p.lat, p.lng), 16);
+          },
+        ),
+      );
+    }
+
+    return markers;
   }
 
   void _applyLocation(LatLng p) {
@@ -110,7 +174,7 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final target = _selected ?? initial;
+    final target = _selected ?? (_projects.isNotEmpty ? LatLng(_projects.first.lat, _projects.first.lng) : initial);
 
     return Scaffold(
       backgroundColor: themeController.isDarkMode ? colorGrey900 : colorWhite,
@@ -131,37 +195,49 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
               children: [
                 _dialogCard(
                   Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // ✅ Header
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              "Projets géolocalisés",
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: "Rafraîchir",
+                            onPressed: _loadProjects,
+                            icon: const Icon(Icons.refresh),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+
+                      if (_loading) const LinearProgressIndicator(),
+                      if (_error != null) ...[
+                        const SizedBox(height: 8),
+                        Text(_error!, style: const TextStyle(color: Colors.red)),
+                      ],
+                      const SizedBox(height: 10),
+
                       SizedBox(
-                        height: 700,
+                        height: 650,
                         child: GoogleMap(
                           mapType: MapType.normal,
                           onMapCreated: _onMapCreated,
                           initialCameraPosition: CameraPosition(
                             target: target,
-                            zoom: _selected == null ? 10 : 16,
+                            zoom: 10,
                           ),
                           onTap: _onTap,
                           markers: _markers,
+                          zoomControlsEnabled: true,
+                          myLocationButtonEnabled: false,
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: addressCtrl,
-                        decoration: const InputDecoration(
-                          labelText: "Adresse (copier/coller)",
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_selected != null)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            "Lat: ${_selected!.latitude}, Lng: ${_selected!.longitude}",
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ),
+                     
                     ],
                   ),
                 ),
