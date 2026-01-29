@@ -6,15 +6,23 @@ import 'package:http/http.dart' as http;
 
 import '../../../providers/auth_service.dart';
 
+// ✅ AJOUTS
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 class EcommerceDashboardController extends GetxController {
   ThemeController themeController = Get.put(ThemeController());
   TextEditingController searchController = TextEditingController();
   FocusNode f1 = FocusNode();
 
   // ✅ Web (Chrome) => localhost ok
-  // ✅ Android emulator => 10.0.2.2
-  // ✅ real device => http://PC_IP:4000
-  final String baseUrl = "http://localhost:4000";
+  // ✅ Android emulator => 10.0.2.2 (accès au PC)
+  // ✅ Windows/Desktop => localhost ok
+  String get baseUrl {
+    if (kIsWeb) return "http://localhost:4000";
+    if (Platform.isAndroid) return "http://10.0.2.2:4000";
+    return "http://localhost:4000";
+  }
 
   // ✅ TOP CARDS
   final RxInt totalProjects = 0.obs;
@@ -39,6 +47,7 @@ class EcommerceDashboardController extends GetxController {
     final token = AuthService().accessToken ?? "";
     return {
       "Content-Type": "application/json",
+      "Accept": "application/json",
       if (token.isNotEmpty) "Authorization": "Bearer $token",
     };
   }
@@ -64,7 +73,6 @@ class EcommerceDashboardController extends GetxController {
 
       return CustomerGrowth(
         country: o.customerName,
-        // ✅ icône projet (pas chariot)
         flag: pieChartIcon,
         percentage: pct ?? fallback,
       );
@@ -129,7 +137,6 @@ class EcommerceDashboardController extends GetxController {
 
   Future<void> fetchProjectsTable() async {
     try {
-      // ✅ route qui renvoie owner + members
       final res = await http.get(
         Uri.parse("$baseUrl/projects/projectsusers"),
         headers: _headers(),
@@ -148,15 +155,12 @@ class EcommerceDashboardController extends GetxController {
         final validation = (p["validationStatut"] ?? "Non validé").toString();
         final statut = (p["statut"] ?? "—").toString();
 
-        // ✅ owner
         final owner = (p["owner"] is Map) ? p["owner"] as Map : null;
         final ownerEmail = (owner?["email"] ?? "—").toString();
 
-        // ✅ members
         final members = (p["members"] is List) ? (p["members"] as List) : const [];
         String permission = "viewer";
 
-        // permission du user connecté (si présent dans members)
         for (final m in members) {
           if (m is Map) {
             final email = (m["email"] ?? "").toString().trim().toLowerCase();
@@ -174,14 +178,11 @@ class EcommerceDashboardController extends GetxController {
           id: id,
           date: date,
           customerName: nomProjet,
-          customerEmail: ownerEmail, // ✅ afficher owner
+          customerEmail: ownerEmail,
           customerAvatarUrl: "https://i.ibb.co/BrPBtpS/48px.png",
           paymentStatus: validation,
           orderStatus: statut,
-
-          // ✅ on stocke permission ici
           paymentMethod: permission,
-
           paymentLast4: prText,
           isSelected: false,
         );
@@ -189,7 +190,6 @@ class EcommerceDashboardController extends GetxController {
     } catch (_) {}
   }
 
-  // ✅ DELETE projet (utilisé par le bouton supprimer)
   Future<bool> deleteProject(String id) async {
     try {
       final res = await http.delete(
@@ -201,10 +201,7 @@ class EcommerceDashboardController extends GetxController {
         return false;
       }
 
-      // ✅ update UI sans recharger tout
       orders.removeWhere((p) => p.id == id);
-
-      // ✅ refresh counts (simple)
       await fetchSummary();
       return true;
     } catch (_) {
@@ -227,7 +224,6 @@ class EcommerceDashboardController extends GetxController {
     return double.tryParse(raw.replaceAll("%", "").trim());
   }
 
-  // ✅ owner/editor => edit/delete
   bool canEdit(OrderModel p) => p.paymentMethod == "owner" || p.paymentMethod == "editor";
 
   void selectAllRows(bool select) {

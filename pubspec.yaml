@@ -72,7 +72,7 @@ dependencies:
   syncfusion_flutter_maps: ^29.1.38
   syncfusion_flutter_charts: ^29.1.38
   geocoding: ^3.0.0
-  flutter_secure_storage: ^5.0.2
+  flutter_secure_storage: ^9.2.2
 
   dio: ^5.7.0
 dev_dependencies:

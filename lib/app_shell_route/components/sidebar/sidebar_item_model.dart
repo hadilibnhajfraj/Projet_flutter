@@ -57,8 +57,8 @@ List<SidebarItemModel> buildTopMenus() {
       navigationPath: '/dashboard',
       sidebarItemType: SidebarItemType.submenu,
       submenus: [
-        SidebarSubmenuModel(name: 'ecommerceAdmin', navigationPath: 'ecommerce-admin'),
-        SidebarSubmenuModel(name: 'Sales Admin', navigationPath: 'sales-admin'),
+        SidebarSubmenuModel(name: 'KPI PROJECT', navigationPath: 'kpi-project'),
+        SidebarSubmenuModel(name: 'KPI PROJECTS', navigationPath: 'kpi-projects'),
       ],
     ),
   ];
@@ -82,8 +82,8 @@ List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin}) {
                   SidebarSubmenuModel(name: "usersList", navigationPath: 'user_list'),
                 ]
               : [
-                  SidebarSubmenuModel(name: "usersGrid", navigationPath: 'user_grid'),
-                  SidebarSubmenuModel(name: "usersProfile", navigationPath: 'user_profile'),
+                  SidebarSubmenuModel(name: "Project List", navigationPath: 'project-list'),
+                  /*SidebarSubmenuModel(name: "usersProfile", navigationPath: 'user_profile'),*/
                 ],
         ),
       ],
@@ -99,7 +99,7 @@ List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin}) {
       ],
     ),
     GroupedMenuModel(
-      name: 'tablesAndForm',
+      name: 'Projects',
       menus: [
         if (!isAdmin)
           SidebarItemModel(

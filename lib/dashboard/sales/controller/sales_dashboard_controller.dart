@@ -3,6 +3,10 @@ import 'package:dash_master_toolkit/dashboard/sales/sales_imports.dart';
 import 'package:http/http.dart' as http;
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 
+// ✅ AJOUTS
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 class SalesDashboardController extends GetxController {
   // ================== UI DEMO DATA (charts) ==================
   final visitors = <VisitorData>[
@@ -27,8 +31,15 @@ class SalesDashboardController extends GetxController {
     ProductData(name: 'Apple Smartwatch', popularity: 20, sales: 25, color: 'FF8F0E'),
   ].obs;
 
-  // ================== KPI PROJECT DATA ==================
-  static const String baseUrl = "http://localhost:4000";
+  // ================== ✅ BASE URL (Windows + Android Emulator + Web) ==================
+  // Windows/Desktop => http://localhost:4000
+  // Android Emulator => http://10.0.2.2:4000 (accès au PC)
+  // Web => http://localhost:4000
+  String get baseUrl {
+    if (kIsWeb) return "http://localhost:4000";
+    if (Platform.isAndroid) return "http://10.0.2.2:4000";
+    return "http://localhost:4000"; // Windows / iOS simulator / macOS ...
+  }
 
   final isLoadingKpi = false.obs;
   final kpiError = "".obs;
@@ -37,18 +48,18 @@ class SalesDashboardController extends GetxController {
   final projectValidationKpi = <String, dynamic>{}.obs;
 
   // ✅ typage strict
-  final projectSurfaceKpi = <Map<String, dynamic>>[].obs; // from /validation-by-surface
-  final projectLocationKpi = <Map<String, dynamic>>[].obs; // mapProjects
-  final projectValidationStatus = <Map<String, dynamic>>[].obs; // validationStatusCount
+  final projectSurfaceKpi = <Map<String, dynamic>>[].obs;
+  final projectLocationKpi = <Map<String, dynamic>>[].obs;
+  final projectValidationStatus = <Map<String, dynamic>>[].obs;
   final topUsers = <Map<String, dynamic>>[].obs;
   final latestProjects = <Map<String, dynamic>>[].obs;
-// Déclaration de la variable
-RxList<Map<String, dynamic>> projectStatusData = <Map<String, dynamic>>[].obs;
+
+  RxList<Map<String, dynamic>> projectStatusData = <Map<String, dynamic>>[].obs;
+  RxList<Map<String, dynamic>> projectStatusAndDateData = <Map<String, dynamic>>[].obs;
 
   // ================== ✅ PAGINATION (Surface table) ==================
   final surfacePage = 1.obs;
-  final surfacePerPage = 4.obs; // ✅ 4 rows per page
- RxList<Map<String, dynamic>> projectStatusAndDateData = <Map<String, dynamic>>[].obs;
+  final surfacePerPage = 4.obs;
 
   int get surfaceTotalPages {
     final total = projectSurfaceKpi.length;
@@ -87,7 +98,7 @@ RxList<Map<String, dynamic>> projectStatusData = <Map<String, dynamic>>[].obs;
   void onInit() {
     super.onInit();
     fetchProjectKpis();
-    fetchProjectsByStatus(); // Fetching the project status data as well
+    fetchProjectsByStatus();
   }
 
   // ================== Helpers parsing ==================
@@ -131,13 +142,11 @@ RxList<Map<String, dynamic>> projectStatusData = <Map<String, dynamic>>[].obs;
 
       final headers = await _headers();
 
-      // 1) dashboard
       final dashboardReq = http.get(
         Uri.parse("$baseUrl/projects/kpi/dashboard"),
         headers: headers,
       );
 
-      // 2) surface (endpoint qui contient avgReussite)
       final surfaceReq = http.get(
         Uri.parse("$baseUrl/projects/kpi/validation-by-surface"),
         headers: headers,
@@ -157,20 +166,20 @@ RxList<Map<String, dynamic>> projectStatusData = <Map<String, dynamic>>[].obs;
       final dashData = json.decode(dashRes.body);
       final surfData = json.decode(surfRes.body);
 
-      // --- dashboard parse
       final summaryRaw = (dashData is Map) ? dashData["summary"] : null;
       projectValidationKpi.value =
           (summaryRaw is Map) ? Map<String, dynamic>.from(summaryRaw) : <String, dynamic>{};
 
-      projectValidationStatus.assignAll(_asListOfMap((dashData is Map) ? dashData["validationStatusCount"] : null));
-      projectLocationKpi.assignAll(_asListOfMap((dashData is Map) ? dashData["mapProjects"] : null));
+      projectValidationStatus.assignAll(
+        _asListOfMap((dashData is Map) ? dashData["validationStatusCount"] : null),
+      );
+      projectLocationKpi.assignAll(
+        _asListOfMap((dashData is Map) ? dashData["mapProjects"] : null),
+      );
       topUsers.assignAll(_asListOfMap((dashData is Map) ? dashData["topUsers"] : null));
       latestProjects.assignAll(_asListOfMap((dashData is Map) ? dashData["latestProjects"] : null));
 
-      // --- surface parse (LIST DIRECTE)
-      // surfData = [ {surfaceProspectee, totalProjects, validatedProjects, validatedPercentage, avgReussite}, ... ]
       projectSurfaceKpi.assignAll(_asListOfMap(surfData));
-      // ✅ reset pagination after refresh
       resetSurfacePagination();
 
       update(["sales_dashboard"]);
@@ -191,21 +200,16 @@ RxList<Map<String, dynamic>> projectStatusData = <Map<String, dynamic>>[].obs;
 
       final headers = await _headers();
 
-      // Call the /kpi/projects-by-status API
-      final statusReq = http.get(
+      final statusRes = await http.get(
         Uri.parse("$baseUrl/projects/kpi/projects-by-status"),
         headers: headers,
       );
-
-      final statusRes = await statusReq;
 
       if (statusRes.statusCode != 200) {
         throw Exception("Projects by Status: ${statusRes.statusCode} ${statusRes.body}");
       }
 
       final statusData = json.decode(statusRes.body);
-
-      // Parse the data for projects by status
       projectStatusData.assignAll(_asListOfMap(statusData));
 
       update(["sales_dashboard"]);
@@ -217,24 +221,6 @@ RxList<Map<String, dynamic>> projectStatusData = <Map<String, dynamic>>[].obs;
       update(["sales_dashboard"]);
     }
   }
-  // Ajout d'un nouvel appel pour récupérer les projets par validationStatut et dateDemarrage
-Future<void> fetchProjectStatusData() async {
-  try {
-    final response = await http.get(
-      Uri.parse('$baseUrl/projects/kpi/projects-by-status'),
-      headers: await _headers(),
-    );
-    
-    if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      projectStatusData.assignAll(data.map((e) => e as Map<String, dynamic>).toList());
-    } else {
-      throw Exception('Failed to load project status data');
-    }
-  } catch (e) {
-    print("Error fetching project status data: $e");
-  }
-}
 
   // ================== UI summary ==================
   int get totalProjects => _toInt(projectValidationKpi["totalProjects"]);
@@ -249,7 +235,6 @@ Future<void> fetchProjectStatusData() async {
   int surfaceTotal(Map<String, dynamic> item) => _toInt(item["totalProjects"]);
   int surfaceValidated(Map<String, dynamic> item) => _toInt(item["validatedProjects"]);
 
-  // ✅ on affiche avgReussite (92,95,60,48...) en priorité
   double surfaceAvgReussite(Map<String, dynamic> item) => _toDouble(
         item["avgReussite"] ??
             item["avg_reussite"] ??

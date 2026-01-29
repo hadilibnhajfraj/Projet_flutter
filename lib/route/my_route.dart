@@ -54,17 +54,17 @@ class MyRoute {
   static const login = '/login';
   static const dashboard = '/dashboard';
 
-  static const academicAdmin = '/academic-admin';
+  static const academicAdmin = 'academic-admin';
   static const dashboardAcademicAdmin = '/dashboard/academic-admin';
 
-  static const salesAdmin = '/sales-admin';
-  static const dashboardSalesAdmin = '/dashboard/sales-admin';
+  static const salesAdmin = '/kpi-projects';
+  static const dashboardSalesAdmin = '/dashboard/kpi-projects';
 
-  static const financeAdmin = '/finance-admin';
+  static const financeAdmin = 'finance-admin';
   static const dashboardFinanceAdmin = '/dashboard/finance-admin';
 
-  static const ecommerceAdmin = '/ecommerce-admin';
-  static const dashboardEcommerceAdmin = '/dashboard/ecommerce-admin';
+  static const ecommerceAdmin = '/kpi-project';
+  static const dashboardEcommerceAdmin = '/dashboard/kpi-project';
 
   static const calendarScreen = '/calendar';
   static const chatScreen = '/chat';
@@ -99,7 +99,7 @@ class MyRoute {
   static const chartScreen = '/chart';
 
   static const userListScreen = '/users/user_list';
-  static const userGridScreen = '/users/user_grid';
+  static const userGridScreen = '/users/project-list';
   static const userProfileScreen = '/users/user_profile';
 
   static const signInScreen = '/authentication/signin';
@@ -175,7 +175,7 @@ class MyRoute {
           GoRoute(
             path: dashboard,
             redirect: (context, state) {
-              if (state.fullPath == dashboard) return dashboardAcademicAdmin;
+              if (state.fullPath == dashboard) return dashboardSalesAdmin;
               return null;
             },
             routes: [
@@ -233,7 +233,7 @@ class MyRoute {
                     const NoTransitionPage(child: UserListScreen()),
               ),
               GoRoute(
-                path: 'user_grid',
+                path: 'project-list',
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: UserGridScreen()),
               ),

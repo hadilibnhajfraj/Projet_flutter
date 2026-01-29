@@ -268,7 +268,7 @@ class SignInScreenState extends State<SignInScreen> {
 
                                                   if (!mounted) return;
 
-                                                  context.go(MyRoute.dashboardAcademicAdmin);
+                                                  context.go(MyRoute.dashboardSalesAdmin);
                                                 } catch (e) {
                                                   if (!mounted) return;
 
