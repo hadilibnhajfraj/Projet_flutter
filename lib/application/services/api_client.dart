@@ -44,8 +44,8 @@ class ApiClient {
   // - Android Emulator => 10.0.2.2
   // - Device réel => IP de ton PC (ex: http://192.168.1.xx:4000)
   static String get baseUrl {
-    if (kIsWeb) return 'http://localhost:4000';
-    return 'http://10.0.2.2:4000';
+    if (kIsWeb) return 'https://api.crmprobar.com';
+    return 'https://api.crmprobar.com';
   }
 
   late final Dio dio;

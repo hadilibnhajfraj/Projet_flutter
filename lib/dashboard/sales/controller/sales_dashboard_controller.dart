@@ -36,9 +36,9 @@ class SalesDashboardController extends GetxController {
   // Android Emulator => http://10.0.2.2:4000 (accès au PC)
   // Web => http://localhost:4000
   String get baseUrl {
-    if (kIsWeb) return "http://localhost:4000";
-    if (Platform.isAndroid) return "http://10.0.2.2:4000";
-    return "http://localhost:4000"; // Windows / iOS simulator / macOS ...
+    if (kIsWeb) return "https://api.crmprobar.com";
+    if (Platform.isAndroid) return "https://api.crmprobar.com";
+    return "https://api.crmprobar.com"; // Windows / iOS simulator / macOS ...
   }
 
   final isLoadingKpi = false.obs;

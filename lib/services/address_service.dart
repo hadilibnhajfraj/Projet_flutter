@@ -15,9 +15,9 @@ class AddressSuggestion {
 }
 
 class AddressService {
-  static const String _apiBaseWeb = "http://localhost:4000";
-  static const String _apiBaseAndroidEmu = "http://10.0.2.2:4000";
-  static const String _apiBaseOther = "http://localhost:4000";
+  static const String _apiBaseWeb = "https://api.crmprobar.com";
+  static const String _apiBaseAndroidEmu = "https://api.crmprobar.com";
+  static const String _apiBaseOther = "https://api.crmprobar.com";
 
   static String get apiBase {
     if (kIsWeb) return _apiBaseWeb;
