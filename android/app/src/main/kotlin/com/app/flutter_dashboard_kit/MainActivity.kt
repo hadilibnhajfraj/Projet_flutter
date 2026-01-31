@@ -1,4 +1,4 @@
-package com.app.flutter_dashboard_kit
+package com.app.crmprobar
 
 import io.flutter.embedding.android.FlutterActivity
 
