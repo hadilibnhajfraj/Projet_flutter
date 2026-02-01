@@ -5,14 +5,25 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
-    scripts:
-      - name: Flutter pub get
-        script: flutter pub get
 
-      - name: Build iOS (no codesign)
+    scripts:
+      - name: Flutter clean + pub get
+        script: |
+          flutter clean
+          flutter pub get
+
+      - name: Update CocoaPods + install pods
+        script: |
+          cd ios
+          pod repo update
+          pod install
+          cd ..
+
+      - name: Build iOS (release, no codesign)
         script: flutter build ios --release --no-codesign
+
     artifacts:
-      - build/ios/iphoneos/*.app
+      - build/ios/iphoneos/Runner.app
       - build/ios/archive/*.xcarchive
       - build/**/outputs/**/*.apk
       - build/**/outputs/**/*.aab
