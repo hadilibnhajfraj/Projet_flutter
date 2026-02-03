@@ -5,6 +5,9 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
+      ios_signing:
+        distribution_type: ad_hoc
+        bundle_identifier: com.app.flutterDashboardKit
 
       # (Optionnel mais recommandé si tu configures le signing dans Codemagic)
       # ios_signing:
