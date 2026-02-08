@@ -6,16 +6,22 @@ import '../model/project_grid_data.dart';
 class UserGridController extends GetxController {
   static UserGridController get to => Get.find<UserGridController>();
 
-  TextEditingController searchController = TextEditingController();
-  FocusNode f1 = FocusNode();
+  final TextEditingController searchController = TextEditingController();
+  final FocusNode f1 = FocusNode();
 
-  RxList<ProjectGridData> projects = <ProjectGridData>[].obs;
-  RxList<ProjectGridData> filtered = <ProjectGridData>[].obs;
-  RxBool loading = false.obs;
+  final RxList<ProjectGridData> projects = <ProjectGridData>[].obs;
+  final RxList<ProjectGridData> filtered = <ProjectGridData>[].obs;
+  final RxBool loading = false.obs;
 
   @override
   void onInit() {
     super.onInit();
+
+    // ✅ Recherche instantanée à chaque frappe
+    searchController.addListener(() {
+      searchProject(searchController.text);
+    });
+
     loadProjects();
   }
 
@@ -23,8 +29,8 @@ class UserGridController extends GetxController {
     loading.value = true;
     try {
       final list = await ProjectApi.instance.getProjects();
-      projects.value = list;
-      filtered.value = List.from(list);
+      projects.assignAll(list);
+      filtered.assignAll(list);
     } catch (_) {
       projects.clear();
       filtered.clear();
@@ -35,17 +41,22 @@ class UserGridController extends GetxController {
 
   void searchProject(String query) {
     final q = query.trim().toLowerCase();
+
     if (q.isEmpty) {
-      filtered.value = List.from(projects);
+      filtered.assignAll(projects);
       return;
     }
 
-    filtered.value = projects.where((p) {
-      return p.nomProjet.toLowerCase().contains(q) ||
-          p.entreprise.toLowerCase().contains(q) ||
-          p.statut.toLowerCase().contains(q) ||
-          p.adresse.toLowerCase().contains(q);
-    }).toList();
+    filtered.assignAll(
+      projects.where((p) {
+        final nom = (p.nomProjet ?? "").toLowerCase();
+        final ent = (p.entreprise ?? "").toLowerCase();
+        final st = (p.statut ?? "").toLowerCase();
+        final adr = (p.adresse ?? "").toLowerCase();
+
+        return nom.contains(q) || ent.contains(q) || st.contains(q) || adr.contains(q);
+      }).toList(),
+    );
   }
 
   void upsertProject(ProjectGridData p) {
@@ -56,12 +67,8 @@ class UserGridController extends GetxController {
       projects[idx] = p;
     }
 
-    final q = searchController.text.trim();
-    if (q.isEmpty) {
-      filtered.value = List.from(projects);
-    } else {
-      searchProject(q);
-    }
+    // ✅ Réappliquer le filtre actuel instantanément
+    searchProject(searchController.text);
   }
 
   Future<void> deleteProject(String id) async {
@@ -74,11 +81,10 @@ class UserGridController extends GetxController {
       loading.value = false;
     }
   }
-Future<void> addComment(String projectId, String comment) async {
-  await ProjectApi.instance.addComment(projectId, comment);
-}
 
-
+  Future<void> addComment(String projectId, String comment) async {
+    await ProjectApi.instance.addComment(projectId, comment);
+  }
 
   @override
   void onClose() {

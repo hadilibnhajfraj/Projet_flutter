@@ -27,7 +27,7 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
     MyRoute.dashboardSalesAdmin: NavigationBreadcrumbModel(
       title: 'Dashboard',
       parentRoute: 'Dashboard',
-      childRoute: 'Sales Admin',
+      childRoute: 'Project Validation',
     ),
     MyRoute.dashboardFinanceAdmin: NavigationBreadcrumbModel(
       title: 'Dashboard',
@@ -37,7 +37,7 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
     MyRoute.dashboardEcommerceAdmin: NavigationBreadcrumbModel(
       title: 'Dashboard',
       parentRoute: 'Dashboard',
-      childRoute: 'ecommerceAdmin',
+      childRoute: 'Project Performance',
     ),
     MyRoute.calendarScreen: NavigationBreadcrumbModel(
       title: 'Calendar',
@@ -55,14 +55,14 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
       childRoute: 'kanban',
     ),
     MyRoute.userListScreen: NavigationBreadcrumbModel(
-      title: 'usersList',
+      title: 'users & projects management',
       parentRoute: 'Application / Users',
-      childRoute: 'usersList',
+      childRoute: 'User Management',
     ),
     MyRoute.userGridScreen: NavigationBreadcrumbModel(
-      title: 'usersGrid',
+      title: 'users & projects management',
       parentRoute: 'Application / Users',
-      childRoute: 'usersGrid',
+      childRoute: 'Project Management',
     ),
     MyRoute.userProfileScreen: NavigationBreadcrumbModel(
       title: 'usersProfile',

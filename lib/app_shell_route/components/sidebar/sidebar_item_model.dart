@@ -57,8 +57,8 @@ List<SidebarItemModel> buildTopMenus() {
       navigationPath: '/dashboard',
       sidebarItemType: SidebarItemType.submenu,
       submenus: [
-        SidebarSubmenuModel(name: 'KPI PROJECT', navigationPath: 'kpi-project'),
-        SidebarSubmenuModel(name: 'KPI PROJECTS', navigationPath: 'kpi-projects'),
+        SidebarSubmenuModel(name: 'Project Performance Analytics', navigationPath: 'kpi-project'),
+        SidebarSubmenuModel(name: 'Project Validation & Success KPIs', navigationPath: 'kpi-projects'),
       ],
     ),
   ];
@@ -73,16 +73,16 @@ List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin}) {
       name: 'Application',
       menus: [
         SidebarItemModel(
-          name: 'users',
+          name: 'users & projects management',
           iconPath: usersIcon,
           sidebarItemType: SidebarItemType.submenu,
           navigationPath: '/users',
           submenus: isAdmin
               ? [
-                  SidebarSubmenuModel(name: "usersList", navigationPath: 'user_list'),
+                  SidebarSubmenuModel(name: "User Management", navigationPath: 'user_list'),
                 ]
               : [
-                  SidebarSubmenuModel(name: "Project List", navigationPath: 'project-list'),
+                  SidebarSubmenuModel(name: "Project Management", navigationPath: 'project-list'),
                   /*SidebarSubmenuModel(name: "usersProfile", navigationPath: 'user_profile'),*/
                 ],
         ),

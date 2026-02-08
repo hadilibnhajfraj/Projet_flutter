@@ -464,7 +464,7 @@ Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _titleTextStyle(lang.translate('ProjectStatusInsights')),
+        _titleTextStyle(lang.translate('Project Performance Overview')),
         const SizedBox(height: 30),
         SizedBox(
           height: 300,
@@ -631,7 +631,7 @@ Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _titleTextStyle(lang.translate('TodaySales')),
+                  _titleTextStyle(lang.translate('Project Intelligence Dashboard')),
                   const SizedBox(height: 3),
                   Text(
                     "Projects KPI Summary",
