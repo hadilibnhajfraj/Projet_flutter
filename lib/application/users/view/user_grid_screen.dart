@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 import 'package:responsive_grid/responsive_grid.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'package:dash_master_toolkit/forms/view/ProjectCommentScreen.dart';
+import 'package:dash_master_toolkit/app_shell_route/components/topbar/NotificationController.dart';
 
 
 
@@ -26,6 +27,7 @@ class UserGridScreen extends StatefulWidget {
 class _UserGridScreenState extends State<UserGridScreen> {
   late final UserGridController controller;
   late final ThemeController themeController;
+
 
   @override
   void initState() {
@@ -382,7 +384,9 @@ class _UserGridScreenState extends State<UserGridScreen> {
     final txt = c.text.trim();
     if (ok == true && txt.isNotEmpty) {
       await controller.addComment(p.id, txt);
-
+      if (Get.isRegistered<NotificationController>()) {
+  await Get.find<NotificationController>().fetchNotifications(silent: true);
+}
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Commentaire ajouté ✅")),

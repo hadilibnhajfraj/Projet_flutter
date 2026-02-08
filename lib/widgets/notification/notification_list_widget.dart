@@ -1,11 +1,12 @@
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+
 import '../../constant/app_color.dart';
 import '../../theme/theme_controller.dart';
-import '../common_app_widget.dart';
 import '../dotted_line.dart';
-import 'model/notification.dart';
+
+// ✅ IMPORTANT: on utilise TON modèle (backend)
+import 'package:dash_master_toolkit/app_shell_route/models/notification.dart';
 
 class NotificationListWidget extends StatelessWidget {
   final NotificationData notification;
@@ -14,9 +15,12 @@ class NotificationListWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    ThemeData theme = Theme.of(context);
-    ThemeController themeController = Get.put(ThemeController());
-    // final screenWidth = MediaQuery.sizeOf(context).width;
+    final theme = Theme.of(context);
+
+    // ✅ Ne pas recréer le controller à chaque item
+    final ThemeController themeController = Get.find<ThemeController>();
+
+    final bool isUnread = !notification.isRead;
 
     return Padding(
       padding: const EdgeInsets.only(top: 15.0),
@@ -26,9 +30,23 @@ class NotificationListWidget extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              commonCacheImageWidget(notification.icon, 36,
-                  width: 36, fit: BoxFit.contain),
+              // ✅ Pas de "icon" dans ton modèle -> on met un placeholder
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: themeController.isDarkMode ? colorGrey900 : colorGrey100,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.notifications,
+                  size: 20,
+                  color: themeController.isDarkMode ? colorWhite : colorGrey900,
+                ),
+              ),
+
               const SizedBox(width: 10),
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -36,47 +54,51 @@ class NotificationListWidget extends StatelessWidget {
                     Text(
                       notification.title,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: themeController.isDarkMode
-                              ? colorWhite
-                              : colorGrey900),
+                        fontWeight: FontWeight.w600,
+                        color: themeController.isDarkMode ? colorWhite : colorGrey900,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       notification.message,
                       maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w400,
-                          color: notification.isUnread
-                              ? themeController.isDarkMode
-                                  ? colorWhite
-                                  : colorGrey900
-                              : colorGrey500),
+                        fontWeight: FontWeight.w400,
+                        color: isUnread
+                            ? (themeController.isDarkMode ? colorWhite : colorGrey900)
+                            : colorGrey500,
+                      ),
                     ),
+
+                    // ✅ Pas de "timeAgo" -> on affiche juste un texte simple
                     const SizedBox(height: 3),
                     Text(
-                      notification.timeAgo,
+                      isUnread ? "Nouveau" : "Lu",
                       style: theme.textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w400,
-                          color: themeController.isDarkMode
-                              ? colorGrey500
-                              : colorGrey400),
-                    )
+                        fontWeight: FontWeight.w400,
+                        color: themeController.isDarkMode ? colorGrey500 : colorGrey400,
+                      ),
+                    ),
                   ],
                 ),
               ),
+
               const SizedBox(width: 10),
-              if (notification.isUnread)
+
+              if (isUnread)
                 Container(
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                      shape: BoxShape.circle, color: colorError100),
-                )
+                    shape: BoxShape.circle,
+                    color: colorError100,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 16),
-          DashedDivider()
+          const DashedDivider(),
         ],
       ),
     );

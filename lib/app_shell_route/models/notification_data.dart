@@ -13,10 +13,10 @@ class NotificationData {
 
   factory NotificationData.fromJson(Map<String, dynamic> json) {
     return NotificationData(
-      id: (json["id"] ?? json["_id"] ?? "").toString(),
-      title: (json["title"] ?? "").toString(),
-      message: (json["message"] ?? "").toString(),
-      isRead: json["isRead"] == true || json["read"] == true,
+      id: json["id"]?.toString() ?? "",
+      title: json["title"] ?? "",
+      message: json["message"] ?? "",
+      isRead: json["isRead"] == true,
     );
   }
 }
@@ -28,13 +28,12 @@ class NotificationResponse {
   NotificationResponse({required this.unreadCount, required this.items});
 
   factory NotificationResponse.fromJson(Map<String, dynamic> json) {
-    final itemsJson = (json["items"] as List?) ?? (json["data"] as List?) ?? [];
-    final items = itemsJson
+    final items = (json["items"] as List? ?? [])
         .map((e) => NotificationData.fromJson(e as Map<String, dynamic>))
         .toList();
 
     return NotificationResponse(
-      unreadCount: (json["unreadCount"] ?? json["unread"] ?? 0) as int,
+      unreadCount: json["unreadCount"] ?? 0,
       items: items,
     );
   }
