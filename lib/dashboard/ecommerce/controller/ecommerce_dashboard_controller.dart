@@ -1,27 +1,30 @@
 // lib/dashboard/ecommerce/controller/ecommerce_dashboard_controller.dart
 import 'dart:convert';
-import 'package:dash_master_toolkit/dashboard/ecommerce/ecommerce_imports.dart';
-import 'package:dash_master_toolkit/dashboard/ecommerce/model/order_model.dart';
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
+import 'package:dash_master_toolkit/dashboard/ecommerce/ecommerce_imports.dart';
+import 'package:dash_master_toolkit/dashboard/ecommerce/model/order_model.dart';
 import '../../../providers/auth_service.dart';
-
-// ✅ AJOUTS
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 
 class EcommerceDashboardController extends GetxController {
   ThemeController themeController = Get.put(ThemeController());
   TextEditingController searchController = TextEditingController();
   FocusNode f1 = FocusNode();
 
-  // ✅ Web (Chrome) => localhost ok
-  // ✅ Android emulator => 10.0.2.2 (accès au PC)
-  // ✅ Windows/Desktop => localhost ok
+  // ✅ baseUrl
   String get baseUrl {
     if (kIsWeb) return "https://api.crmprobar.com";
     if (Platform.isAndroid) return "https://api.crmprobar.com";
     return "https://api.crmprobar.com";
+  }
+
+  // ✅ role admin/superadmin
+  bool get isAdminRole {
+    final role = (AuthService().userRole ?? '').toString().trim().toLowerCase();
+    return role == 'admin' || role == 'superadmin';
   }
 
   // ✅ TOP CARDS
@@ -31,17 +34,17 @@ class EcommerceDashboardController extends GetxController {
   final RxInt nonValidatedProjects = 0.obs;
 
   // ✅ CHART DATA
-  var revenueList = <RevenueData>[].obs;
+  final revenueList = <RevenueData>[].obs;
 
   // ✅ RIGHT PANEL
   final customers = <CustomerGrowth>[].obs;
 
   // ✅ TABLE
-  var orders = <OrderModel>[].obs;
+  final orders = <OrderModel>[].obs;
 
-  RxBool selectAll = false.obs;
-  RxInt sortColumnIndex = 0.obs;
-  RxBool sortAscending = true.obs;
+  final RxBool selectAll = false.obs;
+  final RxInt sortColumnIndex = 0.obs;
+  final RxBool sortAscending = true.obs;
 
   Map<String, String> _headers() {
     final token = AuthService().accessToken ?? "";
@@ -144,29 +147,38 @@ class EcommerceDashboardController extends GetxController {
       if (res.statusCode != 200) return;
 
       final List list = jsonDecode(res.body);
+
       final myEmail = (AuthService().userEmail ?? "").trim().toLowerCase();
 
       orders.value = list.take(15).map((p) {
         final id = (p["id"] ?? "").toString();
         final nomProjet = (p["nomProjet"] ?? "").toString();
 
-        final date = DateTime.tryParse((p["dateDemarrage"] ?? "").toString()) ?? DateTime.now();
+        final date =
+            DateTime.tryParse((p["dateDemarrage"] ?? "").toString()) ?? DateTime.now();
 
         final validation = (p["validationStatut"] ?? "Non validé").toString();
         final statut = (p["statut"] ?? "—").toString();
 
-        final owner = (p["owner"] is Map) ? p["owner"] as Map : null;
-        final ownerEmail = (owner?["email"] ?? "—").toString();
+        final owner = (p["owner"] is Map) ? (p["owner"] as Map) : null;
+        final ownerEmail = (owner?["email"] ?? "—").toString().trim().toLowerCase();
 
-        final members = (p["members"] is List) ? (p["members"] as List) : const [];
+        // ✅ permission par défaut
         String permission = "viewer";
 
-        for (final m in members) {
-          if (m is Map) {
-            final email = (m["email"] ?? "").toString().trim().toLowerCase();
-            if (email == myEmail) {
-              permission = (m["permission"] ?? "viewer").toString();
-              break;
+        // ✅ si je suis owner => owner
+        if (ownerEmail.isNotEmpty && ownerEmail == myEmail) {
+          permission = "owner";
+        } else {
+          // ✅ sinon voir si je suis dans members
+          final members = (p["members"] is List) ? (p["members"] as List) : const [];
+          for (final m in members) {
+            if (m is Map) {
+              final email = (m["email"] ?? "").toString().trim().toLowerCase();
+              if (email == myEmail) {
+                permission = (m["permission"] ?? "viewer").toString();
+                break;
+              }
             }
           }
         }
@@ -178,15 +190,17 @@ class EcommerceDashboardController extends GetxController {
           id: id,
           date: date,
           customerName: nomProjet,
-          customerEmail: ownerEmail,
+          customerEmail: ownerEmail.isEmpty ? "—" : ownerEmail,
           customerAvatarUrl: "https://i.ibb.co/BrPBtpS/48px.png",
           paymentStatus: validation,
           orderStatus: statut,
-          paymentMethod: permission,
-          paymentLast4: prText,
+          paymentMethod: permission, // ✅ owner/editor/viewer
+          paymentLast4: prText, // ✅ % réussite
           isSelected: false,
         );
       }).toList();
+
+      update(); // ✅ force refresh GetBuilder
     } catch (_) {}
   }
 
@@ -203,6 +217,7 @@ class EcommerceDashboardController extends GetxController {
 
       orders.removeWhere((p) => p.id == id);
       await fetchSummary();
+      update();
       return true;
     } catch (_) {
       return false;

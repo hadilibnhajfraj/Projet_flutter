@@ -77,7 +77,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                       )),
                 ),
 
-                // ✅ projets non validés (chariot -> projet)
+                // ✅ projets non validés
                 _topCommonCard(
                   Obx(() => _buildTopCardsWidget(
                         lang,
@@ -89,7 +89,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                       )),
                 ),
 
-                // ✅ projets validés (money -> projet)
+                // ✅ projets validés
                 _topCommonCard(
                   Obx(() => _buildTopCardsWidget(
                         lang,
@@ -367,14 +367,17 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                   label: Text("STATUT", style: titleTextStyle),
                                   onSort: (i, asc) => controller.sort((d) => d.orderStatus, i, asc),
                                 ),
-
-                                // ✅ largeur pour garantir les boutons visibles (web)
                                 DataColumn(
                                   label: SizedBox(width: 170, child: Text("ACTION", style: titleTextStyle)),
                                 ),
                               ],
                               rows: List.generate(controller.orders.length, (index) {
                                 final row = controller.orders[index];
+
+                                // ✅ role admin/superadmin
+                                final isAdmin = controller.isAdminRole;
+
+                                // ✅ permission owner/editor (pour edit)
                                 final canEdit = controller.canEdit(row);
 
                                 return DataRow.byIndex(
@@ -398,28 +401,26 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                     DataCell(_validationBadge(row.paymentStatus)),
                                     DataCell(_projectStatusBadge(row.orderStatus)),
 
-                                    // ✅ ACTION: Edit/Delete si owner/editor sinon Commenter
+                                    // ✅ ACTIONS ROLE-BASED
                                     DataCell(
                                       Align(
                                         alignment: Alignment.centerLeft,
                                         child: Wrap(
                                           spacing: 8,
                                           children: [
-                                            if (canEdit) ...[
+                                            // ==========================
+                                            // ✅ ADMIN/SUPERADMIN: 👁️ + 🗑️
+                                            // ==========================
+                                            if (isAdmin) ...[
                                               IconButton(
-                                                tooltip: "Editer",
-                                                icon: Icon(Icons.edit, color: colorGrey600),
+                                                tooltip: "Voir détails",
+                                                icon: Icon(Icons.remove_red_eye_outlined, color: colorGrey600),
                                                 onPressed: () {
                                                   final id = row.id.trim();
-                                                  if (id.isEmpty) {
-                                                    ScaffoldMessenger.of(context).showSnackBar(
-                                                      const SnackBar(content: Text("ID projet introuvable")),
-                                                    );
-                                                    return;
-                                                  }
+                                                  if (id.isEmpty) return;
 
-                                                  // ✅ redirection vers ton formulaire projet en mode EDIT
-                                                  context.go("${MyRoute.projectFormScreen}?id=$id");
+                                                  // ✅ ouvre formulaire en mode view
+                                                  context.go("${MyRoute.projectFormScreen}?id=$id&mode=view");
                                                 },
                                               ),
                                               IconButton(
@@ -454,14 +455,33 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
 
                                                   ScaffoldMessenger.of(context).showSnackBar(
                                                     SnackBar(
-                                                      content: Text(success
-                                                          ? "Projet supprimé ✅"
-                                                          : "Suppression échouée ❌"),
+                                                      content: Text(success ? "Projet supprimé ✅" : "Suppression échouée ❌"),
                                                     ),
                                                   );
                                                 },
                                               ),
-                                            ] else ...[
+                                            ]
+
+                                            // ==========================
+                                            // ✅ SIMPLE USER: ✏️ (si canEdit) + 💬
+                                            // ==========================
+                                            else ...[
+                                              if (canEdit)
+                                                IconButton(
+                                                  tooltip: "Editer",
+                                                  icon: Icon(Icons.edit, color: colorGrey600),
+                                                  onPressed: () {
+                                                    final id = row.id.trim();
+                                                    if (id.isEmpty) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        const SnackBar(content: Text("ID projet introuvable")),
+                                                      );
+                                                      return;
+                                                    }
+                                                    context.go("${MyRoute.projectFormScreen}?id=$id");
+                                                  },
+                                                ),
+
                                               IconButton(
                                                 tooltip: "Commenter",
                                                 icon: Icon(Icons.comment_outlined, color: colorGrey600),
@@ -469,10 +489,6 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                                   final id = row.id.trim();
                                                   if (id.isEmpty) return;
 
-                                                  // ✅ si tu as une page comments, active ça :
-                                                  // context.go("${MyRoute.projectComments}?id=$id");
-                                                  
-                                                  // ✅ sinon: dialog simple pour vérifier le clic
                                                   showDialog(
                                                     context: context,
                                                     builder: (_) => AlertDialog(
