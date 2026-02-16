@@ -98,7 +98,7 @@ class MyRoute {
 
   static const chartScreen = '/chart';
 
-  static const userListScreen = '/users/user_list';
+  static const userListScreen = '/users/user-list';
   static const userGridScreen = '/users/project-list';
   static const userProfileScreen = '/users/user_profile';
 
@@ -228,7 +228,7 @@ class MyRoute {
             },
             routes: [
               GoRoute(
-                path: 'user_list',
+                path: 'user-list',
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: UserListScreen()),
               ),

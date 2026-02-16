@@ -6,6 +6,7 @@ import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 part 'sidebar_item_model.dart';
 
+
 class SideBarWidget extends StatelessWidget {
   const SideBarWidget({
     super.key,
@@ -27,7 +28,13 @@ class SideBarWidget extends StatelessWidget {
     final theme = Theme.of(context);
     final themeController = Get.put(ThemeController());
 
-    final isAdmin = _isAdmin();
+ final auth = context.watch<AuthService>(); // ✅ écoute les changements
+final role = (auth.userRole ?? '').toString().trim().toLowerCase();
+
+// ✅ admin OU superadmin
+final isAdmin = role == 'admin' || role == 'superadmin';
+
+
 
     final topMenus = buildTopMenus();
     final groupedMenus = buildGroupedMenus(isAdmin: isAdmin);

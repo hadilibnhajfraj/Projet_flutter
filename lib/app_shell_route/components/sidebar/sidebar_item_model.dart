@@ -77,14 +77,14 @@ List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin}) {
           iconPath: usersIcon,
           sidebarItemType: SidebarItemType.submenu,
           navigationPath: '/users',
-          submenus: isAdmin
-              ? [
-                  SidebarSubmenuModel(name: "User Management", navigationPath: 'user_list'),
-                ]
-              : [
-                  SidebarSubmenuModel(name: "Project Management", navigationPath: 'project-list'),
-                  /*SidebarSubmenuModel(name: "usersProfile", navigationPath: 'user_profile'),*/
-                ],
+          submenus: [
+            // ✅ Toujours visible
+            SidebarSubmenuModel(name: "Project Management", navigationPath: 'project-list'),
+
+            // ✅ Visible seulement Admin/SuperAdmin
+            if (isAdmin)
+              SidebarSubmenuModel(name: "User List", navigationPath: 'user-list'),
+          ],
         ),
       ],
     ),
