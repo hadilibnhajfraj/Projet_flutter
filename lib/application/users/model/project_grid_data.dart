@@ -7,7 +7,9 @@ class ProjectGridData {
   final String dateDemarrage;
   final String permission;
 
-  // ✅ NEW
+  // ✅ NEW FIELDS
+  final String ingenieurResponsable;  // Add this field
+  final String architecte;  // Add this field
   final int commentCount;
 
   ProjectGridData({
@@ -18,7 +20,9 @@ class ProjectGridData {
     required this.adresse,
     required this.dateDemarrage,
     required this.permission,
-    required this.commentCount, // ✅ لازم
+    required this.commentCount,  // ✅ لازم
+    required this.ingenieurResponsable,  // Required
+    required this.architecte,  // Required
   });
 
   bool get canEdit => permission == "owner" || permission == "editor";
@@ -33,11 +37,11 @@ class ProjectGridData {
       adresse: (json["adresse"] ?? "").toString(),
       dateDemarrage: (json["dateDemarrage"] ?? "").toString(),
       permission: (json["permission"] ?? "viewer").toString(),
-
-      // ✅ commentCount يرجع أحياناً String من sequelize literal
       commentCount: (json["commentCount"] is int)
           ? (json["commentCount"] as int)
           : int.tryParse("${json["commentCount"] ?? 0}") ?? 0,
+      ingenieurResponsable: (json["ingenieurResponsable"] ?? "").toString(), // Add this
+      architecte: (json["architecte"] ?? "").toString(), // Add this
     );
   }
 }

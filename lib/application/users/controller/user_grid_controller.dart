@@ -39,11 +39,12 @@ class UserGridController extends GetxController {
     }
   }
 
+// Search for projects via the frontend filtering
   void searchProject(String query) {
-    final q = query.trim().toLowerCase();
+    final q = query.trim().toLowerCase();  // Convert query to lowercase
 
     if (q.isEmpty) {
-      filtered.assignAll(projects);
+      filtered.assignAll(projects);  // If query is empty, show all projects
       return;
     }
 
@@ -53,21 +54,30 @@ class UserGridController extends GetxController {
         final ent = (p.entreprise ?? "").toLowerCase();
         final st = (p.statut ?? "").toLowerCase();
         final adr = (p.adresse ?? "").toLowerCase();
+        final engineer = (p.ingenieurResponsable ?? "").toLowerCase();
+        final architect = (p.architecte ?? "").toLowerCase();
 
-        return nom.contains(q) || ent.contains(q) || st.contains(q) || adr.contains(q);
+        // Search across multiple fields (nomProjet, entreprise, statut, adresse, etc.)
+        return nom.contains(q) ||
+            ent.contains(q) ||
+            st.contains(q) ||
+            adr.contains(q) ||
+            engineer.contains(q) ||
+            architect.contains(q);
       }).toList(),
     );
   }
 
+  // Add or update a project in the list
   void upsertProject(ProjectGridData p) {
     final idx = projects.indexWhere((x) => x.id == p.id);
     if (idx == -1) {
-      projects.insert(0, p);
+      projects.insert(0, p);  // Insert at the top if it's a new project
     } else {
-      projects[idx] = p;
+      projects[idx] = p;  // Update existing project
     }
 
-    // ✅ Réappliquer le filtre actuel instantanément
+    // Reapply the filter immediately after inserting/updating a project
     searchProject(searchController.text);
   }
 
