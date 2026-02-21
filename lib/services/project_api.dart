@@ -63,4 +63,20 @@ class ProjectApi {
     }
     return [];
   }
+  // Fetch calendar projects with status color coding
+  Future<List<ProjectGridData>> getCalendarProjects() async {
+    try {
+      final response = await dio.get('/calendar');
+      final data = response.data;
+
+      if (data is List) {
+        return data
+            .map((e) => ProjectGridData.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      throw Exception('Failed to load calendar projects: $e');
+    }
+  }
 }

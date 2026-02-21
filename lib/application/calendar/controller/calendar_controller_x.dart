@@ -1,20 +1,25 @@
 import 'package:dash_master_toolkit/application/calendar/calendar_imports.dart';
-
+import 'package:dash_master_toolkit/services/project_api.dart';  // Import ProjectApi
+import 'package:dash_master_toolkit/application/users/model/project_grid_data.dart';  // Import ProjectGridData
+import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/application/services/api_client.dart';
+import 'package:get/get.dart';
+import 'package:dio/dio.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';  // Add import for AuthService
 class CalendarControllerX extends GetxController {
   var selectedDate = DateTime.now().obs;
-
-  // var calendarView = CalendarView.week.obs;
-
   final calendarController = CalendarController();
-  var currentView = CalendarView.week.obs; // Observable view state
-
+  var currentView = CalendarView.week.obs;
   var appointments = <Appointment>[].obs;
+
+  Dio get dio => ApiClient.instance.dio;
+  String? token;
 
   @override
   void onInit() {
     super.onInit();
-    loadAppointments();
-    // Listen for displayDate changes safely
+    _loadToken();  // Fetch token when the controller initializes
+
     calendarController.addPropertyChangedListener((String property) {
       if (property == 'displayDate') {
         Future.microtask(() {
@@ -22,12 +27,22 @@ class CalendarControllerX extends GetxController {
         });
       }
     });
-    calendarController.view = CalendarView.week; // Ensure it's set
+    calendarController.view = CalendarView.month;  // Set default view to month
+  }
+
+  // Fetch the token from the AuthService or other storage mechanisms
+  Future<void> _loadToken() async {
+    token = AuthService().accessToken;
+    if (token != null && token!.isNotEmpty) {
+      loadAppointments(token!);  // Fetch the appointments after the token is loaded
+    } else {
+      print('Token is missing or invalid');
+    }
   }
 
   void changeView(CalendarView view) {
     calendarController.view = view;
-    currentView.value = view; // Update the observable
+    currentView.value = view; 
   }
 
   void goToPrevious() {
@@ -38,57 +53,51 @@ class CalendarControllerX extends GetxController {
     calendarController.forward?.call();
   }
 
-  void loadAppointments() {
-    DateTime today = DateTime.now();
-    DateTime previousDay = today.subtract(Duration(days: 1));
-    DateTime nextDay = today.add(Duration(days: 1));
+  // Method to load appointments from the API
+  Future<void> loadAppointments(String token) async {
+    try {
+      final response = await Dio().get(
+        'http://localhost:4000/projects/calendar',
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
 
-    appointments.assignAll([
-      // Today's Appointments
-      Appointment(
-        startTime: DateTime(today.year, today.month, today.day, 9, 0),
-        endTime: DateTime(today.year, today.month, today.day, 10, 0),
-        subject: 'Daily Sync',
-        color: Colors.green,
-      ),
-      Appointment(
-        startTime: DateTime(today.year, today.month, today.day, 5, 0),
-        endTime: DateTime(today.year, today.month, today.day, 7, 0),
-        subject: 'Research',
-        color: Colors.blue,
-      ),
+      final data = response.data;
+      if (data is List) {
+        appointments.assignAll(data.map((e) {
+          final startTime = DateTime.parse(e["dateDemarrage"]);
+          return Appointment(
+            startTime: startTime,
+            endTime: startTime.add(Duration(hours: 2)),  // Adjust duration as necessary
+            subject: e["nomProjet"],
+            color: getColorForProjectStatus(e["statut"], e["validationStatut"]),  // Apply color
+          );
+        }).toList());
+        update();  // Update the UI after appointments are loaded
+      }
+    } catch (e) {
+      print('Error loading appointments: $e');
+      throw Exception('Failed to load calendar projects');
+    }
+  }
 
-      // Previous Day Appointments
-      Appointment(
-        startTime: DateTime(
-            previousDay.year, previousDay.month, previousDay.day, 8, 0),
-        endTime: DateTime(
-            previousDay.year, previousDay.month, previousDay.day, 9, 0),
-        subject: 'Day Design Assets',
-        color: Colors.purple,
-      ),
-      Appointment(
-        startTime: DateTime(
-            previousDay.year, previousDay.month, previousDay.day, 10, 0),
-        endTime: DateTime(
-            previousDay.year, previousDay.month, previousDay.day, 11, 0),
-        subject: 'UX Wireframes',
-        color: Colors.orange,
-      ),
+  // Get color based on project status
+  Color getColorForProjectStatus(String statut, String validationStatut) {
+    if (statut == 'En cours') {
+      return Colors.red;
+    } else if (statut == 'Préparation') {
+      return Colors.blue;
+    } else if (statut == 'Terminé' && validationStatut == 'Validé') {
+      return Colors.green;
+    } else if (statut == 'Terminé' && validationStatut == 'Non validé') {
+      return Colors.orange;
+    }
+    return Colors.grey; // Default color for other cases
+  }
 
-      // Next Day Appointments
-      Appointment(
-        startTime: DateTime(nextDay.year, nextDay.month, nextDay.day, 11, 0),
-        endTime: DateTime(nextDay.year, nextDay.month, nextDay.day, 12, 0),
-        subject: 'Report',
-        color: Colors.cyan,
-      ),
-      Appointment(
-        startTime: DateTime(nextDay.year, nextDay.month, nextDay.day, 7, 0),
-        endTime: DateTime(nextDay.year, nextDay.month, nextDay.day, 8, 0),
-        subject: 'User Flow',
-        color: Colors.amber,
-      ),
-    ]);
+  @override
+  void onClose() {
+    super.onClose();
   }
 }

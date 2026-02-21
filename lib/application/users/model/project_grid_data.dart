@@ -11,6 +11,7 @@ class ProjectGridData {
   final String ingenieurResponsable;  // Add this field
   final String architecte;  // Add this field
   final int commentCount;
+  final String validationStatut; 
 
   ProjectGridData({
     required this.id,
@@ -23,6 +24,7 @@ class ProjectGridData {
     required this.commentCount,  // ✅ لازم
     required this.ingenieurResponsable,  // Required
     required this.architecte,  // Required
+    required this.validationStatut,
   });
 
   bool get canEdit => permission == "owner" || permission == "editor";
@@ -42,6 +44,7 @@ class ProjectGridData {
           : int.tryParse("${json["commentCount"] ?? 0}") ?? 0,
       ingenieurResponsable: (json["ingenieurResponsable"] ?? "").toString(), // Add this
       architecte: (json["architecte"] ?? "").toString(), // Add this
+      validationStatut: (json["validationStatut"] ?? "").toString(),
     );
   }
 }

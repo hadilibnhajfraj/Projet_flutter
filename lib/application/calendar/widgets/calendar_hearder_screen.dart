@@ -1,13 +1,13 @@
-
 import 'package:dash_master_toolkit/application/calendar/calendar_imports.dart';
-
-
 import 'package:responsive_framework/responsive_framework.dart' as rf;
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:go_router/go_router.dart'; // ✅ IMPORTANT
+
+import 'package:dash_master_toolkit/route/my_route.dart';
 
 class CalendarHeader extends StatefulWidget {
-  const CalendarHeader({
-    super.key,
-  });
+  const CalendarHeader({super.key});
 
   @override
   State<CalendarHeader> createState() => _CalendarHeaderState();
@@ -20,6 +20,7 @@ class _CalendarHeaderState extends State<CalendarHeader> {
   Widget build(BuildContext context) {
     ThemeData theme = Theme.of(context);
     var lang = AppLocalizations.of(context);
+
     final isMobile = rf.ResponsiveValue<bool>(
       context,
       conditionalValues: const [
@@ -48,18 +49,15 @@ class _CalendarHeaderState extends State<CalendarHeader> {
                           ? MainAxisAlignment.spaceBetween
                           : MainAxisAlignment.end,
                       children: [
-                        // Calendar View Toggle Buttons
                         CalendarToggleButtons(
                           isMobile: isMobile,
                           currentView: controller.currentView.value,
                           onViewChanged: (newView) =>
                               controller.changeView(newView),
                         ),
-
                         if (!isMobile) const SizedBox(width: 15),
-
                         Flexible(
-                          child: _buildAddTaskButton(theme, lang),
+                          child: _buildAddTaskButton(context, theme, lang), // ✅ pass context
                         ),
                       ],
                     ),
@@ -73,25 +71,26 @@ class _CalendarHeaderState extends State<CalendarHeader> {
         ));
   }
 
-  /// Date Navigator (Previous, Current, Next)
   Widget _buildDateSelector() {
     return Obx(() => DateNavigator(
           onPrevious: controller.goToPrevious,
           onNext: controller.goToNext,
           currentDate: controller.selectedDate.value,
-          viewMode: controller.currentView.value == CalendarView.day
-              ? "Day"
-              : "Month",
+          viewMode: controller.currentView.value == CalendarView.day ? "Day" : "Month",
         ));
   }
 
-  /// "Add New Task" Button
-  Widget _buildAddTaskButton(ThemeData theme, AppLocalizations lang) {
+  Widget _buildAddTaskButton(
+    BuildContext context, // ✅ ajouté
+    ThemeData theme,
+    AppLocalizations lang,
+  ) {
     return IntrinsicWidth(
       child: CommonButtonWithIcon(
         backgroundColor: colorPrimary100,
         onPressed: () {
-          createNewTaskDialog(theme, context);
+          // ✅ EXACTEMENT comme UserGridScreen
+          context.go(MyRoute.projectFormScreen);
         },
         text: lang.translate('addNewTask'),
       ),

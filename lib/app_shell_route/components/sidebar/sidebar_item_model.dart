@@ -96,6 +96,11 @@ List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin}) {
           iconPath: projectsIcon,
           navigationPath: MyRoute.mapScreen,
         ),
+        SidebarItemModel(
+          name: 'Calendar',
+          iconPath: calendarIcon,
+          navigationPath: MyRoute.calendarScreen,
+        ),
       ],
     ),
     GroupedMenuModel(
