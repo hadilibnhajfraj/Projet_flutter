@@ -83,7 +83,7 @@ class CalendarViewScreen extends StatelessWidget {
                 // Redirect to the project form page
                 Get.toNamed('/forms/project'); // Navigate to the project form page
               },
-              child: Text('Add New Task'),
+              child: Text('Add New Project'),
             ),
           ],
         ),

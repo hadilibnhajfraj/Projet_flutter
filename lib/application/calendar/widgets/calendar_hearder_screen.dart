@@ -92,7 +92,7 @@ class _CalendarHeaderState extends State<CalendarHeader> {
           // ✅ EXACTEMENT comme UserGridScreen
           context.go(MyRoute.projectFormScreen);
         },
-        text: lang.translate('addNewTask'),
+        text: lang.translate('addNewProject'),
       ),
     );
   }
