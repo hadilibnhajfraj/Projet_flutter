@@ -205,24 +205,28 @@ class EcommerceDashboardController extends GetxController {
   }
 
   Future<bool> deleteProject(String id) async {
-    try {
-      final res = await http.delete(
-        Uri.parse("$baseUrl/projects/$id"),
-        headers: _headers(),
-      );
+  try {
+    final res = await http.delete(
+      Uri.parse("$baseUrl/projects/$id"),
+      headers: _headers(),
+    );
 
-      if (res.statusCode != 200 && res.statusCode != 204) {
-        return false;
-      }
-
+    if (res.statusCode == 200 || res.statusCode == 204) {
       orders.removeWhere((p) => p.id == id);
       await fetchSummary();
       update();
       return true;
-    } catch (_) {
-      return false;
     }
+
+    // Optionnel: log debug
+    // print("Delete failed: ${res.statusCode} ${res.body}");
+
+    return false;
+  } catch (e) {
+    // print("Delete exception: $e");
+    return false;
   }
+}
 
   // ---------------- HELPERS ----------------
 

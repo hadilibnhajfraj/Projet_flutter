@@ -430,23 +430,30 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                                   final id = row.id.trim();
                                                   if (id.isEmpty) return;
 
-                                                  final ok = await showDialog<bool>(
-                                                    context: context,
-                                                    builder: (_) => AlertDialog(
-                                                      title: const Text("Supprimer le projet ?"),
-                                                      content: Text("Projet : ${row.customerName}"),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed: () => Navigator.pop(context, false),
-                                                          child: const Text("Annuler"),
-                                                        ),
-                                                        TextButton(
-                                                          onPressed: () => Navigator.pop(context, true),
-                                                          child: const Text("Supprimer"),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
+                                               final ok = await showDialog<bool>(
+  context: context,
+ builder: (ctx) => AlertDialog(
+  title: const Text("Supprimer le projet ?"),
+  content: Text("Projet : ${row.customerName}"),
+  actions: [
+    TextButton(
+      style: TextButton.styleFrom(
+        foregroundColor: Colors.grey.shade700, // ✅ visible sur fond blanc
+      ),
+      onPressed: () => Navigator.of(ctx).pop(false),
+      child: const Text("Annuler"),
+    ),
+    ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.redAccent, // ✅ bouton rouge
+        foregroundColor: Colors.white,     // ✅ texte visible
+      ),
+      onPressed: () => Navigator.of(ctx).pop(true),
+      child: const Text("Supprimer"),
+    ),
+  ],
+),
+);
 
                                                   if (ok != true) return;
 
