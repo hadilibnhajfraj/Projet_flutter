@@ -57,7 +57,7 @@ class CalendarControllerX extends GetxController {
   Future<void> loadAppointments(String token) async {
     try {
       final response = await Dio().get(
-        'http://localhost:4000/projects/calendar',
+        'https://api.crmprobar.com/projects/calendar',
         options: Options(
           headers: {'Authorization': 'Bearer $token'},
         ),
