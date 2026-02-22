@@ -492,24 +492,16 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                               IconButton(
                                                 tooltip: "Commenter",
                                                 icon: Icon(Icons.comment_outlined, color: colorGrey600),
-                                                onPressed: () {
-                                                  final id = row.id.trim();
-                                                  if (id.isEmpty) return;
-
-                                                  showDialog(
-                                                    context: context,
-                                                    builder: (_) => AlertDialog(
-                                                      title: const Text("Commenter"),
-                                                      content: Text("Project ID: $id"),
-                                                      actions: [
-                                                        TextButton(
-                                                          onPressed: () => Navigator.pop(context),
-                                                          child: const Text("OK"),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  );
-                                                },
+                                            onPressed: () {
+                                                    final id = row.id.trim();
+                                                    if (id.isEmpty) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        const SnackBar(content: Text("ID projet introuvable")),
+                                                      );
+                                                      return;
+                                                    }
+                                                    context.go("${MyRoute.projectFormScreen}?id=$id");
+                                                  },
                                               ),
                                             ],
                                           ],
