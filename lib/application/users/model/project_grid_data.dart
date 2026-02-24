@@ -7,11 +7,14 @@ class ProjectGridData {
   final String dateDemarrage;
   final String permission;
 
-  // ✅ NEW FIELDS
-  final String ingenieurResponsable;  // Add this field
-  final String architecte;  // Add this field
+  final String ingenieurResponsable;
+  final String architecte;
+
   final int commentCount;
-  final String validationStatut; 
+  final String validationStatut;
+
+  // ✅ NEW
+  final String ownerName;
 
   ProjectGridData({
     required this.id,
@@ -21,10 +24,11 @@ class ProjectGridData {
     required this.adresse,
     required this.dateDemarrage,
     required this.permission,
-    required this.commentCount,  // ✅ لازم
-    required this.ingenieurResponsable,  // Required
-    required this.architecte,  // Required
+    required this.commentCount,
+    required this.ingenieurResponsable,
+    required this.architecte,
     required this.validationStatut,
+    required this.ownerName, // ✅
   });
 
   bool get canEdit => permission == "owner" || permission == "editor";
@@ -42,9 +46,12 @@ class ProjectGridData {
       commentCount: (json["commentCount"] is int)
           ? (json["commentCount"] as int)
           : int.tryParse("${json["commentCount"] ?? 0}") ?? 0,
-      ingenieurResponsable: (json["ingenieurResponsable"] ?? "").toString(), // Add this
-      architecte: (json["architecte"] ?? "").toString(), // Add this
+      ingenieurResponsable: (json["ingenieurResponsable"] ?? "").toString(),
+      architecte: (json["architecte"] ?? "").toString(),
       validationStatut: (json["validationStatut"] ?? "").toString(),
+
+      // ✅ vient du backend
+      ownerName: (json["ownerName"] ?? "").toString(),
     );
   }
 }

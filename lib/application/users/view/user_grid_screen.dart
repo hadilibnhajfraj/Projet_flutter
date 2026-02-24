@@ -182,16 +182,32 @@ class _UserGridScreenState extends State<UserGridScreen> {
             // HEADER
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                    p.nomProjet.isEmpty ? "Projet" : p.nomProjet,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
+               Expanded(
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      if (p.ownerName.trim().isNotEmpty)
+        Text(
+          "Créé par: ${p.ownerName}",
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colorGrey500,
+            fontWeight: FontWeight.w600,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+
+      Text(
+        p.nomProjet.isEmpty ? "Projet" : p.nomProjet,
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w700,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    ],
+  ),
+),
 
                 // ✅ MENU PERMISSIONS
                 PopupMenuButton<String>(
