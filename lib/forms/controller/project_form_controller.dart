@@ -18,12 +18,19 @@ class ProjectFormController extends GetxController {
   final ingenieurResponsable = TextEditingController();
   final telephoneIngenieur = TextEditingController();
 
+  // ✅ deviennent optionnels côté UI
   final architecte = TextEditingController();
   final telephoneArchitecte = TextEditingController();
 
+  // ✅ NOUVEAU : Matricule fiscale (optionnel)
+  final matriculeFiscale = TextEditingController();
+
   final entreprise = TextEditingController();
+
+  // ✅ deviennent optionnels côté UI
   final promoteur = TextEditingController();
   final bureauEtude = TextEditingController();
+
   final bureauControle = TextEditingController();
 
   final entrepriseFluide = TextEditingController();
@@ -73,8 +80,11 @@ class ProjectFormController extends GetxController {
 
     ingenieurResponsable.clear();
     telephoneIngenieur.clear();
+
     architecte.clear();
     telephoneArchitecte.clear();
+
+    matriculeFiscale.clear();
 
     entreprise.clear();
     promoteur.clear();
@@ -118,6 +128,9 @@ class ProjectFormController extends GetxController {
 
     architecte.text = (j['architecte'] ?? '').toString();
     telephoneArchitecte.text = (j['telephoneArchitecte'] ?? '').toString();
+
+    matriculeFiscale.text =
+        (j['matriculeFiscale'] ?? j['matricule_fiscale'] ?? '').toString();
 
     entreprise.text = (j['entreprise'] ?? '').toString();
     promoteur.text = (j['promoteur'] ?? '').toString();
@@ -171,7 +184,8 @@ class ProjectFormController extends GetxController {
     // ✅ comments
     final cmts = j['comments'];
     if (cmts is List) {
-      locationComments.value = cmts.map((e) => Map<String, dynamic>.from(e)).toList();
+      locationComments.value =
+          cmts.map((e) => Map<String, dynamic>.from(e)).toList();
     } else {
       locationComments.clear();
     }
@@ -274,6 +288,16 @@ class ProjectFormController extends GetxController {
     return null;
   }
 
+  // ✅ téléphone optionnel (si vide => OK)
+  String? phoneOptionalValidator(String? v, String label) {
+    final value = (v ?? "").trim();
+    if (value.isEmpty) return null; // ✅ optionnel
+    if (!RegExp(r'^[0-9+\s\-()]{6,30}$').hasMatch(value)) {
+      return "$label invalide";
+    }
+    return null;
+  }
+
   // ✅ numeric validators
   String? numberValidator(String? v, String label, {double? min, double? max}) {
     final s = (v ?? "").trim();
@@ -333,6 +357,9 @@ class ProjectFormController extends GetxController {
     telephoneIngenieur.dispose();
     architecte.dispose();
     telephoneArchitecte.dispose();
+
+    matriculeFiscale.dispose();
+
     entreprise.dispose();
     promoteur.dispose();
     bureauEtude.dispose();

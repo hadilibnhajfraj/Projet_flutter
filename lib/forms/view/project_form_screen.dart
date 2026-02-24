@@ -189,39 +189,47 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                       ),
 
                       _twoCols(
-                        isMobile: isMobile,
-                        left: _field(
-                          theme: theme,
-                          title: "Architect",
-                          controller: c.architecte,
-                          validator: (v) => c.requiredValidator(v, "Architecte"),
-                        ),
-                        right: _field(
-                          theme: theme,
-                          title: "Architect Phone",
-                          controller: c.telephoneArchitecte,
-                          validator: (v) => c.phoneValidator(v, "Téléphone Architecte"),
-                          keyboardType: TextInputType.phone,
-                        ),
-                      ),
+  isMobile: isMobile,
+  left: _field(
+    theme: theme,
+    title: "Architect (optional)",
+    controller: c.architecte,
+    validator: null, // ✅ optionnel
+  ),
+  right: _field(
+    theme: theme,
+    title: "Architect Phone (optional)",
+    controller: c.telephoneArchitecte,
+    validator: (v) => c.phoneOptionalValidator(v, "Téléphone Architecte"), // ✅ optionnel
+    keyboardType: TextInputType.phone,
+    
+  ),
+),
 
                       _field(
                         theme: theme,
                         title: "Company",
                         controller: c.entreprise,
                         validator: (v) => c.requiredValidator(v, "Entreprise"),
+                        
                       ),
+                      _field(
+  theme: theme,
+  title: "Matricule fiscale (optional)",
+  controller: c.matriculeFiscale,
+  validator: null,
+),
                       _field(
                         theme: theme,
                         title: "Developer",
                         controller: c.promoteur,
-                        validator: (v) => c.requiredValidator(v, "Promoteur"),
+                        validator: null, // ✅ optionnel
                       ),
                       _field(
                         theme: theme,
                         title: "Design Office",
                         controller: c.bureauEtude,
-                        validator: (v) => c.requiredValidator(v, "Bureau d’étude"),
+                        validator: null, // ✅ optionnel
                       ),
                       _field(
                         theme: theme,
@@ -503,30 +511,42 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     ];
 
     final payload = {
-      "nomProjet": c.nomProjet.text.trim(),
-      "dateDemarrage": c.dateDemarrage.text.trim(),
-      "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
-      "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
-      "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
-      "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
-      "architecte": c.architecte.text.trim(),
-      "telephoneArchitecte": c.telephoneArchitecte.text.trim(),
-      "entreprise": c.entreprise.text.trim(),
-      "promoteur": c.promoteur.text.trim(),
-      "bureauEtude": c.bureauEtude.text.trim(),
-      "bureauControle": c.bureauControle.text.trim(),
-      "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty ? null : c.entrepriseFluide.text.trim(),
-      "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty ? null : c.entrepriseElectricite.text.trim(),
-      "adresse": c.localisationAdresse.text.trim().isEmpty ? null : c.localisationAdresse.text.trim(),
-      "location": {"lat": c.latitude.value, "lng": c.longitude.value},
-      "localisationCommentaire": manualComment.isEmpty ? null : manualComment,
+  "nomProjet": c.nomProjet.text.trim(),
+  "dateDemarrage": c.dateDemarrage.text.trim(),
+  "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
+  "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
 
-      // ✅ nouveaux champs
-      "typeProjet": c.typeProjet.text.trim().isEmpty ? null : c.typeProjet.text.trim(),
-      "validationStatut": c.validationStatut.text.trim().isEmpty ? "Non validé" : c.validationStatut.text.trim(),
-      "pourcentageReussite": c.pourcentageReussiteValue,
-      "surfaceProspectee": c.surfaceProspecteeValue,
-    };
+  "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
+  "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
+
+  // ✅ optionnels
+  "architecte": c.architecte.text.trim().isEmpty ? null : c.architecte.text.trim(),
+  "telephoneArchitecte": c.telephoneArchitecte.text.trim().isEmpty ? null : c.telephoneArchitecte.text.trim(),
+
+  // ✅ matricule fiscale (optionnel) AVANT company
+  "matriculeFiscale": c.matriculeFiscale.text.trim().isEmpty ? null : c.matriculeFiscale.text.trim(),
+
+  // ✅ company (obligatoire)
+  "entreprise": c.entreprise.text.trim(),
+
+  // ✅ optionnels
+  "promoteur": c.promoteur.text.trim().isEmpty ? null : c.promoteur.text.trim(),
+  "bureauEtude": c.bureauEtude.text.trim().isEmpty ? null : c.bureauEtude.text.trim(),
+
+  "bureauControle": c.bureauControle.text.trim(),
+
+  "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty ? null : c.entrepriseFluide.text.trim(),
+  "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty ? null : c.entrepriseElectricite.text.trim(),
+  "adresse": c.localisationAdresse.text.trim().isEmpty ? null : c.localisationAdresse.text.trim(),
+  "location": {"lat": c.latitude.value, "lng": c.longitude.value},
+  "localisationCommentaire": manualComment.isEmpty ? null : manualComment,
+
+  // ✅ nouveaux champs
+  "typeProjet": c.typeProjet.text.trim().isEmpty ? null : c.typeProjet.text.trim(),
+  "validationStatut": c.validationStatut.text.trim().isEmpty ? "Non validé" : c.validationStatut.text.trim(),
+  "pourcentageReussite": c.pourcentageReussiteValue,
+  "surfaceProspectee": c.surfaceProspecteeValue,
+};
 
     try {
       dynamic data;
