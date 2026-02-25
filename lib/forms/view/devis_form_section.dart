@@ -150,13 +150,16 @@ class _DevisFormSectionState extends State<DevisFormSection> {
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              // ❌ on interdit l'annulation (matricule obligatoire)
-              if (ctrl.text.trim().isEmpty) return;
-              Navigator.pop(ctx, ctrl.text.trim());
-            },
-            child: const Text("Valider"),
-          ),
+  style: TextButton.styleFrom(
+    foregroundColor: Colors.white, // texte blanc
+    backgroundColor: Colors.deepPurple, // ajoute un fond
+  ),
+  onPressed: () {
+    if (ctrl.text.trim().isEmpty) return;
+    Navigator.pop(ctx, ctrl.text.trim());
+  },
+  child: const Text("Valider"),
+),
         ],
       ),
     );
@@ -264,14 +267,26 @@ class _DevisFormSectionState extends State<DevisFormSection> {
             const SizedBox(height: 14),
 
             SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _saving ? null : _submit,
-                child: _saving
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text("PUBLISH"),
-              ),
+  width: double.infinity,
+  child: ElevatedButton(
+    onPressed: _saving ? null : _submit,
+    style: ElevatedButton.styleFrom(
+      backgroundColor: Colors.deepPurple, // couleur du bouton
+      foregroundColor: Colors.white,      // ✅ texte + icône en blanc
+    ),
+    child: _saving
+        ? const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              // optionnel: pour que le loader soit blanc aussi
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
+          )
+        : const Text("PUBLISH"),
+  ),
+),
           ],
         ),
       ),
