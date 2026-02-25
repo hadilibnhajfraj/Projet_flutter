@@ -8,35 +8,83 @@ class DevisApi {
 
   Dio get _dio => ApiClient.instance.dio;
 
-  // ✅ UPLOAD (création)
-  Future<Response> uploadDevis({
+  // ✅ GET project
+  Future<Map<String, dynamic>> getProject({required String projectId}) async {
+    final res = await _dio.get("/projects/$projectId");
+    return Map<String, dynamic>.from(res.data);
+  }
+
+  // ✅ GET devis list by project
+  Future<List<Map<String, dynamic>>> getDevisList({required String projectId}) async {
+    final res = await _dio.get("/projects/$projectId/devis");
+    final data = res.data;
+
+    if (data == null) return [];
+    if (data is List) return data.map((e) => Map<String, dynamic>.from(e)).toList();
+    if (data is Map) return [Map<String, dynamic>.from(data)];
+    return [];
+  }
+
+  // ✅ ✅ WRAPPER (pour ton UI)
+  Future<List<Map<String, dynamic>>> listDevis({required String projectId}) {
+    return getDevisList(projectId: projectId);
+  }
+
+  // ✅ MULTI UPLOAD
+  Future<Response> uploadDevisMany({
     required String projectId,
     required String nomDevis,
-    required Uint8List bytes,
-    required String filename,
+    required List<Uint8List> filesBytes,
+    required List<String> filenames,
   }) async {
-    final formData = FormData.fromMap({
-      "nomDevis": nomDevis, // ✅ IMPORTANT
-      "file": MultipartFile.fromBytes(bytes, filename: filename),
-    });
+    final formData = FormData();
+    formData.fields.add(MapEntry("nomDevis", nomDevis));
+
+    for (int i = 0; i < filesBytes.length; i++) {
+      formData.files.add(
+        MapEntry(
+          "files",
+          MultipartFile.fromBytes(filesBytes[i], filename: filenames[i]),
+        ),
+      );
+    }
+
     return _dio.post("/projects/$projectId/devis", data: formData);
   }
 
-  // ✅ UPDATE (nom + fichier optionnel)
+  // ✅ ✅ WRAPPER (pour ton UI)
+  Future<Response> uploadDevis({
+    required String projectId,
+    required String nomDevis,
+    required List<Uint8List> filesBytes,
+    required List<String> filenames,
+  }) {
+    return uploadDevisMany(
+      projectId: projectId,
+      nomDevis: nomDevis,
+      filesBytes: filesBytes,
+      filenames: filenames,
+    );
+  }
+
+  // ✅ UPDATE devis (needs devisId)
   Future<Response> updateDevis({
     required String projectId,
+    required String devisId,
     required String nomDevis,
     Uint8List? bytes,
     String? filename,
   }) async {
-    // backend PUT attend multipart (même si pas de fichier, il lit req.body.nomDevis)
-    final formData = FormData.fromMap({
-      "nomDevis": nomDevis, // ✅ IMPORTANT
-      if (bytes != null && filename != null)
-        "file": MultipartFile.fromBytes(bytes, filename: filename),
-    });
+    final formData = FormData();
+    formData.fields.add(MapEntry("nomDevis", nomDevis));
 
-    return _dio.put("/projects/$projectId/devis", data: formData);
+    if (bytes != null && filename != null) {
+      formData.files.add(
+        MapEntry("file", MultipartFile.fromBytes(bytes, filename: filename)),
+      );
+    }
+
+    return _dio.put("/projects/$projectId/devis/$devisId", data: formData);
   }
 
   // ✅ Update matricule project
@@ -47,24 +95,5 @@ class DevisApi {
     return _dio.put("/projects/$projectId", data: {
       "matriculeFiscale": matriculeFiscale,
     });
-  }
-
-  // ✅ GET project
-  Future<Map<String, dynamic>> getProject({required String projectId}) async {
-    final res = await _dio.get("/projects/$projectId");
-    return Map<String, dynamic>.from(res.data);
-  }
-
-  // ✅ GET devis by project
-  Future<Map<String, dynamic>?> getDevisByProject({required String projectId}) async {
-    final res = await _dio.get("/projects/$projectId/devis");
-    if (res.data == null) return null;
-
-    // si jamais backend renvoie liste
-    if (res.data is List && (res.data as List).isNotEmpty) {
-      return Map<String, dynamic>.from((res.data as List).first);
-    }
-
-    return Map<String, dynamic>.from(res.data);
   }
 }

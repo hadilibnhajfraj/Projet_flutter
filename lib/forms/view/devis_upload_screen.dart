@@ -8,14 +8,15 @@ import '../../services/devis_api.dart';
 class DevisUploadScreen extends StatefulWidget {
   final String projectId;
   final bool isEdit;
+  final void Function(String matricule)? onMatriculeSaved;
+ const DevisUploadScreen({
+  super.key,
+  required this.projectId,
+  this.isEdit = false,
+  this.onMatriculeSaved,
+});
 
-  const DevisUploadScreen({
-    super.key,
-    required this.projectId,
-    this.isEdit = false,
-  });
-
-  @override
+ @override
   State<DevisUploadScreen> createState() => _DevisUploadScreenState();
 }
 
@@ -24,9 +25,12 @@ class _DevisUploadScreenState extends State<DevisUploadScreen> {
 
   bool uploading = false;
   bool loading = true;
-
-  Uint8List? fileBytes;
   String? fileName;
+  Uint8List? fileBytes;
+final List<Uint8List> filesBytes = [];
+final List<String> filenames = [];
+
+
 
   Map<String, dynamic>? project;
   Map<String, dynamic>? devis; // devis existant
@@ -84,75 +88,106 @@ Future<void> _loadData() async {
   }
 }
 
-  Future<void> pickFile() async {
-    final res = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ["pdf", "png", "jpg", "jpeg"],
-      withData: true, // ✅ important web
-    );
-    if (res == null || res.files.isEmpty) return;
+ Future<void> pickFile() async {
+  final res = await FilePicker.platform.pickFiles(
+    allowMultiple: true, // ✅ multi
+    type: FileType.custom,
+    allowedExtensions: ["pdf", "png", "jpg", "jpeg"],
+    withData: true,
+  );
+  if (res == null || res.files.isEmpty) return;
 
-    final f = res.files.first;
-    if (f.bytes == null) {
-      Get.snackbar("Erreur", "Impossible de lire le fichier");
-      return;
-    }
+  final newBytes = <Uint8List>[];
+  final newNames = <String>[];
 
-    setState(() {
-      fileBytes = f.bytes!;
-      fileName = f.name;
-    });
+  for (final f in res.files) {
+    if (f.bytes == null) continue;
+    newBytes.add(f.bytes!);
+    newNames.add(f.name);
   }
 
-  Future<void> submit() async {
-    final devisName = devisNameCtrl.text.trim();
-    if (devisName.isEmpty) {
-      Get.snackbar("Validation", "Nom du devis est obligatoire");
-      return;
-    }
+  if (newBytes.isEmpty) {
+    Get.snackbar("Erreur", "Aucun fichier lisible");
+    return;
+  }
 
-    // upload: fichier obligatoire | edit: fichier optionnel
-    if (!widget.isEdit && (fileBytes == null || fileName == null)) {
-      Get.snackbar("Validation", "Fichier (PDF/PNG/JPG) obligatoire");
-      return;
-    }
+  setState(() {
+    filesBytes
+      ..clear()
+      ..addAll(newBytes);
+    filenames
+      ..clear()
+      ..addAll(newNames);
+  });
+}
 
-    setState(() => uploading = true);
-    try {
-      if (widget.isEdit) {
-        await DevisApi.instance.updateDevis(
-          projectId: widget.projectId,
-          nomDevis: devisName, // ✅
-          bytes: fileBytes,   // null => garde ancien fichier
-          filename: (fileBytes != null) ? fileName : null,
-        );
-        Get.snackbar("Succès", "Devis mis à jour ✅");
-      } else {
-        await DevisApi.instance.uploadDevis(
-          projectId: widget.projectId,
-          nomDevis: devisName, // ✅
-          bytes: fileBytes!,
-          filename: fileName!,
-        );
+ Future<void> submit() async {
+  final nomDevis = devisNameCtrl.text.trim();
+  if (nomDevis.isEmpty) {
+    Get.snackbar("Validation", "Nom du devis est obligatoire");
+    return;
+  }
 
-        final matricule = await _askMatricule();
-        if (matricule != null && matricule.trim().isNotEmpty) {
-          await DevisApi.instance.updateMatricule(
-            projectId: widget.projectId,
-            matriculeFiscale: matricule.trim(),
-          );
-        }
+  if (!widget.isEdit && filesBytes.isEmpty) {
+    Get.snackbar("Validation", "Choisis au moins 1 fichier (PDF/PNG/JPG)");
+    return;
+  }
 
-        Get.snackbar("Succès", "Devis uploadé ✅ + Matricule enregistré ✅");
+  setState(() => uploading = true);
+  try {
+    if (widget.isEdit) {
+      final devisId = (devis?["id"] ?? "").toString();
+      if (devisId.isEmpty) {
+        Get.snackbar("Erreur", "devisId introuvable (backend doit retourner la liste devis)");
+        return;
       }
 
+      // update: si l’utilisateur a choisi plusieurs fichiers -> on prend le 1er pour remplacer
+      await DevisApi.instance.updateDevis(
+        projectId: widget.projectId,
+        devisId: devisId,
+        nomDevis: nomDevis,
+        bytes: filesBytes.isNotEmpty ? filesBytes.first : null,
+        filename: filenames.isNotEmpty ? filenames.first : null,
+      );
+
+      Get.snackbar("Succès", "Devis mis à jour ✅");
       Get.back(result: true);
-    } catch (e) {
-      Get.snackbar("Erreur", e.toString());
-    } finally {
-      if (mounted) setState(() => uploading = false);
+      return;
     }
+
+    // ✅ Popup matricule obligatoire AVANT validation finale
+    final matricule = await _askMatricule();
+    if (matricule == null || matricule.trim().isEmpty) {
+      Get.snackbar("Validation", "Matricule fiscale obligatoire pour publier");
+      return;
+    }
+
+    // 1) upload multi
+    await DevisApi.instance.uploadDevisMany(
+      projectId: widget.projectId,
+      nomDevis: nomDevis,
+      filesBytes: filesBytes,
+      filenames: filenames,
+    );
+
+    // 2) save matricule in project
+    await DevisApi.instance.updateMatricule(
+      projectId: widget.projectId,
+      matriculeFiscale: matricule.trim(),
+    );
+
+    // 3) callback vers ProjectFormScreen
+    widget.onMatriculeSaved?.call(matricule.trim());
+
+    Get.snackbar("Succès", "Devis publié ✅ + Matricule enregistré ✅");
+    Get.back(result: true);
+  } catch (e) {
+    Get.snackbar("Erreur", e.toString());
+  } finally {
+    if (mounted) setState(() => uploading = false);
   }
+}
 
   Future<String?> _askMatricule() async {
     final c = TextEditingController();
@@ -329,8 +364,8 @@ Widget _projectCard() {
                 const SizedBox(height: 16),
 
                 Text(
-                  fileName ?? "Aucun fichier",
-                  maxLines: 1,
+                   filenames.isEmpty ? "Aucun fichier" : "${filenames.length} fichier(s) : ${filenames.take(2).join(", ")}${filenames.length > 2 ? "..." : ""}",
+  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Color(0xFF616161),

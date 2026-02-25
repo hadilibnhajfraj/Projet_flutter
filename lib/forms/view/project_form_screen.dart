@@ -273,18 +273,17 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                       ),
 
                       // ✅ AJOUT : afficher devis dans la même page en EDIT
-                      if (_projectId != null) ...[
-                        const SizedBox(height: 18),
-                        DevisFormSection(
+                    if (_projectId != null) ...[
+  const SizedBox(height: 18),
+  DevisFormSection(
     projectId: _projectId!,
     isEdit: true,
-    onMatriculeSaved: (m) {
-      // ✅ Remplir automatiquement le champ du ProjectForm
-      c.matriculeFiscale.text = m;
-      if (mounted) setState(() {});
-    },
+   onMatriculeSaved: (m) {
+  c.matriculeFiscale.text = m;
+  setState(() {});
+},
   ),
-                      ],
+],
                     ],
                   ),
                 ),

@@ -1,15 +1,14 @@
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:dash_master_toolkit/constant/app_color.dart';
 import '../../services/devis_api.dart';
 
 class DevisFormSection extends StatefulWidget {
   final String projectId;
   final bool isEdit;
 
-  // ✅ callback pour remplir automatiquement matricule dans ProjectFormScreen
-  final ValueChanged<String>? onMatriculeSaved;
+  // ✅ callback vers ProjectFormScreen pour remplir matricule
+  final void Function(String matricule)? onMatriculeSaved;
 
   const DevisFormSection({
     super.key,
@@ -24,12 +23,16 @@ class DevisFormSection extends StatefulWidget {
 
 class _DevisFormSectionState extends State<DevisFormSection> {
   final _nameCtrl = TextEditingController();
+
   bool _loading = true;
   bool _saving = false;
 
-  Map<String, dynamic>? _devis;
-  Uint8List? _fileBytes;
-  String? _fileName;
+  List<Map<String, dynamic>> _devisList = [];
+  Map<String, dynamic>? _selectedDevis; // for edit update
+
+  // ✅ multi files
+  final List<Uint8List> _filesBytes = [];
+  final List<String> _filesNames = [];
 
   @override
   void initState() {
@@ -40,10 +43,15 @@ class _DevisFormSectionState extends State<DevisFormSection> {
   Future<void> _loadDevis() async {
     setState(() => _loading = true);
     try {
-      final d = await DevisApi.instance.getDevisByProject(projectId: widget.projectId);
+      final list = await DevisApi.instance.listDevis(projectId: widget.projectId);
       setState(() {
-        _devis = d;
-        _nameCtrl.text = (d?["nomDevis"] ?? d?["devisName"] ?? d?["name"] ?? "").toString();
+        _devisList = list;
+        _selectedDevis = list.isNotEmpty ? list.first : null;
+
+        // prefill name from existing devis (if any)
+        if (_selectedDevis != null) {
+          _nameCtrl.text = (_selectedDevis?["nomDevis"] ?? "").toString();
+        }
       });
     } catch (_) {
       // ignore
@@ -52,21 +60,28 @@ class _DevisFormSectionState extends State<DevisFormSection> {
     }
   }
 
-  Future<void> _pickFile() async {
+  Future<void> _pickFiles() async {
     final res = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ["pdf", "png", "jpg", "jpeg"],
       withData: true,
+      allowMultiple: true, // ✅ MULTI
     );
+
     if (res == null || res.files.isEmpty) return;
 
-    final f = res.files.first;
-    if (f.bytes == null) return;
+    _filesBytes.clear();
+    _filesNames.clear();
 
-    setState(() {
-      _fileBytes = f.bytes!;
-      _fileName = f.name;
-    });
+    for (final f in res.files) {
+      if (f.bytes == null) continue;
+      _filesBytes.add(f.bytes!);
+      _filesNames.add(f.name);
+    }
+
+    if (_filesBytes.isEmpty) return;
+
+    setState(() {});
   }
 
   Future<void> _submit() async {
@@ -76,53 +91,44 @@ class _DevisFormSectionState extends State<DevisFormSection> {
       return;
     }
 
-    // création => fichier obligatoire
-    if (!widget.isEdit && (_fileBytes == null || _fileName == null)) {
-      _toast("Validation", "Fichier (PDF/PNG/JPG) est obligatoire");
+    // ✅ en création ou ajout => au moins 1 fichier obligatoire
+    if (_filesBytes.isEmpty || _filesNames.isEmpty) {
+      _toast("Validation", "Choisis au moins 1 fichier (PDF/PNG/JPG)");
       return;
     }
 
     setState(() => _saving = true);
     try {
-      if (widget.isEdit) {
-        // ✅ update (nom + fichier optionnel)
-        await DevisApi.instance.updateDevis(
-          projectId: widget.projectId,
-          nomDevis: nomDevis,
-          bytes: _fileBytes,
-          filename: _fileName,
-        );
-        _toast("Succès", "Devis mis à jour ✅");
-      } else {
-        // ✅ upload
-        await DevisApi.instance.uploadDevis(
-          projectId: widget.projectId,
-          nomDevis: nomDevis,
-          bytes: _fileBytes!,
-          filename: _fileName!,
-        );
+      // ✅ UPLOAD (supports multi)
+      await DevisApi.instance.uploadDevis(
+        projectId: widget.projectId,
+        nomDevis: nomDevis,
+        filesBytes: _filesBytes,
+        filenames: _filesNames,
+      );
 
-        // ✅ popup matricule fiscale
-        final matricule = await _askMatricule();
-        if (matricule != null && matricule.trim().isNotEmpty) {
-          final m = matricule.trim();
-          await DevisApi.instance.updateMatricule(
-            projectId: widget.projectId,
-            matriculeFiscale: m,
-          );
-
-          // ✅ remonter au ProjectFormScreen
-          widget.onMatriculeSaved?.call(m);
-        }
-
-        _toast("Succès", "Devis uploadé ✅");
+      // ✅ popup matricule OBLIGATOIRE après publish
+      final matricule = await _askMatriculeRequired();
+      if (matricule == null || matricule.trim().isEmpty) {
+        _toast("Validation", "Matricule fiscale est obligatoire");
+        return;
       }
 
+      await DevisApi.instance.updateMatricule(
+        projectId: widget.projectId,
+        matriculeFiscale: matricule.trim(),
+      );
+
+      // ✅ remplir auto dans ProjectFormScreen
+     widget.onMatriculeSaved?.call(matricule.trim());
+
+      _toast("Succès", "Devis uploadé ✅ + Matricule enregistré ✅");
+
+      // refresh
+      _filesBytes.clear();
+      _filesNames.clear();
       await _loadDevis();
-      setState(() {
-        _fileBytes = null;
-        _fileName = null;
-      });
+      setState(() {});
     } catch (e) {
       _toast("Erreur", e.toString());
     } finally {
@@ -130,28 +136,26 @@ class _DevisFormSectionState extends State<DevisFormSection> {
     }
   }
 
-  Future<String?> _askMatricule() async {
-    final c = TextEditingController();
+  Future<String?> _askMatriculeRequired() async {
+    final ctrl = TextEditingController();
+
     return showDialog<String?>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text("Matricule fiscale"),
         content: TextField(
-          controller: c,
-          decoration: const InputDecoration(hintText: "Ex: 1234567/A/B/C"),
+          controller: ctrl,
+          decoration: const InputDecoration(hintText: "Ex: 1234567/A/B/000"),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, null),
-            child: const Text("Ignorer"),
-          ),
-          ElevatedButton(
             onPressed: () {
-              if (c.text.trim().isEmpty) return; // obligatoire
-              Navigator.pop(context, c.text.trim());
+              // ❌ on interdit l'annulation (matricule obligatoire)
+              if (ctrl.text.trim().isEmpty) return;
+              Navigator.pop(ctx, ctrl.text.trim());
             },
-            child: const Text("Enregistrer"),
+            child: const Text("Valider"),
           ),
         ],
       ),
@@ -159,7 +163,6 @@ class _DevisFormSectionState extends State<DevisFormSection> {
   }
 
   void _toast(String title, String msg) {
-    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("$title : $msg")),
     );
@@ -180,14 +183,10 @@ class _DevisFormSectionState extends State<DevisFormSection> {
       );
     }
 
-    final existingFile = (_devis?["originalName"] ??
-            _devis?["file_name"] ??
-            _devis?["filename"] ??
-            _devis?["fileName"] ??
-            _devis?["fileUrl"])
-        ?.toString();
-
-    final hasExisting = existingFile != null && existingFile.trim().isNotEmpty;
+    final existingFiles = _devisList
+        .map((d) => (d["originalName"] ?? d["fileUrl"] ?? "").toString())
+        .where((x) => x.trim().isNotEmpty)
+        .toList();
 
     return Card(
       elevation: 0.6,
@@ -205,60 +204,56 @@ class _DevisFormSectionState extends State<DevisFormSection> {
             ),
             const SizedBox(height: 12),
 
-            // ✅ fichier existant affiché avec icône
-            if (widget.isEdit && hasExisting && _fileBytes == null) ...[
-              Row(
-                children: [
-                  const Icon(Icons.insert_drive_file, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      existingFile!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+            // ✅ afficher devis existants
+            if (existingFiles.isNotEmpty) ...[
+              const Text("Fichiers existants :", style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              for (final f in existingFiles)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.insert_drive_file, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(f, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    ],
                   ),
-                ],
-              ),
+                ),
               const SizedBox(height: 10),
             ],
 
+            // ✅ picker multi
             InkWell(
-              onTap: _saving ? null : _pickFile,
+              onTap: _saving ? null : _pickFiles,
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: colorPrimary100.withOpacity(0.5),
-                    width: 2,
-                  ),
+                  border: Border.all(color: Colors.deepPurple.withOpacity(0.35), width: 2),
                 ),
                 child: Column(
                   children: [
-                    Icon(Icons.cloud_upload_outlined, size: 44, color: colorPrimary100.withOpacity(0.8)),
+                    const Icon(Icons.cloud_upload_outlined, size: 44, color: Colors.deepPurple),
                     const SizedBox(height: 10),
                     Text(
-                      "Drag & drop ou sélectionne un fichier",
+                      "Sélectionne plusieurs fichiers (PDF/PNG/JPG)",
                       style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 10),
                     ElevatedButton(
-                      onPressed: _saving ? null : _pickFile,
+                      onPressed: _saving ? null : _pickFiles,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.deepPurple,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
                         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
                       ),
-                      child: Text(_fileName == null ? "Upload file" : "Changer fichier"),
+                      child: Text(_filesNames.isEmpty ? "Upload files" : "Changer fichiers"),
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      _fileName ?? (hasExisting ? "Fichier déjà existant" : "Aucun fichier"),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      _filesNames.isEmpty ? "Aucun fichier" : "${_filesNames.length} fichier(s) sélectionné(s)",
                       style: TextStyle(color: Colors.grey.shade700),
                     ),
                   ],
@@ -274,7 +269,7 @@ class _DevisFormSectionState extends State<DevisFormSection> {
                 onPressed: _saving ? null : _submit,
                 child: _saving
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : Text(widget.isEdit ? "Publish (Update)" : "Publish"),
+                    : const Text("PUBLISH"),
               ),
             ),
           ],
