@@ -14,7 +14,7 @@ import 'package:responsive_grid/responsive_grid.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'package:dash_master_toolkit/forms/view/ProjectCommentScreen.dart';
 import 'package:dash_master_toolkit/app_shell_route/components/topbar/NotificationController.dart';
-
+import 'package:flutter/material.dart';
 
 
 class UserGridScreen extends StatefulWidget {
@@ -170,12 +170,19 @@ class _UserGridScreenState extends State<UserGridScreen> {
       },
 
       child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: themeController.isDarkMode ? colorDark : colorWhite,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black12)],
-        ),
+         padding: const EdgeInsets.all(16),
+  decoration: BoxDecoration(
+    // ✅ ICI EXACTEMENT : couleur selon devis / bon de commande
+    color: themeController.isDarkMode
+        ? colorDark
+        : (p.hasBonCommande
+            ? const Color(0xFFE8F5E9) // vert clair
+            : (p.hasDevis
+                ? const Color(0xFFFFEBEE) // rouge clair
+                : Colors.white)),
+    borderRadius: BorderRadius.circular(12),
+    boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black12)],
+  ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

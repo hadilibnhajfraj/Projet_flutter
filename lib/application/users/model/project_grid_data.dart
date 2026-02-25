@@ -13,8 +13,11 @@ class ProjectGridData {
   final int commentCount;
   final String validationStatut;
 
-  // ✅ NEW
   final String ownerName;
+
+  // ✅ NEW
+  final bool hasDevis;
+  final bool hasBonCommande;
 
   ProjectGridData({
     required this.id,
@@ -28,13 +31,19 @@ class ProjectGridData {
     required this.ingenieurResponsable,
     required this.architecte,
     required this.validationStatut,
-    required this.ownerName, // ✅
+    required this.ownerName,
+    required this.hasDevis,
+    required this.hasBonCommande,
   });
 
+  // ✅ RESTORE getters (important)
   bool get canEdit => permission == "owner" || permission == "editor";
   bool get canDelete => permission == "owner";
 
   factory ProjectGridData.fromJson(Map<String, dynamic> json) {
+    final devisCount = int.tryParse("${json["devisCount"] ?? 0}") ?? 0;
+    final bcCount = int.tryParse("${json["bonCommandeCount"] ?? 0}") ?? 0;
+
     return ProjectGridData(
       id: (json["id"] ?? "").toString(),
       nomProjet: (json["nomProjet"] ?? "").toString(),
@@ -49,9 +58,11 @@ class ProjectGridData {
       ingenieurResponsable: (json["ingenieurResponsable"] ?? "").toString(),
       architecte: (json["architecte"] ?? "").toString(),
       validationStatut: (json["validationStatut"] ?? "").toString(),
-
-      // ✅ vient du backend
       ownerName: (json["ownerName"] ?? "").toString(),
+
+      // ✅ from backend counts
+      hasDevis: devisCount > 0,
+      hasBonCommande: bcCount > 0,
     );
   }
 }
