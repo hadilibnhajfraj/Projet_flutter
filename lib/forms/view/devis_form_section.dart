@@ -178,7 +178,33 @@ Future<String?> _askMatriculeRequired({
     ),
   );
 }
-
+Future<bool?> _confirmDelete({required String filename}) {
+  return showDialog<bool>(
+    context: context,
+    barrierDismissible: true,
+    builder: (ctx) => AlertDialog(
+      title: const Text("Confirmer la suppression"),
+      content: Text("Supprimer \"$filename\" ?"),
+      actions: [
+        TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: Colors.blue, // ✅ texte bleu
+          ),
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text("Annuler"),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text("Supprimer"),
+        ),
+      ],
+    ),
+  );
+}
 
   void _toast(String title, String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -223,22 +249,59 @@ Future<String?> _askMatriculeRequired({
             const SizedBox(height: 12),
 
             // ✅ afficher devis existants
-            if (existingFiles.isNotEmpty) ...[
-              const Text("Fichiers existants :", style: TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              for (final f in existingFiles)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.insert_drive_file, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(f, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 10),
-            ],
+ if (_devisList.isNotEmpty) ...[
+  const Text("Fichiers existants :", style: TextStyle(fontWeight: FontWeight.w700)),
+  const SizedBox(height: 8),
+
+  for (final d in _devisList)
+    Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          const Icon(Icons.insert_drive_file, size: 18),
+          const SizedBox(width: 8),
+
+          Expanded(
+            child: Text(
+              (d["originalName"] ?? d["fileUrl"] ?? "").toString(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+
+          // ✅ corbeille
+          IconButton(
+            tooltip: "Supprimer",
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            onPressed: _saving
+                ? null
+                : () async {
+                    final ok = await _confirmDelete(
+                      filename: (d["originalName"] ?? "ce fichier").toString(),
+                    );
+                    if (ok != true) return;
+
+                    setState(() => _saving = true);
+                    try {
+                      await DevisApi.instance.deleteDevis(
+                        projectId: widget.projectId,
+                        devisId: d["id"].toString(),
+                      );
+                      _toast("Succès", "Fichier supprimé ✅");
+                      await _loadDevis(); // refresh
+                    } catch (e) {
+                      _toast("Erreur", e.toString());
+                    } finally {
+                      if (mounted) setState(() => _saving = false);
+                    }
+                  },
+          ),
+        ],
+      ),
+    ),
+
+  const SizedBox(height: 10),
+],
 
             // ✅ picker multi
             // ✅ picker multi (corrigé)

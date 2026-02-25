@@ -96,4 +96,10 @@ class DevisApi {
       "matriculeFiscale": matriculeFiscale,
     });
   }
+  Future<void> deleteDevis({
+  required String projectId,
+  required String devisId,
+}) async {
+  await _dio.delete("/projects/$projectId/devis/$devisId");
+}
 }
