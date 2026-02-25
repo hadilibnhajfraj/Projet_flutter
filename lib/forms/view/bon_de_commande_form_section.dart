@@ -2,7 +2,9 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../../services/bon_de_commande_api.dart';
-
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:url_launcher/url_launcher.dart';
+import '../../providers/api_client.dart';
 class BonDeCommandeFormSection extends StatefulWidget {
   final String projectId;
 
@@ -130,7 +132,86 @@ class _BonDeCommandeFormSectionState extends State<BonDeCommandeFormSection> {
       if (mounted) setState(() => _saving = false);
     }
   }
+Future<void> _openUrl(String url) async {
+  final uri = Uri.parse(url);
 
+  // ✅ Sur Web: ouvre dans un nouvel onglet
+  // ✅ Sur Mobile: ouvre dans navigateur (Chrome/Safari)
+  final ok = await launchUrl(
+    uri,
+    mode: LaunchMode.externalApplication,
+    webOnlyWindowName: '_blank',
+  );
+
+  if (!ok) {
+    _toast("Erreur", "Impossible d'ouvrir le fichier");
+  }
+}
+Future<void> _previewFile(Map<String, dynamic> d) async {
+  final url = (d["fileUrl"] ?? "").toString().trim();
+  final mime = (d["mimeType"] ?? "").toString().toLowerCase();
+  final name = (d["originalName"] ?? "Fichier").toString();
+
+  if (url.isEmpty) {
+    _toast("Erreur", "Lien du fichier introuvable");
+    return;
+  }
+
+  // ✅ URL absolue (si backend renvoie /uploads/...)
+  final base = ApiClient.instance.dio.options.baseUrl.replaceAll(RegExp(r'/$'), '');
+  final fullUrl = url.startsWith("http") ? url : "$base$url";
+
+  final isImage = mime.contains("image/") ||
+      url.toLowerCase().endsWith(".png") ||
+      url.toLowerCase().endsWith(".jpg") ||
+      url.toLowerCase().endsWith(".jpeg");
+
+  final isPdf = mime.contains("pdf") || url.toLowerCase().endsWith(".pdf");
+
+  if (isImage) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(14),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          constraints: const BoxConstraints(maxWidth: 900, maxHeight: 700),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: InteractiveViewer(
+                  child: Image.network(fullUrl, fit: BoxFit.contain),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    return;
+  }
+
+  if (isPdf) {
+    // ✅ Web + Mobile : ouvrir via url_launcher
+    await _openUrl(fullUrl);
+    return;
+  }
+
+  // autres types
+  await _openUrl(fullUrl);
+}
   Future<bool?> _confirmDelete({required String filename}) {
     return showDialog<bool>(
       context: context,
@@ -257,6 +338,12 @@ class _BonDeCommandeFormSectionState extends State<BonDeCommandeFormSection> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                              // 👁️ Preview
+    IconButton(
+      tooltip: "Voir",
+      icon: const Icon(Icons.remove_red_eye_outlined, color: Colors.deepPurple),
+      onPressed: () => _previewFile(d),
+    ),
                             IconButton(
                               tooltip: "Supprimer",
                               icon: const Icon(Icons.delete_outline, color: Colors.red),
