@@ -1,40 +1,34 @@
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import '../../services/devis_api.dart';
+import '../../services/bon_de_commande_api.dart';
 
-class DevisFormSection extends StatefulWidget {
+class BonDeCommandeFormSection extends StatefulWidget {
   final String projectId;
-  final bool isEdit;
 
-  // ✅ callback vers ProjectFormScreen pour remplir matricule
-  final void Function(String matricule)? onMatriculeSaved;
-final void Function(bool isValid)? onDevisValidityChanged;
-  const DevisFormSection({
+  // ✅ Bloquer l’étape si devis pas validé
+  final bool devisIsValid;
+
+  const BonDeCommandeFormSection({
     super.key,
     required this.projectId,
-    required this.isEdit,
-    this.onMatriculeSaved,
-        this.onDevisValidityChanged,
+    required this.devisIsValid,
   });
 
   @override
-  State<DevisFormSection> createState() => _DevisFormSectionState();
+  State<BonDeCommandeFormSection> createState() => _BonDeCommandeFormSectionState();
 }
 
-class _DevisFormSectionState extends State<DevisFormSection> {
+class _BonDeCommandeFormSectionState extends State<BonDeCommandeFormSection> {
   final _nameCtrl = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
 
-  String? _matriculeExisting;
-
   // ✅ dropdown tab
-  bool _devisOpen = false; // fermé par défaut
+  bool _open = false;
 
-  List<Map<String, dynamic>> _devisList = [];
-  Map<String, dynamic>? _selectedDevis;
+  List<Map<String, dynamic>> _list = [];
 
   // ✅ multi files
   final List<Uint8List> _filesBytes = [];
@@ -43,36 +37,37 @@ class _DevisFormSectionState extends State<DevisFormSection> {
   @override
   void initState() {
     super.initState();
-    _loadDevis();
+    _load();
   }
 
- Future<void> _loadDevis() async {
-  setState(() => _loading = true);
-  try {
-    final list = await DevisApi.instance.listDevis(projectId: widget.projectId);
-    final project = await DevisApi.instance.getProject(projectId: widget.projectId);
-
-    setState(() {
-      _devisList = list;
-      _selectedDevis = list.isNotEmpty ? list.first : null;
-
-      _matriculeExisting = (project["matriculeFiscale"] ?? "").toString().trim();
-
-      // préremplir nom devis si existe
-      if (_selectedDevis != null) {
-        _nameCtrl.text = (_selectedDevis?["nomDevis"] ?? "").toString();
-      }
-    });
-
-    // ✅ ✅ ICI EXACTEMENT (après setState)
-    widget.onDevisValidityChanged?.call(list.isNotEmpty);
-
-  } catch (_) {
-    // ignore
-  } finally {
-    if (mounted) setState(() => _loading = false);
+  @override
+  void didUpdateWidget(covariant BonDeCommandeFormSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Si devis devient valide => tu peux auto ouvrir si tu veux
+    if (!oldWidget.devisIsValid && widget.devisIsValid) {
+      // optionnel
+      // setState(() => _open = true);
+    }
   }
-}
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final list = await BonDeCommandeApi.instance.listBonDeCommande(projectId: widget.projectId);
+      setState(() {
+        _list = list;
+
+        // préremplir nom si déjà existant
+        if (_list.isNotEmpty) {
+          _nameCtrl.text = (_list.first["nomBonDeCommande"] ?? "").toString();
+        }
+      });
+    } catch (_) {
+      // ignore
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   Future<void> _pickFiles() async {
     final res = await FilePicker.platform.pickFiles(
@@ -94,14 +89,18 @@ class _DevisFormSectionState extends State<DevisFormSection> {
     }
 
     if (_filesBytes.isEmpty) return;
-
     setState(() {});
   }
 
   Future<void> _submit() async {
-    final nomDevis = _nameCtrl.text.trim();
-    if (nomDevis.isEmpty) {
-      _toast("Validation", "Nom du devis est obligatoire");
+    if (!widget.devisIsValid) {
+      _toast("Validation", "Veuillez d’abord valider l’étape Devis ✅");
+      return;
+    }
+
+    final nom = _nameCtrl.text.trim();
+    if (nom.isEmpty) {
+      _toast("Validation", "Nom du bon de commande est obligatoire");
       return;
     }
 
@@ -110,83 +109,26 @@ class _DevisFormSectionState extends State<DevisFormSection> {
       return;
     }
 
-    // ✅ Matricule obligatoire AVANT upload
-    final alreadyHasMatricule = (_matriculeExisting ?? "").isNotEmpty;
-
-    final matricule = await _askMatriculeRequired(
-      initial: _matriculeExisting ?? "",
-      readOnly: alreadyHasMatricule,
-    );
-
-    if (matricule == null || matricule.trim().isEmpty) {
-      _toast("Validation", "Matricule fiscale est obligatoire");
-      return; // ✅ stop : aucun upload
-    }
-
     setState(() => _saving = true);
     try {
-      // ✅ Sauver matricule seulement si pas existant
-      if (!alreadyHasMatricule) {
-        await DevisApi.instance.updateMatricule(
-          projectId: widget.projectId,
-          matriculeFiscale: matricule.trim(),
-        );
-        _matriculeExisting = matricule.trim();
-        widget.onMatriculeSaved?.call(matricule.trim());
-      }
-
-      // ✅ Upload devis seulement si matricule OK
-      await DevisApi.instance.uploadDevis(
+      await BonDeCommandeApi.instance.uploadBonDeCommande(
         projectId: widget.projectId,
-        nomDevis: nomDevis,
+        nomBonDeCommande: nom,
         filesBytes: _filesBytes,
         filenames: _filesNames,
       );
 
-      _toast("Succès", "Matricule ✅ + Devis uploadé ✅");
+      _toast("Succès", "Bon de commande uploadé ✅");
 
       _filesBytes.clear();
       _filesNames.clear();
-      await _loadDevis();
+      await _load();
       setState(() {});
     } catch (e) {
       _toast("Erreur", e.toString());
     } finally {
       if (mounted) setState(() => _saving = false);
     }
-  }
-
-  Future<String?> _askMatriculeRequired({
-    required String initial,
-    required bool readOnly,
-  }) async {
-    final ctrl = TextEditingController(text: initial);
-
-    return showDialog<String?>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Matricule fiscale"),
-        content: TextField(
-          controller: ctrl,
-          readOnly: readOnly,
-          decoration: const InputDecoration(hintText: "Ex: 1234567/A/B/000"),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              if (ctrl.text.trim().isEmpty) return;
-              Navigator.pop(ctx, ctrl.text.trim());
-            },
-            child: const Text("Valider"),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<bool?> _confirmDelete({required String filename}) {
@@ -198,9 +140,7 @@ class _DevisFormSectionState extends State<DevisFormSection> {
         content: Text("Supprimer \"$filename\" ?"),
         actions: [
           TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.blue,
-            ),
+            style: TextButton.styleFrom(foregroundColor: Colors.blue),
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text("Annuler"),
           ),
@@ -218,9 +158,7 @@ class _DevisFormSectionState extends State<DevisFormSection> {
   }
 
   void _toast(String title, String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("$title : $msg")),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$title : $msg")));
   }
 
   @override
@@ -238,6 +176,8 @@ class _DevisFormSectionState extends State<DevisFormSection> {
       );
     }
 
+    final locked = !widget.devisIsValid;
+
     return Card(
       elevation: 0.6,
       child: Padding(
@@ -245,54 +185,65 @@ class _DevisFormSectionState extends State<DevisFormSection> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ✅ TAB "Devis" dropdown
+            // ✅ TAB dropdown + lock si devis pas validé
             InkWell(
-              onTap: () => setState(() => _devisOpen = !_devisOpen),
+              onTap: () {
+                if (locked) {
+                  _toast("Info", "Valide d’abord l’étape Devis ✅");
+                  return;
+                }
+                setState(() => _open = !_open);
+              },
               borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey.withOpacity(0.35)),
-                ),
-                child: Row(
-                  children: [
-                    const Text(
-                      "Devis",
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                    ),
-                    const Spacer(),
-                    AnimatedRotation(
-                      turns: _devisOpen ? 0.5 : 0.0,
-                      duration: const Duration(milliseconds: 180),
-                      child: const Icon(Icons.keyboard_arrow_down, size: 22),
-                    ),
-                  ],
+              child: Opacity(
+                opacity: locked ? 0.45 : 1,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.withOpacity(0.35)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text(
+                        "Bon de commande",
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                      ),
+                      const Spacer(),
+                      if (locked)
+                        const Icon(Icons.lock, size: 18)
+                      else
+                        AnimatedRotation(
+                          turns: _open ? 0.5 : 0.0,
+                          duration: const Duration(milliseconds: 180),
+                          child: const Icon(Icons.keyboard_arrow_down, size: 22),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
 
             const SizedBox(height: 12),
 
-            // ✅ contenu repliable
             AnimatedCrossFade(
               duration: const Duration(milliseconds: 200),
-              crossFadeState: _devisOpen ? CrossFadeState.showFirst : CrossFadeState.showSecond,
+              crossFadeState: _open ? CrossFadeState.showFirst : CrossFadeState.showSecond,
               firstChild: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextField(
                     controller: _nameCtrl,
-                    decoration: const InputDecoration(labelText: "Nom du devis *"),
+                    decoration: const InputDecoration(labelText: "Nom du bon de commande *"),
                   ),
                   const SizedBox(height: 12),
 
                   // ✅ fichiers existants + corbeille
-                  if (_devisList.isNotEmpty) ...[
+                  if (_list.isNotEmpty) ...[
                     const Text("Fichiers existants :", style: TextStyle(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
-                    for (final d in _devisList)
+                    for (final d in _list)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Row(
@@ -319,12 +270,12 @@ class _DevisFormSectionState extends State<DevisFormSection> {
 
                                       setState(() => _saving = true);
                                       try {
-                                        await DevisApi.instance.deleteDevis(
+                                        await BonDeCommandeApi.instance.deleteBonDeCommande(
                                           projectId: widget.projectId,
-                                          devisId: d["id"].toString(),
+                                          bdcId: d["id"].toString(),
                                         );
                                         _toast("Succès", "Fichier supprimé ✅");
-                                        await _loadDevis();
+                                        await _load();
                                       } catch (e) {
                                         _toast("Erreur", e.toString());
                                       } finally {
@@ -338,7 +289,7 @@ class _DevisFormSectionState extends State<DevisFormSection> {
                     const SizedBox(height: 10),
                   ],
 
-                  // ✅ picker multi (corrigé)
+                  // ✅ picker multi
                   InkWell(
                     onTap: _saving ? null : _pickFiles,
                     borderRadius: BorderRadius.circular(14),
@@ -381,7 +332,9 @@ class _DevisFormSectionState extends State<DevisFormSection> {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            _filesNames.isEmpty ? "Aucun fichier" : "${_filesNames.length} fichier(s) sélectionné(s)",
+                            _filesNames.isEmpty
+                                ? "Aucun fichier"
+                                : "${_filesNames.length} fichier(s) sélectionné(s)",
                             style: TextStyle(color: Colors.grey.shade700),
                           ),
                           if (_filesNames.isNotEmpty) ...[
@@ -409,7 +362,10 @@ class _DevisFormSectionState extends State<DevisFormSection> {
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
                                   "+ ${_filesNames.length - 5} autre(s) fichier(s)",
-                                  style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontStyle: FontStyle.italic,
+                                  ),
                                 ),
                               ),
                           ],
@@ -420,7 +376,6 @@ class _DevisFormSectionState extends State<DevisFormSection> {
 
                   const SizedBox(height: 14),
 
-                  // ✅ publish
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

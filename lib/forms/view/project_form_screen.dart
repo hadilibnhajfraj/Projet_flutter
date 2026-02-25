@@ -17,8 +17,9 @@ import '../../providers/api_client.dart';
 import 'package:dash_master_toolkit/forms/form_imports.dart';
 import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
 
-// ✅ IMPORTANT: on utilise la section devis (SANS scaffold)
+// ✅ IMPORTANT: sections (SANS scaffold)
 import 'package:dash_master_toolkit/forms/view/devis_form_section.dart';
+import 'package:dash_master_toolkit/forms/view/bon_de_commande_form_section.dart';
 
 class ProjectFormScreen extends StatefulWidget {
   const ProjectFormScreen({super.key});
@@ -37,6 +38,9 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   String? _projectId;
   bool _loadedOnce = false;
   bool _loading = false;
+
+  // ✅ pour bloquer Bon de commande tant que Devis pas validé
+  bool _devisIsValid = false;
 
   @override
   void initState() {
@@ -272,18 +276,34 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         text: _projectId == null ? "Create" : "Update",
                       ),
 
-                      // ✅ AJOUT : afficher devis dans la même page en EDIT
-                    if (_projectId != null) ...[
-  const SizedBox(height: 18),
-  DevisFormSection(
-    projectId: _projectId!,
-    isEdit: true,
-   onMatriculeSaved: (m) {
-  c.matriculeFiscale.text = m;
-  setState(() {});
-},
-  ),
-],
+                      // ✅ SECTIONS DEVIS + BON DE COMMANDE (en EDIT seulement)
+                      if (_projectId != null) ...[
+                        const SizedBox(height: 18),
+
+                        // ✅ Devis dropdown section
+                        DevisFormSection(
+                          projectId: _projectId!,
+                          isEdit: true,
+                          onMatriculeSaved: (m) {
+                            c.matriculeFiscale.text = m;
+                            setState(() {});
+                          },
+
+                          // ✅ IMPORTANT: ce callback doit exister dans DevisFormSection
+                          // -> il renvoie true si devisList non vide
+                          onDevisValidityChanged: (ok) {
+                            setState(() => _devisIsValid = ok);
+                          },
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        // ✅ Bon de commande dropdown section (bloqué si devis pas validé)
+                        BonDeCommandeFormSection(
+                          projectId: _projectId!,
+                          devisIsValid: _devisIsValid,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -560,12 +580,12 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
       gridCtrl.upsertProject(project);
 
-      // ✅ Après création: rester sur la page et afficher Devis (même écran)
+      // ✅ Après création: rester sur la page et afficher Devis + Bon de commande
       if (_projectId == null) {
         setState(() => _projectId = project.id);
         await c.loadProject(project.id);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Projet créé ✅ يمكنك الآن رفع Devis")),
+          const SnackBar(content: Text("Projet créé ✅ يمكنك الآن رفع Devis ثم Bon de commande")),
         );
         return;
       }
