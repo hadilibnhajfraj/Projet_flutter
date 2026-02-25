@@ -49,7 +49,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_service.dart';
 import '../providers/language_provider.dart';
 import 'package:provider/provider.dart';
-
+import 'package:dash_master_toolkit/forms/view/devis_upload_screen.dart';
 class MyRoute {
   static const login = '/login';
   static const dashboard = '/dashboard';
@@ -86,7 +86,7 @@ class MyRoute {
 
   // ✅ IMPORTANT : c’est bien /forms/project (pas null)
   static const projectFormScreen = '/forms/project';
-
+ static const devisEditScreen = '/forms/devis-edit';
   static const buttonsScreen = '/components/buttons';
   static const tabsScreen = '/components/tabs';
   static const dialogScreen = '/components/dialog';
@@ -332,6 +332,18 @@ class MyRoute {
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: ProjectFormScreen()),
               ),
+              GoRoute(
+  path: 'devis-edit',
+  pageBuilder: (context, state) {
+    final projectId = state.uri.queryParameters['projectId'] ?? "";
+    return NoTransitionPage(
+      child: DevisUploadScreen(
+        projectId: projectId,
+        isEdit: true, // ✅
+      ),
+    );
+  },
+),
             ],
           ),
 

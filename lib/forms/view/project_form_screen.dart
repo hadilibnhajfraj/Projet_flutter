@@ -17,6 +17,9 @@ import '../../providers/api_client.dart';
 import 'package:dash_master_toolkit/forms/form_imports.dart';
 import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
 
+// ✅ IMPORTANT: on utilise la section devis (SANS scaffold)
+import 'package:dash_master_toolkit/forms/view/devis_form_section.dart';
+
 class ProjectFormScreen extends StatefulWidget {
   const ProjectFormScreen({super.key});
 
@@ -50,7 +53,6 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
   @override
   void dispose() {
-    // ✅ on supprime seulement le form controller (pas le ThemeController)
     if (Get.isRegistered<ProjectFormController>()) {
       Get.delete<ProjectFormController>();
     }
@@ -77,7 +79,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     setState(() => _loading = true);
     try {
       await c.loadProject(id);
-      if (mounted) setState(() {}); // refresh dropdowns
+      if (mounted) setState(() {});
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -92,8 +94,6 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
-
-    // ✅ FIX: plus de responsive_framework TABLET => compile OK sur web
     final isMobile = screenWidth < 992;
 
     return Scaffold(
@@ -132,7 +132,6 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
                       _statusDropdown(theme),
 
-                      // ✅ typeProjet + typeAdresseChantier
                       _twoCols(
                         isMobile: isMobile,
                         left: _field(
@@ -149,7 +148,6 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         ),
                       ),
 
-                      // ✅ validation + pourcentage
                       _twoCols(
                         isMobile: isMobile,
                         left: _validationDropdown(theme),
@@ -162,7 +160,6 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         ),
                       ),
 
-                      // ✅ surface
                       _field(
                         theme: theme,
                         title: "Prospected Area (m²) (optional)",
@@ -189,47 +186,47 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                       ),
 
                       _twoCols(
-  isMobile: isMobile,
-  left: _field(
-    theme: theme,
-    title: "Architect (optional)",
-    controller: c.architecte,
-    validator: null, // ✅ optionnel
-  ),
-  right: _field(
-    theme: theme,
-    title: "Architect Phone (optional)",
-    controller: c.telephoneArchitecte,
-    validator: (v) => c.phoneOptionalValidator(v, "Téléphone Architecte"), // ✅ optionnel
-    keyboardType: TextInputType.phone,
-    
-  ),
-),
+                        isMobile: isMobile,
+                        left: _field(
+                          theme: theme,
+                          title: "Architect (optional)",
+                          controller: c.architecte,
+                          validator: null,
+                        ),
+                        right: _field(
+                          theme: theme,
+                          title: "Architect Phone (optional)",
+                          controller: c.telephoneArchitecte,
+                          validator: (v) => c.phoneOptionalValidator(v, "Téléphone Architecte"),
+                          keyboardType: TextInputType.phone,
+                        ),
+                      ),
 
                       _field(
                         theme: theme,
                         title: "Company",
                         controller: c.entreprise,
                         validator: (v) => c.requiredValidator(v, "Entreprise"),
-                        
                       ),
+
                       _field(
-  theme: theme,
-  title: "Matricule fiscale (optional)",
-  controller: c.matriculeFiscale,
-  validator: null,
-),
+                        theme: theme,
+                        title: "Matricule fiscale (optional)",
+                        controller: c.matriculeFiscale,
+                        validator: null,
+                      ),
+
                       _field(
                         theme: theme,
                         title: "Developer",
                         controller: c.promoteur,
-                        validator: null, // ✅ optionnel
+                        validator: null,
                       ),
                       _field(
                         theme: theme,
                         title: "Design Office",
                         controller: c.bureauEtude,
-                        validator: null, // ✅ optionnel
+                        validator: null,
                       ),
                       _field(
                         theme: theme,
@@ -274,6 +271,20 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         onPressed: _submit,
                         text: _projectId == null ? "Create" : "Update",
                       ),
+
+                      // ✅ AJOUT : afficher devis dans la même page en EDIT
+                      if (_projectId != null) ...[
+                        const SizedBox(height: 18),
+                        DevisFormSection(
+    projectId: _projectId!,
+    isEdit: true,
+    onMatriculeSaved: (m) {
+      // ✅ Remplir automatiquement le champ du ProjectForm
+      c.matriculeFiscale.text = m;
+      if (mounted) setState(() {});
+    },
+  ),
+                      ],
                     ],
                   ),
                 ),
@@ -345,7 +356,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     );
   }
 
-  // ----------------- ✅ VALIDATION -----------------
+  // ----------------- VALIDATION -----------------
   Widget _validationDropdown(ThemeData theme) {
     final current = c.validationStatut.text.trim();
     final currentValue = _validationOptions.contains(current) ? current : "Non validé";
@@ -504,49 +515,31 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     }
 
     final manualComment = c.commentaireCtrl.text.trim();
-    final allComments = [
-      ...c.locationComments.toList(),
-      if (manualComment.isNotEmpty)
-        {"comment": manualComment, "createdAt": DateTime.now().toIso8601String()},
-    ];
 
     final payload = {
-  "nomProjet": c.nomProjet.text.trim(),
-  "dateDemarrage": c.dateDemarrage.text.trim(),
-  "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
-  "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
-
-  "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
-  "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
-
-  // ✅ optionnels
-  "architecte": c.architecte.text.trim().isEmpty ? null : c.architecte.text.trim(),
-  "telephoneArchitecte": c.telephoneArchitecte.text.trim().isEmpty ? null : c.telephoneArchitecte.text.trim(),
-
-  // ✅ matricule fiscale (optionnel) AVANT company
-  "matriculeFiscale": c.matriculeFiscale.text.trim().isEmpty ? null : c.matriculeFiscale.text.trim(),
-
-  // ✅ company (obligatoire)
-  "entreprise": c.entreprise.text.trim(),
-
-  // ✅ optionnels
-  "promoteur": c.promoteur.text.trim().isEmpty ? null : c.promoteur.text.trim(),
-  "bureauEtude": c.bureauEtude.text.trim().isEmpty ? null : c.bureauEtude.text.trim(),
-
-  "bureauControle": c.bureauControle.text.trim(),
-
-  "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty ? null : c.entrepriseFluide.text.trim(),
-  "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty ? null : c.entrepriseElectricite.text.trim(),
-  "adresse": c.localisationAdresse.text.trim().isEmpty ? null : c.localisationAdresse.text.trim(),
-  "location": {"lat": c.latitude.value, "lng": c.longitude.value},
-  "localisationCommentaire": manualComment.isEmpty ? null : manualComment,
-
-  // ✅ nouveaux champs
-  "typeProjet": c.typeProjet.text.trim().isEmpty ? null : c.typeProjet.text.trim(),
-  "validationStatut": c.validationStatut.text.trim().isEmpty ? "Non validé" : c.validationStatut.text.trim(),
-  "pourcentageReussite": c.pourcentageReussiteValue,
-  "surfaceProspectee": c.surfaceProspecteeValue,
-};
+      "nomProjet": c.nomProjet.text.trim(),
+      "dateDemarrage": c.dateDemarrage.text.trim(),
+      "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
+      "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
+      "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
+      "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
+      "architecte": c.architecte.text.trim().isEmpty ? null : c.architecte.text.trim(),
+      "telephoneArchitecte": c.telephoneArchitecte.text.trim().isEmpty ? null : c.telephoneArchitecte.text.trim(),
+      "matriculeFiscale": c.matriculeFiscale.text.trim().isEmpty ? null : c.matriculeFiscale.text.trim(),
+      "entreprise": c.entreprise.text.trim(),
+      "promoteur": c.promoteur.text.trim().isEmpty ? null : c.promoteur.text.trim(),
+      "bureauEtude": c.bureauEtude.text.trim().isEmpty ? null : c.bureauEtude.text.trim(),
+      "bureauControle": c.bureauControle.text.trim(),
+      "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty ? null : c.entrepriseFluide.text.trim(),
+      "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty ? null : c.entrepriseElectricite.text.trim(),
+      "adresse": c.localisationAdresse.text.trim().isEmpty ? null : c.localisationAdresse.text.trim(),
+      "location": {"lat": c.latitude.value, "lng": c.longitude.value},
+      "localisationCommentaire": manualComment.isEmpty ? null : manualComment,
+      "typeProjet": c.typeProjet.text.trim().isEmpty ? null : c.typeProjet.text.trim(),
+      "validationStatut": c.validationStatut.text.trim().isEmpty ? "Non validé" : c.validationStatut.text.trim(),
+      "pourcentageReussite": c.pourcentageReussiteValue,
+      "surfaceProspectee": c.surfaceProspecteeValue,
+    };
 
     try {
       dynamic data;
@@ -568,10 +561,19 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
       gridCtrl.upsertProject(project);
 
-      if (!mounted) return;
+      // ✅ Après création: rester sur la page et afficher Devis (même écran)
+      if (_projectId == null) {
+        setState(() => _projectId = project.id);
+        await c.loadProject(project.id);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Projet créé ✅ يمكنك الآن رفع Devis")),
+        );
+        return;
+      }
 
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_projectId == null ? "Projet créé ✅" : "Projet mis à jour ✅")),
+        const SnackBar(content: Text("Projet mis à jour ✅")),
       );
 
       context.go(MyRoute.userGridScreen);
