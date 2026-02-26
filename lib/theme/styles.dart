@@ -103,9 +103,24 @@ abstract class Styles {
               cursorColor: Colors.black,
               selectionHandleColor: Colors.black,
               selectionColor: Colors.green),
-          colorScheme: ColorScheme.light(primary: colorWhite),
+          colorScheme: ColorScheme.light(
+  primary: colorPrimary300,   // ✅ ton bleu
+  onPrimary: Colors.white,
+  surface: colorWhite,
+  onSurface: colorGrey900,
+),
           cardTheme: const CardThemeData().copyWith(color: colorWhite),
+datePickerTheme: DatePickerThemeData(
+  backgroundColor: Color(0xFFEAF0FF), // kPickerCardBg
+  surfaceTintColor: Colors.transparent,
+),
 
+timePickerTheme:  TimePickerThemeData(
+  backgroundColor: Color(0xFFEAF0FF), // kPickerCardBg
+  dialHandColor: colorPrimary300,
+  dialBackgroundColor: Color(0xFFEAF0FF),
+  entryModeIconColor: colorPrimary300,
+),
           cardColor: colorWhite,
           iconTheme: IconThemeData(color: colorGrey900),
           bottomSheetTheme: BottomSheetThemeData(backgroundColor: colorWhite),

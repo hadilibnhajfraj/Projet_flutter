@@ -18,11 +18,21 @@ class CalendarToggleButtons extends StatefulWidget {
 
 class _CalendarToggleButtonsState extends State<CalendarToggleButtons> {
   late CalendarView _selectedView;
-  final List<CalendarView> _views = [
+
+  final List<CalendarView> _views = const [
     CalendarView.day,
     CalendarView.week,
-    CalendarView.month
+    CalendarView.month,
   ];
+
+  // ✅ Couleurs forcées (peu importe light/dark)
+  static const Color kSelectedBg = Color(0xFF1976D2); // Bleu
+  static const Color kSelectedText = Colors.white;
+
+  static const Color kUnselectedBg = Colors.transparent;
+  static const Color kUnselectedText = Color(0xFF111827); // Gris très foncé
+
+  static const Color kBorder = Color(0xFF1976D2); // Bleu bordure
 
   @override
   void initState() {
@@ -32,43 +42,43 @@ class _CalendarToggleButtonsState extends State<CalendarToggleButtons> {
 
   @override
   Widget build(BuildContext context) {
-    var lang = AppLocalizations.of(context);
-    ThemeData theme = Theme.of(context);
-    ThemeController themeController = Get.put(ThemeController());
+    final lang = AppLocalizations.of(context);
+
     return Row(
-      mainAxisSize: MainAxisSize.min, // Prevent full width
+      mainAxisSize: MainAxisSize.min,
       children: [
         ToggleButtons(
           isSelected: _views.map((view) => view == _selectedView).toList(),
           onPressed: (index) {
-            setState(() {
-              _selectedView = _views[index];
-            });
+            setState(() => _selectedView = _views[index]);
             widget.onViewChanged(_selectedView);
           },
           borderRadius: BorderRadius.circular(8),
-          selectedColor: Colors.white,
-          color: themeController.isDarkMode ? Colors.white : colorGrey900,
-          fillColor: colorPrimary200,
-          borderColor: colorPrimary100,
-          selectedBorderColor: colorPrimary100,
-          textStyle:
-              theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
+
+          // ✅ forcé
+          selectedColor: kSelectedText,
+          color: kUnselectedText,
+          fillColor: kSelectedBg,
+          borderColor: kBorder,
+          selectedBorderColor: kBorder,
+
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
           constraints: BoxConstraints(minWidth: widget.isMobile ? 45 : 75),
-          // Fixed button width
+
           children: _views.map((view) {
             final isSelected = view == _selectedView;
-            return Padding(
-              padding:  EdgeInsets.symmetric(vertical: widget.isMobile ? 10:8, horizontal: 5),
+
+            return Container(
+              color: isSelected ? kSelectedBg : kUnselectedBg,
+              padding: EdgeInsets.symmetric(
+                vertical: widget.isMobile ? 10 : 8,
+                horizontal: 10,
+              ),
               child: Text(
                 _getViewLabel(view, lang),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: isSelected
-                      ? Colors.white // Selected text color
-                      : (themeController.isDarkMode
-                          ? Colors.white70
-                          : colorGrey900),
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? kSelectedText : kUnselectedText,
                 ),
               ),
             );

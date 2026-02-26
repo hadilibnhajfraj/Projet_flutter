@@ -1,4 +1,3 @@
-
 import 'package:dash_master_toolkit/application/calendar/calendar_imports.dart';
 import 'package:intl/intl.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
@@ -17,9 +16,14 @@ class DateNavigator extends StatelessWidget {
   final DateTime? currentDate;
   final String viewMode;
 
+  // ✅ Couleurs forcées
+  static const Color kText = Color(0xFF111827);
+  static const Color kIcon = Color(0xFF111827);
+  static const Color kBorder = Color(0xFFE5E7EB);
+  static const Color kBtnBg = Colors.white;
+
   @override
   Widget build(BuildContext context) {
-    ThemeController themeController = Get.put(ThemeController());
     final bool isMobile = rf.ResponsiveValue<bool>(
       context,
       conditionalValues: const [
@@ -28,7 +32,6 @@ class DateNavigator extends StatelessWidget {
       defaultValue: false,
     ).value;
 
-    final theme = Theme.of(context);
     final formattedDate = DateFormat(
       viewMode.trim().toLowerCase() == "day" ? 'dd MMM, yyyy' : 'MMM, yyyy',
     ).format(currentDate ?? DateTime.now());
@@ -37,42 +40,38 @@ class DateNavigator extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
       children: [
-        // Previous Button
-        IconButton.outlined(
+        IconButton(
           onPressed: onPrevious,
           style: IconButton.styleFrom(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-            side: isMobile ? BorderSide.none : BorderSide(color: themeController.isDarkMode ? colorGrey700 : colorGrey100),
+            backgroundColor: kBtnBg,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            side: isMobile ? BorderSide.none : const BorderSide(color: kBorder),
             padding: EdgeInsets.zero,
           ),
-          icon:  Icon(Icons.chevron_left_outlined,color: themeController.isDarkMode ? colorWhite : colorGrey900,),
+          icon: const Icon(Icons.chevron_left_outlined, color: kIcon),
         ),
 
-        // Selected Date
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
             formattedDate,
-            style: theme.textTheme.bodyLarge?.copyWith(
-              fontSize: isMobile ? 18 : null,
-              fontWeight: isMobile ? FontWeight.w600 : FontWeight.w500,
+            style: TextStyle(
+              color: kText,
+              fontSize: isMobile ? 18 : 16,
+              fontWeight: isMobile ? FontWeight.w700 : FontWeight.w600,
             ),
           ),
         ),
 
-        // Next Button
-        IconButton.outlined(
+        IconButton(
           onPressed: onNext,
           style: IconButton.styleFrom(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
-            side: isMobile ? BorderSide.none : BorderSide(color: themeController.isDarkMode ? colorGrey700 : colorGrey100),
+            backgroundColor: kBtnBg,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            side: isMobile ? BorderSide.none : const BorderSide(color: kBorder),
             padding: EdgeInsets.zero,
           ),
-          icon:  Icon(Icons.chevron_right_outlined,color: themeController.isDarkMode ? colorWhite : colorGrey900,),
+          icon: const Icon(Icons.chevron_right_outlined, color: kIcon),
         ),
       ],
     );
