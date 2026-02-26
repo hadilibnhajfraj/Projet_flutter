@@ -1,10 +1,7 @@
 import 'package:dash_master_toolkit/application/calendar/calendar_imports.dart';
+
+
 import 'package:responsive_framework/responsive_framework.dart' as rf;
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:dash_master_toolkit/application/services/api_client.dart';
-import 'package:dash_master_toolkit/providers/auth_service.dart';  
-import 'package:dio/dio.dart';
 
 class CalendarViewScreen extends StatelessWidget {
   final CalendarControllerX controller = Get.put(CalendarControllerX());
@@ -13,6 +10,7 @@ class CalendarViewScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ThemeData theme = Theme.of(context);
     ThemeController themeController = Get.put(ThemeController());
     return Scaffold(
       body: Container(
@@ -20,14 +18,25 @@ class CalendarViewScreen extends StatelessWidget {
           rf.ResponsiveValue<double>(
             context,
             conditionalValues: [
-              const rf.Condition.between(start: 0, end: 340, value: 10),
-              const rf.Condition.between(start: 341, end: 992, value: 16),
+              const rf.Condition.between(
+                start: 0,
+                end: 340,
+                value: 10,
+              ),
+              const rf.Condition.between(
+                start: 341,
+                end: 992,
+                value: 16,
+              ),
             ],
             defaultValue: 24,
           ).value,
         ),
         constraints: BoxConstraints.tight(
-          Size(double.maxFinite, MediaQuery.of(context).size.height * 0.80),
+          Size(
+            double.maxFinite,
+            MediaQuery.of(context).size.height * 0.80,
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
@@ -51,6 +60,8 @@ class CalendarViewScreen extends StatelessWidget {
               child: SfCalendar(
                 headerHeight: 0,
                 controller: controller.calendarController,
+                // view: controller.calendarView.value, // View updates dynamically
+                // view: CalendarView.week,
                 dataSource: _getCalendarDataSource(),
                 timeSlotViewSettings: TimeSlotViewSettings(
                   startHour: 5,
@@ -58,32 +69,20 @@ class CalendarViewScreen extends StatelessWidget {
                   timeIntervalHeight: 60,
                 ),
                 allowedViews: [
-                  CalendarView.month,  // Keep only the month view
+                  CalendarView.day,
+                  CalendarView.week,
+                  CalendarView.month,
                 ],
                 showNavigationArrow: true,
+                onViewChanged: (viewChangedDetails) {
+                  // Handle view change logic if needed
+                },
                 todayHighlightColor: Colors.red,
                 showCurrentTimeIndicator: true,
                 initialDisplayDate: DateTime.now(),
-                monthCellBuilder: (context, details) {
-                  List<Appointment> appointments = details.appointments.cast<Appointment>();
 
-                  // Color the entire cell for a day with appointments
-                  return Container(
-                    color: appointments.isNotEmpty
-                        ? appointments.first.color // Use color of the first appointment
-                        : Colors.transparent,
-                    child: Center(child: Text(details.date.day.toString())),
-                  );
-                },
+                // headerStyle: CalendarHeaderStyle(),
               ),
-            ),
-            // Add New Task button
-            ElevatedButton(
-              onPressed: () {
-                // Redirect to the project form page
-                Get.toNamed('/forms/project'); // Navigate to the project form page
-              },
-              child: Text('Add New Project'),
             ),
           ],
         ),

@@ -80,7 +80,10 @@ class _CalendarToggleButtonsState extends State<CalendarToggleButtons> {
 
   String _getViewLabel(CalendarView view, AppLocalizations lang) {
     switch (view) {
-    
+      case CalendarView.day:
+        return lang.translate('Daily');
+      case CalendarView.week:
+        return lang.translate('Weekly');
       case CalendarView.month:
         return lang.translate('Monthly');
       default:

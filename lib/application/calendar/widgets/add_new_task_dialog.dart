@@ -1,669 +1,229 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+class AddTaskDialog extends StatefulWidget {
+  const AddTaskDialog({super.key});
 
+  @override
+  State<AddTaskDialog> createState() => _AddTaskDialogState();
+}
 
+class _AddTaskDialogState extends State<AddTaskDialog> {
+  final _title = TextEditingController();
+  final _desc = TextEditingController();
 
-import '../calendar_imports.dart';
+  final _startDateCtrl = TextEditingController();
+  final _startTimeCtrl = TextEditingController();
 
-void createNewTaskDialog(
-    ThemeData theme, BuildContext context) {
-  ThemeController themeController = Get.put(ThemeController());
-  TextEditingController titleController = TextEditingController();
-  TextEditingController startDateController = TextEditingController();
-  TextEditingController endDateController = TextEditingController();
-  TextEditingController startTimeController = TextEditingController();
-  TextEditingController endTimeController = TextEditingController();
-  TextEditingController descriptionController = TextEditingController();
-  FocusNode f1 = FocusNode();
-  FocusNode f2 = FocusNode();
-  FocusNode f3 = FocusNode();
-  FocusNode f4 = FocusNode();
-  FocusNode f5 = FocusNode();
-  FocusNode f6 = FocusNode();
-  final titleFieldFocused = false.obs;
-  final selectDateFieldFocused = false.obs;
-  final endDateFieldFocused = false.obs;
-  final startTimeFieldFocused = false.obs;
-  final endTimeFieldFocused = false.obs;
-  final descriptionFieldFocused = false.obs;
-  final formKey = GlobalKey<FormState>();
-  var selectedStartDate = Rxn<DateTime>();
-  var selectedEndDate = Rxn<DateTime>();
+  DateTime? _startDate;
+  TimeOfDay? _startTime;
 
-  Future<void> selectStartDate(BuildContext context) async {
-    DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: selectedStartDate.value ?? DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-      builder: (context, child) {
-        return Theme(
-          // Customize the theme of the date picker dialog here
-          data: ThemeData.light().copyWith(
-            // primaryColor: colorPrimary100,
-            // Change primary color
-            hoverColor: Colors.transparent,
-            highlightColor: Colors.transparent,
-            splashColor: Colors.transparent,
-            colorScheme: ColorScheme.light(primary: colorPrimary100),
-            // Change color scheme
-            dialogBackgroundColor: Colors.white, // Change background color
-            // Add more customizations as needed
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      selectedStartDate.value = picked;
-      startDateController.text = picked.toString().split(' ')[0];
-    }
+  // ✅ Couleur principale (remplace par ton colorPrimary100 si tu veux)
+  static const Color kPrimary = Color(0xFF1976D2); // bleu
+  static const Color kFieldBg = Color(0xFFF2F6FF); // bleu très clair
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _desc.dispose();
+    _startDateCtrl.dispose();
+    _startTimeCtrl.dispose();
+    super.dispose();
   }
 
-  Future<void> selectEndDate(BuildContext context) async {
-    if (selectedStartDate.value == null) {
-      toast(
-        "Error:  Please select the Start Date first",
-      );
-      return;
-    }
-
-    DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: selectedEndDate.value ?? selectedStartDate.value!,
-      firstDate: selectedStartDate.value!,
-      // Prevents selecting before start date
-      lastDate: DateTime(2100),
-      builder: (context, child) {
-        return Theme(
-          // Customize the theme of the date picker dialog here
-          data: ThemeData.light().copyWith(
-            // primaryColor: colorPrimary100,
-            // Change primary color
-            hoverColor: Colors.transparent,
-            highlightColor: Colors.transparent,
-            splashColor: Colors.transparent,
-            colorScheme: ColorScheme.light(primary: colorPrimary100),
-            // Change color scheme
-            dialogBackgroundColor: Colors.white, // Change background color
-            // Add more customizations as needed
-          ),
-          child: child!,
-        );
-      },
+  InputDecoration _dec(String label, String hint, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hint,
+      filled: true,
+      fillColor: kFieldBg, // ✅ pas blanc
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: kPrimary.withOpacity(.35)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: kPrimary, width: 2),
+      ),
+      labelStyle: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+      hintStyle: TextStyle(color: Colors.grey.shade700),
+      suffixIcon: Icon(icon, color: kPrimary),
     );
-
-    if (picked != null) {
-      selectedEndDate.value = picked;
-      endDateController.text = picked.toString().split(' ')[0];
-    }
   }
 
-  var selectedStartTime = Rxn<TimeOfDay>();
-  var selectedEndTime = Rxn<TimeOfDay>();
+ThemeData _pickerTheme(BuildContext context) {
+  final base = ThemeData.light(useMaterial3: true);
 
-  Future<void> selectStartTime(BuildContext context) async {
-    TimeOfDay? picked = await showTimePicker(
+  return base.copyWith(
+    colorScheme: base.colorScheme.copyWith(
+      primary: kPrimary,
+      onPrimary: Colors.white,
+      surface: const Color(0xFFEEF3FF),
+      onSurface: Colors.black87,
+    ),
+    dialogBackgroundColor: const Color(0xFFEEF3FF),
+
+    timePickerTheme: TimePickerThemeData(
+      backgroundColor: const Color(0xFFEEF3FF),
+
+      // ✅ cadran
+      dialBackgroundColor: Colors.white,
+      dialTextColor: kPrimary,         // chiffres non sélectionnés
+      dialHandColor: kPrimary,
+      dialTextStyle: const TextStyle(fontWeight: FontWeight.w700),
+
+      // ✅ heure/minute (le gros texte)
+      hourMinuteColor: Colors.white,
+      hourMinuteTextColor: kPrimary,   // ✅ UNE SEULE FOIS
+      hourMinuteTextStyle: const TextStyle(fontWeight: FontWeight.w800),
+
+      // ✅ AM/PM
+      dayPeriodColor: Colors.white,
+      dayPeriodTextColor: kPrimary,
+      dayPeriodTextStyle: const TextStyle(fontWeight: FontWeight.w700),
+
+      // ✅ "Select time"
+      helpTextStyle: const TextStyle(
+        color: Colors.black87,
+        fontWeight: FontWeight.w700,
+      ),
+
+      entryModeIconColor: kPrimary,
+    ),
+
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(foregroundColor: kPrimary),
+    ),
+  );
+}
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final d = await showDatePicker(
       context: context,
-      initialTime: selectedStartTime.value ?? TimeOfDay.now(),
-      builder: (context, child) {
-        return Theme(
-          // Customize the theme of the date picker dialog here
-          data: ThemeData.light().copyWith(
-            // primaryColor: colorPrimary100,
-            // Change primary color
-            hoverColor: Colors.transparent,
-            highlightColor: Colors.transparent,
-            splashColor: Colors.transparent,
-            colorScheme: ColorScheme.light(primary: colorPrimary100),
-            // Change color scheme
-            dialogBackgroundColor: Colors.white, // Change background color
-            // Add more customizations as needed
-          ),
-          child: child!,
-        );
-      },
+      initialDate: _startDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 3),
+      builder: (ctx, child) => Theme(data: _pickerTheme(ctx), child: child!),
     );
+    if (d == null) return;
 
-    if (picked != null) {
-      selectedStartTime.value = picked;
-      startTimeController.text = picked.format(context);
-      selectedEndTime.value = null; // Reset end time when start time changes
-      endTimeController.clear();
-    }
+    setState(() {
+      _startDate = d;
+      _startDateCtrl.text = DateFormat("yyyy-MM-dd").format(d); // ✅ s'affiche dans l'input
+    });
   }
 
-  Future<void> selectEndTime(BuildContext context) async {
-    if (selectedStartTime.value == null) {
-      toast("Error: Please select the Start Time first");
-      return;
-    }
-
-    TimeOfDay? picked = await showTimePicker(
+  Future<void> _pickTime() async {
+    final t = await showTimePicker(
       context: context,
-      initialTime: selectedEndTime.value ?? selectedStartTime.value!,
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.light().copyWith(
-            hoverColor: Colors.transparent,
-            highlightColor: Colors.transparent,
-            splashColor: Colors.transparent,
-            colorScheme: ColorScheme.light(primary: colorPrimary100),
-            dialogBackgroundColor: Colors.white,
-          ),
-          child: child!,
-        );
-      },
+      initialTime: _startTime ?? TimeOfDay.now(),
+      builder: (ctx, child) => Theme(data: _pickerTheme(ctx), child: child!),
     );
+    if (t == null) return;
 
-    if (picked != null) {
-      // Convert TimeOfDay to minutes for easy comparison
-      int startMinutes =
-          selectedStartTime.value!.hour * 60 + selectedStartTime.value!.minute;
-      int endMinutes = picked.hour * 60 + picked.minute;
-
-      // Check if event spans multiple days
-      bool isMultiDay = selectedEndDate.value != null &&
-          selectedStartDate.value != null &&
-          selectedEndDate.value!.isAfter(selectedStartDate.value!);
-
-      if (!isMultiDay && endMinutes <= startMinutes) {
-        toast("Invalid Time: End Time must be after Start Time");
-        return;
-      }
-
-      selectedEndTime.value = picked;
-      endTimeController.text = picked.format(context);
-    }
+    setState(() {
+      _startTime = t;
+      _startTimeCtrl.text = t.format(context); // ✅ s'affiche dans l'input
+    });
   }
 
-  showDialog(
-    context: context,
-    builder: (BuildContext context) {
-      return Dialog(
-        backgroundColor:
-            themeController.isDarkMode ? colorGrey800 : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Container(
-          width: MediaQuery.of(context).size.width,
-          // 95% of screen width
-          constraints: BoxConstraints(maxWidth: 500),
-          // Max width for large screens
+  DateTime? _buildStartDateTime() {
+    if (_startDate == null || _startTime == null) return null;
+    return DateTime(
+      _startDate!.year,
+      _startDate!.month,
+      _startDate!.day,
+      _startTime!.hour,
+      _startTime!.minute,
+    );
+  }
 
-          child: Form(
-            key: formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFFEEF3FF), // ✅ fond dialog (pas blanc)
+      title: const Text("Ajouter un suivi (Task)"),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _title,
+              style: const TextStyle(color: Colors.black87),
+              decoration: _dec("Title", "Enter Title", Icons.title),
+            ),
+            const SizedBox(height: 12),
+
+            Row(
               children: [
-                const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          AppLocalizations.of(context).translate("addNewTask"),
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w500,
-                              color: themeController.isDarkMode
-                                  ? colorWhite
-                                  : colorGrey900),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      InkWell(
-                        onTap: () {
-                          context.pop();
-                        },
-                        child: SvgPicture.asset(
-                          cancelIcon,
-                          width: 20,
-                          height: 20,
-                          colorFilter:
-                              ColorFilter.mode(colorGrey400, BlendMode.srcIn),
-                        ),
-                      ),
-                    ],
+                Expanded(
+                  child: TextFormField(
+                    controller: _startDateCtrl,
+                    readOnly: true,
+                    onTap: _pickDate,
+                    style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                    decoration: _dec("Start Date", "Select Start Date", Icons.calendar_month_outlined),
                   ),
                 ),
-                const SizedBox(height: 15),
-                Divider(
-                  height: 1,
-                  color:
-                      themeController.isDarkMode ? colorGrey700 : colorGrey100,
-                ),
-                const SizedBox(height: 15),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        AppLocalizations.of(context).translate("title"),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w500, color: colorGrey500),
-                      ),
-                      const SizedBox(height: 5),
-                      Obx(
-                        () => TextFormField(
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w500,
-                              color: themeController.isDarkMode
-                                  ? colorWhite
-                                  : colorGrey900),
-                          focusNode: f1,
-                          validator: (value) => validateText(
-                              value,
-                              AppLocalizations.of(context)
-                                  .translate("titleIsRequired")),
-                          onFieldSubmitted: (v) {
-                            f1.unfocus();
-                            FocusScope.of(context).requestFocus(f2);
-                          },
-                          onChanged: (value) {
-                            titleFieldFocused.value = true;
-                            selectDateFieldFocused.value = false;
-                            endDateFieldFocused.value = false;
-                            startTimeFieldFocused.value = false;
-                            endTimeFieldFocused.value = false;
-                            descriptionFieldFocused.value = false;
-                          },
-                          autovalidateMode: titleFieldFocused.value
-                              ? AutovalidateMode.onUserInteraction
-                              : AutovalidateMode.disabled,
-                          controller: titleController,
-                          textInputAction: TextInputAction.next,
-                          keyboardType: TextInputType.text,
-                          decoration: inputDecoration(context,
-                              hintText: AppLocalizations.of(context)
-                                  .translate("enterTitle")),
-                        ),
-                      ),
-                      const SizedBox(height: 15),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  AppLocalizations.of(context)
-                                      .translate("startDate"),
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.w500,
-                                      color: colorGrey500),
-                                ),
-                                const SizedBox(height: 5),
-                                Obx(
-                                  () => InkWell(
-                                    onTap: () {
-                                      selectStartDate(context);
-                                    },
-                                    child: AbsorbPointer(
-                                      child: TextFormField(
-                                        readOnly: true,
-                                        style: theme.textTheme.bodyLarge
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w500,
-                                                color:
-                                                    themeController.isDarkMode
-                                                        ? colorWhite
-                                                        : colorGrey900),
-                                        focusNode: f2,
-                                        validator: (value) => validateText(
-                                            value,
-                                            AppLocalizations.of(context)
-                                                .translate(
-                                                    "selectStartDateRequired")),
-                                        onFieldSubmitted: (v) {
-                                          f2.unfocus();
-                                          FocusScope.of(context)
-                                              .requestFocus(f3);
-                                        },
-                                        onChanged: (value) {
-                                          titleFieldFocused.value = false;
-                                          selectDateFieldFocused.value = true;
-                                          endDateFieldFocused.value = false;
-                                          startTimeFieldFocused.value = false;
-                                          endTimeFieldFocused.value = false;
-                                          descriptionFieldFocused.value = false;
-                                        },
-                                        autovalidateMode: selectDateFieldFocused
-                                                .value
-                                            ? AutovalidateMode.onUserInteraction
-                                            : AutovalidateMode.disabled,
-                                        controller: startDateController,
-                                        textInputAction: TextInputAction.next,
-                                        keyboardType: TextInputType.text,
-                                        decoration: inputDecoration(context,
-                                            hintText: AppLocalizations.of(
-                                                    context)
-                                                .translate("selectStartDate")),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  AppLocalizations.of(context)
-                                      .translate("startTime"),
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.w500,
-                                      color: colorGrey500),
-                                ),
-                                const SizedBox(height: 5),
-                                Obx(
-                                  () => InkWell(
-                                    onTap: () {
-                                      selectStartTime(context);
-                                    },
-                                    child: AbsorbPointer(
-                                      child: TextFormField(
-                                        readOnly: true,
-                                        style: theme.textTheme.bodyLarge
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w500,
-                                                color:
-                                                    themeController.isDarkMode
-                                                        ? colorWhite
-                                                        : colorGrey900),
-                                        focusNode: f3,
-                                        validator: (value) => validateText(
-                                            value,
-                                            AppLocalizations.of(context)
-                                                .translate(
-                                                    "selectStartTimeRequired")),
-                                        onFieldSubmitted: (v) {
-                                          f3.unfocus();
-                                          FocusScope.of(context)
-                                              .requestFocus(f4);
-                                        },
-                                        onChanged: (value) {
-                                          titleFieldFocused.value = false;
-                                          selectDateFieldFocused.value = false;
-                                          endDateFieldFocused.value = false;
-                                          startTimeFieldFocused.value = true;
-                                          endTimeFieldFocused.value = false;
-                                          descriptionFieldFocused.value = false;
-                                        },
-                                        autovalidateMode: startTimeFieldFocused
-                                                .value
-                                            ? AutovalidateMode.onUserInteraction
-                                            : AutovalidateMode.disabled,
-                                        controller: startTimeController,
-                                        textInputAction: TextInputAction.next,
-                                        keyboardType: TextInputType.text,
-                                        decoration: inputDecoration(context,
-                                            hintText: AppLocalizations.of(
-                                                    context)
-                                                .translate("selectStartTime")),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  AppLocalizations.of(context)
-                                      .translate("endDate"),
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.w500,
-                                      color: colorGrey500),
-                                ),
-                                const SizedBox(height: 5),
-                                Obx(
-                                  () => InkWell(
-                                    onTap: () {
-                                      selectEndDate(context);
-                                    },
-                                    child: AbsorbPointer(
-                                      child: TextFormField(
-                                        readOnly: true,
-                                        style: theme.textTheme.bodyLarge
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w500,
-                                                color:
-                                                    themeController.isDarkMode
-                                                        ? colorWhite
-                                                        : colorGrey900),
-                                        focusNode: f4,
-                                        validator: (value) => validateText(
-                                            value,
-                                            AppLocalizations.of(context)
-                                                .translate(
-                                                    "selectEndDateRequired")),
-                                        onFieldSubmitted: (v) {
-                                          f4.unfocus();
-                                          FocusScope.of(context)
-                                              .requestFocus(f5);
-                                        },
-                                        onChanged: (value) {
-                                          titleFieldFocused.value = false;
-                                          selectDateFieldFocused.value = false;
-                                          endDateFieldFocused.value = true;
-                                          startTimeFieldFocused.value = false;
-                                          endTimeFieldFocused.value = false;
-                                          descriptionFieldFocused.value = false;
-                                        },
-                                        autovalidateMode: endDateFieldFocused
-                                                .value
-                                            ? AutovalidateMode.onUserInteraction
-                                            : AutovalidateMode.disabled,
-                                        controller: endDateController,
-                                        textInputAction: TextInputAction.next,
-                                        keyboardType: TextInputType.text,
-                                        decoration: inputDecoration(context,
-                                            hintText: AppLocalizations.of(
-                                                    context)
-                                                .translate("selectEndDate")),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  AppLocalizations.of(context)
-                                      .translate("endTime"),
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.w500,
-                                      color: colorGrey500),
-                                ),
-                                const SizedBox(height: 5),
-                                Obx(
-                                  () => InkWell(
-                                    onTap: () {
-                                      selectEndTime(context);
-                                    },
-                                    child: AbsorbPointer(
-                                      child: TextFormField(
-                                        readOnly: true,
-                                        style: theme.textTheme.bodyLarge
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w500,
-                                                color:
-                                                    themeController.isDarkMode
-                                                        ? colorWhite
-                                                        : colorGrey900),
-                                        focusNode: f5,
-                                        validator: (value) => validateText(
-                                            value,
-                                            AppLocalizations.of(context)
-                                                .translate(
-                                                    "selectEndTimeRequired")),
-                                        onFieldSubmitted: (v) {
-                                          f5.unfocus();
-                                          FocusScope.of(context)
-                                              .requestFocus(f6);
-                                        },
-                                        onChanged: (value) {
-                                          titleFieldFocused.value = false;
-                                          selectDateFieldFocused.value = false;
-                                          endDateFieldFocused.value = false;
-                                          startTimeFieldFocused.value = false;
-                                          endTimeFieldFocused.value = true;
-                                          descriptionFieldFocused.value = false;
-                                        },
-                                        autovalidateMode: endTimeFieldFocused
-                                                .value
-                                            ? AutovalidateMode.onUserInteraction
-                                            : AutovalidateMode.disabled,
-                                        controller: endTimeController,
-                                        textInputAction: TextInputAction.next,
-                                        keyboardType: TextInputType.text,
-                                        decoration: inputDecoration(
-                                          context,
-                                          hintText: AppLocalizations.of(context)
-                                              .translate("selectEndTime"),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      Text(
-                        AppLocalizations.of(context).translate("description"),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w500, color: colorGrey500),
-                      ),
-                      const SizedBox(height: 5),
-                      Obx(
-                        () => TextFormField(
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w500,
-                              color: themeController.isDarkMode
-                                  ? colorWhite
-                                  : colorGrey900),
-                          focusNode: f6,
-                          onFieldSubmitted: (v) {
-                            f6.unfocus();
-                          },
-                          onChanged: (value) {},
-                          maxLines: 3,
-                          controller: descriptionController,
-                          textInputAction: TextInputAction.newline,
-                          keyboardType: TextInputType.multiline,
-                          decoration: inputDecoration(context,
-                              hintText: AppLocalizations.of(context)
-                                  .translate("enterHere")),
-                        ),
-                      ),
-                    ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _startTimeCtrl,
+                    readOnly: true,
+                    onTap: _pickTime,
+                    style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                    decoration: _dec("Start Time", "Select Start Time", Icons.access_time),
                   ),
                 ),
-                const SizedBox(height: 15),
-                Divider(
-                  height: 1,
-                  color:
-                      themeController.isDarkMode ? colorGrey700 : colorGrey100,
-                ),
-                const SizedBox(height: 15),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: CommonButton(
-                            borderColor: themeController.isDarkMode
-                                ? colorGrey700
-                                : colorGrey100,
-                            bgColor: themeController.isDarkMode
-                                ? colorGrey900
-                                : colorWhite,
-                            textStyle: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w500,
-                                color: themeController.isDarkMode
-                                    ? colorWhite
-                                    : colorGrey900),
-                            onPressed: () {
-                              context.pop();
-                            },
-                            text: AppLocalizations.of(context)
-                                .translate("cancel")),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: CommonButton(
-                            textStyle: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w500, color: colorWhite),
-                            onPressed: () {
-                              if (formKey.currentState!.validate()) {
-                                DateTime startDateTime = DateTime(
-                                  selectedStartDate.value!.year,
-                                  selectedStartDate.value!.month,
-                                  selectedStartDate.value!.day,
-                                  selectedStartTime.value!.hour,
-                                  selectedStartTime.value!.minute,
-                                );
-
-                                DateTime endDateTime = DateTime(
-                                  selectedEndDate.value!.year,
-                                  selectedEndDate.value!.month,
-                                  selectedEndDate.value!.day,
-                                  selectedEndTime.value!.hour,
-                                  selectedEndTime.value!.minute,
-                                );
-
-                                Appointment newAppointment = Appointment(
-                                  startTime: startDateTime,
-                                  endTime: endDateTime,
-                                  subject: titleController.text,
-                                  // You can customize this
-                                  color: Colors.blue, // Change as needed
-                                );
-                                CalendarControllerX calController = Get.find();
-                              // Add it to your existing appointment list
-
-                                calController.appointments.add(newAppointment);
-                                calController.update();
-                                // print(calController.appointments.toString());
-                                context.pop();
-                              }
-                            },
-                            text:
-                                AppLocalizations.of(context).translate("save")),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
               ],
             ),
-          ),
+
+            const SizedBox(height: 12),
+            TextField(
+              controller: _desc,
+              maxLines: 3,
+              style: const TextStyle(color: Colors.black87),
+              decoration: _dec("Description", "Enter here", Icons.notes),
+            ),
+          ],
         ),
-      );
-    },
-  );
+      ),
+      actions: [
+        TextButton(
+          style: TextButton.styleFrom(
+            foregroundColor: kPrimary,
+            backgroundColor: Colors.white, // ✅ pas blanc “invisible”, vrai bouton
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          ),
+          onPressed: () => Navigator.pop(context, null),
+          child: const Text("Cancel"),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: kPrimary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+          ),
+          onPressed: () {
+            final start = _buildStartDateTime();
+            if (_title.text.trim().isEmpty || start == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text("Title + Start date/time sont obligatoires")),
+              );
+              return;
+            }
+            Navigator.pop(context, {
+              "title": _title.text.trim(),
+              "start": start,
+              "description": _desc.text.trim(),
+            });
+          },
+          child: const Text("Save"),
+        ),
+      ],
+    );
+  }
 }
