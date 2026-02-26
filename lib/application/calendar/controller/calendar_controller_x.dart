@@ -1,17 +1,21 @@
 import 'package:dash_master_toolkit/application/calendar/calendar_imports.dart';
+import 'package:dash_master_toolkit/services/task_api.dart';
+import 'package:dash_master_toolkit/application/calendar/model/task_model.dart';
 
 class CalendarControllerX extends GetxController {
-  var selectedDate = DateTime.now().obs;
+  final selectedDate = DateTime.now().obs;
 
   final calendarController = CalendarController();
-  var currentView = CalendarView.week.obs;
+  final currentView = CalendarView.week.obs;
 
-  var appointments = <Appointment>[].obs;
+  final appointments = <Appointment>[].obs;
+  final loading = false.obs;
 
   @override
   void onInit() {
     super.onInit();
-    loadAppointments();
+
+    fetchTasksAndBuildCalendar();
 
     calendarController.addPropertyChangedListener((String property) {
       if (property == 'displayDate') {
@@ -24,6 +28,48 @@ class CalendarControllerX extends GetxController {
     calendarController.view = CalendarView.week;
   }
 
+  Future<void> fetchTasksAndBuildCalendar() async {
+    loading.value = true;
+    try {
+      final List<TaskModel> tasks = await TaskApi.instance.listTasks();
+
+      // ✅ IMPORTANT : backend renvoie ISO -> souvent UTC
+      // on convertit en local pour l'affichage calendrier
+      final built = tasks.map((t) {
+        final startLocal = t.startAt.toLocal();
+        final endLocal = startLocal.add(const Duration(minutes: 30));
+
+        return Appointment(
+          startTime: startLocal,
+          endTime: endLocal,
+          subject: t.description.trim().isEmpty ? t.title : "${t.title}\n${t.description}",
+          color: colorPrimary100,
+        );
+      }).toList();
+
+      appointments.assignAll(built);
+    } catch (_) {
+      appointments.clear();
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  Future<void> addTask({
+    required String title,
+    required DateTime start,
+    String description = "",
+  }) async {
+    await TaskApi.instance.createTask(
+      title: title,
+      startAt: start,
+      description: description,
+    );
+
+    // ✅ recharge depuis la DB => persistant même après relog
+    await fetchTasksAndBuildCalendar();
+  }
+
   void changeView(CalendarView view) {
     calendarController.view = view;
     currentView.value = view;
@@ -31,36 +77,4 @@ class CalendarControllerX extends GetxController {
 
   void goToPrevious() => calendarController.backward?.call();
   void goToNext() => calendarController.forward?.call();
-
-  // ✅ AJOUT TASK (commercial)
-  void addTask({
-    required String title,
-    required DateTime start,
-    String description = "",
-  }) {
-    // endTime obligatoire pour Syncfusion -> on met +30 min (ou +1h)
-    final end = start.add(const Duration(minutes: 30));
-
-    appointments.add(
-      Appointment(
-        startTime: start,
-        endTime: end,
-        subject: description.trim().isEmpty ? title : "$title\n$description",
-        color: colorPrimary100, // ou Colors.blue
-      ),
-    );
-  }
-
-  // (optionnel) demo
-  void loadAppointments() {
-    final today = DateTime.now();
-    appointments.assignAll([
-      Appointment(
-        startTime: DateTime(today.year, today.month, today.day, 9, 0),
-        endTime: DateTime(today.year, today.month, today.day, 10, 0),
-        subject: 'Daily Sync',
-        color: Colors.green,
-      ),
-    ]);
-  }
 }

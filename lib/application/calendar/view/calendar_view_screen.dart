@@ -45,33 +45,26 @@ class CalendarViewScreen extends StatelessWidget {
         child: Column(
           children: [
             CalendarHeader(),
-            Expanded(
-              child: SfCalendar(
-                headerHeight: 0,
-                controller: controller.calendarController,
-                dataSource: _getCalendarDataSource(),
-
-                // ✅ Fond interne du calendrier (pas blanc)
-                backgroundColor: themeController.isDarkMode ? colorGrey900 : kCalendarBg,
-
-                timeSlotViewSettings: const TimeSlotViewSettings(
-                  startHour: 5,
-                  endHour: 18,
-                  timeIntervalHeight: 60,
-                ),
-
-                allowedViews: const [
-                  CalendarView.day,
-                  CalendarView.week,
-                  CalendarView.month,
-                ],
-
-                showNavigationArrow: true,
-                todayHighlightColor: Colors.red,
-                showCurrentTimeIndicator: true,
-                initialDisplayDate: DateTime.now(),
-              ),
-            ),
+           Expanded(
+  child: Obx(() {
+    return SfCalendar(
+      headerHeight: 0,
+      controller: controller.calendarController,
+      dataSource: _AppointmentDataSource(controller.appointments.toList()),
+      backgroundColor: themeController.isDarkMode ? colorGrey900 : kCalendarBg,
+      timeSlotViewSettings: const TimeSlotViewSettings(
+        startHour: 5,
+        endHour: 18,
+        timeIntervalHeight: 60,
+      ),
+      allowedViews: const [CalendarView.day, CalendarView.week, CalendarView.month],
+      showNavigationArrow: true,
+      todayHighlightColor: Colors.red,
+      showCurrentTimeIndicator: true,
+      initialDisplayDate: DateTime.now(),
+    );
+  }),
+),
           ],
         ),
       ),
