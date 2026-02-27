@@ -65,17 +65,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                       )),
                 ),
 
-                // ✅ Tous les users
-                _topCommonCard(
-                  Obx(() => _buildTopCardsWidget(
-                        lang,
-                        theme,
-                        customersIcon,
-                        "Tous les users",
-                        controller.totalUsers.value.toString(),
-                        "",
-                      )),
-                ),
+              
 
                 // ✅ projets non validés
                 _topCommonCard(
