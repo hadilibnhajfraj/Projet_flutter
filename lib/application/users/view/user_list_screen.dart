@@ -1,6 +1,6 @@
 import 'package:dash_master_toolkit/application/users/users_imports.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
-
+import 'package:go_router/go_router.dart';
 class UserListScreen extends StatefulWidget {
   const UserListScreen({super.key});
 
@@ -12,20 +12,20 @@ class _UserListScreenState extends State<UserListScreen> {
   final UserListController controller = Get.put(UserListController());
   final ThemeController themeController = Get.put(ThemeController());
 
-  late UserDataSource _dataSource; // ✅ initialisé dans initState
+  late UserDataSource _dataSource;
   int _rowsPerPage = 10;
 
   @override
   void initState() {
     super.initState();
 
-    // ✅ Toujours initialiser (même vide) => plus d’erreur late init
     _dataSource = UserDataSource(
       [],
       themeController,
       context,
       resetPage,
       onToggleActive: (u) => controller.toggleActive(u),
+      onViewProjects: (u) => _openUserProjects(u),
     );
   }
 
@@ -41,6 +41,60 @@ class _UserListScreenState extends State<UserListScreen> {
       _dataSource.filterData(query);
     });
   }
+/*
+  Future<void> _openUserProjects(UserModel user) async {
+    // ✅ Appelle controller (admin only) puis affiche un Dialog
+    final projects = await controller.fetchProjectsOfUser(user.id);
+
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text("Projets de ${user.name}"),
+          content: SizedBox(
+            width: 650,
+            child: projects.isEmpty
+                ? const Text("Aucun projet associé.")
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: projects.length,
+                    separatorBuilder: (_, __) => const Divider(height: 12),
+                    itemBuilder: (context, i) {
+                      final p = projects[i];
+                      final nom = (p["nomProjet"] ?? "—").toString();
+                      final validation = (p["validationStatut"] ?? "—").toString();
+                      final statut = (p["statut"] ?? "—").toString();
+
+                      return ListTile(
+                        dense: true,
+                        title: Text(nom, maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text("Validation: $validation • Statut: $statut"),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          // ✅ si tu as une route détails projet, tu peux naviguer ici
+                          // context.go("${MyRoute.projectFormScreen}?id=${p["id"]}&mode=view");
+                          Navigator.of(ctx).pop();
+                        },
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text("Fermer"),
+            ),
+          ],
+        );
+      },
+    );
+  }*/
+  Future<void> _openUserProjects(UserModel user) async {
+  // ✅ redirige vers la page KPI en passant userId
+  context.go("/dashboard/kpi-project?userId=${Uri.encodeComponent(user.id)}");
+}
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +126,7 @@ class _UserListScreenState extends State<UserListScreen> {
             context,
             resetPage,
             onToggleActive: (u) => controller.toggleActive(u),
+            onViewProjects: (u) => _openUserProjects(u),
           );
 
           // ✅ Réappliquer filtre si موجود
@@ -117,10 +172,12 @@ class _UserListScreenState extends State<UserListScreen> {
               const SizedBox(height: 15),
 
               if (controller.loading.value)
-                const Center(child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: CircularProgressIndicator(),
-                ))
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
               else if (_dataSource.filteredUsers.isEmpty)
                 Center(
                   child: Text(
@@ -168,9 +225,15 @@ class _UserListScreenState extends State<UserListScreen> {
                             columns: [
                               DataColumn(label: Text(lang.translate("name"), style: titleTextStyle)),
                               DataColumn(label: Text(lang.translate("designation"), style: titleTextStyle)),
-                              DataColumn(label: Text(lang.translate("department"), style: titleTextStyle)),
+
+                              // ✅ Department => Projects count
+                              DataColumn(label: Text("PROJETS", style: titleTextStyle)),
+
                               DataColumn(label: Text(lang.translate("email"), style: titleTextStyle)),
-                              DataColumn(label: Text(lang.translate("phoneNumber"), style: titleTextStyle)),
+
+                              // ✅ Phone => Action
+                              DataColumn(label: Text("ACTION", style: titleTextStyle)),
+
                               DataColumn(label: Text(lang.translate("status"), style: titleTextStyle)),
                               DataColumn(label: Text(lang.translate("actions") ?? "Actions", style: titleTextStyle)),
                             ],
@@ -192,12 +255,14 @@ class _UserListScreenState extends State<UserListScreen> {
 }
 
 typedef ToggleCallback = Future<void> Function(UserModel user);
+typedef ViewProjectsCallback = Future<void> Function(UserModel user);
 
 class UserDataSource extends DataTableSource {
   final ThemeController themeController;
   final BuildContext context;
   final VoidCallback resetPage;
   final ToggleCallback onToggleActive;
+  final ViewProjectsCallback onViewProjects;
 
   final List<UserModel> originalUsers;
   List<UserModel> filteredUsers;
@@ -208,6 +273,7 @@ class UserDataSource extends DataTableSource {
     this.context,
     this.resetPage, {
     required this.onToggleActive,
+    required this.onViewProjects,
   }) : filteredUsers = List.from(originalUsers);
 
   void filterData(String query) {
@@ -219,8 +285,7 @@ class UserDataSource extends DataTableSource {
         return u.name.toLowerCase().contains(q) ||
             u.email.toLowerCase().contains(q) ||
             u.designation.toLowerCase().contains(q) ||
-            u.department.toLowerCase().contains(q) ||
-            u.phone.contains(query);
+            u.department.toLowerCase().contains(q);
       }).toList();
     }
     resetPage();
@@ -249,9 +314,23 @@ class UserDataSource extends DataTableSource {
           ],
         )),
         DataCell(Text(user.designation, style: cellStyle)),
+
+        // ✅ projects count text (stored in department)
         DataCell(Text(user.department, style: cellStyle)),
+
         DataCell(Text(user.email, style: cellStyle)),
-        DataCell(Text(user.phone, style: cellStyle)),
+
+        // ✅ ACTION button
+        DataCell(
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => onViewProjects(user),
+              icon: const Icon(Icons.remove_red_eye_outlined, size: 18),
+              label: const Text("Voir projets"),
+            ),
+          ),
+        ),
 
         // ✅ Status badge
         DataCell(Container(

@@ -21,7 +21,20 @@ class UserListController extends GetxController {
   Future<void> loadUsers() async {
     loading.value = true;
     try {
+      // ✅ 1) users
       final list = await AdminUsersService.instance.fetchUsers();
+
+      // ✅ 2) projects count per user (admin only)
+      // returns: [{ userId, projectsCount, email, displayName }]
+      final counts = await AdminUsersService.instance.fetchUsersProjectsCount();
+
+      // map userId -> count
+      final Map<String, int> countByUserId = {
+        for (final c in counts)
+          (c['userId'] ?? '').toString(): (c['projectsCount'] ?? 0) is int
+              ? (c['projectsCount'] ?? 0) as int
+              : int.tryParse((c['projectsCount'] ?? '0').toString()) ?? 0
+      };
 
       final mapped = list.map((u) {
         final id = (u['id'] ?? '').toString();
@@ -30,14 +43,21 @@ class UserListController extends GetxController {
         final isActive = (u['isActive'] ?? false) == true;
 
         final name = email.contains('@') ? email.split('@').first : email;
+        final projectsCount = countByUserId[id] ?? 0;
 
         return UserModel(
           id: id,
           name: name.isEmpty ? 'User' : name,
           designation: role,
-          department: '-',
+
+          // ✅ Department => number of projects
+          department: "$projectsCount projets",
+
           email: email,
-          phone: '-',
+
+          // ✅ Phone => ACTION placeholder (UI will render a button)
+          phone: "Voir",
+
           status: isActive ? 'Active' : 'Inactive',
           imageUrl: isActive ? profileIcon1 : profileIcon2,
         );
@@ -48,6 +68,16 @@ class UserListController extends GetxController {
       SafeSnack.show("Error", e.toString().replaceFirst('Exception: ', ''), isError: true);
     } finally {
       loading.value = false;
+    }
+  }
+
+  /// ✅ action: open projects of this user (admin only)
+  Future<List<Map<String, dynamic>>> fetchProjectsOfUser(String userId) async {
+    try {
+      return await AdminUsersService.instance.fetchProjectsByUserId(userId);
+    } catch (e) {
+      SafeSnack.show("Error", e.toString().replaceFirst('Exception: ', ''), isError: true);
+      return [];
     }
   }
 
