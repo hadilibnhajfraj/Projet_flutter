@@ -215,6 +215,27 @@ class _UserGridScreenState extends State<UserGridScreen> {
     ],
   ),
 ),
+Container(
+  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+  margin: const EdgeInsets.only(right: 6),
+  decoration: BoxDecoration(
+    color: Colors.black.withOpacity(.04),
+    borderRadius: BorderRadius.circular(20),
+  ),
+  child: Row(
+    children: [
+      const Icon(Icons.comment, size: 16, color: Colors.blueGrey),
+      const SizedBox(width: 6),
+      Text(
+        "${p.commentCount}",
+        style: theme.textTheme.bodySmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: Colors.blueGrey,
+        ),
+      ),
+    ],
+  ),
+),
 
                 // ✅ MENU PERMISSIONS
                 PopupMenuButton<String>(
@@ -231,16 +252,16 @@ class _UserGridScreenState extends State<UserGridScreen> {
                   itemBuilder: (_) {
                     final items = <PopupMenuEntry<String>>[];
 
-                    items.add(const PopupMenuItem(
-                      value: "comment",
-                      child: Row(
-                        children: [
-                          Icon(Icons.comment, size: 18),
-                          SizedBox(width: 8),
-                          Text("Commenter"),
-                        ],
-                      ),
-                    ));
+                    items.add(PopupMenuItem(
+  value: "comment",
+  child: Row(
+    children: [
+      const Icon(Icons.comment, size: 18),
+      const SizedBox(width: 8),
+      Text("Commenter (${p.commentCount})"),
+    ],
+  ),
+));
 
                     if (p.canEdit) {
                       items.add(const PopupMenuItem(
