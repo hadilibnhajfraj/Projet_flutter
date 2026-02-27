@@ -13,11 +13,11 @@ import '../../pages/google_map/location_picker_screen.dart';
 import '../controller/project_form_controller.dart';
 import '../../providers/api_client.dart';
 
-// template imports chez toi
+// template imports
 import 'package:dash_master_toolkit/forms/form_imports.dart';
 import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
 
-// ✅ IMPORTANT: sections (SANS scaffold)
+// ✅ IMPORTANT: sections (WITHOUT scaffold)
 import 'package:dash_master_toolkit/forms/view/devis_form_section.dart';
 import 'package:dash_master_toolkit/forms/view/bon_de_commande_form_section.dart';
 
@@ -32,14 +32,20 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   late final ProjectFormController c;
   late final ThemeController themeController;
 
-  final List<String> _statusOptions = const ["En cours", "Préparation", "Terminé"];
-  final List<String> _validationOptions = const ["Validé", "Non validé"];
+  // ✅ ENGLISH OPTIONS
+// ✅ Display (EN) -> API value (FR)
+final List<Map<String, String>> _statusOptions = const [
+  {"label": "In progress", "value": "En cours"},
+  {"label": "Preparation", "value": "Préparation"},
+  {"label": "Completed", "value": "Terminé"},
+];
+  final List<String> _validationOptions = const ["Validated", "Not Validated"];
 
   String? _projectId;
   bool _loadedOnce = false;
   bool _loading = false;
 
-  // ✅ pour bloquer Bon de commande tant que Devis pas validé
+  // ✅ block Purchase Order until Quotation is valid
   bool _devisIsValid = false;
 
   @override
@@ -48,7 +54,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
     c = Get.isRegistered<ProjectFormController>()
         ? Get.find<ProjectFormController>()
-        : Get.put(ProjectFormController()); // ✅ pas permanent
+        : Get.put(ProjectFormController()); // ✅ not permanent
 
     themeController = Get.isRegistered<ThemeController>()
         ? Get.find<ThemeController>()
@@ -87,7 +93,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur chargement projet : $e")),
+        SnackBar(content: Text("Project loading error: $e")),
       );
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -121,7 +127,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                           theme: theme,
                           title: "Project Name",
                           controller: c.nomProjet,
-                          validator: (v) => c.requiredValidator(v, "Nom du Projet"),
+                          validator: (v) => c.requiredValidator(v, "Project Name"),
                         ),
                         right: GetBuilder<ProjectFormController>(
                           id: 'dateDemarrage',
@@ -129,7 +135,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                             theme: theme,
                             title: "Start Date",
                             controller: c.dateDemarrage,
-                            validator: (v) => c.requiredValidator(v, "Date de Démarrage"),
+                            validator: (v) => c.requiredValidator(v, "Start Date"),
                           ),
                         ),
                       ),
@@ -140,7 +146,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Project Type (optional)",
+                          title: "Project Type ",
                           controller: c.typeProjet,
                           validator: null,
                         ),
@@ -148,7 +154,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                           theme: theme,
                           title: "Site Type + Address",
                           controller: c.typeAdresseChantier,
-                          validator: (v) => c.requiredValidator(v, "Type + Adresse"),
+                          validator: (v) => c.requiredValidator(v, "Site Type + Address"),
                         ),
                       ),
 
@@ -166,7 +172,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
                       _field(
                         theme: theme,
-                        title: "Prospected Area (m²) (optional)",
+                        title: "Prospected Area (m²)",
                         controller: c.surfaceProspectee,
                         validator: c.surfaceValidator,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -178,13 +184,13 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                           theme: theme,
                           title: "Responsible Engineer",
                           controller: c.ingenieurResponsable,
-                          validator: (v) => c.requiredValidator(v, "Ingénieur Responsable"),
+                          validator: (v) => c.requiredValidator(v, "Responsible Engineer"),
                         ),
                         right: _field(
                           theme: theme,
                           title: "Engineer Phone",
                           controller: c.telephoneIngenieur,
-                          validator: (v) => c.phoneValidator(v, "Téléphone Ingénieur"),
+                          validator: (v) => c.phoneValidator(v, "Engineer Phone"),
                           keyboardType: TextInputType.phone,
                         ),
                       ),
@@ -193,15 +199,15 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Architect (optional)",
+                          title: "Architect )",
                           controller: c.architecte,
                           validator: null,
                         ),
                         right: _field(
                           theme: theme,
-                          title: "Architect Phone (optional)",
+                          title: "Architect Phone ",
                           controller: c.telephoneArchitecte,
-                          validator: (v) => c.phoneOptionalValidator(v, "Téléphone Architecte"),
+                          validator: null,
                           keyboardType: TextInputType.phone,
                         ),
                       ),
@@ -210,25 +216,25 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         theme: theme,
                         title: "Company",
                         controller: c.entreprise,
-                        validator: (v) => c.requiredValidator(v, "Entreprise"),
+                        validator: (v) => c.requiredValidator(v, "Company"),
                       ),
 
                       _field(
                         theme: theme,
-                        title: "Matricule fiscale (optional)",
+                        title: "Tax Registration Number ",
                         controller: c.matriculeFiscale,
                         validator: null,
                       ),
 
                       _field(
                         theme: theme,
-                        title: "Developer",
+                        title: "Promoteur",
                         controller: c.promoteur,
                         validator: null,
                       ),
                       _field(
                         theme: theme,
-                        title: "Design Office",
+                        title: "Design Office ",
                         controller: c.bureauEtude,
                         validator: null,
                       ),
@@ -236,20 +242,20 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         theme: theme,
                         title: "Control Office",
                         controller: c.bureauControle,
-                        validator: (v) => c.requiredValidator(v, "Bureau de contrôle"),
+                        validator: (v) => c.requiredValidator(v, "Control Office"),
                       ),
 
                       _twoCols(
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Plumbing/HVAC Company (optional)",
+                          title: "Plumbing/HVAC Company ",
                           controller: c.entrepriseFluide,
                           validator: null,
                         ),
                         right: _field(
                           theme: theme,
-                          title: "Electrical Company (optional)",
+                          title: "Electrical Company ",
                           controller: c.entrepriseElectricite,
                           validator: null,
                         ),
@@ -260,7 +266,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
                       _field(
                         theme: theme,
-                        title: "Comments (optional)",
+                        title: "Comments ",
                         controller: c.commentaireCtrl,
                         validator: null,
                         keyboardType: TextInputType.multiline,
@@ -276,11 +282,11 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                         text: _projectId == null ? "Create" : "Update",
                       ),
 
-                      // ✅ SECTIONS DEVIS + BON DE COMMANDE (en EDIT seulement)
+                      // ✅ QUOTATION + PURCHASE ORDER (ONLY when editing)
                       if (_projectId != null) ...[
                         const SizedBox(height: 18),
 
-                        // ✅ Devis dropdown section
+                        // ✅ Quotation section
                         DevisFormSection(
                           projectId: _projectId!,
                           isEdit: true,
@@ -289,8 +295,8 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                             setState(() {});
                           },
 
-                          // ✅ IMPORTANT: ce callback doit exister dans DevisFormSection
-                          // -> il renvoie true si devisList non vide
+                          // ✅ must exist in DevisFormSection
+                          // -> returns true if quotation list is not empty
                           onDevisValidityChanged: (ok) {
                             setState(() => _devisIsValid = ok);
                           },
@@ -298,7 +304,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
                         const SizedBox(height: 12),
 
-                        // ✅ Bon de commande dropdown section (bloqué si devis pas validé)
+                        // ✅ Purchase order section (blocked if quotation not valid)
                         BonDeCommandeFormSection(
                           projectId: _projectId!,
                           devisIsValid: _devisIsValid,
@@ -334,7 +340,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
               await c.pickDateDemarrage(context);
               if (mounted) setState(() {});
             },
-            decoration: inputDecoration(context, hintText: "Sélectionner une date").copyWith(
+            decoration: inputDecoration(context, hintText: "Select a date").copyWith(
               suffixIcon: IconButton(
                 icon: const Icon(Icons.calendar_month_outlined),
                 onPressed: () async {
@@ -350,49 +356,57 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   }
 
   // ----------------- STATUS -----------------
-  Widget _statusDropdown(ThemeData theme) {
-    final current = c.statut.text.trim();
-    final currentValue = _statusOptions.contains(current) ? current : null;
+ Widget _statusDropdown(ThemeData theme) {
+  final currentApiValue = c.statut.text.trim();
+  final currentItem = _statusOptions.firstWhere(
+    (e) => e["value"] == currentApiValue,
+    orElse: () => _statusOptions.first,
+  );
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16, top: 5),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _requiredTitle(theme, "Statut du Projet", required: false),
-          const SizedBox(height: 6),
-          DropdownButtonFormField<String>(
-            value: currentValue,
-            decoration: inputDecoration(context, hintText: "Choisir un statut"),
-            items: _statusOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-            onChanged: (val) {
-              c.statut.text = val ?? "";
-              if (mounted) setState(() {});
-            },
-          ),
-        ],
-      ),
-    );
-  }
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 16, top: 5),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _requiredTitle(theme, "Project status", required: false),
+        const SizedBox(height: 6),
+        DropdownButtonFormField<String>(
+          value: currentItem["value"], // ✅ store API value (FR)
+          decoration: inputDecoration(context, hintText: "Choose a status"),
+          items: _statusOptions
+              .map((s) => DropdownMenuItem(
+                    value: s["value"], // ✅ FR value
+                    child: Text(s["label"]!), // ✅ EN label
+                  ))
+              .toList(),
+          onChanged: (val) {
+            c.statut.text = val ?? ""; // ✅ sends FR to backend
+            if (mounted) setState(() {});
+          },
+        ),
+      ],
+    ),
+  );
+}
 
   // ----------------- VALIDATION -----------------
   Widget _validationDropdown(ThemeData theme) {
     final current = c.validationStatut.text.trim();
-    final currentValue = _validationOptions.contains(current) ? current : "Non validé";
+    final currentValue = _validationOptions.contains(current) ? current : "Not Validated";
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16, top: 5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _requiredTitle(theme, "Validation", required: false),
+          _requiredTitle(theme, "Validation Status", required: false),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
             value: currentValue,
-            decoration: inputDecoration(context, hintText: "Choisir"),
+            decoration: inputDecoration(context, hintText: "Choose"),
             items: _validationOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
             onChanged: (val) {
-              c.validationStatut.text = val ?? "Non validé";
+              c.validationStatut.text = val ?? "Not Validated";
               if (mounted) setState(() {});
             },
           ),
@@ -453,14 +467,14 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _requiredTitle(theme, "Localisation", required: true),
+        _requiredTitle(theme, "Location", required: true),
         const SizedBox(height: 6),
         Row(
           children: [
             Expanded(
               child: TextFormField(
                 controller: c.localisationAdresse,
-                validator: (v) => c.requiredValidator(v, "Localisation"),
+                validator: (v) => c.requiredValidator(v, "Location"),
                 decoration: inputDecoration(
                   context,
                   hintText: "Enter an address or pick on the map",
@@ -472,7 +486,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
               borderRadius: 10,
               width: 170,
               onPressed: _pickLocation,
-              text: "Enter an address or pick on the map",
+              text: "Pick on map",
             ),
           ],
         ),
@@ -482,7 +496,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
           return Text(
             hasLoc
                 ? "Lat: ${c.latitude.value}, Lng: ${c.longitude.value}"
-                : "Sélectionne une adresse ou choisis sur la carte.",
+                : "Select an address or choose it on the map.",
             style: theme.textTheme.bodySmall?.copyWith(
               color: hasLoc ? colorPrimary100 : colorGrey700,
               fontWeight: FontWeight.w600,
@@ -528,7 +542,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
     if (!c.hasLocation) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("La localisation est obligatoire")),
+        const SnackBar(content: Text("Location is required")),
       );
       return;
     }
@@ -538,6 +552,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     final payload = {
       "nomProjet": c.nomProjet.text.trim(),
       "dateDemarrage": c.dateDemarrage.text.trim(),
+  
       "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
       "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
       "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
@@ -555,7 +570,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       "location": {"lat": c.latitude.value, "lng": c.longitude.value},
       "localisationCommentaire": manualComment.isEmpty ? null : manualComment,
       "typeProjet": c.typeProjet.text.trim().isEmpty ? null : c.typeProjet.text.trim(),
-      "validationStatut": c.validationStatut.text.trim().isEmpty ? "Non validé" : c.validationStatut.text.trim(),
+      "validationStatut": c.validationStatut.text.trim().isEmpty ? "Not Validated" : c.validationStatut.text.trim(),
       "pourcentageReussite": c.pourcentageReussiteValue,
       "surfaceProspectee": c.surfaceProspecteeValue,
     };
@@ -580,26 +595,28 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
       gridCtrl.upsertProject(project);
 
-      // ✅ Après création: rester sur la page et afficher Devis + Bon de commande
+      // ✅ After creation: stay on the page and show Quotation + Purchase Order
       if (_projectId == null) {
         setState(() => _projectId = project.id);
         await c.loadProject(project.id);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Projet créé ✅ يمكنك الآن رفع Devis ثم Bon de commande")),
+          const SnackBar(
+            content: Text("Project created ✅ You can now upload the Quotation, then the Purchase Order"),
+          ),
         );
         return;
       }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Projet mis à jour ✅")),
+        const SnackBar(content: Text("Project updated ✅")),
       );
 
       context.go(MyRoute.userGridScreen);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur réseau : $e")),
+        SnackBar(content: Text("Network error: $e")),
       );
     }
   }

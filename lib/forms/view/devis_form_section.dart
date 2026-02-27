@@ -1,23 +1,30 @@
 import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import '../../services/devis_api.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
+
+import '../../services/devis_api.dart';
 import '../../providers/api_client.dart';
+
 class DevisFormSection extends StatefulWidget {
   final String projectId;
   final bool isEdit;
 
-  // ✅ callback vers ProjectFormScreen pour remplir matricule
-  final void Function(String matricule)? onMatriculeSaved;
-final void Function(bool isValid)? onDevisValidityChanged;
+  /// Callback to ProjectFormScreen to fill the fiscal ID (matricule)
+  final void Function(String fiscalId)? onMatriculeSaved;
+
+  /// Callback to notify if Devis section is considered "valid"
+  /// (here: at least 1 existing uploaded devis file)
+  final void Function(bool isValid)? onDevisValidityChanged;
+
   const DevisFormSection({
     super.key,
     required this.projectId,
     required this.isEdit,
     this.onMatriculeSaved,
-        this.onDevisValidityChanged,
+    this.onDevisValidityChanged,
   });
 
   @override
@@ -30,15 +37,15 @@ class _DevisFormSectionState extends State<DevisFormSection> {
   bool _loading = true;
   bool _saving = false;
 
-  String? _matriculeExisting;
+  String? _existingFiscalId;
 
-  // ✅ dropdown tab
-  bool _devisOpen = false; // fermé par défaut
+  // Dropdown section state
+  bool _devisOpen = false;
 
   List<Map<String, dynamic>> _devisList = [];
   Map<String, dynamic>? _selectedDevis;
 
-  // ✅ multi files
+  // Multi files
   final List<Uint8List> _filesBytes = [];
   final List<String> _filesNames = [];
 
@@ -48,33 +55,32 @@ class _DevisFormSectionState extends State<DevisFormSection> {
     _loadDevis();
   }
 
- Future<void> _loadDevis() async {
-  setState(() => _loading = true);
-  try {
-    final list = await DevisApi.instance.listDevis(projectId: widget.projectId);
-    final project = await DevisApi.instance.getProject(projectId: widget.projectId);
+  Future<void> _loadDevis() async {
+    setState(() => _loading = true);
+    try {
+      final list = await DevisApi.instance.listDevis(projectId: widget.projectId);
+      final project = await DevisApi.instance.getProject(projectId: widget.projectId);
 
-    setState(() {
-      _devisList = list;
-      _selectedDevis = list.isNotEmpty ? list.first : null;
+      setState(() {
+        _devisList = list;
+        _selectedDevis = list.isNotEmpty ? list.first : null;
 
-      _matriculeExisting = (project["matriculeFiscale"] ?? "").toString().trim();
+        _existingFiscalId = (project["matriculeFiscale"] ?? "").toString().trim();
 
-      // préremplir nom devis si existe
-      if (_selectedDevis != null) {
-        _nameCtrl.text = (_selectedDevis?["nomDevis"] ?? "").toString();
-      }
-    });
+        // Prefill devis name if exists
+        if (_selectedDevis != null) {
+          _nameCtrl.text = (_selectedDevis?["nomDevis"] ?? "").toString();
+        }
+      });
 
-    // ✅ ✅ ICI EXACTEMENT (après setState)
-    widget.onDevisValidityChanged?.call(list.isNotEmpty);
-
-  } catch (_) {
-    // ignore
-  } finally {
-    if (mounted) setState(() => _loading = false);
+      // Notify parent if Devis is valid (at least one uploaded file exists)
+      widget.onDevisValidityChanged?.call(list.isNotEmpty);
+    } catch (_) {
+      // ignore
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
-}
 
   Future<void> _pickFiles() async {
     final res = await FilePicker.platform.pickFiles(
@@ -96,69 +102,69 @@ class _DevisFormSectionState extends State<DevisFormSection> {
     }
 
     if (_filesBytes.isEmpty) return;
-
     setState(() {});
   }
 
   Future<void> _submit() async {
-    final nomDevis = _nameCtrl.text.trim();
-    if (nomDevis.isEmpty) {
-      _toast("Validation", "Nom du devis est obligatoire");
+    final devisName = _nameCtrl.text.trim();
+    if (devisName.isEmpty) {
+      _toast("Validation", "Devis name is required.");
       return;
     }
 
     if (_filesBytes.isEmpty || _filesNames.isEmpty) {
-      _toast("Validation", "Choisis au moins 1 fichier (PDF/PNG/JPG)");
+      _toast("Validation", "Please select at least 1 file (PDF/PNG/JPG).");
       return;
     }
 
-    // ✅ Matricule obligatoire AVANT upload
-    final alreadyHasMatricule = (_matriculeExisting ?? "").isNotEmpty;
+    // Fiscal ID must exist BEFORE upload
+    final alreadyHasFiscalId = (_existingFiscalId ?? "").isNotEmpty;
 
-    final matricule = await _askMatriculeRequired(
-      initial: _matriculeExisting ?? "",
-      readOnly: alreadyHasMatricule,
+    final fiscalId = await _askFiscalIdRequired(
+      initial: _existingFiscalId ?? "",
+      readOnly: alreadyHasFiscalId,
     );
 
-    if (matricule == null || matricule.trim().isEmpty) {
-      _toast("Validation", "Matricule fiscale est obligatoire");
-      return; // ✅ stop : aucun upload
+    if (fiscalId == null || fiscalId.trim().isEmpty) {
+      _toast("Validation", "Fiscal ID is required.");
+      return; // stop: no upload
     }
 
     setState(() => _saving = true);
     try {
-      // ✅ Sauver matricule seulement si pas existant
-      if (!alreadyHasMatricule) {
+      // Save fiscal ID only if not already set
+      if (!alreadyHasFiscalId) {
         await DevisApi.instance.updateMatricule(
           projectId: widget.projectId,
-          matriculeFiscale: matricule.trim(),
+          matriculeFiscale: fiscalId.trim(),
         );
-        _matriculeExisting = matricule.trim();
-        widget.onMatriculeSaved?.call(matricule.trim());
+        _existingFiscalId = fiscalId.trim();
+        widget.onMatriculeSaved?.call(fiscalId.trim());
       }
 
-      // ✅ Upload devis seulement si matricule OK
+      // Upload devis only if fiscal ID OK
       await DevisApi.instance.uploadDevis(
         projectId: widget.projectId,
-        nomDevis: nomDevis,
+        nomDevis: devisName,
         filesBytes: _filesBytes,
         filenames: _filesNames,
       );
 
-      _toast("Succès", "Matricule ✅ + Devis uploadé ✅");
+      _toast("Success", "Fiscal ID saved ✅ + Devis uploaded ✅");
 
       _filesBytes.clear();
       _filesNames.clear();
+
       await _loadDevis();
       setState(() {});
     } catch (e) {
-      _toast("Erreur", e.toString());
+      _toast("Error", e.toString());
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
-  Future<String?> _askMatriculeRequired({
+  Future<String?> _askFiscalIdRequired({
     required String initial,
     required bool readOnly,
   }) async {
@@ -168,11 +174,11 @@ class _DevisFormSectionState extends State<DevisFormSection> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text("Matricule fiscale"),
+        title: const Text("Fiscal ID"),
         content: TextField(
           controller: ctrl,
           readOnly: readOnly,
-          decoration: const InputDecoration(hintText: "Ex: 1234567/A/B/000"),
+          decoration: const InputDecoration(hintText: "Example: 1234567/A/B/000"),
         ),
         actions: [
           ElevatedButton(
@@ -184,7 +190,7 @@ class _DevisFormSectionState extends State<DevisFormSection> {
               if (ctrl.text.trim().isEmpty) return;
               Navigator.pop(ctx, ctrl.text.trim());
             },
-            child: const Text("Valider"),
+            child: const Text("Confirm"),
           ),
         ],
       ),
@@ -196,15 +202,13 @@ class _DevisFormSectionState extends State<DevisFormSection> {
       context: context,
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
-        title: const Text("Confirmer la suppression"),
-        content: Text("Supprimer \"$filename\" ?"),
+        title: const Text("Confirm deletion"),
+        content: Text('Delete "$filename"?'),
         actions: [
           TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.blue,
-            ),
+            style: TextButton.styleFrom(foregroundColor: Colors.blue),
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Annuler"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -212,96 +216,98 @@ class _DevisFormSectionState extends State<DevisFormSection> {
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Supprimer"),
+            child: const Text("Delete"),
           ),
         ],
       ),
     );
   }
-Future<void> _previewFile(Map<String, dynamic> d) async {
-  final url = (d["fileUrl"] ?? "").toString().trim();
-  final mime = (d["mimeType"] ?? "").toString().toLowerCase();
-  final name = (d["originalName"] ?? "Fichier").toString();
 
-  if (url.isEmpty) {
-    _toast("Erreur", "Lien du fichier introuvable");
-    return;
-  }
+  Future<void> _previewFile(Map<String, dynamic> d) async {
+    final url = (d["fileUrl"] ?? "").toString().trim();
+    final mime = (d["mimeType"] ?? "").toString().toLowerCase();
+    final name = (d["originalName"] ?? "File").toString();
 
-  // ✅ URL absolue (si backend renvoie /uploads/...)
-  final base = ApiClient.instance.dio.options.baseUrl.replaceAll(RegExp(r'/$'), '');
-  final fullUrl = url.startsWith("http") ? url : "$base$url";
+    if (url.isEmpty) {
+      _toast("Error", "File link not found.");
+      return;
+    }
 
-  final isImage = mime.contains("image/") ||
-      url.toLowerCase().endsWith(".png") ||
-      url.toLowerCase().endsWith(".jpg") ||
-      url.toLowerCase().endsWith(".jpeg");
+    // Ensure absolute URL (if backend returns /uploads/...)
+    final base = ApiClient.instance.dio.options.baseUrl.replaceAll(RegExp(r'/$'), '');
+    final fullUrl = url.startsWith("http") ? url : "$base$url";
 
-  final isPdf = mime.contains("pdf") || url.toLowerCase().endsWith(".pdf");
+    final isImage = mime.contains("image/") ||
+        url.toLowerCase().endsWith(".png") ||
+        url.toLowerCase().endsWith(".jpg") ||
+        url.toLowerCase().endsWith(".jpeg");
 
-  if (isImage) {
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.all(14),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          constraints: const BoxConstraints(maxWidth: 900, maxHeight: 700),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: InteractiveViewer(
-                  child: Image.network(fullUrl, fit: BoxFit.contain),
+    final isPdf = mime.contains("pdf") || url.toLowerCase().endsWith(".pdf");
+
+    if (isImage) {
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          insetPadding: const EdgeInsets.all(14),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            constraints: const BoxConstraints(maxWidth: 900, maxHeight: 700),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                Expanded(
+                  child: InteractiveViewer(
+                    child: Image.network(fullUrl, fit: BoxFit.contain),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-    return;
-  }
+      );
+      return;
+    }
 
-  if (isPdf) {
-    // ✅ Web + Mobile : ouvrir via url_launcher
+    if (isPdf) {
+      // Web + Mobile: open using url_launcher
+      await _openUrl(fullUrl);
+      return;
+    }
+
+    // Other file types
     await _openUrl(fullUrl);
-    return;
   }
 
-  // autres types
-  await _openUrl(fullUrl);
-}
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
 
-Future<void> _openUrl(String url) async {
-  final uri = Uri.parse(url);
+    // Web: opens a new tab
+    // Mobile: opens external browser
+    final ok = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+      webOnlyWindowName: '_blank',
+    );
 
-  // ✅ Sur Web: ouvre dans un nouvel onglet
-  // ✅ Sur Mobile: ouvre dans navigateur (Chrome/Safari)
-  final ok = await launchUrl(
-    uri,
-    mode: LaunchMode.externalApplication,
-    webOnlyWindowName: '_blank',
-  );
-
-  if (!ok) {
-    _toast("Erreur", "Impossible d'ouvrir le fichier");
+    if (!ok) {
+      _toast("Error", "Unable to open the file.");
+    }
   }
-}
+
   void _toast(String title, String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("$title : $msg")),
+      SnackBar(content: Text("$title: $msg")),
     );
   }
 
@@ -327,7 +333,7 @@ Future<void> _openUrl(String url) async {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ✅ TAB "Devis" dropdown
+            // ✅ "Devis" dropdown tab
             InkWell(
               onTap: () => setState(() => _devisOpen = !_devisOpen),
               borderRadius: BorderRadius.circular(10),
@@ -341,7 +347,7 @@ Future<void> _openUrl(String url) async {
                 child: Row(
                   children: [
                     const Text(
-                      "Devis",
+                      "Quotation (Devis)",
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                     ),
                     const Spacer(),
@@ -357,7 +363,7 @@ Future<void> _openUrl(String url) async {
 
             const SizedBox(height: 12),
 
-            // ✅ contenu repliable
+            // ✅ Expandable content
             AnimatedCrossFade(
               duration: const Duration(milliseconds: 200),
               crossFadeState: _devisOpen ? CrossFadeState.showFirst : CrossFadeState.showSecond,
@@ -366,13 +372,13 @@ Future<void> _openUrl(String url) async {
                 children: [
                   TextField(
                     controller: _nameCtrl,
-                    decoration: const InputDecoration(labelText: "Nom du devis *"),
+                    decoration: const InputDecoration(labelText: "Quotation name *"),
                   ),
                   const SizedBox(height: 12),
 
-                  // ✅ fichiers existants + corbeille
+                  // Existing files + delete action
                   if (_devisList.isNotEmpty) ...[
-                    const Text("Fichiers existants :", style: TextStyle(fontWeight: FontWeight.w700)),
+                    const Text("Existing files:", style: TextStyle(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
                     for (final d in _devisList)
                       Padding(
@@ -388,20 +394,23 @@ Future<void> _openUrl(String url) async {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                             // 👁️ Preview
-    IconButton(
-      tooltip: "Voir",
-      icon: const Icon(Icons.remove_red_eye_outlined, color: Colors.deepPurple),
-      onPressed: () => _previewFile(d),
-    ),
+
+                            // 👁️ Preview
                             IconButton(
-                              tooltip: "Supprimer",
+                              tooltip: "Preview",
+                              icon: const Icon(Icons.remove_red_eye_outlined, color: Colors.deepPurple),
+                              onPressed: () => _previewFile(d),
+                            ),
+
+                            // 🗑 Delete
+                            IconButton(
+                              tooltip: "Delete",
                               icon: const Icon(Icons.delete_outline, color: Colors.red),
                               onPressed: _saving
                                   ? null
                                   : () async {
                                       final ok = await _confirmDelete(
-                                        filename: (d["originalName"] ?? "ce fichier").toString(),
+                                        filename: (d["originalName"] ?? "this file").toString(),
                                       );
                                       if (ok != true) return;
 
@@ -411,10 +420,10 @@ Future<void> _openUrl(String url) async {
                                           projectId: widget.projectId,
                                           devisId: d["id"].toString(),
                                         );
-                                        _toast("Succès", "Fichier supprimé ✅");
+                                        _toast("Success", "File deleted ✅");
                                         await _loadDevis();
                                       } catch (e) {
-                                        _toast("Erreur", e.toString());
+                                        _toast("Error", e.toString());
                                       } finally {
                                         if (mounted) setState(() => _saving = false);
                                       }
@@ -426,7 +435,7 @@ Future<void> _openUrl(String url) async {
                     const SizedBox(height: 10),
                   ],
 
-                  // ✅ picker multi (corrigé)
+                  // Multi file picker
                   InkWell(
                     onTap: _saving ? null : _pickFiles,
                     borderRadius: BorderRadius.circular(14),
@@ -443,7 +452,7 @@ Future<void> _openUrl(String url) async {
                           const Icon(Icons.cloud_upload_outlined, size: 44, color: Colors.deepPurple),
                           const SizedBox(height: 10),
                           Text(
-                            "Sélectionne plusieurs fichiers (PDF/PNG/JPG)",
+                            "Select multiple files (PDF/PNG/JPG)",
                             style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600),
                             textAlign: TextAlign.center,
                           ),
@@ -465,11 +474,13 @@ Future<void> _openUrl(String url) async {
                                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                                     ),
                                   )
-                                : Text(_filesNames.isEmpty ? "Upload files" : "Changer fichiers"),
+                                : Text(_filesNames.isEmpty ? "Choose files" : "Change files"),
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            _filesNames.isEmpty ? "Aucun fichier" : "${_filesNames.length} fichier(s) sélectionné(s)",
+                            _filesNames.isEmpty
+                                ? "No files selected"
+                                : "${_filesNames.length} file(s) selected",
                             style: TextStyle(color: Colors.grey.shade700),
                           ),
                           if (_filesNames.isNotEmpty) ...[
@@ -496,8 +507,11 @@ Future<void> _openUrl(String url) async {
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
-                                  "+ ${_filesNames.length - 5} autre(s) fichier(s)",
-                                  style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                                  "+ ${_filesNames.length - 5} more file(s)",
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontStyle: FontStyle.italic,
+                                  ),
                                 ),
                               ),
                           ],
@@ -508,7 +522,7 @@ Future<void> _openUrl(String url) async {
 
                   const SizedBox(height: 14),
 
-                  // ✅ publish
+                  // Publish button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

@@ -13,7 +13,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
   final ThemeController themeController = Get.put(ThemeController());
   final SalesDashboardController controller = Get.put(SalesDashboardController());
 
-  // ✅ UN SEUL helper (doublon supprimé)
+  // ✅ Single helper (duplicate removed)
   double _toDouble(dynamic v, {double fallback = 0}) {
     if (v == null) return fallback;
     if (v is num) return v.toDouble();
@@ -57,7 +57,6 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
                 _commonCard(7, _buildVisitorChart(lang, theme, isMobileScreen)),
                 _commonCard(5, _buildTopProductsWidget(lang, theme)),
                 _commonCard(7, _buildCountryMapSalesWidget(lang)),
-               
               ],
             ),
           ),
@@ -108,16 +107,15 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
                     initialFocalLatLng: MapLatLng(centerLat, centerLng),
                     initialZoomLevel: 6,
                     initialMarkersCount: rows.length,
-
                     markerBuilder: (context, index) {
                       final d = rows[index] as Map;
 
-                      final name = (d["nomProjet"] ?? "Projet").toString();
+                      final name = (d["nomProjet"] ?? "Project").toString();
                       final lat = _toDouble(d["latitude"]);
                       final lng = _toDouble(d["longitude"]);
-                      final status = (d["validationStatut"] ?? "Non validé").toString();
+                      final status = (d["validationStatut"] ?? "Not Validated").toString();
 
-                      final isValid = status == "Validé";
+                      final isValid = status == "Validated";
 
                       return MapMarker(
                         latitude: lat,
@@ -136,7 +134,11 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(isValid ? Icons.verified : Icons.error, color: Colors.white, size: 16),
+                              Icon(
+                                isValid ? Icons.verified : Icons.error,
+                                color: Colors.white,
+                                size: 16,
+                              ),
                               const SizedBox(width: 6),
                               Expanded(
                                 child: Text(
@@ -156,7 +158,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
                       );
                     },
 
-                    // ✅ Tooltip global du layer (bonne place)
+                    // ✅ Global tooltip for layer markers (correct place)
                     markerTooltipBuilder: (context, index) {
                       final d = rows[index] as Map;
 
@@ -179,7 +181,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
                               Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
                               const SizedBox(height: 6),
                               Text("Status: $status"),
-                              if (adr.trim().isNotEmpty) Text("Adresse: $adr"),
+                              if (adr.trim().isNotEmpty) Text("Address: $adr"),
                             ],
                           ),
                         ),
@@ -236,113 +238,113 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
   // =========================
   // Surface KPI table
   // =========================
-Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
-  final titleTextStyle = theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600);
-  final rowTextStyle = theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500, fontSize: 14);
+  Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
+    final titleTextStyle = theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600);
+    final rowTextStyle = theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500, fontSize: 14);
 
-  return Padding(
-    padding: const EdgeInsets.all(7.0),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _titleTextStyle("Validation by Surface (m²)"),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 300,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return Obx(() {
-                final rows = controller.surfacePagedRows;
+    return Padding(
+      padding: const EdgeInsets.all(7.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _titleTextStyle("Validation by Surface (m²)"),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 300,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return Obx(() {
+                  final rows = controller.surfacePagedRows;
 
-                if (controller.isLoadingKpi.value) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (controller.kpiError.value.isNotEmpty) {
-                  return Center(
-                    child: Text(controller.kpiError.value, style: const TextStyle(color: Colors.red)),
-                  );
-                }
-                if (rows.isEmpty) {
-                  return const Center(child: Text("No surface KPI data"));
-                }
+                  if (controller.isLoadingKpi.value) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (controller.kpiError.value.isNotEmpty) {
+                    return Center(
+                      child: Text(controller.kpiError.value, style: const TextStyle(color: Colors.red)),
+                    );
+                  }
+                  if (rows.isEmpty) {
+                    return const Center(child: Text("No surface KPI data"));
+                  }
 
-                return SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                    child: Theme(
-                      data: Theme.of(context).copyWith(
-                        dividerColor: Colors.transparent,
-                        dividerTheme: const DividerThemeData(color: Colors.transparent, space: 0, thickness: 0),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: DataTable(
-                          border: TableBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                            horizontalInside: BorderSide(
-                              color: themeController.isDarkMode ? colorGrey700 : colorGrey100,
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                      child: Theme(
+                        data: Theme.of(context).copyWith(
+                          dividerColor: Colors.transparent,
+                          dividerTheme: const DividerThemeData(color: Colors.transparent, space: 0, thickness: 0),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: DataTable(
+                            border: TableBorder(
+                              borderRadius: BorderRadius.circular(8.0),
+                              horizontalInside: BorderSide(
+                                color: themeController.isDarkMode ? colorGrey700 : colorGrey100,
+                              ),
                             ),
+                            dividerThickness: 1.0,
+                            horizontalMargin: 16.0,
+                            headingRowColor: WidgetStateColor.transparent,
+                            columnSpacing: 24,
+                            dataRowMaxHeight: 65,
+                            columns: [
+                              DataColumn(label: Text("#", style: titleTextStyle)),
+                              DataColumn(label: Text("Surface", style: titleTextStyle)),
+                              DataColumn(label: Text("Total", style: titleTextStyle)),
+                              DataColumn(label: Text("Validated", style: titleTextStyle)),
+                              DataColumn(label: Text("%", style: titleTextStyle)),
+                            ],
+                            rows: List.generate(rows.length, (index) {
+                              final d = rows[index];
+
+                              final surface = controller.surfaceLabel(d);
+                              final total = controller.surfaceTotal(d).toString();
+                              final valid = controller.surfaceValidated(d).toString();
+                              final pctNum = controller.surfaceAvgReussite(d);
+
+                              return DataRow(
+                                cells: [
+                                  DataCell(Text("${index + 1}", style: rowTextStyle)),
+                                  DataCell(Text(surface, style: rowTextStyle)),
+                                  DataCell(Text(total, style: rowTextStyle)),
+                                  DataCell(Text(valid, style: rowTextStyle)),
+                                  DataCell(Text("${pctNum.toStringAsFixed(2)}%", style: rowTextStyle)),
+                                ],
+                              );
+                            }),
                           ),
-                          dividerThickness: 1.0,
-                          horizontalMargin: 16.0,
-                          headingRowColor: WidgetStateColor.transparent,
-                          columnSpacing: 24,
-                          dataRowMaxHeight: 65,
-                          columns: [
-                            DataColumn(label: Text("#", style: titleTextStyle)),
-                            DataColumn(label: Text("Surface", style: titleTextStyle)),
-                            DataColumn(label: Text("Total", style: titleTextStyle)),
-                            DataColumn(label: Text("Validé", style: titleTextStyle)),
-                            DataColumn(label: Text("%", style: titleTextStyle)),
-                          ],
-                          rows: List.generate(rows.length, (index) {
-                            final d = rows[index];
-
-                            final surface = controller.surfaceLabel(d);
-                            final total = controller.surfaceTotal(d).toString();
-                            final valid = controller.surfaceValidated(d).toString();
-                            final pctNum = controller.surfaceAvgReussite(d); 
-
-                            return DataRow(
-                              cells: [
-                                DataCell(Text("${index + 1}", style: rowTextStyle)),
-                                DataCell(Text(surface, style: rowTextStyle)),
-                                DataCell(Text(total, style: rowTextStyle)),
-                                DataCell(Text(valid, style: rowTextStyle)),
-                                DataCell(Text("${pctNum.toStringAsFixed(2)}%", style: rowTextStyle)),
-                              ],
-                            );
-                          }),
                         ),
                       ),
                     ),
-                  ),
-                );
-              });
-            },
+                  );
+                });
+              },
+            ),
           ),
-        ),
-        // Pagination Controls
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton(
-              icon: Icon(Icons.arrow_back),
-              onPressed: controller.prevSurfacePage,
-            ),
-            Text("Page ${controller.surfacePage} of ${controller.surfaceTotalPages}"),
-            IconButton(
-              icon: Icon(Icons.arrow_forward),
-              onPressed: controller.nextSurfacePage,
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-}
-  
+
+          // Pagination controls
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: controller.prevSurfacePage,
+              ),
+              Text("Page ${controller.surfacePage} of ${controller.surfaceTotalPages}"),
+              IconButton(
+                icon: const Icon(Icons.arrow_forward),
+                onPressed: controller.nextSurfacePage,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 
   List<BarChartGroupData> _buildTargetRealityBarGroups({double animationValue = 1.0}) {
     final realitySales = [8000, 8200, 9000, 8800, 9500, 9700, 8800];
@@ -409,7 +411,6 @@ Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
     );
   }
 
-
   List<BarChartGroupData> _getRevenueBarGroups({double animationValue = 1.0}) {
     final online = [12000, 15000, 5000, 14000, 11000, 13000, 20000];
     final offline = [10000, 10000, 20000, 7000, 9000, 11000, 9000];
@@ -456,109 +457,116 @@ Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
   }
 
   // =========================
-  // Visitors chart (uses controller.visitors)
+  // Visitors chart (uses controller.projectStatusData)
   // =========================
   Widget _buildVisitorChart(AppLocalizations lang, ThemeData theme, bool isMobileScreen) {
-  return Padding(
-    padding: const EdgeInsets.all(7.0),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _titleTextStyle(lang.translate('Project Performance Overview')),
-        const SizedBox(height: 30),
-        SizedBox(
-          height: 300,
-          child: TweenAnimationBuilder<double>(
-            duration: const Duration(milliseconds: 800),
-            curve: Curves.easeOutCubic,
-            tween: Tween(begin: 0, end: 1),
-            builder: (context, animationValue, _) {
-              return Obx(() {
-                final rows = controller.projectStatusData;
+    return Padding(
+      padding: const EdgeInsets.all(7.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _titleTextStyle(lang.translate('Project Performance Overview')),
+          const SizedBox(height: 30),
+          SizedBox(
+            height: 300,
+            child: TweenAnimationBuilder<double>(
+              duration: const Duration(milliseconds: 800),
+              curve: Curves.easeOutCubic,
+              tween: Tween(begin: 0, end: 1),
+              builder: (context, animationValue, _) {
+                return Obx(() {
+                  final rows = controller.projectStatusData;
 
-                if (controller.isLoadingKpi.value) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (controller.kpiError.value.isNotEmpty) {
-                  return Center(
-                    child: Text(
-                      controller.kpiError.value,
-                      style: const TextStyle(color: Colors.red),
+                  if (controller.isLoadingKpi.value) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (controller.kpiError.value.isNotEmpty) {
+                    return Center(
+                      child: Text(
+                        controller.kpiError.value,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    );
+                  }
+                  if (rows.isEmpty) {
+                    return const Center(child: Text("No status data"));
+                  }
+
+                  // Convert project status data to chart-friendly format
+                  final projectCounts = <double>[];
+                  final projectStatuses = <String>[];
+
+                  for (var item in rows) {
+                    projectStatuses.add((item["statut"] ?? "").toString());
+                    projectCounts.add(_toDouble(item["projectCount"]));
+                  }
+
+                  return LineChart(
+                    LineChartData(
+                      minY: 0,
+                      maxY: projectCounts.isNotEmpty
+                          ? projectCounts.reduce((a, b) => a > b ? a : b) * 1.2
+                          : 400,
+                      borderData: FlBorderData(show: false),
+                      titlesData: FlTitlesData(
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            interval: 1,
+                            getTitlesWidget: (value, _) {
+                              final i = value.toInt();
+                              if (i < 0 || i >= projectStatuses.length) return const SizedBox.shrink();
+                              return Text(
+                                projectStatuses[i],
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            interval: 50,
+                            reservedSize: 40,
+                            getTitlesWidget: (value, meta) {
+                              return Text(
+                                value.toInt().toString(),
+                                style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
+                                textAlign: TextAlign.left,
+                              );
+                            },
+                          ),
+                        ),
+                        rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      ),
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: List.generate(
+                            projectCounts.length,
+                            (index) => FlSpot(index.toDouble(), projectCounts[index] * animationValue),
+                          ),
+                          isCurved: true,
+                          barWidth: 3,
+                          color: Colors.blue,
+                          belowBarData: BarAreaData(show: false),
+                          dotData: FlDotData(show: true),
+                        ),
+                      ],
+                      gridData: FlGridData(drawHorizontalLine: true, drawVerticalLine: false),
                     ),
                   );
-                }
-                if (rows.isEmpty) {
-                  return const Center(child: Text("No status data"));
-                }
-
-                // Convert project status data to chart-friendly format
-                List<double> projectCounts = [];
-                List<String> projectStatuses = [];
-                
-                for (var item in rows) {
-                  projectStatuses.add(item["statut"]);
-                  projectCounts.add(_toDouble(item["projectCount"]));
-                }
-
-                return LineChart(
-                  LineChartData(
-                    minY: 0,
-                    maxY: projectCounts.isNotEmpty ? projectCounts.reduce((a, b) => a > b ? a : b) * 1.2 : 400,
-                    borderData: FlBorderData(show: false),
-                    titlesData: FlTitlesData(
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          interval: 1,
-                          getTitlesWidget: (value, _) {
-                            return Text(
-                              projectStatuses[value.toInt()],
-                              style: theme.textTheme.bodySmall?.copyWith(fontSize: 10, fontWeight: FontWeight.w500),
-                            );
-                          },
-                        ),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          interval: 50,
-                          reservedSize: 40,
-                          getTitlesWidget: (value, meta) {
-                            return Text(
-                              value.toInt().toString(),
-                              style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
-                              textAlign: TextAlign.left,
-                            );
-                          },
-                        ),
-                      ),
-                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    ),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: List.generate(
-                          projectCounts.length,
-                          (index) => FlSpot(index.toDouble(), projectCounts[index] * animationValue),
-                        ),
-                        isCurved: true,
-                        barWidth: 3,
-                        color: Colors.blue,
-                        belowBarData: BarAreaData(show: false),
-                        dotData: FlDotData(show: true),
-                      ),
-                    ],
-                    gridData: FlGridData(drawHorizontalLine: true, drawVerticalLine: false),
-                  ),
-                );
-              });
-            },
+                });
+              },
+            ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
   LineChartBarData _line(
     List<VisitorData> data,
@@ -664,7 +672,7 @@ Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
           ),
         ),
 
-        // ✅ IMPORTANT: Rx affiché via Obx
+        // ✅ IMPORTANT: show Rx via Obx
         Obx(() {
           if (controller.isLoadingKpi.value) {
             return const Padding(
@@ -702,7 +710,7 @@ Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
               icon: tagIcon,
               totalCount: validated.toString(),
               title: "Validated",
-              profit: "Status = Validé",
+              profit: "Status = Validated",
               index: 1,
             ),
             _commonSaleCardWidget(
@@ -721,7 +729,7 @@ Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
               theme: theme,
               icon: addUserIcon,
               totalCount: nonValidated.toString(),
-              title: "Non Validé",
+              title: "Not Validated",
               profit: "Total - Validated",
               index: 3,
             ),

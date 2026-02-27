@@ -1,14 +1,17 @@
 import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import '../../services/bon_de_commande_api.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
+
+import '../../services/bon_de_commande_api.dart';
 import '../../providers/api_client.dart';
+
 class BonDeCommandeFormSection extends StatefulWidget {
   final String projectId;
 
-  // ✅ Bloquer l’étape si devis pas validé
+  /// Lock this step if Devis is not validated
   final bool devisIsValid;
 
   const BonDeCommandeFormSection({
@@ -27,12 +30,12 @@ class _BonDeCommandeFormSectionState extends State<BonDeCommandeFormSection> {
   bool _loading = true;
   bool _saving = false;
 
-  // ✅ dropdown tab
+  // Dropdown tab
   bool _open = false;
 
   List<Map<String, dynamic>> _list = [];
 
-  // ✅ multi files
+  // Multi files
   final List<Uint8List> _filesBytes = [];
   final List<String> _filesNames = [];
 
@@ -45,9 +48,10 @@ class _BonDeCommandeFormSectionState extends State<BonDeCommandeFormSection> {
   @override
   void didUpdateWidget(covariant BonDeCommandeFormSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Si devis devient valide => tu peux auto ouvrir si tu veux
+
+    // If devis becomes valid, you can auto-open if desired (optional)
     if (!oldWidget.devisIsValid && widget.devisIsValid) {
-      // optionnel
+      // Optional:
       // setState(() => _open = true);
     }
   }
@@ -59,7 +63,7 @@ class _BonDeCommandeFormSectionState extends State<BonDeCommandeFormSection> {
       setState(() {
         _list = list;
 
-        // préremplir nom si déjà existant
+        // Prefill name if already exists
         if (_list.isNotEmpty) {
           _nameCtrl.text = (_list.first["nomBonDeCommande"] ?? "").toString();
         }
@@ -96,18 +100,18 @@ class _BonDeCommandeFormSectionState extends State<BonDeCommandeFormSection> {
 
   Future<void> _submit() async {
     if (!widget.devisIsValid) {
-      _toast("Validation", "Veuillez d’abord valider l’étape Devis ✅");
+      _toast("Validation", "Please validate the Devis step first ✅");
       return;
     }
 
-    final nom = _nameCtrl.text.trim();
-    if (nom.isEmpty) {
-      _toast("Validation", "Nom du bon de commande est obligatoire");
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      _toast("Validation", "Purchase order name is required.");
       return;
     }
 
     if (_filesBytes.isEmpty || _filesNames.isEmpty) {
-      _toast("Validation", "Choisis au moins 1 fichier (PDF/PNG/JPG)");
+      _toast("Validation", "Please select at least 1 file (PDF/PNG/JPG).");
       return;
     }
 
@@ -115,115 +119,116 @@ class _BonDeCommandeFormSectionState extends State<BonDeCommandeFormSection> {
     try {
       await BonDeCommandeApi.instance.uploadBonDeCommande(
         projectId: widget.projectId,
-        nomBonDeCommande: nom,
+        nomBonDeCommande: name,
         filesBytes: _filesBytes,
         filenames: _filesNames,
       );
 
-      _toast("Succès", "Bon de commande uploadé ✅");
+      _toast("Success", "Purchase order uploaded ✅");
 
       _filesBytes.clear();
       _filesNames.clear();
       await _load();
       setState(() {});
     } catch (e) {
-      _toast("Erreur", e.toString());
+      _toast("Error", e.toString());
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
-Future<void> _openUrl(String url) async {
-  final uri = Uri.parse(url);
 
-  // ✅ Sur Web: ouvre dans un nouvel onglet
-  // ✅ Sur Mobile: ouvre dans navigateur (Chrome/Safari)
-  final ok = await launchUrl(
-    uri,
-    mode: LaunchMode.externalApplication,
-    webOnlyWindowName: '_blank',
-  );
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
 
-  if (!ok) {
-    _toast("Erreur", "Impossible d'ouvrir le fichier");
-  }
-}
-Future<void> _previewFile(Map<String, dynamic> d) async {
-  final url = (d["fileUrl"] ?? "").toString().trim();
-  final mime = (d["mimeType"] ?? "").toString().toLowerCase();
-  final name = (d["originalName"] ?? "Fichier").toString();
+    // Web: open in a new tab
+    // Mobile: open in external browser (Chrome/Safari)
+    final ok = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+      webOnlyWindowName: '_blank',
+    );
 
-  if (url.isEmpty) {
-    _toast("Erreur", "Lien du fichier introuvable");
-    return;
+    if (!ok) {
+      _toast("Error", "Unable to open the file.");
+    }
   }
 
-  // ✅ URL absolue (si backend renvoie /uploads/...)
-  final base = ApiClient.instance.dio.options.baseUrl.replaceAll(RegExp(r'/$'), '');
-  final fullUrl = url.startsWith("http") ? url : "$base$url";
+  Future<void> _previewFile(Map<String, dynamic> d) async {
+    final url = (d["fileUrl"] ?? "").toString().trim();
+    final mime = (d["mimeType"] ?? "").toString().toLowerCase();
+    final name = (d["originalName"] ?? "File").toString();
 
-  final isImage = mime.contains("image/") ||
-      url.toLowerCase().endsWith(".png") ||
-      url.toLowerCase().endsWith(".jpg") ||
-      url.toLowerCase().endsWith(".jpeg");
+    if (url.isEmpty) {
+      _toast("Error", "File link not found.");
+      return;
+    }
 
-  final isPdf = mime.contains("pdf") || url.toLowerCase().endsWith(".pdf");
+    // Ensure absolute URL (if backend returns /uploads/...)
+    final base = ApiClient.instance.dio.options.baseUrl.replaceAll(RegExp(r'/$'), '');
+    final fullUrl = url.startsWith("http") ? url : "$base$url";
 
-  if (isImage) {
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.all(14),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          constraints: const BoxConstraints(maxWidth: 900, maxHeight: 700),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: InteractiveViewer(
-                  child: Image.network(fullUrl, fit: BoxFit.contain),
+    final isImage = mime.contains("image/") ||
+        url.toLowerCase().endsWith(".png") ||
+        url.toLowerCase().endsWith(".jpg") ||
+        url.toLowerCase().endsWith(".jpeg");
+
+    final isPdf = mime.contains("pdf") || url.toLowerCase().endsWith(".pdf");
+
+    if (isImage) {
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          insetPadding: const EdgeInsets.all(14),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            constraints: const BoxConstraints(maxWidth: 900, maxHeight: 700),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 10),
+                Expanded(
+                  child: InteractiveViewer(
+                    child: Image.network(fullUrl, fit: BoxFit.contain),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    );
-    return;
-  }
+      );
+      return;
+    }
 
-  if (isPdf) {
-    // ✅ Web + Mobile : ouvrir via url_launcher
+    if (isPdf) {
+      await _openUrl(fullUrl);
+      return;
+    }
+
     await _openUrl(fullUrl);
-    return;
   }
 
-  // autres types
-  await _openUrl(fullUrl);
-}
   Future<bool?> _confirmDelete({required String filename}) {
     return showDialog<bool>(
       context: context,
       barrierDismissible: true,
       builder: (ctx) => AlertDialog(
-        title: const Text("Confirmer la suppression"),
-        content: Text("Supprimer \"$filename\" ?"),
+        title: const Text("Confirm deletion"),
+        content: Text('Delete "$filename"?'),
         actions: [
           TextButton(
             style: TextButton.styleFrom(foregroundColor: Colors.blue),
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Annuler"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -231,7 +236,7 @@ Future<void> _previewFile(Map<String, dynamic> d) async {
               foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Supprimer"),
+            child: const Text("Delete"),
           ),
         ],
       ),
@@ -239,7 +244,9 @@ Future<void> _previewFile(Map<String, dynamic> d) async {
   }
 
   void _toast(String title, String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$title : $msg")));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("$title: $msg")),
+    );
   }
 
   @override
@@ -266,11 +273,11 @@ Future<void> _previewFile(Map<String, dynamic> d) async {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ✅ TAB dropdown + lock si devis pas validé
+            // Dropdown tab + lock if Devis not validated
             InkWell(
               onTap: () {
                 if (locked) {
-                  _toast("Info", "Valide d’abord l’étape Devis ✅");
+                  _toast("Info", "Please validate the Devis step first ✅");
                   return;
                 }
                 setState(() => _open = !_open);
@@ -288,7 +295,7 @@ Future<void> _previewFile(Map<String, dynamic> d) async {
                   child: Row(
                     children: [
                       const Text(
-                        "Bon de commande",
+                        "Purchase Order",
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
                       ),
                       const Spacer(),
@@ -316,13 +323,13 @@ Future<void> _previewFile(Map<String, dynamic> d) async {
                 children: [
                   TextField(
                     controller: _nameCtrl,
-                    decoration: const InputDecoration(labelText: "Nom du bon de commande *"),
+                    decoration: const InputDecoration(labelText: "Purchase order name *"),
                   ),
                   const SizedBox(height: 12),
 
-                  // ✅ fichiers existants + corbeille
+                  // Existing files + actions
                   if (_list.isNotEmpty) ...[
-                    const Text("Fichiers existants :", style: TextStyle(fontWeight: FontWeight.w700)),
+                    const Text("Existing files:", style: TextStyle(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 8),
                     for (final d in _list)
                       Padding(
@@ -338,20 +345,23 @@ Future<void> _previewFile(Map<String, dynamic> d) async {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                              // 👁️ Preview
-    IconButton(
-      tooltip: "Voir",
-      icon: const Icon(Icons.remove_red_eye_outlined, color: Colors.deepPurple),
-      onPressed: () => _previewFile(d),
-    ),
+
+                            // 👁️ Preview
                             IconButton(
-                              tooltip: "Supprimer",
+                              tooltip: "Preview",
+                              icon: const Icon(Icons.remove_red_eye_outlined, color: Colors.deepPurple),
+                              onPressed: () => _previewFile(d),
+                            ),
+
+                            // 🗑 Delete
+                            IconButton(
+                              tooltip: "Delete",
                               icon: const Icon(Icons.delete_outline, color: Colors.red),
                               onPressed: _saving
                                   ? null
                                   : () async {
                                       final ok = await _confirmDelete(
-                                        filename: (d["originalName"] ?? "ce fichier").toString(),
+                                        filename: (d["originalName"] ?? "this file").toString(),
                                       );
                                       if (ok != true) return;
 
@@ -361,10 +371,10 @@ Future<void> _previewFile(Map<String, dynamic> d) async {
                                           projectId: widget.projectId,
                                           bdcId: d["id"].toString(),
                                         );
-                                        _toast("Succès", "Fichier supprimé ✅");
+                                        _toast("Success", "File deleted ✅");
                                         await _load();
                                       } catch (e) {
-                                        _toast("Erreur", e.toString());
+                                        _toast("Error", e.toString());
                                       } finally {
                                         if (mounted) setState(() => _saving = false);
                                       }
@@ -376,7 +386,7 @@ Future<void> _previewFile(Map<String, dynamic> d) async {
                     const SizedBox(height: 10),
                   ],
 
-                  // ✅ picker multi
+                  // Multi picker
                   InkWell(
                     onTap: _saving ? null : _pickFiles,
                     borderRadius: BorderRadius.circular(14),
@@ -393,7 +403,7 @@ Future<void> _previewFile(Map<String, dynamic> d) async {
                           const Icon(Icons.cloud_upload_outlined, size: 44, color: Colors.deepPurple),
                           const SizedBox(height: 10),
                           Text(
-                            "Sélectionne plusieurs fichiers (PDF/PNG/JPG)",
+                            "Select multiple files (PDF/PNG/JPG)",
                             style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600),
                             textAlign: TextAlign.center,
                           ),
@@ -415,13 +425,13 @@ Future<void> _previewFile(Map<String, dynamic> d) async {
                                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                                     ),
                                   )
-                                : Text(_filesNames.isEmpty ? "Upload files" : "Changer fichiers"),
+                                : Text(_filesNames.isEmpty ? "Choose files" : "Change files"),
                           ),
                           const SizedBox(height: 10),
                           Text(
                             _filesNames.isEmpty
-                                ? "Aucun fichier"
-                                : "${_filesNames.length} fichier(s) sélectionné(s)",
+                                ? "No files selected"
+                                : "${_filesNames.length} file(s) selected",
                             style: TextStyle(color: Colors.grey.shade700),
                           ),
                           if (_filesNames.isNotEmpty) ...[
@@ -448,7 +458,7 @@ Future<void> _previewFile(Map<String, dynamic> d) async {
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
-                                  "+ ${_filesNames.length - 5} autre(s) fichier(s)",
+                                  "+ ${_filesNames.length - 5} more file(s)",
                                   style: TextStyle(
                                     color: Colors.grey.shade600,
                                     fontStyle: FontStyle.italic,

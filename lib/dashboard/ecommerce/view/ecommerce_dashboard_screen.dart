@@ -17,10 +17,8 @@ class EcommerceDashboardScreen extends StatefulWidget {
 class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
   final EcommerceDashboardController controller = EcommerceDashboardController();
 
-  // ✅ remplace chariot + money par une icône projet (utilise un asset existant)
   static const String projectIcon = pieChartIcon;
 
-  // ✅ Pagination (5 projets par page)
   static const int rowsPerPage = 5;
   int _page = 0;
 
@@ -67,37 +65,32 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
             ),
             child: ResponsiveGridRow(
               children: [
-                // ✅ Tous les projets réalisés
                 _topCommonCard(
                   Obx(() => _buildTopCardsWidget(
                         lang,
                         theme,
                         projectIcon,
-                        "Tous les projets réalisés",
+                        "All projects",
                         controller.totalProjects.value.toString(),
                         "",
                       )),
                 ),
-
-                // ✅ projets non validés
                 _topCommonCard(
                   Obx(() => _buildTopCardsWidget(
                         lang,
                         theme,
                         projectIcon,
-                        "Projets non validés",
+                        "Not validated projects",
                         controller.nonValidatedProjects.value.toString(),
                         "",
                       )),
                 ),
-
-                // ✅ projets validés
                 _topCommonCard(
                   Obx(() => _buildTopCardsWidget(
                         lang,
                         theme,
                         projectIcon,
-                        "Projets validés",
+                        "Validated projects",
                         controller.validatedProjects.value.toString(),
                         "",
                       )),
@@ -114,7 +107,6 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
     );
   }
 
-  // ===================== Revenue Report =====================
   Widget _buildRevenueReportWidget(AppLocalizations lang, ThemeData theme, bool isMobileScreen) {
     return Padding(
       padding: const EdgeInsets.all(7.0),
@@ -125,7 +117,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
             children: [
               Expanded(
                 child: Text(
-                  "Projets par période",
+                  "Projects by period",
                   style: theme.textTheme.titleLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.w500),
                 ),
               ),
@@ -136,7 +128,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                       Icon(Icons.circle, size: 10, color: colorPrimary50),
                       const SizedBox(width: 4),
                       Text(
-                        "% Validés",
+                        "% Validated",
                         style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500, color: colorPrimary50),
                       ),
                     ],
@@ -147,7 +139,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                       Icon(Icons.circle, size: 10, color: colorPrimary100),
                       const SizedBox(width: 4),
                       Text(
-                        "% Réussite",
+                        "% Success",
                         style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500, color: colorPrimary100),
                       ),
                     ],
@@ -158,7 +150,6 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
           ),
           const SizedBox(height: 10),
 
-          // headline: % validés global
           Obx(() {
             final total = controller.totalProjects.value;
             final validated = controller.validatedProjects.value;
@@ -171,7 +162,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
 
           const SizedBox(height: 8),
           Text(
-            "Taux de projets validés (global)",
+            "Validated projects rate (global)",
             style: theme.textTheme.bodyMedium?.copyWith(
               color: controller.themeController.isDarkMode ? colorGrey500 : colorGrey400,
               fontWeight: FontWeight.w500,
@@ -268,7 +259,6 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
     );
   }
 
-  // ===================== Table (avec pagination 5) =====================
   Widget _buildOrderListWidget(AppLocalizations lang, ThemeData theme, bool isMobileScreen) {
     final titleTextStyle = theme.textTheme.bodyMedium?.copyWith(
       fontWeight: FontWeight.w400,
@@ -282,11 +272,10 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Liste des projets",
-              style: theme.textTheme.titleLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.w500)),
+          Text("Projects list", style: theme.textTheme.titleLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.w500)),
           const SizedBox(height: 10),
           Text(
-            "Suivi des projets et permissions",
+            "Project tracking and permissions",
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w500,
               color: controller.themeController.isDarkMode ? colorGrey500 : colorGrey400,
@@ -296,7 +285,6 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
 
           LayoutBuilder(builder: (context, constraints) {
             return Obx(() {
-              // ✅ Si la taille change (ex: filtre/refresh), on remet page=0 si nécessaire
               final totalRows = controller.orders.length;
               final pageCount = (totalRows / rowsPerPage).ceil().clamp(1, 999999);
               if (_page > pageCount - 1) {
@@ -366,7 +354,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                   ),
                                 ),
                                 DataColumn(
-                                  label: Text("PROJET", style: titleTextStyle),
+                                  label: Text("PROJECT", style: titleTextStyle),
                                   onSort: (i, asc) => controller.sort((d) => d.customerName, i, asc),
                                 ),
                                 DataColumn(
@@ -382,14 +370,13 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                   onSort: (i, asc) => controller.sort((d) => d.paymentStatus, i, asc),
                                 ),
                                 DataColumn(
-                                  label: Text("STATUT", style: titleTextStyle),
+                                  label: Text("STATUS", style: titleTextStyle),
                                   onSort: (i, asc) => controller.sort((d) => d.orderStatus, i, asc),
                                 ),
                                 DataColumn(
                                   label: SizedBox(width: 170, child: Text("ACTION", style: titleTextStyle)),
                                 ),
                               ],
-                              // ✅ rows paginées
                               rows: List.generate(pageRows.length, (localIndex) {
                                 final row = pageRows[localIndex];
                                 final globalIndex = start + localIndex;
@@ -425,7 +412,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                           children: [
                                             if (isAdmin) ...[
                                               IconButton(
-                                                tooltip: "Voir détails",
+                                                tooltip: "View details",
                                                 icon: Icon(Icons.remove_red_eye_outlined, color: colorGrey600),
                                                 onPressed: () {
                                                   final id = row.id.trim();
@@ -434,7 +421,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                                 },
                                               ),
                                               IconButton(
-                                                tooltip: "Supprimer",
+                                                tooltip: "Delete",
                                                 icon: const Icon(Icons.delete, color: Colors.redAccent),
                                                 onPressed: () async {
                                                   final id = row.id.trim();
@@ -443,15 +430,15 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                                   final ok = await showDialog<bool>(
                                                     context: context,
                                                     builder: (ctx) => AlertDialog(
-                                                      title: const Text("Supprimer le projet ?"),
-                                                      content: Text("Projet : ${row.customerName}"),
+                                                      title: const Text("Delete project?"),
+                                                      content: Text("Project: ${row.customerName}"),
                                                       actions: [
                                                         TextButton(
                                                           style: TextButton.styleFrom(
                                                             foregroundColor: Colors.grey.shade700,
                                                           ),
                                                           onPressed: () => Navigator.of(ctx).pop(false),
-                                                          child: const Text("Annuler"),
+                                                          child: const Text("Cancel"),
                                                         ),
                                                         ElevatedButton(
                                                           style: ElevatedButton.styleFrom(
@@ -459,7 +446,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                                             foregroundColor: Colors.white,
                                                           ),
                                                           onPressed: () => Navigator.of(ctx).pop(true),
-                                                          child: const Text("Supprimer"),
+                                                          child: const Text("Delete"),
                                                         ),
                                                       ],
                                                     ),
@@ -472,7 +459,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
 
                                                   ScaffoldMessenger.of(context).showSnackBar(
                                                     SnackBar(
-                                                      content: Text(success ? "Projet supprimé ✅" : "Suppression échouée ❌"),
+                                                      content: Text(success ? "Project deleted ✅" : "Delete failed ❌"),
                                                     ),
                                                   );
                                                 },
@@ -480,13 +467,13 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                             ] else ...[
                                               if (canEdit)
                                                 IconButton(
-                                                  tooltip: "Editer",
+                                                  tooltip: "Edit",
                                                   icon: Icon(Icons.edit, color: colorGrey600),
                                                   onPressed: () {
                                                     final id = row.id.trim();
                                                     if (id.isEmpty) {
                                                       ScaffoldMessenger.of(context).showSnackBar(
-                                                        const SnackBar(content: Text("ID projet introuvable")),
+                                                        const SnackBar(content: Text("Project ID not found")),
                                                       );
                                                       return;
                                                     }
@@ -494,16 +481,17 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                                   },
                                                 ),
                                               IconButton(
-                                                tooltip: "Commenter",
+                                                tooltip: "Comment",
                                                 icon: Icon(Icons.comment_outlined, color: colorGrey600),
                                                 onPressed: () {
                                                   final id = row.id.trim();
                                                   if (id.isEmpty) {
                                                     ScaffoldMessenger.of(context).showSnackBar(
-                                                      const SnackBar(content: Text("ID projet introuvable")),
+                                                      const SnackBar(content: Text("Project ID not found")),
                                                     );
                                                     return;
                                                   }
+                                                  // TODO: if you have a dedicated comment screen route, go there
                                                   context.go("${MyRoute.projectFormScreen}?id=$id");
                                                 },
                                               ),
@@ -530,7 +518,6 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                     ),
                   ),
 
-                  // ✅ Pagination UI
                   const SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -544,12 +531,12 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                       ),
                       const SizedBox(width: 12),
                       IconButton(
-                        tooltip: "Précédent",
+                        tooltip: "Previous",
                         onPressed: _page == 0 ? null : () => _goPrev(pageCount),
                         icon: const Icon(Icons.chevron_left),
                       ),
                       IconButton(
-                        tooltip: "Suivant",
+                        tooltip: "Next",
                         onPressed: _page >= pageCount - 1 ? null : () => _goNext(pageCount),
                         icon: const Icon(Icons.chevron_right),
                       ),
@@ -565,14 +552,16 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
   }
 
   Widget _validationBadge(String v) {
-    final ok = (v == "Validé");
+    final ok = (v == "Validé" || v.toLowerCase() == "validated");
     final bg = ok ? colorEcommerceLightGreen : const Color(0xffFFEBEA);
     final tx = ok ? colorEcommerceGreen : const Color(0xffFF3333);
+
+    final label = ok ? "Validated" : "Not validated";
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(12)),
-      child: Text(v, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: tx)),
+      child: Text(label, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: tx)),
     );
   }
 
@@ -580,22 +569,34 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
     Color bgColor;
     Color textColor;
 
-    switch (status) {
+    final s = status.trim();
+
+    switch (s) {
       case "En cours":
+      case "In Progress":
         bgColor = const Color(0xffFFFAE5);
         textColor = const Color(0xffFFCC00);
+        status = "In Progress";
         break;
+
       case "Terminé":
+      case "Completed":
         bgColor = colorEcommerceLightGreen;
         textColor = colorEcommerceGreen;
+        status = "Completed";
         break;
+
       case "Préparation":
+      case "Preparation":
         bgColor = Colors.blue.shade50;
         textColor = Colors.blue;
+        status = "Preparation";
         break;
+
       default:
         bgColor = Colors.grey.shade200;
         textColor = Colors.black;
+        // keep original if unknown
     }
 
     return Container(
@@ -605,14 +606,13 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
     );
   }
 
-  // ===================== CustomerGrowth => Projects list =====================
   Widget _buildCustomerGrowthWidget(AppLocalizations lang, ThemeData theme, bool isMobileScreen) {
     return Padding(
       padding: const EdgeInsets.all(7.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Projets & pourcentage",
+          Text("Projects & percentage",
               style: theme.textTheme.titleLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.w600)),
           const SizedBox(height: 20),
           SizedBox(
@@ -678,7 +678,6 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
     );
   }
 
-  // ===================== Top cards =====================
   Widget _buildTopCardsWidget(
     AppLocalizations lang,
     ThemeData theme,

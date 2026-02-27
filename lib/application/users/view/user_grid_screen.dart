@@ -74,7 +74,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
                   prefixIcon: searchIcon,
                   fillColor: Colors.transparent,
                   prefixIconColor: colorGrey400,
-                  hintText: lang.translate("search"),
+                  hintText: (lang.translate("search") ?? "Search"),
                   borderRadius: 8,
                   topContentPadding: 0,
                   bottomContentPadding: 0,
@@ -93,7 +93,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
               if (controller.filtered.isEmpty) {
                 return const Padding(
                   padding: EdgeInsets.all(20),
-                  child: Text("Aucun projet trouvé."),
+                  child: Text("No projects found."),
                 );
               }
 
@@ -139,7 +139,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
     // ✅ refresh list when coming back
     await controller.loadProjects();
 
-    // ✅ optionnel : refresh notif si tu utilises notifications
+    // ✅ optional: refresh notifications
     if (Get.isRegistered<NotificationController>()) {
       await Get.find<NotificationController>().fetchNotifications(silent: true);
     }
@@ -149,7 +149,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
 
-      // ✅ click card : edit si canEdit sinon commentaires
+      // ✅ click card: edit if canEdit else comments
       onTap: () {
         if (p.canEdit) {
           context.go(_editUrl(p.id));
@@ -181,7 +181,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
                     children: [
                       if (p.ownerName.trim().isNotEmpty)
                         Text(
-                          "Créé par: ${p.ownerName}",
+                          "Created by: ${p.ownerName}",
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colorGrey500,
                             fontWeight: FontWeight.w600,
@@ -190,7 +190,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       Text(
-                        p.nomProjet.isEmpty ? "Projet" : p.nomProjet,
+                        p.nomProjet.isEmpty ? "Project" : p.nomProjet,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -201,7 +201,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
                   ),
                 ),
 
-                // ✅ BADGE COMMENTAIRE CLIQUABLE
+                // ✅ CLICKABLE COMMENTS BADGE
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -248,7 +248,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
                         children: [
                           const Icon(Icons.comment, size: 18),
                           const SizedBox(width: 8),
-                          Text("Commenter (${p.commentCount})"),
+                          Text("Comment (${p.commentCount})"),
                         ],
                       ),
                     ));
@@ -273,7 +273,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
                           children: [
                             Icon(Icons.delete, size: 18, color: Colors.red),
                             SizedBox(width: 8),
-                            Text("Supprimer"),
+                            Text("Delete"),
                           ],
                         ),
                       ));
@@ -288,7 +288,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
             const SizedBox(height: 8),
 
             Text(
-              p.entreprise.isEmpty ? "Entreprise: -" : "Entreprise: ${p.entreprise}",
+              p.entreprise.isEmpty ? "Company: -" : "Company: ${p.entreprise}",
               style: theme.textTheme.bodyMedium?.copyWith(color: colorGrey500),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -299,15 +299,15 @@ class _UserGridScreenState extends State<UserGridScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _miniInfo(theme, "Statut", p.statut.isEmpty ? "-" : p.statut),
-                _miniInfo(theme, "Démarrage", p.dateDemarrage.isEmpty ? "-" : p.dateDemarrage),
+                _miniInfo(theme, "Status", p.statut.isEmpty ? "-" : p.statut),
+                _miniInfo(theme, "Start", p.dateDemarrage.isEmpty ? "-" : p.dateDemarrage),
               ],
             ),
 
             const SizedBox(height: 10),
 
             Text(
-              p.adresse.isEmpty ? "Adresse: -" : "Adresse: ${p.adresse}",
+              p.adresse.isEmpty ? "Address: -" : "Address: ${p.adresse}",
               style: theme.textTheme.bodySmall?.copyWith(color: colorGrey500),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -339,7 +339,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
                       onPressed: () => _goToComment(context, p),
                       icon: const Icon(Icons.comment, size: 16),
                       label: Text(
-                        "Commenter (${p.commentCount})",
+                        "Comment (${p.commentCount})",
                         style: theme.textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
@@ -386,17 +386,17 @@ class _UserGridScreenState extends State<UserGridScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Supprimer le projet"),
-        content: Text("Voulez-vous vraiment supprimer « ${p.nomProjet.isEmpty ? 'Projet' : p.nomProjet} » ?"),
+        title: const Text("Delete project"),
+        content: Text("Do you really want to delete “${p.nomProjet.isEmpty ? 'Project' : p.nomProjet}” ?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text("Annuler"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton.icon(
             onPressed: () => Navigator.of(ctx).pop(true),
             icon: const Icon(Icons.delete, size: 16),
-            label: const Text("Supprimer"),
+            label: const Text("Delete"),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
@@ -413,12 +413,12 @@ class _UserGridScreenState extends State<UserGridScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Projet supprimé ✅")),
+        const SnackBar(content: Text("Project deleted ✅")),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erreur suppression : $e")),
+        SnackBar(content: Text("Delete error: $e")),
       );
     }
   }

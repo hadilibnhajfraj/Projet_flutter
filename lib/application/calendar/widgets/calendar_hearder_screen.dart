@@ -48,7 +48,7 @@ void createNewTaskDialog(ThemeData theme, BuildContext context) {
                     children: [
                       Expanded(
                         child: Text(
-                          "Ajouter un suivi (Task)",
+                          "Add New Task",
                           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
                         ),
                       ),
@@ -180,13 +180,13 @@ void createNewTaskDialog(ThemeData theme, BuildContext context) {
                             final title = titleCtrl.text.trim();
                             if (title.isEmpty) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Title est obligatoire")),
+                                const SnackBar(content: Text("Title is required")),
                               );
                               return;
                             }
                             if (selectedDate == null || selectedTime == null) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Start Date + Start Time sont obligatoires")),
+                                const SnackBar(content: Text("Title + Start date/time are required")),
                               );
                               return;
                             }

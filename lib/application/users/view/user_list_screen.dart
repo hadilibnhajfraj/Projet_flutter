@@ -1,6 +1,7 @@
 import 'package:dash_master_toolkit/application/users/users_imports.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'package:go_router/go_router.dart';
+
 class UserListScreen extends StatefulWidget {
   const UserListScreen({super.key});
 
@@ -41,60 +42,11 @@ class _UserListScreenState extends State<UserListScreen> {
       _dataSource.filterData(query);
     });
   }
-/*
+
   Future<void> _openUserProjects(UserModel user) async {
-    // ✅ Appelle controller (admin only) puis affiche un Dialog
-    final projects = await controller.fetchProjectsOfUser(user.id);
-
-    if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: Text("Projets de ${user.name}"),
-          content: SizedBox(
-            width: 650,
-            child: projects.isEmpty
-                ? const Text("Aucun projet associé.")
-                : ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: projects.length,
-                    separatorBuilder: (_, __) => const Divider(height: 12),
-                    itemBuilder: (context, i) {
-                      final p = projects[i];
-                      final nom = (p["nomProjet"] ?? "—").toString();
-                      final validation = (p["validationStatut"] ?? "—").toString();
-                      final statut = (p["statut"] ?? "—").toString();
-
-                      return ListTile(
-                        dense: true,
-                        title: Text(nom, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Text("Validation: $validation • Statut: $statut"),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          // ✅ si tu as une route détails projet, tu peux naviguer ici
-                          // context.go("${MyRoute.projectFormScreen}?id=${p["id"]}&mode=view");
-                          Navigator.of(ctx).pop();
-                        },
-                      );
-                    },
-                  ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text("Fermer"),
-            ),
-          ],
-        );
-      },
-    );
-  }*/
-  Future<void> _openUserProjects(UserModel user) async {
-  // ✅ redirige vers la page KPI en passant userId
-  context.go("/dashboard/kpi-project?userId=${Uri.encodeComponent(user.id)}");
-}
+    // ✅ redirect to KPI page with userId in query params
+    context.go("/dashboard/kpi-project?userId=${Uri.encodeComponent(user.id)}");
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +71,7 @@ class _UserListScreenState extends State<UserListScreen> {
           ).value,
         ),
         child: Obx(() {
-          // ✅ Recréer datasource quand la liste change
+          // ✅ rebuild datasource when list changes
           _dataSource = UserDataSource(
             controller.users.toList(),
             themeController,
@@ -129,7 +81,7 @@ class _UserListScreenState extends State<UserListScreen> {
             onViewProjects: (u) => _openUserProjects(u),
           );
 
-          // ✅ Réappliquer filtre si موجود
+          // ✅ re-apply filter if present
           final q = controller.searchController.text;
           if (q.isNotEmpty) _dataSource.filterData(q);
 
@@ -162,7 +114,7 @@ class _UserListScreenState extends State<UserListScreen> {
                     height: 45,
                     child: CommonButtonWithIcon(
                       onPressed: () => controller.loadUsers(),
-                      text: lang.translate('refresh') ?? 'Refresh',
+                      text: (lang.translate('refresh') ?? 'Refresh'),
                       icon: Icons.refresh,
                       backgroundColor: colorPrimary100,
                     ),
@@ -181,7 +133,7 @@ class _UserListScreenState extends State<UserListScreen> {
               else if (_dataSource.filteredUsers.isEmpty)
                 Center(
                   child: Text(
-                    lang.translate('noDataFound'),
+                    (lang.translate('noDataFound') ?? "No data found"),
                     style: titleTextStyle?.copyWith(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
@@ -223,19 +175,13 @@ class _UserListScreenState extends State<UserListScreen> {
                             headingRowHeight: 50,
                             rowsPerPage: _rowsPerPage,
                             columns: [
-                              DataColumn(label: Text(lang.translate("name"), style: titleTextStyle)),
-                              DataColumn(label: Text(lang.translate("designation"), style: titleTextStyle)),
-
-                              // ✅ Department => Projects count
-                              DataColumn(label: Text("PROJETS", style: titleTextStyle)),
-
-                              DataColumn(label: Text(lang.translate("email"), style: titleTextStyle)),
-
-                              // ✅ Phone => Action
+                              DataColumn(label: Text((lang.translate("name") ?? "Name"), style: titleTextStyle)),
+                              DataColumn(label: Text((lang.translate("designation") ?? "Designation"), style: titleTextStyle)),
+                              DataColumn(label: Text("PROJECTS", style: titleTextStyle)),
+                              DataColumn(label: Text((lang.translate("email") ?? "Email"), style: titleTextStyle)),
                               DataColumn(label: Text("ACTION", style: titleTextStyle)),
-
-                              DataColumn(label: Text(lang.translate("status"), style: titleTextStyle)),
-                              DataColumn(label: Text(lang.translate("actions") ?? "Actions", style: titleTextStyle)),
+                              DataColumn(label: Text((lang.translate("status") ?? "Status"), style: titleTextStyle)),
+                              DataColumn(label: Text((lang.translate("actions") ?? "Actions"), style: titleTextStyle)),
                             ],
                             source: _dataSource,
                           ),
@@ -327,7 +273,7 @@ class UserDataSource extends DataTableSource {
             child: OutlinedButton.icon(
               onPressed: () => onViewProjects(user),
               icon: const Icon(Icons.remove_red_eye_outlined, size: 18),
-              label: const Text("Voir projets"),
+              label: const Text("View projects"),
             ),
           ),
         ),
@@ -342,7 +288,7 @@ class UserDataSource extends DataTableSource {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
-            user.status,
+            user.status, // keep model value
             style: cellStyle.copyWith(
               color: user.isActive ? Colors.green : Colors.red,
               fontWeight: FontWeight.w600,

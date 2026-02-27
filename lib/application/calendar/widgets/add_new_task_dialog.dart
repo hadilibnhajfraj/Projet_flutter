@@ -194,7 +194,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
         backgroundColor: kDialogBg,
         surfaceTintColor: Colors.transparent,
         title: const Text(
-          "Ajouter un suivi (Task)",
+          "ADD New Task",
           style: TextStyle(color: kTextDark, fontWeight: FontWeight.w900),
         ),
         content: SizedBox(
@@ -263,7 +263,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
               final start = _buildStartDateTime();
               if (_title.text.trim().isEmpty || start == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Title + Start date/time sont obligatoires")),
+                  const SnackBar(content: Text("Title + Start date/time are required")),
                 );
                 return;
               }
