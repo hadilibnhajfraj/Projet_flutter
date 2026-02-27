@@ -7,15 +7,14 @@ import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/theme/theme_controller.dart';
 import 'package:dash_master_toolkit/widgets/common_app_widget.dart';
 import 'package:dash_master_toolkit/widgets/common_search_field.dart';
+import 'package:dash_master_toolkit/forms/view/ProjectCommentScreen.dart';
+import 'package:dash_master_toolkit/app_shell_route/components/topbar/NotificationController.dart';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 import 'package:responsive_grid/responsive_grid.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
-import 'package:dash_master_toolkit/forms/view/ProjectCommentScreen.dart';
-import 'package:dash_master_toolkit/app_shell_route/components/topbar/NotificationController.dart';
-import 'package:flutter/material.dart';
-
 
 class UserGridScreen extends StatefulWidget {
   const UserGridScreen({super.key});
@@ -27,7 +26,6 @@ class UserGridScreen extends StatefulWidget {
 class _UserGridScreenState extends State<UserGridScreen> {
   late final UserGridController controller;
   late final ThemeController themeController;
-
 
   @override
   void initState() {
@@ -84,7 +82,6 @@ class _UserGridScreenState extends State<UserGridScreen> {
               ),
             ),
             const SizedBox(height: 15),
-
             Obx(() {
               if (controller.loading.value) {
                 return const Padding(
@@ -101,32 +98,20 @@ class _UserGridScreenState extends State<UserGridScreen> {
               }
 
               return ResponsiveGridRow(
-                children: List.generate(
-                  controller.filtered.length,
-                  (index) {
-                    return ResponsiveGridCol(
-                      lg: 4,
-                      xl: 4,
-                      md: 4,
-                      xs: 12,
-                      child: Padding(
-                        padding: const EdgeInsetsDirectional.only(
-                          top: 20,
-                          start: 10,
-                          end: 10,
-                        ),
-                        child: _buildProjectCard(
-                          context,
-                          controller.filtered[index],
-                          theme,
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                children: List.generate(controller.filtered.length, (index) {
+                  return ResponsiveGridCol(
+                    lg: 4,
+                    xl: 4,
+                    md: 4,
+                    xs: 12,
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(top: 20, start: 10, end: 10),
+                      child: _buildProjectCard(context, controller.filtered[index], theme),
+                    ),
+                  );
+                }),
               );
             }),
-
             const SizedBox(height: 15),
           ],
         ),
@@ -141,8 +126,8 @@ class _UserGridScreenState extends State<UserGridScreen> {
     ).toString();
   }
 
-  void _goToComment(BuildContext context, ProjectGridData p) {
-    Navigator.of(context).push(
+  Future<void> _goToComment(BuildContext context, ProjectGridData p) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ProjectCommentScreen(
           projectId: p.id,
@@ -150,17 +135,21 @@ class _UserGridScreenState extends State<UserGridScreen> {
         ),
       ),
     );
+
+    // ✅ refresh list when coming back
+    await controller.loadProjects();
+
+    // ✅ optionnel : refresh notif si tu utilises notifications
+    if (Get.isRegistered<NotificationController>()) {
+      await Get.find<NotificationController>().fetchNotifications(silent: true);
+    }
   }
 
-  Widget _buildProjectCard(
-    BuildContext context,
-    ProjectGridData p,
-    ThemeData theme,
-  ) {
+  Widget _buildProjectCard(BuildContext context, ProjectGridData p, ThemeData theme) {
     return InkWell(
       borderRadius: BorderRadius.circular(12),
 
-      // ✅ viewer => écran commentaire (lecture seule)
+      // ✅ click card : edit si canEdit sinon commentaires
       onTap: () {
         if (p.canEdit) {
           context.go(_editUrl(p.id));
@@ -170,98 +159,99 @@ class _UserGridScreenState extends State<UserGridScreen> {
       },
 
       child: Container(
-         padding: const EdgeInsets.all(16),
-  decoration: BoxDecoration(
-    // ✅ ICI EXACTEMENT : couleur selon devis / bon de commande
-    color: themeController.isDarkMode
-        ? colorDark
-        : (p.hasBonCommande
-            ? const Color(0xFFE8F5E9) // vert clair
-            : (p.hasDevis
-                ? const Color(0xFFFFEBEE) // rouge clair
-                : Colors.white)),
-    borderRadius: BorderRadius.circular(12),
-    boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black12)],
-  ),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: themeController.isDarkMode
+              ? colorDark
+              : (p.hasBonCommande
+                  ? const Color(0xFFE8F5E9)
+                  : (p.hasDevis ? const Color(0xFFFFEBEE) : Colors.white)),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black12)],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // HEADER
             Row(
               children: [
-               Expanded(
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      if (p.ownerName.trim().isNotEmpty)
-        Text(
-          "Créé par: ${p.ownerName}",
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: colorGrey500,
-            fontWeight: FontWeight.w600,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (p.ownerName.trim().isNotEmpty)
+                        Text(
+                          "Créé par: ${p.ownerName}",
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorGrey500,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      Text(
+                        p.nomProjet.isEmpty ? "Projet" : p.nomProjet,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
 
-      Text(
-        p.nomProjet.isEmpty ? "Projet" : p.nomProjet,
-        style: theme.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w700,
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-    ],
-  ),
-),
-Container(
-  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-  margin: const EdgeInsets.only(right: 6),
-  decoration: BoxDecoration(
-    color: Colors.black.withOpacity(.04),
-    borderRadius: BorderRadius.circular(20),
-  ),
-  child: Row(
-    children: [
-      const Icon(Icons.comment, size: 16, color: Colors.blueGrey),
-      const SizedBox(width: 6),
-      Text(
-        "${p.commentCount}",
-        style: theme.textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: Colors.blueGrey,
-        ),
-      ),
-    ],
-  ),
-),
+                // ✅ BADGE COMMENTAIRE CLIQUABLE
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _goToComment(context, p),
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(.04),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.comment, size: 16, color: Colors.blueGrey),
+                          const SizedBox(width: 6),
+                          Text(
+                            "${p.commentCount}",
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: Colors.blueGrey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
 
-                // ✅ MENU PERMISSIONS
+                // ✅ MENU
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
                   onSelected: (v) async {
+                    if (v == "comment") await _goToComment(context, p);
                     if (v == "edit") context.go(_editUrl(p.id));
                     if (v == "delete") await _confirmDelete(context, p);
-
-                    // ✅ ici on ouvre l'écran commentaire
-                    if (v == "comment") {
-                      _goToComment(context, p);
-                    }
                   },
                   itemBuilder: (_) {
                     final items = <PopupMenuEntry<String>>[];
 
                     items.add(PopupMenuItem(
-  value: "comment",
-  child: Row(
-    children: [
-      const Icon(Icons.comment, size: 18),
-      const SizedBox(width: 8),
-      Text("Commenter (${p.commentCount})"),
-    ],
-  ),
-));
+                      value: "comment",
+                      child: Row(
+                        children: [
+                          const Icon(Icons.comment, size: 18),
+                          const SizedBox(width: 8),
+                          Text("Commenter (${p.commentCount})"),
+                        ],
+                      ),
+                    ));
 
                     if (p.canEdit) {
                       items.add(const PopupMenuItem(
@@ -310,11 +300,7 @@ Container(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _miniInfo(theme, "Statut", p.statut.isEmpty ? "-" : p.statut),
-                _miniInfo(
-                  theme,
-                  "Démarrage",
-                  p.dateDemarrage.isEmpty ? "-" : p.dateDemarrage,
-                ),
+                _miniInfo(theme, "Démarrage", p.dateDemarrage.isEmpty ? "-" : p.dateDemarrage),
               ],
             ),
 
@@ -331,8 +317,6 @@ Container(
 
             Align(
               alignment: Alignment.centerRight,
-
-              // ✅ Bouton change selon permission
               child: p.canEdit
                   ? ElevatedButton.icon(
                       onPressed: () => context.go(_editUrl(p.id)),
@@ -352,7 +336,6 @@ Container(
                       ),
                     )
                   : ElevatedButton.icon(
-                      // ✅ ici aussi -> écran commentaire
                       onPressed: () => _goToComment(context, p),
                       icon: const Icon(Icons.comment, size: 16),
                       label: Text(
@@ -399,53 +382,12 @@ Container(
     );
   }
 
-  // ✅ tu peux supprimer cette méthode si tu veux, elle n'est plus utilisée
-  Future<void> _openCommentDialog(BuildContext context, ProjectGridData p) async {
-    final c = TextEditingController();
-
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text("Commenter ${p.nomProjet.isEmpty ? 'Projet' : p.nomProjet}"),
-        content: TextField(
-          controller: c,
-          maxLines: 4,
-          decoration: const InputDecoration(hintText: "Votre commentaire"),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Annuler"),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Envoyer"),
-          ),
-        ],
-      ),
-    );
-
-    final txt = c.text.trim();
-    if (ok == true && txt.isNotEmpty) {
-      await controller.addComment(p.id, txt);
-      if (Get.isRegistered<NotificationController>()) {
-  await Get.find<NotificationController>().fetchNotifications(silent: true);
-}
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Commentaire ajouté ✅")),
-      );
-    }
-  }
-
   Future<void> _confirmDelete(BuildContext context, ProjectGridData p) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Supprimer le projet"),
-        content: Text(
-          "Voulez-vous vraiment supprimer « ${p.nomProjet.isEmpty ? 'Projet' : p.nomProjet} » ?",
-        ),
+        content: Text("Voulez-vous vraiment supprimer « ${p.nomProjet.isEmpty ? 'Projet' : p.nomProjet} » ?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
