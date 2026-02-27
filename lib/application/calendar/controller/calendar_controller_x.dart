@@ -28,32 +28,29 @@ class CalendarControllerX extends GetxController {
     calendarController.view = CalendarView.week;
   }
 
-  Future<void> fetchTasksAndBuildCalendar() async {
-    loading.value = true;
-    try {
-      final List<TaskModel> tasks = await TaskApi.instance.listTasks();
+Future<void> fetchTasksAndBuildCalendar() async {
+  try {
+    final tasks = await TaskApi.instance.listTasks();
 
-      // ✅ IMPORTANT : backend renvoie ISO -> souvent UTC
-      // on convertit en local pour l'affichage calendrier
-      final built = tasks.map((t) {
-        final startLocal = t.startAt.toLocal();
-        final endLocal = startLocal.add(const Duration(minutes: 30));
+appointments.assignAll(
+  tasks.map((t) {
+    final startLocal = t.startAt.toLocal();
+    final createdByLabel = (t.creatorEmail != null && t.creatorEmail!.isNotEmpty)
+        ? "\n👤 ${t.creatorEmail}"
+        : "";
 
-        return Appointment(
-          startTime: startLocal,
-          endTime: endLocal,
-          subject: t.description.trim().isEmpty ? t.title : "${t.title}\n${t.description}",
-          color: colorPrimary100,
-        );
-      }).toList();
-
-      appointments.assignAll(built);
-    } catch (_) {
-      appointments.clear();
-    } finally {
-      loading.value = false;
-    }
+    return Appointment(
+      startTime: startLocal,
+      endTime: startLocal.add(const Duration(minutes: 30)),
+      subject: (t.description.trim().isEmpty ? t.title : "${t.title}\n${t.description}") + createdByLabel,
+      color: colorPrimary100,
+    );
+  }).toList(),
+);
+  } catch (_) {
+    appointments.clear();
   }
+}
 
   Future<void> addTask({
     required String title,
