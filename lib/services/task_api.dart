@@ -8,18 +8,18 @@ class TaskApi {
 
   Dio get _dio => ApiClient.instance.dio;
 
-Future<List<TaskModel>> listTasks({DateTime? from, DateTime? to}) async {
-  final res = await _dio.get("/tasks", queryParameters: {
-    if (from != null) "from": from.toUtc().toIso8601String(),
-    if (to != null) "to": to.toUtc().toIso8601String(),
-  });
+  Future<List<TaskModel>> listTasks({DateTime? from, DateTime? to}) async {
+    final res = await _dio.get("/tasks", queryParameters: {
+      if (from != null) "from": from.toUtc().toIso8601String(),
+      if (to != null) "to": to.toUtc().toIso8601String(),
+    });
 
-  final data = res.data;
-  if (data is List) {
-    return data.map((e) => TaskModel.fromJson(Map<String, dynamic>.from(e))).toList();
+    final data = res.data;
+    if (data is List) {
+      return data.map((e) => TaskModel.fromJson(Map<String, dynamic>.from(e))).toList();
+    }
+    return [];
   }
-  return [];
-}
 
   Future<TaskModel> createTask({
     required String title,
@@ -29,7 +29,6 @@ Future<List<TaskModel>> listTasks({DateTime? from, DateTime? to}) async {
     final res = await _dio.post("/tasks", data: {
       "title": title.trim(),
       "description": (description ?? "").trim(),
-      // ✅ on envoie en UTC pour éviter les décalages (serveur + DB)
       "startAt": startAt.toUtc().toIso8601String(),
     });
 
@@ -44,7 +43,6 @@ Future<List<TaskModel>> listTasks({DateTime? from, DateTime? to}) async {
     String? status,
   }) async {
     final payload = <String, dynamic>{};
-
     if (title != null) payload["title"] = title.trim();
     if (description != null) payload["description"] = description.trim();
     if (startAt != null) payload["startAt"] = startAt.toUtc().toIso8601String();
