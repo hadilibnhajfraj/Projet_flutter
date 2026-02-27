@@ -20,6 +20,20 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
   // ✅ remplace chariot + money par une icône projet (utilise un asset existant)
   static const String projectIcon = pieChartIcon;
 
+  // ✅ Pagination (5 projets par page)
+  static const int rowsPerPage = 5;
+  int _page = 0;
+
+  void _goPrev(int pageCount) {
+    if (_page <= 0) return;
+    setState(() => _page = (_page - 1).clamp(0, (pageCount - 1).clamp(0, 999999)));
+  }
+
+  void _goNext(int pageCount) {
+    if (_page >= pageCount - 1) return;
+    setState(() => _page = (_page + 1).clamp(0, (pageCount - 1).clamp(0, 999999)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -64,8 +78,6 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                         "",
                       )),
                 ),
-
-              
 
                 // ✅ projets non validés
                 _topCommonCard(
@@ -256,7 +268,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
     );
   }
 
-  // ===================== Table =====================
+  // ===================== Table (avec pagination 5) =====================
   Widget _buildOrderListWidget(AppLocalizations lang, ThemeData theme, bool isMobileScreen) {
     final titleTextStyle = theme.textTheme.bodyMedium?.copyWith(
       fontWeight: FontWeight.w400,
@@ -282,9 +294,25 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
           ),
           const SizedBox(height: 10),
 
-          SizedBox(
-            child: LayoutBuilder(builder: (context, constraints) {
-              return Obx(() => SingleChildScrollView(
+          LayoutBuilder(builder: (context, constraints) {
+            return Obx(() {
+              // ✅ Si la taille change (ex: filtre/refresh), on remet page=0 si nécessaire
+              final totalRows = controller.orders.length;
+              final pageCount = (totalRows / rowsPerPage).ceil().clamp(1, 999999);
+              if (_page > pageCount - 1) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _page = 0);
+                });
+              }
+
+              final start = _page * rowsPerPage;
+              final end = (start + rowsPerPage).clamp(0, totalRows);
+              final pageRows = controller.orders.sublist(start.clamp(0, totalRows), end);
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: ConstrainedBox(
                       constraints: BoxConstraints(minWidth: constraints.maxWidth),
@@ -361,17 +389,16 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                   label: SizedBox(width: 170, child: Text("ACTION", style: titleTextStyle)),
                                 ),
                               ],
-                              rows: List.generate(controller.orders.length, (index) {
-                                final row = controller.orders[index];
+                              // ✅ rows paginées
+                              rows: List.generate(pageRows.length, (localIndex) {
+                                final row = pageRows[localIndex];
+                                final globalIndex = start + localIndex;
 
-                                // ✅ role admin/superadmin
                                 final isAdmin = controller.isAdminRole;
-
-                                // ✅ permission owner/editor (pour edit)
                                 final canEdit = controller.canEdit(row);
 
                                 return DataRow.byIndex(
-                                  index: index,
+                                  index: globalIndex,
                                   cells: [
                                     DataCell(
                                       Checkbox(
@@ -390,17 +417,12 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                     DataCell(Text(row.customerEmail, style: rowTextStyle)),
                                     DataCell(_validationBadge(row.paymentStatus)),
                                     DataCell(_projectStatusBadge(row.orderStatus)),
-
-                                    // ✅ ACTIONS ROLE-BASED
                                     DataCell(
                                       Align(
                                         alignment: Alignment.centerLeft,
                                         child: Wrap(
                                           spacing: 8,
                                           children: [
-                                            // ==========================
-                                            // ✅ ADMIN/SUPERADMIN: 👁️ + 🗑️
-                                            // ==========================
                                             if (isAdmin) ...[
                                               IconButton(
                                                 tooltip: "Voir détails",
@@ -408,8 +430,6 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                                 onPressed: () {
                                                   final id = row.id.trim();
                                                   if (id.isEmpty) return;
-
-                                                  // ✅ ouvre formulaire en mode view
                                                   context.go("${MyRoute.projectFormScreen}?id=$id&mode=view");
                                                 },
                                               ),
@@ -420,30 +440,30 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                                   final id = row.id.trim();
                                                   if (id.isEmpty) return;
 
-                                               final ok = await showDialog<bool>(
-  context: context,
- builder: (ctx) => AlertDialog(
-  title: const Text("Supprimer le projet ?"),
-  content: Text("Projet : ${row.customerName}"),
-  actions: [
-    TextButton(
-      style: TextButton.styleFrom(
-        foregroundColor: Colors.grey.shade700, // ✅ visible sur fond blanc
-      ),
-      onPressed: () => Navigator.of(ctx).pop(false),
-      child: const Text("Annuler"),
-    ),
-    ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.redAccent, // ✅ bouton rouge
-        foregroundColor: Colors.white,     // ✅ texte visible
-      ),
-      onPressed: () => Navigator.of(ctx).pop(true),
-      child: const Text("Supprimer"),
-    ),
-  ],
-),
-);
+                                                  final ok = await showDialog<bool>(
+                                                    context: context,
+                                                    builder: (ctx) => AlertDialog(
+                                                      title: const Text("Supprimer le projet ?"),
+                                                      content: Text("Projet : ${row.customerName}"),
+                                                      actions: [
+                                                        TextButton(
+                                                          style: TextButton.styleFrom(
+                                                            foregroundColor: Colors.grey.shade700,
+                                                          ),
+                                                          onPressed: () => Navigator.of(ctx).pop(false),
+                                                          child: const Text("Annuler"),
+                                                        ),
+                                                        ElevatedButton(
+                                                          style: ElevatedButton.styleFrom(
+                                                            backgroundColor: Colors.redAccent,
+                                                            foregroundColor: Colors.white,
+                                                          ),
+                                                          onPressed: () => Navigator.of(ctx).pop(true),
+                                                          child: const Text("Supprimer"),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
 
                                                   if (ok != true) return;
 
@@ -457,12 +477,7 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                                   );
                                                 },
                                               ),
-                                            ]
-
-                                            // ==========================
-                                            // ✅ SIMPLE USER: ✏️ (si canEdit) + 💬
-                                            // ==========================
-                                            else ...[
+                                            ] else ...[
                                               if (canEdit)
                                                 IconButton(
                                                   tooltip: "Editer",
@@ -478,20 +493,19 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                                                     context.go("${MyRoute.projectFormScreen}?id=$id");
                                                   },
                                                 ),
-
                                               IconButton(
                                                 tooltip: "Commenter",
                                                 icon: Icon(Icons.comment_outlined, color: colorGrey600),
-                                            onPressed: () {
-                                                    final id = row.id.trim();
-                                                    if (id.isEmpty) {
-                                                      ScaffoldMessenger.of(context).showSnackBar(
-                                                        const SnackBar(content: Text("ID projet introuvable")),
-                                                      );
-                                                      return;
-                                                    }
-                                                    context.go("${MyRoute.projectFormScreen}?id=$id");
-                                                  },
+                                                onPressed: () {
+                                                  final id = row.id.trim();
+                                                  if (id.isEmpty) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      const SnackBar(content: Text("ID projet introuvable")),
+                                                    );
+                                                    return;
+                                                  }
+                                                  context.go("${MyRoute.projectFormScreen}?id=$id");
+                                                },
                                               ),
                                             ],
                                           ],
@@ -514,9 +528,37 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
                         ),
                       ),
                     ),
-                  ));
-            }),
-          )
+                  ),
+
+                  // ✅ Pagination UI
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        "Page ${_page + 1} / $pageCount",
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: controller.themeController.isDarkMode ? colorGrey500 : colorGrey400,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        tooltip: "Précédent",
+                        onPressed: _page == 0 ? null : () => _goPrev(pageCount),
+                        icon: const Icon(Icons.chevron_left),
+                      ),
+                      IconButton(
+                        tooltip: "Suivant",
+                        onPressed: _page >= pageCount - 1 ? null : () => _goNext(pageCount),
+                        icon: const Icon(Icons.chevron_right),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            });
+          }),
         ],
       ),
     );
