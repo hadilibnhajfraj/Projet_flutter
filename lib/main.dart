@@ -19,6 +19,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await GetStorage.init();
 
+  // ✅ Restore session BEFORE runApp (keep logged in up to 7 days)
+  await AuthService().restoreSession();
+
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,

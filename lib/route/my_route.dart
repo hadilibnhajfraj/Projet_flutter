@@ -50,6 +50,7 @@ import '../providers/auth_service.dart';
 import '../providers/language_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:dash_master_toolkit/forms/view/devis_upload_screen.dart';
+
 class MyRoute {
   static const login = '/login';
   static const dashboard = '/dashboard';

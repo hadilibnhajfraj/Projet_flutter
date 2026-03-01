@@ -83,7 +83,21 @@ class ApiClient {
   late final GetStorage _box;
 
   Dio get dio => _dio;
+// =====================================================
+// ✅ Set/Clear Authorization header instantly
+// =====================================================
+void setToken(String token) {
+  // met le header pour toutes les prochaines requêtes
+  _dio.options.headers["Authorization"] = "Bearer $token";
 
+  // optionnel: garde aussi dans GetStorage pour ton interceptor onRequest
+  _box.write('accessToken', token);
+  _box.write('isLoggedIn', true);
+}
+
+void clearToken() {
+  _dio.options.headers.remove("Authorization");
+}
   // =====================================================
   // ✅ Helpers Token
   // =====================================================

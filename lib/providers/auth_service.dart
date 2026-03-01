@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
+
 import 'api_client.dart';
+import 'auth_storage.dart';
 
 class AuthService extends ChangeNotifier {
   AuthService._internal();
@@ -17,91 +19,121 @@ class AuthService extends ChangeNotifier {
   String? get userEmail => _box.read<String>('userEmail');
   String? get userRole => _box.read<String>('userRole');
 
+  // ---------------- SIGNUP ----------------
   Future<void> signup({required String email, required String password}) async {
     await ApiClient.instance.dio.post('/auth/signup', data: {
-      'email': email,
-      'password': password,
-    });
-  }
-
-  Future<void> signin({required String email, required String password}) async {
-  // ✅ reset session avant tentative
-  await _box.write('isLoggedIn', false);
-  await _box.remove('accessToken');
-  await _box.remove('userId');
-  await _box.remove('userEmail');
-  await _box.remove('userRole');
-
-  try {
-    final res = await ApiClient.instance.dio.post('/auth/signin', data: {
       'email': email.trim().toLowerCase(),
       'password': password,
     });
+  }
 
-    // ✅ IMPORTANT: au cas où validateStatus accepte 400/500
-    final status = res.statusCode ?? 0;
-    if (status >= 400) {
-      final data = res.data;
+  // ---------------- SIGNIN (7 days session) ----------------
+  Future<void> signin({required String email, required String password}) async {
+    // ✅ reset session avant tentative
+    await _box.write('isLoggedIn', false);
+    await _box.remove('accessToken');
+    await _box.remove('tokenExpiryMs');
+    await _box.remove('userId');
+    await _box.remove('userEmail');
+    await _box.remove('userRole');
+
+    try {
+      final res = await ApiClient.instance.dio.post('/auth/signin', data: {
+        'email': email.trim().toLowerCase(),
+        'password': password,
+      });
+
+      final status = res.statusCode ?? 0;
+      if (status >= 400) {
+        final data = res.data;
+        final msg = (data is Map && data['message'] != null)
+            ? data['message'].toString()
+            : 'Erreur de connexion';
+        throw Exception(msg);
+      }
+
+      final token = res.data['accessToken'] as String?;
+      if (token == null || token.isEmpty) {
+        throw Exception('accessToken manquant');
+      }
+
+      // ✅ expiry local = 7 jours (même si backend ne renvoie pas exp)
+      final expiry = DateTime.now().add(const Duration(days: 7));
+
+      // ✅ stockage sécurisé
+      await AuthStorage.instance.saveToken(token: token, expiry: expiry);
+
+      // ✅ (optionnel) garder un mirror dans GetStorage
+      await _box.write('accessToken', token);
+      await _box.write('tokenExpiryMs', expiry.millisecondsSinceEpoch);
+      await _box.write('isLoggedIn', true);
+
+      // ✅ stock user
+      final user = res.data['user'];
+      if (user is Map) {
+        await _box.write('userId', (user['id'] ?? '').toString());
+        await _box.write('userEmail', (user['email'] ?? '').toString());
+        await _box.write('userRole', (user['role'] ?? '').toString());
+      }
+
+      // ✅ set token in dio header
+      ApiClient.instance.setToken(token);
+
+      notifyListeners();
+    } on DioException catch (e) {
+      final data = e.response?.data;
       final msg = (data is Map && data['message'] != null)
           ? data['message'].toString()
-          : 'Erreur de connexion';
+          : (e.message ?? 'Erreur de connexion');
+
+      await _cleanupSession();
       throw Exception(msg);
+    } catch (e) {
+      await _cleanupSession();
+      rethrow;
     }
-
-    final token = res.data['accessToken'] as String?;
-    if (token == null || token.isEmpty) {
-      throw Exception('accessToken manquant');
-    }
-
-    // ✅ stock token + user
-    await _box.write('accessToken', token);
-    await _box.write('isLoggedIn', true);
-
-    final user = res.data['user'];
-    if (user is Map) {
-      await _box.write('userId', (user['id'] ?? '').toString());
-      await _box.write('userEmail', (user['email'] ?? '').toString());
-      await _box.write('userRole', (user['role'] ?? '').toString());
-    }
-
-    notifyListeners();
-  } on DioException catch (e) {
-    // ✅ backend error (si Dio throw)
-    final data = e.response?.data;
-    final msg = (data is Map && data['message'] != null)
-        ? data['message'].toString()
-        : (e.message ?? 'Erreur de connexion');
-
-    // ✅ assure nettoyage
-    await _box.write('isLoggedIn', false);
-    await _box.remove('accessToken');
-    await _box.remove('userId');
-    await _box.remove('userEmail');
-    await _box.remove('userRole');
-
-    throw Exception(msg);
-  } catch (e) {
-    // ✅ autres erreurs (par ex: accessToken manquant)
-    await _box.write('isLoggedIn', false);
-    await _box.remove('accessToken');
-    await _box.remove('userId');
-    await _box.remove('userEmail');
-    await _box.remove('userRole');
-
-    rethrow;
   }
-}
 
+  // ---------------- RESTORE SESSION (auto login) ----------------
+  Future<bool> restoreSession() async {
+    try {
+      final token = await AuthStorage.instance.getToken();
+      final expiry = await AuthStorage.instance.getExpiry();
 
+      if (token == null || expiry == null) {
+        await _cleanupSession();
+        return false;
+      }
+
+      // ✅ expiré => logout
+      if (DateTime.now().isAfter(expiry)) {
+        await _cleanupSession();
+        return false;
+      }
+
+      // ✅ session OK
+      ApiClient.instance.setToken(token);
+
+      await _box.write('accessToken', token);
+      await _box.write('tokenExpiryMs', expiry.millisecondsSinceEpoch);
+      await _box.write('isLoggedIn', true);
+
+      notifyListeners();
+      return true;
+    } catch (_) {
+      await _cleanupSession();
+      return false;
+    }
+  }
+
+  // ---------------- LOGOUT ----------------
   Future<void> logout() async {
-    await _box.remove('accessToken');
-    await _box.remove('userId');
-    await _box.remove('userEmail');
-    await _box.remove('userRole');
-    await _box.write('isLoggedIn', false);
+    await _cleanupSession();
     notifyListeners();
   }
-    Future<Map<String, dynamic>> forgotPassword({required String email}) async {
+
+  // ---------------- FORGOT PASSWORD ----------------
+  Future<Map<String, dynamic>> forgotPassword({required String email}) async {
     final res = await ApiClient.instance.dio.post('/auth/forgot-password', data: {
       'email': email.trim().toLowerCase(),
     });
@@ -120,6 +152,7 @@ class AuthService extends ChangeNotifier {
         : Map<String, dynamic>.from(res.data);
   }
 
+  // ---------------- RESET PASSWORD ----------------
   Future<Map<String, dynamic>> resetPassword({
     required String email,
     required String token,
@@ -145,4 +178,17 @@ class AuthService extends ChangeNotifier {
         : Map<String, dynamic>.from(res.data);
   }
 
+  // ---------------- PRIVATE: CLEANUP ----------------
+  Future<void> _cleanupSession() async {
+    await AuthStorage.instance.clear(); // ✅ secure storage
+
+    await _box.write('isLoggedIn', false);
+    await _box.remove('accessToken');
+    await _box.remove('tokenExpiryMs');
+    await _box.remove('userId');
+    await _box.remove('userEmail');
+    await _box.remove('userRole');
+
+    ApiClient.instance.clearToken(); // ✅ remove Authorization header
+  }
 }
