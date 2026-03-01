@@ -13,11 +13,12 @@ class BonDeCommandeFormSection extends StatefulWidget {
 
   /// Lock this step if Devis is not validated
   final bool devisIsValid;
-
+final VoidCallback? onUploaded;
   const BonDeCommandeFormSection({
     super.key,
     required this.projectId,
     required this.devisIsValid,
+    this.onUploaded, // ✅ NEW
   });
 
   @override
@@ -123,7 +124,7 @@ class _BonDeCommandeFormSectionState extends State<BonDeCommandeFormSection> {
         filesBytes: _filesBytes,
         filenames: _filesNames,
       );
-
+widget.onUploaded?.call();
       _toast("Success", "Purchase order uploaded ✅");
 
       _filesBytes.clear();

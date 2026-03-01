@@ -17,7 +17,7 @@ import '../../providers/api_client.dart';
 import 'package:dash_master_toolkit/forms/form_imports.dart';
 import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
 
-// ✅ IMPORTANT: sections (WITHOUT scaffold)
+// IMPORTANT: sections (WITHOUT scaffold)
 import 'package:dash_master_toolkit/forms/view/devis_form_section.dart';
 import 'package:dash_master_toolkit/forms/view/bon_de_commande_form_section.dart';
 
@@ -32,20 +32,24 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   late final ProjectFormController c;
   late final ThemeController themeController;
 
-  // ✅ ENGLISH OPTIONS
-// ✅ Display (EN) -> API value (FR)
-final List<Map<String, String>> _statusOptions = const [
-  {"label": "In progress", "value": "En cours"},
-  {"label": "Preparation", "value": "Préparation"},
-  {"label": "Completed", "value": "Terminé"},
-];
-  final List<String> _validationOptions = const ["Validated", "Not Validated"];
+  // ✅ Display (EN) -> API value (FR)
+  final List<Map<String, String>> _statusOptions = const [
+    {"label": "In progress", "value": "En cours"},
+    {"label": "Preparation", "value": "Préparation"},
+    {"label": "Completed", "value": "Terminé"},
+  ];
+
+  // ✅ Display (EN) -> API value (FR)
+  final List<Map<String, String>> _validationOptions = const [
+    {"label": "Validated", "value": "Validé"},
+    {"label": "Not validated", "value": "Non validé"},
+  ];
 
   String? _projectId;
   bool _loadedOnce = false;
   bool _loading = false;
 
-  // ✅ block Purchase Order until Quotation is valid
+  // Block Purchase Order until Quotation is valid
   bool _devisIsValid = false;
 
   @override
@@ -54,7 +58,7 @@ final List<Map<String, String>> _statusOptions = const [
 
     c = Get.isRegistered<ProjectFormController>()
         ? Get.find<ProjectFormController>()
-        : Get.put(ProjectFormController()); // ✅ not permanent
+        : Get.put(ProjectFormController()); // not permanent
 
     themeController = Get.isRegistered<ThemeController>()
         ? Get.find<ThemeController>()
@@ -89,6 +93,11 @@ final List<Map<String, String>> _statusOptions = const [
     setState(() => _loading = true);
     try {
       await c.loadProject(id);
+
+      // ✅ Ensure dropdowns show correct values if API returns FR values
+      if (c.statut.text.trim().isEmpty) c.statut.text = "";
+      if (c.validationStatut.text.trim().isEmpty) c.validationStatut.text = "Non validé";
+
       if (mounted) setState(() {});
     } catch (e) {
       if (!mounted) return;
@@ -99,7 +108,19 @@ final List<Map<String, String>> _statusOptions = const [
       if (mounted) setState(() => _loading = false);
     }
   }
+Future<void> _refreshCardColors() async {
+  if (_projectId == null) return;
 
+  // ✅ refresh project in grid list (colors change without refresh)
+  if (Get.isRegistered<UserGridController>()) {
+    await UserGridController.to.refreshProjectById(_projectId!);
+  }
+
+  // ✅ (optionnel) reload this screen data (if you display devis/bc details here)
+  await c.loadProject(_projectId!);
+
+  if (mounted) setState(() {});
+}
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -146,7 +167,7 @@ final List<Map<String, String>> _statusOptions = const [
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Project Type ",
+                          title: "Project Type (optional)",
                           controller: c.typeProjet,
                           validator: null,
                         ),
@@ -172,7 +193,7 @@ final List<Map<String, String>> _statusOptions = const [
 
                       _field(
                         theme: theme,
-                        title: "Prospected Area (m²)",
+                        title: "Prospected Area (m²) (optional)",
                         controller: c.surfaceProspectee,
                         validator: c.surfaceValidator,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -199,13 +220,13 @@ final List<Map<String, String>> _statusOptions = const [
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Architect )",
+                          title: "Architect (optional)",
                           controller: c.architecte,
                           validator: null,
                         ),
                         right: _field(
                           theme: theme,
-                          title: "Architect Phone ",
+                          title: "Architect Phone (optional)",
                           controller: c.telephoneArchitecte,
                           validator: null,
                           keyboardType: TextInputType.phone,
@@ -221,20 +242,20 @@ final List<Map<String, String>> _statusOptions = const [
 
                       _field(
                         theme: theme,
-                        title: "Tax Registration Number ",
+                        title: "Tax Registration Number (optional)",
                         controller: c.matriculeFiscale,
                         validator: null,
                       ),
 
                       _field(
                         theme: theme,
-                        title: "Promoteur",
+                        title: "Developer (optional)",
                         controller: c.promoteur,
                         validator: null,
                       ),
                       _field(
                         theme: theme,
-                        title: "Design Office ",
+                        title: "Design Office (optional)",
                         controller: c.bureauEtude,
                         validator: null,
                       ),
@@ -249,13 +270,13 @@ final List<Map<String, String>> _statusOptions = const [
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Plumbing/HVAC Company ",
+                          title: "Plumbing/HVAC Company (optional)",
                           controller: c.entrepriseFluide,
                           validator: null,
                         ),
                         right: _field(
                           theme: theme,
-                          title: "Electrical Company ",
+                          title: "Electrical Company (optional)",
                           controller: c.entrepriseElectricite,
                           validator: null,
                         ),
@@ -266,7 +287,7 @@ final List<Map<String, String>> _statusOptions = const [
 
                       _field(
                         theme: theme,
-                        title: "Comments ",
+                        title: "Comments (optional)",
                         controller: c.commentaireCtrl,
                         validator: null,
                         keyboardType: TextInputType.multiline,
@@ -275,41 +296,67 @@ final List<Map<String, String>> _statusOptions = const [
 
                       const SizedBox(height: 18),
 
+                      // ✅ Primary button: stay on page
                       CommonButton(
-                        borderRadius: 8,
-                        width: 180,
-                        onPressed: _submit,
-                        text: _projectId == null ? "Create" : "Update",
-                      ),
+  borderRadius: 8,
+  width: 180,
+  onPressed: () => _submit(goBackAfterSave: false),
+  text: _projectId == null ? "Create" : "Update",
+),
 
-                      // ✅ QUOTATION + PURCHASE ORDER (ONLY when editing)
+                      // ✅ Global button in update mode: Update + redirect
                       if (_projectId != null) ...[
-                        const SizedBox(height: 18),
-
-                        // ✅ Quotation section
-                        DevisFormSection(
-                          projectId: _projectId!,
-                          isEdit: true,
-                          onMatriculeSaved: (m) {
-                            c.matriculeFiscale.text = m;
-                            setState(() {});
-                          },
-
-                          // ✅ must exist in DevisFormSection
-                          // -> returns true if quotation list is not empty
-                          onDevisValidityChanged: (ok) {
-                            setState(() => _devisIsValid = ok);
-                          },
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        // ✅ Purchase order section (blocked if quotation not valid)
-                        BonDeCommandeFormSection(
-                          projectId: _projectId!,
-                          devisIsValid: _devisIsValid,
+                        const SizedBox(height: 10),
+                        CommonButton(
+                          borderRadius: 8,
+                          width: 240,
+                          onPressed: () => _submit(goBackAfterSave: true),
+                          text: "Update & Back to List",
                         ),
                       ],
+
+                      // QUOTATION + PURCHASE ORDER (ONLY when editing)
+                      if (_projectId != null) ...[
+  const SizedBox(height: 18),
+
+  DevisFormSection(
+    projectId: _projectId!,
+    isEdit: true,
+    onMatriculeSaved: (m) {
+      c.matriculeFiscale.text = m;
+      setState(() {});
+    },
+    onDevisValidityChanged: (ok) {
+      setState(() => _devisIsValid = ok);
+    },
+
+    // ✅ NEW: refresh card color after upload/delete
+    onUploaded: () async {
+      await _refreshCardColors();
+    },
+  ),
+
+  const SizedBox(height: 12),
+
+                       BonDeCommandeFormSection(
+    projectId: _projectId!,
+    devisIsValid: _devisIsValid,
+
+    // ✅ NEW: refresh card color after upload/delete
+    onUploaded: () async {
+      await _refreshCardColors();
+    },
+  ),
+
+  // ✅✅✅ MOVED HERE: button after Purchase Order
+  const SizedBox(height: 16),
+  CommonButton(
+    borderRadius: 8,
+    width: 240,
+    onPressed: () => _submit(goBackAfterSave: true),
+    text: "Update & Back to List",
+  ),
+],
                     ],
                   ),
                 ),
@@ -355,58 +402,66 @@ final List<Map<String, String>> _statusOptions = const [
     );
   }
 
-  // ----------------- STATUS -----------------
- Widget _statusDropdown(ThemeData theme) {
-  final currentApiValue = c.statut.text.trim();
-  final currentItem = _statusOptions.firstWhere(
-    (e) => e["value"] == currentApiValue,
-    orElse: () => _statusOptions.first,
-  );
-
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 16, top: 5),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _requiredTitle(theme, "Project status", required: false),
-        const SizedBox(height: 6),
-        DropdownButtonFormField<String>(
-          value: currentItem["value"], // ✅ store API value (FR)
-          decoration: inputDecoration(context, hintText: "Choose a status"),
-          items: _statusOptions
-              .map((s) => DropdownMenuItem(
-                    value: s["value"], // ✅ FR value
-                    child: Text(s["label"]!), // ✅ EN label
-                  ))
-              .toList(),
-          onChanged: (val) {
-            c.statut.text = val ?? ""; // ✅ sends FR to backend
-            if (mounted) setState(() {});
-          },
-        ),
-      ],
-    ),
-  );
-}
-
-  // ----------------- VALIDATION -----------------
-  Widget _validationDropdown(ThemeData theme) {
-    final current = c.validationStatut.text.trim();
-    final currentValue = _validationOptions.contains(current) ? current : "Not Validated";
+  // ----------------- STATUS (EN label / FR API value) -----------------
+  Widget _statusDropdown(ThemeData theme) {
+    final currentApiValue = c.statut.text.trim();
+    final currentItem = _statusOptions.firstWhere(
+      (e) => e["value"] == currentApiValue,
+      orElse: () => _statusOptions.first,
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16, top: 5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _requiredTitle(theme, "Validation Status", required: false),
+          _requiredTitle(theme, "Project status", required: false),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
-            value: currentValue,
-            decoration: inputDecoration(context, hintText: "Choose"),
-            items: _validationOptions.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+            value: currentItem["value"], // FR value stored
+            decoration: inputDecoration(context, hintText: "Choose a status"),
+            items: _statusOptions
+                .map((s) => DropdownMenuItem(
+                      value: s["value"], // FR
+                      child: Text(s["label"]!), // EN
+                    ))
+                .toList(),
             onChanged: (val) {
-              c.validationStatut.text = val ?? "Not Validated";
+              c.statut.text = val ?? "";
+              if (mounted) setState(() {});
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ----------------- VALIDATION (EN label / FR API value) -----------------
+  Widget _validationDropdown(ThemeData theme) {
+    final currentApiValue = c.validationStatut.text.trim();
+    final currentItem = _validationOptions.firstWhere(
+      (e) => e["value"] == currentApiValue,
+      orElse: () => _validationOptions.last, // default Non validé
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16, top: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _requiredTitle(theme, "Validation status", required: false),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<String>(
+            value: currentItem["value"], // FR stored
+            decoration: inputDecoration(context, hintText: "Choose"),
+            items: _validationOptions
+                .map((s) => DropdownMenuItem(
+                      value: s["value"], // FR
+                      child: Text(s["label"]!), // EN
+                    ))
+                .toList(),
+            onChanged: (val) {
+              c.validationStatut.text = val ?? "Non validé"; // FR to API
               if (mounted) setState(() {});
             },
           ),
@@ -536,90 +591,110 @@ final List<Map<String, String>> _statusOptions = const [
     }
   }
 
-  Future<void> _submit() async {
-    final ok = c.formKey.currentState?.validate() ?? false;
-    if (!ok) return;
+Future<void> _submit({required bool goBackAfterSave}) async {
+  final ok = c.formKey.currentState?.validate() ?? false;
+  if (!ok) return;
 
-    if (!c.hasLocation) {
+  if (!c.hasLocation) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Location is required")),
+    );
+    return;
+  }
+
+  final manualComment = c.commentaireCtrl.text.trim();
+
+  final payload = {
+    "nomProjet": c.nomProjet.text.trim(),
+    "dateDemarrage": c.dateDemarrage.text.trim(),
+    "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(), // FR
+    "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
+    "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
+    "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
+    "architecte": c.architecte.text.trim().isEmpty ? null : c.architecte.text.trim(),
+    "telephoneArchitecte": c.telephoneArchitecte.text.trim().isEmpty ? null : c.telephoneArchitecte.text.trim(),
+    "matriculeFiscale": c.matriculeFiscale.text.trim().isEmpty ? null : c.matriculeFiscale.text.trim(),
+    "entreprise": c.entreprise.text.trim(),
+    "promoteur": c.promoteur.text.trim().isEmpty ? null : c.promoteur.text.trim(),
+    "bureauEtude": c.bureauEtude.text.trim().isEmpty ? null : c.bureauEtude.text.trim(),
+    "bureauControle": c.bureauControle.text.trim(),
+    "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty ? null : c.entrepriseFluide.text.trim(),
+    "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty ? null : c.entrepriseElectricite.text.trim(),
+    "adresse": c.localisationAdresse.text.trim().isEmpty ? null : c.localisationAdresse.text.trim(),
+    "location": {"lat": c.latitude.value, "lng": c.longitude.value},
+    "localisationCommentaire": manualComment.isEmpty ? null : manualComment,
+    "typeProjet": c.typeProjet.text.trim().isEmpty ? null : c.typeProjet.text.trim(),
+    "validationStatut": c.validationStatut.text.trim().isEmpty
+        ? "Non validé"
+        : c.validationStatut.text.trim(), // FR
+    "pourcentageReussite": c.pourcentageReussiteValue,
+    "surfaceProspectee": c.surfaceProspecteeValue,
+  };
+
+  try {
+    dynamic data;
+
+    if (_projectId == null) {
+      final res = await ApiClient.instance.dio.post('/projects', data: payload);
+      data = res.data;
+    } else {
+      final res = await ApiClient.instance.dio.put('/projects/$_projectId', data: payload);
+      data = res.data;
+    }
+
+    final map = Map<String, dynamic>.from(data as Map);
+    final project = ProjectGridData.fromJson(map);
+
+    final gridCtrl = Get.isRegistered<UserGridController>()
+        ? Get.find<UserGridController>()
+        : Get.put(UserGridController(), permanent: true);
+
+    // ✅ Update list immediately
+    gridCtrl.upsertProject(project);
+    gridCtrl.forceRefresh();
+
+    // ✅✅✅ VERY IMPORTANT: re-fetch full project (brings devisCount/bonCommandeCount)
+    // This fixes the "need refresh to see colors"
+    if (project.id != null && project.id!.isNotEmpty) {
+      await gridCtrl.refreshProjectById(project.id!);
+    }
+
+    // ---- CREATE MODE ----
+    if (_projectId == null) {
+      setState(() => _projectId = project.id);
+
+      // Reload form state for edit mode
+      await c.loadProject(project.id);
+
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Location is required")),
+        const SnackBar(
+          content: Text("Project created ✅ Now upload Quotation, then Purchase Order"),
+        ),
       );
+
+      if (goBackAfterSave) context.go(MyRoute.userGridScreen);
       return;
     }
 
-    final manualComment = c.commentaireCtrl.text.trim();
+    // ---- UPDATE MODE ----
+    if (!mounted) return;
 
-    final payload = {
-      "nomProjet": c.nomProjet.text.trim(),
-      "dateDemarrage": c.dateDemarrage.text.trim(),
-  
-      "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
-      "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
-      "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
-      "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
-      "architecte": c.architecte.text.trim().isEmpty ? null : c.architecte.text.trim(),
-      "telephoneArchitecte": c.telephoneArchitecte.text.trim().isEmpty ? null : c.telephoneArchitecte.text.trim(),
-      "matriculeFiscale": c.matriculeFiscale.text.trim().isEmpty ? null : c.matriculeFiscale.text.trim(),
-      "entreprise": c.entreprise.text.trim(),
-      "promoteur": c.promoteur.text.trim().isEmpty ? null : c.promoteur.text.trim(),
-      "bureauEtude": c.bureauEtude.text.trim().isEmpty ? null : c.bureauEtude.text.trim(),
-      "bureauControle": c.bureauControle.text.trim(),
-      "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty ? null : c.entrepriseFluide.text.trim(),
-      "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty ? null : c.entrepriseElectricite.text.trim(),
-      "adresse": c.localisationAdresse.text.trim().isEmpty ? null : c.localisationAdresse.text.trim(),
-      "location": {"lat": c.latitude.value, "lng": c.longitude.value},
-      "localisationCommentaire": manualComment.isEmpty ? null : manualComment,
-      "typeProjet": c.typeProjet.text.trim().isEmpty ? null : c.typeProjet.text.trim(),
-      "validationStatut": c.validationStatut.text.trim().isEmpty ? "Not Validated" : c.validationStatut.text.trim(),
-      "pourcentageReussite": c.pourcentageReussiteValue,
-      "surfaceProspectee": c.surfaceProspecteeValue,
-    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Project updated ✅")),
+    );
 
-    try {
-      dynamic data;
-
-      if (_projectId == null) {
-        final res = await ApiClient.instance.dio.post('/projects', data: payload);
-        data = res.data;
-      } else {
-        final res = await ApiClient.instance.dio.put('/projects/$_projectId', data: payload);
-        data = res.data;
-      }
-
-      final map = Map<String, dynamic>.from(data as Map);
-      final project = ProjectGridData.fromJson(map);
-
-      final gridCtrl = Get.isRegistered<UserGridController>()
-          ? Get.find<UserGridController>()
-          : Get.put(UserGridController(), permanent: true);
-
-      gridCtrl.upsertProject(project);
-
-      // ✅ After creation: stay on the page and show Quotation + Purchase Order
-      if (_projectId == null) {
-        setState(() => _projectId = project.id);
-        await c.loadProject(project.id);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Project created ✅ You can now upload the Quotation, then the Purchase Order"),
-          ),
-        );
-        return;
-      }
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Project updated ✅")),
-      );
-
+    if (goBackAfterSave) {
       context.go(MyRoute.userGridScreen);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Network error: $e")),
-      );
     }
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Network error: $e")),
+    );
   }
+}
 
   // ----------------- UI HELPERS -----------------
   Widget _twoCols({required bool isMobile, required Widget left, required Widget right}) {

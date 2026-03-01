@@ -22,7 +22,15 @@ class ProjectApi {
     }
     return [];
   }
+Future<ProjectGridData> getProjectById(String id) async {
+  final res = await dio.get('/projects/$id');
+  final data = res.data;
 
+  if (data is Map) {
+    return ProjectGridData.fromJson(Map<String, dynamic>.from(data));
+  }
+  throw Exception("Invalid project response");
+}
   Future<void> deleteProject(String id) async {
     await dio.delete('/projects/$id');
   }

@@ -95,7 +95,20 @@ class UserGridController extends GetxController {
   Future<void> addComment(String projectId, String comment) async {
     await ProjectApi.instance.addComment(projectId, comment);
   }
-
+  Future<void> refreshProjectById(String id) async {
+  try {
+    final fresh = await ProjectApi.instance.getProjectById(id);
+    upsertProject(fresh);
+    forceRefresh();
+  } catch (_) {
+    // ignore
+  }
+}
+  void forceRefresh() {
+    projects.refresh();
+    filtered.refresh();
+    update();
+  }
   @override
   void onClose() {
     searchController.dispose();

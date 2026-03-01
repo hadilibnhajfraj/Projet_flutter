@@ -18,13 +18,14 @@ class DevisFormSection extends StatefulWidget {
   /// Callback to notify if Devis section is considered "valid"
   /// (here: at least 1 existing uploaded devis file)
   final void Function(bool isValid)? onDevisValidityChanged;
-
+final VoidCallback? onUploaded;
   const DevisFormSection({
     super.key,
     required this.projectId,
     required this.isEdit,
     this.onMatriculeSaved,
     this.onDevisValidityChanged,
+    this.onUploaded, // ✅ NEW
   });
 
   @override
@@ -149,6 +150,7 @@ class _DevisFormSectionState extends State<DevisFormSection> {
         filesBytes: _filesBytes,
         filenames: _filesNames,
       );
+      widget.onUploaded?.call();
 
       _toast("Success", "Fiscal ID saved ✅ + Devis uploaded ✅");
 
