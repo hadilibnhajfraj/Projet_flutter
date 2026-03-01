@@ -305,7 +305,7 @@ Future<void> _refreshCardColors() async {
 ),
 
                       // ✅ Global button in update mode: Update + redirect
-                      if (_projectId != null) ...[
+                     /* if (_projectId != null) ...[
                         const SizedBox(height: 10),
                         CommonButton(
                           borderRadius: 8,
@@ -313,7 +313,7 @@ Future<void> _refreshCardColors() async {
                           onPressed: () => _submit(goBackAfterSave: true),
                           text: "Update & Back to List",
                         ),
-                      ],
+                      ],*/
 
                       // QUOTATION + PURCHASE ORDER (ONLY when editing)
                       if (_projectId != null) ...[
