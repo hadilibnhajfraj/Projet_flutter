@@ -240,16 +240,36 @@ class ProjectFormController extends GetxController {
   // =========================
   // AUTO GEOCODE
   // =========================
-  void _onAddressChanged() {
-    final q = localisationAdresse.text.trim();
-    if (q.length < 3) return;
-    if (q == _lastAuto) return;
+ // dans ProjectFormController
 
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 650), () async {
-      await _autoGeocode(q);
-    });
-  }
+void _onAddressChanged() {
+  final q = localisationAdresse.text.trim();
+  if (q.length < 3) return;
+
+  _debounce?.cancel();
+  _debounce = Timer(const Duration(milliseconds: 450), () async {
+    await _autoLocate(q);
+  });
+}
+
+Future<void> _autoLocate(String query) async {
+  try {
+    final q = query.trim();
+    if (q.length < 3) return;
+
+    final results = await AddressService.search(q);
+    if (results.isEmpty) return;
+
+    final best = results.first;
+
+    // ✅ setLocation remplit lat/lng + (optionnel) l’adresse
+    setLocation(
+      lat: best.lat,
+      lng: best.lon,
+      address: best.displayName, // tu peux enlever si tu ne veux pas remplacer le texte
+    );
+  } catch (_) {}
+}
 
   Future<void> _autoGeocode(String query) async {
     try {

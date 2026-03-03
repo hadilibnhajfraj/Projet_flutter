@@ -142,29 +142,25 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
     await mc.animateCamera(CameraUpdate.newLatLngZoom(p, zoom));
   }
 
-  Future<void> _autoLocate(String query) async {
-    try {
-      final results = await AddressService.search(query);
-      if (!mounted || results.isEmpty) return;
+ Future<void> _autoLocate(String query) async {
+  try {
+    final q = query.trim();
+    if (q.length < 3) return;
 
-      final best = results.first;
-      _lastQuery = best.displayName;
+    final results = await AddressService.search(q);
+    if (!mounted || results.isEmpty) return;
 
-      final clean = best.displayName.trim();
-      if (addressCtrl.text.trim() != clean) {
-        addressCtrl.value = addressCtrl.value.copyWith(
-          text: clean,
-          selection: TextSelection.collapsed(offset: clean.length),
-          composing: TextRange.empty,
-        );
-      }
+    final best = results.first;
+    final p = LatLng(best.lat, best.lon);
 
-      final p = LatLng(best.lat, best.lon);
-      _applyLocation(p);
-      await _moveCamera(p, 16);
-      if (mounted) setState(() {});
-    } catch (_) {}
+    // ✅ comme setLocation: on met la sélection + on centre la map
+    setState(() => _selected = p);
+
+    await _moveCamera(p, 16);
+  } catch (e) {
+    // debugPrint("autoLocate error: $e");
   }
+}
 
   Future<void> _onTap(LatLng p) async {
     _applyLocation(p);
