@@ -518,12 +518,40 @@ Future<void> _refreshCardColors() async {
   }
 
   // ----------------- LOCATION -----------------
-  Widget _locationBlock(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _requiredTitle(theme, "Location", required: true),
-        const SizedBox(height: 6),
+ // ----------------- LOCATION -----------------
+Widget _locationBlock(ThemeData theme) {
+  // ✅ détecte mobile
+  final isMobile = MediaQuery.of(context).size.width < 600;
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _requiredTitle(theme, "Location", required: true),
+      const SizedBox(height: 6),
+
+      // ✅ MOBILE: champ puis bouton (colonne)
+      if (isMobile) ...[
+        TextFormField(
+          controller: c.localisationAdresse,
+          validator: (v) => c.requiredValidator(v, "Location"),
+          decoration: inputDecoration(
+            context,
+            hintText: "Enter an address or pick on the map",
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: CommonButton(
+            borderRadius: 10,
+            width: double.infinity, // si ton CommonButton utilise width
+            onPressed: _pickLocation,
+            text: "Pick on map",
+          ),
+        ),
+      ]
+      // ✅ WEB/TABLET: champ + bouton en Row
+      else ...[
         Row(
           children: [
             Expanded(
@@ -545,22 +573,32 @@ Future<void> _refreshCardColors() async {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Obx(() {
-          final hasLoc = c.hasLocation;
-          return Text(
-            hasLoc
-                ? "Lat: ${c.latitude.value}, Lng: ${c.longitude.value}"
-                : "Select an address or choose it on the map.",
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: hasLoc ? colorPrimary100 : colorGrey700,
-              fontWeight: FontWeight.w600,
-            ),
-          );
-        }),
       ],
-    );
-  }
+
+      const SizedBox(height: 8),
+
+      // ✅ évite overflow sur mobile
+      Obx(() {
+        final hasLoc = c.hasLocation;
+        final text = hasLoc
+            ? "Lat: ${c.latitude.value}, Lng: ${c.longitude.value}"
+            : "Select an address or choose it on the map.";
+
+        return Wrap(
+          children: [
+            Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: hasLoc ? colorPrimary100 : colorGrey700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        );
+      }),
+    ],
+  );
+}
 
   Future<void> _pickLocation() async {
     final currentLat = c.latitude.value;
