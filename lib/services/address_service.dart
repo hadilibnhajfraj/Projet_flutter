@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:http/http.dart' as http;
-
+import '../providers/api_client.dart';
 class AddressSuggestion {
   final String displayName;
   final double lat;
@@ -52,6 +52,22 @@ class AddressService {
       return out;
     } catch (_) {
       return [];
+    }
+  }
+    static Future<(double, double)?> expandShortGoogleMaps(String shortUrl) async {
+    try {
+      final res = await ApiClient.instance.dio.get(
+        "/utils/expand-maps",
+        queryParameters: {"url": shortUrl},
+      );
+
+      final lat = (res.data["lat"] as num?)?.toDouble();
+      final lng = (res.data["lng"] as num?)?.toDouble();
+      if (lat == null || lng == null) return null;
+
+      return (lat, lng);
+    } catch (_) {
+      return null;
     }
   }
 }
