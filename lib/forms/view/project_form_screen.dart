@@ -518,49 +518,57 @@ Future<void> _refreshCardColors() async {
   }
 
   // ----------------- LOCATION -----------------
-  Widget _locationBlock(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _requiredTitle(theme, "Location", required: true),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: c.localisationAdresse,
-                validator: (v) => c.requiredValidator(v, "Location"),
-                decoration: inputDecoration(
-                  context,
-                  hintText: "Enter an address or pick on the map",
-                ),
+ Widget _locationBlock(ThemeData theme) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _requiredTitle(theme, "Location", required: true),
+      const SizedBox(height: 6),
+
+      Row(
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: c.localisationAdresse,
+              validator: (v) => c.requiredValidator(v, "Location"),
+              keyboardType: TextInputType.url, // ✅ utile sur mobile pour coller des liens
+              decoration: inputDecoration(
+                context,
+                hintText: "Enter an address or pick on the map",
               ),
             ),
-            const SizedBox(width: 10),
-            CommonButton(
-              borderRadius: 10,
-              width: 170,
-              onPressed: _pickLocation,
-              text: "Pick on map",
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Obx(() {
-          final hasLoc = c.hasLocation;
-          return Text(
-            hasLoc
-                ? "Lat: ${c.latitude.value}, Lng: ${c.longitude.value}"
-                : "Select an address or choose it on the map.",
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: hasLoc ? colorPrimary100 : colorGrey700,
-              fontWeight: FontWeight.w600,
-            ),
-          );
-        }),
-      ],
-    );
-  }
+          ),
+          const SizedBox(width: 10),
+          CommonButton(
+            borderRadius: 10,
+            width: 170,
+            onPressed: _pickLocation,
+            text: "Pick on map",
+          ),
+        ],
+      ),
+
+      const SizedBox(height: 8),
+
+      Obx(() {
+        final lat = c.latitude.value;
+        final lng = c.longitude.value;
+
+        final hasLoc = lat != null && lng != null;
+
+        return Text(
+          hasLoc
+              ? "Lat: ${lat.toStringAsFixed(7)}, Lng: ${lng.toStringAsFixed(7)}"
+              : "Select an address or choose it on the map.",
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: hasLoc ? colorPrimary100 : colorGrey700,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+      }),
+    ],
+  );
+}
 
   Future<void> _pickLocation() async {
     final currentLat = c.latitude.value;

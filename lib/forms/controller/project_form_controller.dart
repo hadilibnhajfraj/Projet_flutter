@@ -5,8 +5,10 @@ import 'package:intl/intl.dart';
 
 import '../../services/address_service.dart';
 import '../../providers/api_client.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class ProjectFormController extends GetxController {
+  
   final formKey = GlobalKey<FormState>();
 
   // ---------------- Fields ----------------
@@ -240,16 +242,58 @@ class ProjectFormController extends GetxController {
   // =========================
   // AUTO GEOCODE
   // =========================
-  void _onAddressChanged() {
-    final q = localisationAdresse.text.trim();
-    if (q.length < 3) return;
-    if (q == _lastAuto) return;
+  LatLng? _extractLatLngFromGoogleMaps(String input) {
+  final s = input.trim();
 
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 650), () async {
-      await _autoGeocode(q);
-    });
+  // formats fréquents :
+  // 1) .../@36.8093547,10.1316342,17z
+  final at = RegExp(r'@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)');
+  final m1 = at.firstMatch(s);
+  if (m1 != null) {
+    final lat = double.tryParse(m1.group(1)!);
+    final lng = double.tryParse(m1.group(2)!);
+    if (lat != null && lng != null) return LatLng(lat, lng);
   }
+
+  // 2) ...?q=36.8093547,10.1316342  (ou query=)
+  final q = RegExp(r'(?:\?|&)(?:q|query)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)');
+  final m2 = q.firstMatch(s);
+  if (m2 != null) {
+    final lat = double.tryParse(m2.group(1)!);
+    final lng = double.tryParse(m2.group(2)!);
+    if (lat != null && lng != null) return LatLng(lat, lng);
+  }
+
+  // 3) lien court g.page / goo.gl/maps => pas fiable sans requête réseau
+  return null;
+}
+
+bool _looksLikeMapsUrl(String s) {
+  final x = s.toLowerCase();
+  return x.contains("google.com/maps") || x.contains("maps.app.goo.gl") || x.contains("goo.gl/maps");
+}
+  void _onAddressChanged() {
+  final q = localisationAdresse.text.trim();
+  if (q.length < 3) return;
+  if (q == _lastAuto) return;
+
+  _debounce?.cancel();
+  _debounce = Timer(const Duration(milliseconds: 400), () async {
+    // ✅ 1) Si c’est un lien Google Maps, on extrait direct lat/lng
+    if (_looksLikeMapsUrl(q)) {
+      final ll = _extractLatLngFromGoogleMaps(q);
+      if (ll != null) {
+        _lastAuto = q;
+        setLocation(lat: ll.latitude, lng: ll.longitude, address: q); // on garde le lien dans le champ
+        return;
+      }
+      // si lien court => fallback vers autoGeocode
+    }
+
+    // ✅ 2) Sinon auto geocode normal
+    await _autoGeocode(q);
+  });
+}
 
   Future<void> _autoGeocode(String query) async {
     try {
