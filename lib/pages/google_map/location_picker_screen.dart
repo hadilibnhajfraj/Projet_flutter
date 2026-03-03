@@ -32,24 +32,6 @@ class LocationPickerScreen extends StatefulWidget {
 }
 
 class _LocationPickerScreenState extends State<LocationPickerScreen> {
-  LatLng? tryParseLatLngFromGoogleUrl(String text) {
-  final t = text.trim();
-
-  // ex: https://www.google.com/maps?q=36.8,10.1
-  final qMatch = RegExp(r"[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)").firstMatch(t);
-  if (qMatch != null) {
-    return LatLng(double.parse(qMatch.group(1)!), double.parse(qMatch.group(2)!));
-  }
-
-  // ex: .../@36.8093547,10.1316342,17z
-  final atMatch = RegExp(r"@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)").firstMatch(t);
-  if (atMatch != null) {
-    return LatLng(double.parse(atMatch.group(1)!), double.parse(atMatch.group(2)!));
-  }
-
-  // short link maps.app.goo.gl / naps.app.goo.gl => impossible à parser sans suivre redirection
-  return null;
-}
   static const LatLng fallback = LatLng(36.8065, 10.1815); // Tunis
 
   GoogleMapController? _mapController;
@@ -142,37 +124,32 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   Future<void> _autoLocate(String query) async {
-  try {
-    final parsed = tryParseLatLngFromGoogleUrl(query);
-    if (parsed != null) {
-      _lastQuery = query.trim();
-      _applyLocation(parsed);
-      await _moveCamera(parsed, zoom: 16);
+    try {
+      final results = await AddressService.search(query);
+      if (!mounted || results.isEmpty) return;
+
+      final best = results.first;
+      _lastQuery = best.displayName;
+
+      // ⚠️ éviter boucle: ne réécrit que si différent
+      final clean = best.displayName.trim();
+      if (addressCtrl.text.trim() != clean) {
+        addressCtrl.value = addressCtrl.value.copyWith(
+          text: clean,
+          selection: TextSelection.collapsed(offset: clean.length),
+          composing: TextRange.empty,
+        );
+      }
+
+      final p = LatLng(best.lat, best.lon);
+      _applyLocation(p);
+
+      await _moveCamera(p, zoom: 16);
+
+      // ✅ important (web): re-render après move
       if (mounted) setState(() {});
-      return;
-    }
-
-    final results = await AddressService.search(query);
-    if (!mounted || results.isEmpty) return;
-
-    final best = results.first;
-    _lastQuery = best.displayName;
-
-    final clean = best.displayName.trim();
-    if (addressCtrl.text.trim() != clean) {
-      addressCtrl.value = addressCtrl.value.copyWith(
-        text: clean,
-        selection: TextSelection.collapsed(offset: clean.length),
-        composing: TextRange.empty,
-      );
-    }
-
-    final p = LatLng(best.lat, best.lon);
-    _applyLocation(p);
-    await _moveCamera(p, zoom: 16);
-    if (mounted) setState(() {});
-  } catch (_) {}
-}
+    } catch (_) {}
+  }
 
   Future<void> _onTap(LatLng p) async {
     _applyLocation(p);
