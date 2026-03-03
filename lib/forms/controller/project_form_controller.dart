@@ -295,15 +295,27 @@ bool _looksLikeMapsUrl(String s) {
   });
 }
 
-  Future<void> _autoGeocode(String query) async {
-    try {
-      final results = await AddressService.search(query);
-      if (results.isEmpty) return;
-      final best = results.first;
-      _lastAuto = best.displayName;
-      setLocation(lat: best.lat, lng: best.lon, address: best.displayName);
-    } catch (_) {}
-  }
+ Future<void> _autoGeocode(String query) async {
+  try {
+    // ✅ si c’est un lien maps (souvent court sur mobile)
+    if (_looksLikeMapsUrl(query)) {
+      final expanded = await AddressService.expandMapsUrl(query);
+      if (expanded != null) {
+        _lastAuto = query;
+        setLocation(lat: expanded.lat, lng: expanded.lon, address: query); // garde le lien dans le champ
+        return;
+      }
+      // si on n'arrive pas à extraire, on continue vers search()
+    }
+
+    // ✅ sinon geocode classique
+    final results = await AddressService.search(query);
+    if (results.isEmpty) return;
+    final best = results.first;
+    _lastAuto = best.displayName;
+    setLocation(lat: best.lat, lng: best.lon, address: best.displayName);
+  } catch (_) {}
+}
 
   // =========================
   // VALIDATORS (EN)

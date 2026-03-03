@@ -54,4 +54,34 @@ class AddressService {
       return [];
     }
   }
+  static Future<AddressSuggestion?> expandMapsUrl(String url) async {
+  final u = url.trim();
+  if (u.isEmpty) return null;
+
+  final uri = Uri.parse("$apiBase/utils/expand-maps")
+      .replace(queryParameters: {"url": u});
+
+  try {
+    final res = await http.get(uri).timeout(const Duration(seconds: 12));
+    if (res.statusCode != 200) return null;
+
+    final decoded = utf8.decode(res.bodyBytes);
+    final data = jsonDecode(decoded);
+
+    if (data is! Map) return null;
+
+    final lat = (data["lat"] is num) ? (data["lat"] as num).toDouble() : double.tryParse("${data["lat"]}");
+    final lng = (data["lng"] is num) ? (data["lng"] as num).toDouble() : double.tryParse("${data["lng"]}");
+
+    if (lat == null || lng == null) return null;
+
+    return AddressSuggestion(
+      displayName: (data["finalUrl"] ?? u).toString(),
+      lat: lat,
+      lon: lng,
+    );
+  } catch (_) {
+    return null;
+  }
+}
 }
