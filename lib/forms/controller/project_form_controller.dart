@@ -295,20 +295,33 @@ bool _looksLikeMapsUrl(String s) {
   });
 }
 
- Future<void> _autoGeocode(String query) async {
+bool _looksLikeMapsUrl(String s) {
+  final x = s.toLowerCase();
+  return x.contains("maps.app.goo.gl") ||
+      x.contains("google.com/maps") ||
+      x.contains("goo.gl/maps");
+}
+
+Future<void> _autoGeocode(String query) async {
   try {
-    // ✅ si c’est un lien maps (souvent court sur mobile)
+    // ✅ 1) si c'est un lien Google Maps => expand côté API
     if (_looksLikeMapsUrl(query)) {
-      final expanded = await AddressService.expandMapsUrl(query);
-      if (expanded != null) {
-        _lastAuto = query;
-        setLocation(lat: expanded.lat, lng: expanded.lon, address: query); // garde le lien dans le champ
+      final uri = Uri.parse("${AddressService.apiBase}/utils/expand-maps")
+          .replace(queryParameters: {"url": query.trim()});
+
+      final res = await http.get(uri).timeout(const Duration(seconds: 12));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(res.bodyBytes));
+        final lat = (data["lat"] as num).toDouble();
+        final lng = (data["lng"] as num).toDouble();
+
+        _lastAuto = query.trim();
+        setLocation(lat: lat, lng: lng, address: query.trim());
         return;
       }
-      // si on n'arrive pas à extraire, on continue vers search()
     }
 
-    // ✅ sinon geocode classique
+    // ✅ 2) sinon geocode normal
     final results = await AddressService.search(query);
     if (results.isEmpty) return;
     final best = results.first;
