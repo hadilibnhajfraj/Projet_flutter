@@ -243,13 +243,83 @@ class ProjectFormController extends GetxController {
  // dans ProjectFormController
 
 void _onAddressChanged() {
-  final q = localisationAdresse.text.trim();
-  if (q.length < 3) return;
+  final input = localisationAdresse.text.trim();
+  if (input.length < 3) return;
 
   _debounce?.cancel();
   _debounce = Timer(const Duration(milliseconds: 450), () async {
-    await _autoLocate(q);
+    await _resolveLocationInput(input);
   });
+}
+
+Future<void> _resolveLocationInput(String input) async {
+  try {
+    final v = input.trim();
+    if (v.length < 3) return;
+
+    // ✅ évite répétition
+    if (_lastAuto == v) return;
+    _lastAuto = v;
+
+    // 1) ✅ Si l’utilisateur colle "lat,lng"
+    final direct = _extractLatLng(v);
+    if (direct != null) {
+      setLocation(lat: direct.$1, lng: direct.$2);
+      return;
+    }
+
+    // 2) ✅ Si l’utilisateur colle un lien Google Maps avec coordonnées dedans
+    final fromUrl = _extractLatLngFromGoogleMapsUrl(v);
+    if (fromUrl != null) {
+      setLocation(lat: fromUrl.$1, lng: fromUrl.$2);
+      return;
+    }
+
+    // 3) ✅ Sinon c'est une adresse texte -> geocoding normal
+    final results = await AddressService.search(v);
+    if (results.isEmpty) return;
+
+    final best = results.first;
+    setLocation(lat: best.lat, lng: best.lon);
+  } catch (_) {}
+}
+
+// ---------------- helpers ----------------
+
+(double, double)? _extractLatLng(String s) {
+  // ex: "36.8093547, 10.1316342"
+  final m = RegExp(r'(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)').firstMatch(s);
+  if (m == null) return null;
+  final lat = double.tryParse(m.group(1)!);
+  final lng = double.tryParse(m.group(2)!);
+  if (lat == null || lng == null) return null;
+  if (lat.abs() > 90 || lng.abs() > 180) return null;
+  return (lat, lng);
+}
+
+(double, double)? _extractLatLngFromGoogleMapsUrl(String url) {
+  // Exemples:
+  // https://www.google.com/maps/place/.../@36.8093547,10.1316342,17z
+  // https://www.google.com/maps?q=36.8093547,10.1316342
+  // https://www.google.com/maps/search/?api=1&query=36.8093547,10.1316342
+
+  // 1) @lat,lng
+  final at = RegExp(r'@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)').firstMatch(url);
+  if (at != null) {
+    final lat = double.tryParse(at.group(1)!);
+    final lng = double.tryParse(at.group(2)!);
+    if (lat != null && lng != null) return (lat, lng);
+  }
+
+  // 2) query=lat,lng
+  final query = RegExp(r'(?:query=|q=)(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)').firstMatch(url);
+  if (query != null) {
+    final lat = double.tryParse(query.group(1)!);
+    final lng = double.tryParse(query.group(2)!);
+    if (lat != null && lng != null) return (lat, lng);
+  }
+
+  return null;
 }
 
 Future<void> _autoLocate(String query) async {
