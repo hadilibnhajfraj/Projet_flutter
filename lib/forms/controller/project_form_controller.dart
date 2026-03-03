@@ -6,7 +6,8 @@ import 'package:intl/intl.dart';
 import '../../services/address_service.dart';
 import '../../providers/api_client.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-
+import 'dart:convert'; // jsonDecode + utf8
+import 'package:http/http.dart' as http; // http.get
 class ProjectFormController extends GetxController {
   
   final formKey = GlobalKey<FormState>();
@@ -268,10 +269,7 @@ class ProjectFormController extends GetxController {
   return null;
 }
 
-bool _looksLikeMapsUrl(String s) {
-  final x = s.toLowerCase();
-  return x.contains("google.com/maps") || x.contains("maps.app.goo.gl") || x.contains("goo.gl/maps");
-}
+
   void _onAddressChanged() {
   final q = localisationAdresse.text.trim();
   if (q.length < 3) return;
@@ -304,26 +302,31 @@ bool _looksLikeMapsUrl(String s) {
 
 Future<void> _autoGeocode(String query) async {
   try {
-    // ✅ 1) si c'est un lien Google Maps => expand côté API
+    // ✅ 1) si l'utilisateur colle un lien Google Maps
     if (_looksLikeMapsUrl(query)) {
       final uri = Uri.parse("${AddressService.apiBase}/utils/expand-maps")
           .replace(queryParameters: {"url": query.trim()});
 
       final res = await http.get(uri).timeout(const Duration(seconds: 12));
+
       if (res.statusCode == 200) {
         final data = jsonDecode(utf8.decode(res.bodyBytes));
-        final lat = (data["lat"] as num).toDouble();
-        final lng = (data["lng"] as num).toDouble();
+        if (data is Map && data["lat"] != null && data["lng"] != null) {
+          final lat = (data["lat"] as num).toDouble();
+          final lng = (data["lng"] as num).toDouble();
 
-        _lastAuto = query.trim();
-        setLocation(lat: lat, lng: lng, address: query.trim());
-        return;
+          _lastAuto = query.trim();
+          setLocation(lat: lat, lng: lng, address: query.trim());
+          return;
+        }
       }
+      // si expand échoue, on continue vers geocode normal
     }
 
-    // ✅ 2) sinon geocode normal
+    // ✅ 2) geocode normal (texte)
     final results = await AddressService.search(query);
     if (results.isEmpty) return;
+
     final best = results.first;
     _lastAuto = best.displayName;
     setLocation(lat: best.lat, lng: best.lon, address: best.displayName);
