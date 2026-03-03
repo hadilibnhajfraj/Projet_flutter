@@ -35,6 +35,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   static const LatLng fallback = LatLng(36.8065, 10.1815); // Tunis
 
   GoogleMapController? _mapController;
+
   LatLng? _selected;
 
   final TextEditingController commentCtrl = TextEditingController();
@@ -47,6 +48,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   void initState() {
     super.initState();
 
+    // ✅ pré-remplir si déjà une localisation
     if (widget.initialAddress != null && widget.initialAddress!.trim().isNotEmpty) {
       addressCtrl.text = widget.initialAddress!.trim();
     }
@@ -56,10 +58,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
     addressCtrl.addListener(_onAddressChanged);
 
+    // ✅ si on a déjà lat/lng -> afficher marker + caméra après build
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (_selected != null) {
         await _moveCamera(_selected!, zoom: 16);
-        if (mounted) setState(() {});
+        setState(() {}); // force redraw markers web
       }
     });
   }
@@ -76,73 +79,48 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   void _onMapCreated(GoogleMapController c) async {
     _mapController = c;
 
+    // ✅ si déjà sélectionné, centre direct
     if (_selected != null) {
       await _moveCamera(_selected!, zoom: 16);
       if (mounted) setState(() {});
     }
   }
 
-  // ✅ MARKERS (tu l'avais oublié => erreur)
-  Set<Marker> get _markers {
-    final s = _selected;
-    if (s == null) return <Marker>{};
+  void _onAddressChanged() {
+    final q = addressCtrl.text.trim();
+    if (q.length < 3) return;
+    if (q == _lastQuery) return;
 
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 650), () async {
+      await _autoLocate(q);
+    });
+  }
+
+  Set<Marker> get _markers {
+    if (_selected == null) return <Marker>{};
     return {
       Marker(
         markerId: const MarkerId("picked"),
-        position: s,
+        position: _selected!,
         infoWindow: const InfoWindow(title: "Localisation sélectionnée"),
       ),
     };
   }
 
-  void _onAddressChanged() {
-    final raw = addressCtrl.text.trim();
-    if (raw.isEmpty) return;
-    if (raw == _lastQuery) return;
+  Future<void> _moveCamera(LatLng p, {double zoom = 16}) async {
+    final mc = _mapController;
+    if (mc == null) return;
 
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 450), () async {
-      await _resolveInput(raw);
-    });
+    // ✅ petit délai (web) pour stabiliser
+    await Future.delayed(const Duration(milliseconds: 80));
+    await mc.animateCamera(CameraUpdate.newLatLngZoom(p, zoom));
   }
 
-  Future<void> _resolveInput(String input) async {
-    // 1) short link google maps
-    final isShort = input.contains("maps.app.goo.gl") || input.contains("goo.gl/maps");
-    if (isShort) {
-      final coords = await AddressService.expandShortGoogleMaps(input);
-      if (!mounted || coords == null) return;
-
-      final (lat, lng) = coords;
-      final p = LatLng(lat, lng);
-
-      _lastQuery = input;
-      _applyLocation(p);
-      await _moveCamera(p, zoom: 16);
-      if (mounted) setState(() {});
-      return;
-    }
-
-    // 2) lat,lng
-    final reg = RegExp(r'(-?\d+(\.\d+)?)[ ,]+(-?\d+(\.\d+)?)');
-    final m = reg.firstMatch(input);
-    if (m != null) {
-      final lat = double.tryParse(m.group(1)!);
-      final lng = double.tryParse(m.group(3)!);
-      if (lat != null && lng != null) {
-        final p = LatLng(lat, lng);
-        _lastQuery = input;
-        _applyLocation(p);
-        await _moveCamera(p, zoom: 16);
-        if (mounted) setState(() {});
-        return;
-      }
-    }
-
-    // 3) adresse texte => geocode
-    if (input.length < 3) return;
-    await _autoLocate(input);
+  void _applyLocation(LatLng p) {
+    setState(() {
+      _selected = p;
+    });
   }
 
   Future<void> _autoLocate(String query) async {
@@ -153,6 +131,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
       final best = results.first;
       _lastQuery = best.displayName;
 
+      // ⚠️ éviter boucle: ne réécrit que si différent
       final clean = best.displayName.trim();
       if (addressCtrl.text.trim() != clean) {
         addressCtrl.value = addressCtrl.value.copyWith(
@@ -164,37 +143,18 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
       final p = LatLng(best.lat, best.lon);
       _applyLocation(p);
+
       await _moveCamera(p, zoom: 16);
+
+      // ✅ important (web): re-render après move
       if (mounted) setState(() {});
     } catch (_) {}
-  }
-
-  void _applyLocation(LatLng p) {
-    setState(() {
-      _selected = p;
-    });
   }
 
   Future<void> _onTap(LatLng p) async {
     _applyLocation(p);
     await _moveCamera(p, zoom: 16);
     if (mounted) setState(() {});
-  }
-
-  // ✅ camera robuste web mobile
-  Future<void> _moveCamera(LatLng p, {double zoom = 16}) async {
-    final mc = _mapController;
-    if (mc == null) return;
-
-    await Future.delayed(const Duration(milliseconds: 180));
-
-    try {
-      await mc.animateCamera(CameraUpdate.newLatLngZoom(p, zoom));
-    } catch (_) {
-      try {
-        await mc.moveCamera(CameraUpdate.newLatLngZoom(p, zoom));
-      } catch (_) {}
-    }
   }
 
   void _save() {
@@ -221,24 +181,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     final target = _selected ?? fallback;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Choisir une localisation"),
-        actions: [
-          IconButton(
-            onPressed: _save,
-            icon: const Icon(Icons.check),
-            tooltip: "Valider",
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text("Choisir une localisation")),
       body: Column(
         children: [
           Expanded(
             child: GoogleMap(
-              // ✅ force rebuild (web mobile)
-              key: ValueKey(
-                "${target.latitude.toStringAsFixed(6)},${target.longitude.toStringAsFixed(6)}",
-              ),
               initialCameraPosition: CameraPosition(
                 target: target,
                 zoom: _selected == null ? 10 : 16,
@@ -246,14 +193,12 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               onMapCreated: _onMapCreated,
               onTap: _onTap,
               markers: _markers,
-
+              // ✅ optionnel: assure interactions web
               zoomControlsEnabled: true,
               myLocationButtonEnabled: false,
-              mapToolbarEnabled: false,
-              myLocationEnabled: false,
-              compassEnabled: true,
             ),
           ),
+          
         ],
       ),
     );
