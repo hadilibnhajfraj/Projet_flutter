@@ -87,35 +87,73 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   void _onAddressChanged() {
-    final q = addressCtrl.text.trim();
-    if (q.length < 3) return;
-    if (q == _lastQuery) return;
+  final raw = addressCtrl.text.trim();
+  if (raw.isEmpty) return;
+  if (raw == _lastQuery) return;
 
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 650), () async {
-      await _autoLocate(q);
-    });
+  _debounce?.cancel();
+  _debounce = Timer(const Duration(milliseconds: 450), () async {
+    await _resolveInput(raw);
+  });
+}
+
+Future<void> _resolveInput(String input) async {
+  // 1) Si l'utilisateur colle un short link: maps.app.goo.gl/...
+  final isShort =
+      input.contains("maps.app.goo.gl") || input.contains("goo.gl/maps");
+  if (isShort) {
+    final coords = await AddressService.expandShortGoogleMaps(input);
+    if (!mounted || coords == null) return;
+
+    final (lat, lng) = coords;
+    final p = LatLng(lat, lng);
+
+    _lastQuery = input;
+    _applyLocation(p);
+    await _moveCamera(p, zoom: 16);
+
+    // force re-render (web mobile)
+    if (mounted) setState(() {});
+    return;
   }
 
-  Set<Marker> get _markers {
-    if (_selected == null) return <Marker>{};
-    return {
-      Marker(
-        markerId: const MarkerId("picked"),
-        position: _selected!,
-        infoWindow: const InfoWindow(title: "Localisation sélectionnée"),
-      ),
-    };
+  // 2) Si l'utilisateur colle "lat,lng"
+  final reg = RegExp(r'(-?\d+(\.\d+)?)[ ,]+(-?\d+(\.\d+)?)');
+  final m = reg.firstMatch(input);
+  if (m != null) {
+    final lat = double.tryParse(m.group(1)!);
+    final lng = double.tryParse(m.group(3)!);
+    if (lat != null && lng != null) {
+      final p = LatLng(lat, lng);
+      _lastQuery = input;
+      _applyLocation(p);
+      await _moveCamera(p, zoom: 16);
+      if (mounted) setState(() {});
+      return;
+    }
   }
 
-  Future<void> _moveCamera(LatLng p, {double zoom = 16}) async {
-    final mc = _mapController;
-    if (mc == null) return;
+  // 3) Sinon, geocode normal (adresse texte)
+  if (input.length < 3) return;
+  await _autoLocate(input);
+}
 
-    // ✅ petit délai (web) pour stabiliser
-    await Future.delayed(const Duration(milliseconds: 80));
+ Future<void> _moveCamera(LatLng p, {double zoom = 16}) async {
+  final mc = _mapController;
+  if (mc == null) return;
+
+  // petit délai utile sur web mobile
+  await Future.delayed(const Duration(milliseconds: 180));
+
+  try {
     await mc.animateCamera(CameraUpdate.newLatLngZoom(p, zoom));
+  } catch (_) {
+    // fallback (web mobile)
+    try {
+      await mc.moveCamera(CameraUpdate.newLatLngZoom(p, zoom));
+    } catch (_) {}
   }
+}
 
   void _applyLocation(LatLng p) {
     setState(() {
@@ -177,30 +215,38 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final target = _selected ?? fallback;
+Widget build(BuildContext context) {
+  final target = _selected ?? fallback;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text("Choisir une localisation")),
-      body: Column(
-        children: [
-          Expanded(
-            child: GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target: target,
-                zoom: _selected == null ? 10 : 16,
-              ),
-              onMapCreated: _onMapCreated,
-              onTap: _onTap,
-              markers: _markers,
-              // ✅ optionnel: assure interactions web
-              zoomControlsEnabled: true,
-              myLocationButtonEnabled: false,
+  return Scaffold(
+    appBar: AppBar(title: const Text("Choisir une localisation")),
+    body: Column(
+      children: [
+        Expanded(
+          child: GoogleMap(
+            // ✅ IMPORTANT (web mobile): force rebuild quand target change
+            key: ValueKey(
+              "${target.latitude.toStringAsFixed(6)},${target.longitude.toStringAsFixed(6)}",
             ),
+
+            initialCameraPosition: CameraPosition(
+              target: target,
+              zoom: _selected == null ? 10 : 16,
+            ),
+            onMapCreated: _onMapCreated,
+            onTap: _onTap,
+            markers: _markers,
+
+            // ✅ options web
+            zoomControlsEnabled: true,
+            myLocationButtonEnabled: false,
+            mapToolbarEnabled: false,
+            myLocationEnabled: false,
+            compassEnabled: true,
           ),
-          
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 }
