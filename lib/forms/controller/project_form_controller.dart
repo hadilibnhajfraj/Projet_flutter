@@ -257,16 +257,19 @@ Future<void> _autoLocate(String query) async {
     final q = query.trim();
     if (q.length < 3) return;
 
+    // ✅ évite recherche répétée
+    if (_lastAuto == q) return;
+    _lastAuto = q;
+
     final results = await AddressService.search(q);
     if (results.isEmpty) return;
 
     final best = results.first;
 
-    // ✅ setLocation remplit lat/lng + (optionnel) l’adresse
     setLocation(
       lat: best.lat,
       lng: best.lon,
-      address: best.displayName, // tu peux enlever si tu ne veux pas remplacer le texte
+      // address: best.displayName, // optionnel
     );
   } catch (_) {}
 }
@@ -322,19 +325,19 @@ Future<void> _autoLocate(String query) async {
 
   bool get hasLocation => latitude.value != null && longitude.value != null;
 
-  void setLocation({required double lat, required double lng, String? address}) {
-    latitude.value = lat;
-    longitude.value = lng;
+void setLocation({required double lat, required double lng, String? address}) {
+  latitude.value = lat;
+  longitude.value = lng;
 
-    if (address != null && address.trim().isNotEmpty) {
-      final newText = address.trim();
-      if (localisationAdresse.text.trim() != newText) {
-        localisationAdresse.text = newText;
-      }
+  if (address != null && address.trim().isNotEmpty) {
+    final newText = address.trim();
+    if (localisationAdresse.text.trim() != newText) {
+      localisationAdresse.text = newText;
     }
-
-    update(['location']);
   }
+
+  update(['location']);
+}
 
   double? get surfaceProspecteeValue {
     final s = _trim(surfaceProspectee.text);

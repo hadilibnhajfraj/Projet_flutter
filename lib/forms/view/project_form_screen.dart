@@ -544,7 +544,7 @@ Widget _locationBlock(ThemeData theme) {
           width: double.infinity,
           child: CommonButton(
             borderRadius: 10,
-            width: double.infinity, // si ton CommonButton utilise width
+            width: double.infinity, // si CommonButton utilise width
             onPressed: _pickLocation,
             text: "Pick on map",
           ),
@@ -577,16 +577,17 @@ Widget _locationBlock(ThemeData theme) {
 
       const SizedBox(height: 8),
 
-      // ✅ évite overflow sur mobile
+      // ✅ Lat/Lng + pas d’overflow mobile
       Obx(() {
         final hasLoc = c.hasLocation;
+
         final text = hasLoc
             ? "Lat: ${c.latitude.value}, Lng: ${c.longitude.value}"
             : "Select an address or choose it on the map.";
 
         return Wrap(
           children: [
-            Text(
+            SelectableText(
               text,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: hasLoc ? colorPrimary100 : colorGrey700,
