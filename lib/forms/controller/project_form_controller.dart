@@ -9,7 +9,7 @@ import '../../providers/api_client.dart';
 class ProjectFormController extends GetxController {
   final formKey = GlobalKey<FormState>();
 
-  // Champs
+  // ---------------- Fields ----------------
   final nomProjet = TextEditingController();
   final dateDemarrage = TextEditingController();
   final statut = TextEditingController();
@@ -18,12 +18,18 @@ class ProjectFormController extends GetxController {
   final ingenieurResponsable = TextEditingController();
   final telephoneIngenieur = TextEditingController();
 
+  // optional in UI
   final architecte = TextEditingController();
   final telephoneArchitecte = TextEditingController();
 
+  final matriculeFiscale = TextEditingController();
+
   final entreprise = TextEditingController();
+
+  // optional in UI
   final promoteur = TextEditingController();
   final bureauEtude = TextEditingController();
+
   final bureauControle = TextEditingController();
 
   final entrepriseFluide = TextEditingController();
@@ -32,12 +38,17 @@ class ProjectFormController extends GetxController {
   final localisationAdresse = TextEditingController();
   final commentaireCtrl = TextEditingController();
 
+  // ---------------- Extra fields ----------------
+  final typeProjet = TextEditingController();
+  final surfaceProspectee = TextEditingController(); // number (m²)
+  final pourcentageReussite = TextEditingController(); // number (0-100)
+  final validationStatut = TextEditingController(text: "Non validé"); // API expects FR
+
+  // ---------------- Location ----------------
   final RxnDouble latitude = RxnDouble();
   final RxnDouble longitude = RxnDouble();
 
-  final RxList<Map<String, dynamic>> locationComments =
-      <Map<String, dynamic>>[].obs;
-
+  final RxList<Map<String, dynamic>> locationComments = <Map<String, dynamic>>[].obs;
   final Rxn<DateTime> selectedDateDemarrage = Rxn<DateTime>();
 
   Timer? _debounce;
@@ -49,7 +60,15 @@ class ProjectFormController extends GetxController {
     localisationAdresse.addListener(_onAddressChanged);
   }
 
-  // ✅ reset (mode création)
+  String _trim(String v) => v.trim();
+
+  double? _toDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v.replaceAll(',', '.'));
+    return null;
+  }
+
   void resetForm() {
     nomProjet.clear();
     dateDemarrage.clear();
@@ -58,8 +77,11 @@ class ProjectFormController extends GetxController {
 
     ingenieurResponsable.clear();
     telephoneIngenieur.clear();
+
     architecte.clear();
     telephoneArchitecte.clear();
+
+    matriculeFiscale.clear();
 
     entreprise.clear();
     promoteur.clear();
@@ -72,6 +94,11 @@ class ProjectFormController extends GetxController {
     localisationAdresse.clear();
     commentaireCtrl.clear();
 
+    typeProjet.clear();
+    surfaceProspectee.clear();
+    pourcentageReussite.clear();
+    validationStatut.text = "Non validé";
+
     latitude.value = null;
     longitude.value = null;
     locationComments.clear();
@@ -81,7 +108,7 @@ class ProjectFormController extends GetxController {
   }
 
   // =========================
-  // ✅ LOAD PROJECT (edit)
+  // LOAD PROJECT (edit)
   // =========================
   Future<void> loadProject(String id) async {
     final res = await ApiClient.instance.dio.get('/projects/$id');
@@ -98,6 +125,8 @@ class ProjectFormController extends GetxController {
     architecte.text = (j['architecte'] ?? '').toString();
     telephoneArchitecte.text = (j['telephoneArchitecte'] ?? '').toString();
 
+    matriculeFiscale.text = (j['matriculeFiscale'] ?? j['matricule_fiscale'] ?? '').toString();
+
     entreprise.text = (j['entreprise'] ?? '').toString();
     promoteur.text = (j['promoteur'] ?? '').toString();
     bureauEtude.text = (j['bureauEtude'] ?? '').toString();
@@ -108,7 +137,15 @@ class ProjectFormController extends GetxController {
 
     localisationAdresse.text = (j['adresse'] ?? '').toString();
 
-    // ✅ date picker sync
+    typeProjet.text = (j['typeProjet'] ?? '').toString();
+    validationStatut.text = (j['validationStatut'] ?? 'Non validé').toString();
+
+    final pr = _toDouble(j['pourcentageReussite']);
+    pourcentageReussite.text = pr == null ? '' : pr.toString();
+
+    final sp = _toDouble(j['surfaceProspectee']);
+    surfaceProspectee.text = sp == null ? '' : sp.toString();
+
     final dt = dateDemarrage.text.trim();
     if (dt.isNotEmpty) {
       try {
@@ -116,25 +153,15 @@ class ProjectFormController extends GetxController {
       } catch (_) {}
     }
 
-    // ✅ LOCATION (supporte plusieurs formats)
-    double? _toDouble(dynamic v) {
-      if (v == null) return null;
-      if (v is num) return v.toDouble();
-      if (v is String) return double.tryParse(v.replaceAll(',', '.'));
-      return null;
-    }
-
     double? lat;
     double? lng;
 
-    // cas 1: location: { lat, lng }
     final loc = j['location'];
     if (loc is Map) {
       lat = _toDouble(loc['lat'] ?? loc['latitude']);
       lng = _toDouble(loc['lng'] ?? loc['lon'] ?? loc['longitude']);
     }
 
-    // cas 2: champs plats latitude/longitude
     lat ??= _toDouble(j['lat'] ?? j['latitude']);
     lng ??= _toDouble(j['lng'] ?? j['lon'] ?? j['longitude']);
 
@@ -146,11 +173,9 @@ class ProjectFormController extends GetxController {
       longitude.value = null;
     }
 
-    // ✅ comments
     final cmts = j['comments'];
     if (cmts is List) {
-      locationComments.value =
-          cmts.map((e) => Map<String, dynamic>.from(e)).toList();
+      locationComments.value = cmts.map((e) => Map<String, dynamic>.from(e)).toList();
     } else {
       locationComments.clear();
     }
@@ -159,7 +184,7 @@ class ProjectFormController extends GetxController {
   }
 
   // =========================
-  // ✅ DATE PICKER
+  // DATE PICKER
   // =========================
   Future<void> pickDateDemarrage(BuildContext context) async {
     FocusScope.of(context).unfocus();
@@ -180,7 +205,7 @@ class ProjectFormController extends GetxController {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: const Text("Sélectionner une date"),
+          title: const Text("Select a date"),
           content: SizedBox(
             width: 420,
             height: 360,
@@ -213,7 +238,7 @@ class ProjectFormController extends GetxController {
   }
 
   // =========================
-  // ✅ AUTO GEOCODE
+  // AUTO GEOCODE
   // =========================
   void _onAddressChanged() {
     final q = localisationAdresse.text.trim();
@@ -237,26 +262,47 @@ class ProjectFormController extends GetxController {
   }
 
   // =========================
-  // ✅ VALIDATORS
+  // VALIDATORS (EN)
   // =========================
   String? requiredValidator(String? v, String label) {
-    if (v == null || v.trim().isEmpty) return "$label est obligatoire";
+    if (v == null || v.trim().isEmpty) return "$label is required";
     return null;
   }
 
   String? phoneValidator(String? v, String label) {
     final value = (v ?? "").trim();
-    if (value.isEmpty) return "$label est obligatoire";
+    if (value.isEmpty) return "$label is required";
     if (!RegExp(r'^[0-9+\s\-()]{6,30}$').hasMatch(value)) {
-      return "$label invalide";
+      return "Invalid $label";
     }
     return null;
   }
 
+  String? phoneOptionalValidator(String? v, String label) {
+    final value = (v ?? "").trim();
+    if (value.isEmpty) return null;
+    if (!RegExp(r'^[0-9+\s\-()]{6,30}$').hasMatch(value)) {
+      return "Invalid $label";
+    }
+    return null;
+  }
+
+  String? numberValidator(String? v, String label, {double? min, double? max}) {
+    final s = (v ?? "").trim();
+    if (s.isEmpty) return null;
+    final n = double.tryParse(s.replaceAll(',', '.'));
+    if (n == null) return "$label must be a number";
+    if (min != null && n < min) return "$label must be >= $min";
+    if (max != null && n > max) return "$label must be <= $max";
+    return null;
+  }
+
+  String? percentValidator(String? v) => numberValidator(v, "Success rate", min: 0, max: 100);
+  String? surfaceValidator(String? v) => numberValidator(v, "Prospected area", min: 0);
+
   bool get hasLocation => latitude.value != null && longitude.value != null;
 
-  void setLocation(
-      {required double lat, required double lng, String? address}) {
+  void setLocation({required double lat, required double lng, String? address}) {
     latitude.value = lat;
     longitude.value = lng;
 
@@ -268,6 +314,18 @@ class ProjectFormController extends GetxController {
     }
 
     update(['location']);
+  }
+
+  double? get surfaceProspecteeValue {
+    final s = _trim(surfaceProspectee.text);
+    if (s.isEmpty) return null;
+    return double.tryParse(s.replaceAll(',', '.'));
+  }
+
+  double? get pourcentageReussiteValue {
+    final s = _trim(pourcentageReussite.text);
+    if (s.isEmpty) return null;
+    return double.tryParse(s.replaceAll(',', '.'));
   }
 
   @override
@@ -283,6 +341,7 @@ class ProjectFormController extends GetxController {
     telephoneIngenieur.dispose();
     architecte.dispose();
     telephoneArchitecte.dispose();
+    matriculeFiscale.dispose();
     entreprise.dispose();
     promoteur.dispose();
     bureauEtude.dispose();
@@ -291,6 +350,10 @@ class ProjectFormController extends GetxController {
     entrepriseElectricite.dispose();
     localisationAdresse.dispose();
     commentaireCtrl.dispose();
+    typeProjet.dispose();
+    surfaceProspectee.dispose();
+    pourcentageReussite.dispose();
+    validationStatut.dispose();
 
     super.onClose();
   }

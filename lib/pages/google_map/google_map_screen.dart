@@ -77,30 +77,80 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
     await Future.delayed(const Duration(milliseconds: 80));
     await mc.animateCamera(CameraUpdate.newLatLngZoom(p, zoom));
   }
+  LatLng? tryParseLatLngFromGoogleUrl(String text) {
+  final t = text.trim();
 
-  Future<void> _autoLocate(String query) async {
-    try {
-      final results = await AddressService.search(query);
-      if (!mounted || results.isEmpty) return;
-
-      final best = results.first;
-      _lastQuery = best.displayName;
-
-      final clean = best.displayName.trim();
-      if (addressCtrl.text.trim() != clean) {
-        addressCtrl.value = addressCtrl.value.copyWith(
-          text: clean,
-          selection: TextSelection.collapsed(offset: clean.length),
-          composing: TextRange.empty,
-        );
-      }
-
-      final p = LatLng(best.lat, best.lon);
-      _applyLocation(p);
-      await _moveCamera(p, 16);
-      if (mounted) setState(() {});
-    } catch (_) {}
+  // https://www.google.com/maps?q=36.8,10.1
+  final qMatch = RegExp(r"[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)").firstMatch(t);
+  if (qMatch != null) {
+    return LatLng(double.parse(qMatch.group(1)!), double.parse(qMatch.group(2)!));
   }
+
+  // .../@36.8093547,10.1316342,17z
+  final atMatch = RegExp(r"@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)").firstMatch(t);
+  if (atMatch != null) {
+    return LatLng(double.parse(atMatch.group(1)!), double.parse(atMatch.group(2)!));
+  }
+
+  return null;
+}
+
+bool isShortGoogleMapsLink(String t) {
+  final s = t.trim().toLowerCase();
+  return s.contains("maps.app.goo.gl") ||
+      s.contains("naps.app.goo.gl") ||
+      s.contains("goo.gl/maps");
+}
+
+Future<void> _autoLocate(String query) async {
+  try {
+    // 1) Si l'utilisateur a collé un lien Google Maps qui contient déjà lat/lng
+    final parsed = tryParseLatLngFromGoogleUrl(query);
+    if (parsed != null) {
+      _lastQuery = query.trim();
+      _applyLocation(parsed);
+      await _moveCamera(parsed, 16);
+      if (mounted) setState(() {});
+      return;
+    }
+
+    // 2) Si c'est un shortlink (maps.app.goo.gl / naps.app.goo.gl)
+    // => impossible à parser sans suivre la redirection
+    if (isShortGoogleMapsLink(query)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Lien Google Maps court détecté. Clique sur la map pour choisir la position, "
+            "ou colle un lien complet qui contient les coordonnées (q=lat,lng).",
+          ),
+        ),
+      );
+      return;
+    }
+
+    // 3) Sinon : recherche normale via ton service (autocomplete / geocoding)
+    final results = await AddressService.search(query);
+    if (!mounted || results.isEmpty) return;
+
+    final best = results.first;
+    _lastQuery = best.displayName;
+
+    final clean = best.displayName.trim();
+    if (addressCtrl.text.trim() != clean) {
+      addressCtrl.value = addressCtrl.value.copyWith(
+        text: clean,
+        selection: TextSelection.collapsed(offset: clean.length),
+        composing: TextRange.empty,
+      );
+    }
+
+    final p = LatLng(best.lat, best.lon);
+    _applyLocation(p);
+    await _moveCamera(p, 16);
+    if (mounted) setState(() {});
+  } catch (_) {}
+}
 
   Future<void> _onTap(LatLng p) async {
     _applyLocation(p);
