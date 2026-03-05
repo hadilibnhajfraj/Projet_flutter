@@ -11,11 +11,11 @@ class ProjectGridData {
   final String architecte;
 
   final int commentCount;
-  final String validationStatut;
+  final int taskCount; // ✅
 
+  final String validationStatut;
   final String ownerName;
 
-  // ✅ NEW
   final bool hasDevis;
   final bool hasBonCommande;
 
@@ -28,6 +28,7 @@ class ProjectGridData {
     required this.dateDemarrage,
     required this.permission,
     required this.commentCount,
+    required this.taskCount,
     required this.ingenieurResponsable,
     required this.architecte,
     required this.validationStatut,
@@ -36,13 +37,18 @@ class ProjectGridData {
     required this.hasBonCommande,
   });
 
-  // ✅ RESTORE getters (important)
   bool get canEdit => permission == "owner" || permission == "editor";
   bool get canDelete => permission == "owner";
 
+  static int _toInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    return int.tryParse(v.toString()) ?? 0;
+  }
+
   factory ProjectGridData.fromJson(Map<String, dynamic> json) {
-    final devisCount = int.tryParse("${json["devisCount"] ?? 0}") ?? 0;
-    final bcCount = int.tryParse("${json["bonCommandeCount"] ?? 0}") ?? 0;
+    final devisCount = _toInt(json["devisCount"]);
+    final bcCount = _toInt(json["bonCommandeCount"]);
 
     return ProjectGridData(
       id: (json["id"] ?? "").toString(),
@@ -52,15 +58,14 @@ class ProjectGridData {
       adresse: (json["adresse"] ?? "").toString(),
       dateDemarrage: (json["dateDemarrage"] ?? "").toString(),
       permission: (json["permission"] ?? "viewer").toString(),
-      commentCount: (json["commentCount"] is int)
-          ? (json["commentCount"] as int)
-          : int.tryParse("${json["commentCount"] ?? 0}") ?? 0,
+      commentCount: _toInt(json["commentCount"]),
+      taskCount: _toInt(json["taskCount"]), // ✅ IMPORTANT
+
       ingenieurResponsable: (json["ingenieurResponsable"] ?? "").toString(),
       architecte: (json["architecte"] ?? "").toString(),
       validationStatut: (json["validationStatut"] ?? "").toString(),
       ownerName: (json["ownerName"] ?? "").toString(),
 
-      // ✅ from backend counts
       hasDevis: devisCount > 0,
       hasBonCommande: bcCount > 0,
     );
