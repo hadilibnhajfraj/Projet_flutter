@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
+import 'package:dash_master_toolkit/application/calendar/model/project_item.dart';
 class AddTaskDialog extends StatefulWidget {
-  const AddTaskDialog({super.key});
+   final List<ProjectItem> projects;
+
+  const AddTaskDialog({super.key, required this.projects});
 
   @override
   State<AddTaskDialog> createState() => _AddTaskDialogState();
@@ -14,7 +16,15 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
   final _desc = TextEditingController();
   final _startDateCtrl = TextEditingController();
   final _startTimeCtrl = TextEditingController();
+ProjectItem? _selectedProject;
 
+@override
+void initState() {
+  super.initState();
+  if (widget.projects.isNotEmpty) {
+    _selectedProject = widget.projects.first;
+  }
+}
   DateTime? _startDate;
   TimeOfDay? _startTime;
 
@@ -238,6 +248,19 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 style: const TextStyle(color: kTextDark, fontWeight: FontWeight.w600),
                 decoration: _dec("Description", "Enter here", Icons.notes),
               ),
+              const SizedBox(height: 12),
+
+DropdownButtonFormField<ProjectItem>(
+  value: _selectedProject,
+  items: widget.projects.map<DropdownMenuItem<ProjectItem>>((ProjectItem p) {
+    return DropdownMenuItem<ProjectItem>(
+      value: p,
+      child: Text(p.nomProjet, overflow: TextOverflow.ellipsis),
+    );
+  }).toList(),
+  onChanged: (ProjectItem? v) => setState(() => _selectedProject = v),
+  decoration: _dec("Project", "Select project", Icons.business_center_outlined),
+),
             ],
           ),
         ),
@@ -271,6 +294,7 @@ class _AddTaskDialogState extends State<AddTaskDialog> {
                 "title": _title.text.trim(),
                 "start": start,
                 "description": _desc.text.trim(),
+                "projectId": _selectedProject!.id,     // ✅ NEW
               });
             },
             child: const Text("Save"),

@@ -6,6 +6,10 @@ class TaskModel {
   final String status;
   final String? creatorEmail;
 
+  // ✅ NEW
+  final String? projectId;
+  final String? projectName;
+
   TaskModel({
     required this.id,
     required this.title,
@@ -13,6 +17,8 @@ class TaskModel {
     required this.startAt,
     required this.status,
     this.creatorEmail,
+    this.projectId,
+    this.projectName,
   });
 
   factory TaskModel.fromJson(Map<String, dynamic> json) {
@@ -23,6 +29,10 @@ class TaskModel {
       startAt: DateTime.tryParse((json["startAt"] ?? "").toString()) ?? DateTime.now(),
       status: (json["status"] ?? "planned").toString(),
       creatorEmail: json["creatorEmail"]?.toString(),
+
+      // ✅ NEW
+      projectId: json["projectId"]?.toString(),
+      projectName: json["projectName"]?.toString(),
     );
   }
 }

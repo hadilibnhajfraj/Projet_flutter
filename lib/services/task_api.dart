@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:dash_master_toolkit/providers/api_client.dart';
 import 'package:dash_master_toolkit/application/calendar/model/task_model.dart';
-
+import 'package:dash_master_toolkit/application/calendar/model/project_item.dart';
 class TaskApi {
   TaskApi._();
   static final instance = TaskApi._();
@@ -25,11 +25,13 @@ class TaskApi {
     required String title,
     required DateTime startAt,
     String? description,
+    required String projectId,     // ✅ NEW
   }) async {
     final res = await _dio.post("/tasks", data: {
       "title": title.trim(),
       "description": (description ?? "").trim(),
       "startAt": startAt.toUtc().toIso8601String(),
+      "projectId": projectId,     // ✅ NEW
     });
 
     return TaskModel.fromJson(Map<String, dynamic>.from(res.data));
@@ -55,4 +57,9 @@ class TaskApi {
   Future<void> deleteTask({required String id}) async {
     await _dio.delete("/tasks/$id");
   }
+  Future<List<ProjectItem>> listMyProjects() async {
+  final res = await ApiClient.instance.dio.get("/tasks/my-projects");
+  final data = (res.data as List);
+  return data.map((e) => ProjectItem.fromJson(e)).toList();
+}
 }

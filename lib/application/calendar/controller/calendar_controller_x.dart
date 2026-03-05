@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:dash_master_toolkit/application/calendar/calendar_imports.dart';
 import 'package:dash_master_toolkit/services/task_api.dart';
 import 'package:dash_master_toolkit/application/calendar/model/task_model.dart';
-
+import 'package:dash_master_toolkit/application/calendar/model/project_item.dart';
 class CalendarControllerX extends GetxController {
   var selectedDate = DateTime.now().obs;
 
@@ -14,6 +14,7 @@ class CalendarControllerX extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    loadMyProjects();               // ✅ NEW
     fetchTasksAndBuildCalendar();
 
     calendarController.addPropertyChangedListener((String property) {
@@ -60,11 +61,13 @@ class CalendarControllerX extends GetxController {
     required String title,
     required DateTime start,
     String description = "",
+    required String projectId,     // ✅ NEW
   }) async {
     await TaskApi.instance.createTask(
       title: title,
       startAt: start,
       description: description,
+      projectId: projectId,         // ✅ NEW
     );
     await fetchTasksAndBuildCalendar();
   }
@@ -76,4 +79,14 @@ class CalendarControllerX extends GetxController {
 
   void goToPrevious() => calendarController.backward?.call();
   void goToNext() => calendarController.forward?.call();
+  var myProjects = <ProjectItem>[].obs;
+
+Future<void> loadMyProjects() async {
+  try {
+    final list = await TaskApi.instance.listMyProjects();
+    myProjects.assignAll(list);
+  } catch (_) {
+    myProjects.clear();
+  }
+}
 }
