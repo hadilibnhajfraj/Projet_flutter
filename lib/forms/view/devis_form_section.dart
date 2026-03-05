@@ -55,7 +55,15 @@ class _DevisFormSectionState extends State<DevisFormSection> {
     super.initState();
     _loadDevis();
   }
+bool _isValidMatricule(String v) {
+  final value = v.trim();
 
+  // Format: digits/LETTER/LETTER/LETTER/0/0/0
+  // Example: 1234567/A/B/C/0/0/0
+  final reg = RegExp(r'^\d+\/[A-Za-z]\/[A-Za-z]\/[A-Za-z]\/0\/0\/0$');
+
+  return reg.hasMatch(value);
+}
   Future<void> _loadDevis() async {
     setState(() => _loading = true);
     try {
@@ -130,7 +138,10 @@ class _DevisFormSectionState extends State<DevisFormSection> {
       _toast("Validation", "Fiscal ID is required.");
       return; // stop: no upload
     }
-
+if (!_isValidMatricule(fiscalId.trim())) {
+  _toast("Validation", "Matricule fiscal invalide. Exemple: 1234567/A/B/C/0/0/0");
+  return;
+}
     setState(() => _saving = true);
     try {
       // Save fiscal ID only if not already set
@@ -166,38 +177,85 @@ class _DevisFormSectionState extends State<DevisFormSection> {
     }
   }
 
-  Future<String?> _askFiscalIdRequired({
-    required String initial,
-    required bool readOnly,
-  }) async {
-    final ctrl = TextEditingController(text: initial);
+Future<String?> _askFiscalIdRequired({
+  required String initial,
+  required bool readOnly,
+}) async {
+  final ctrl = TextEditingController(text: initial);
+  String? errorText;
 
-    return showDialog<String?>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Fiscal ID"),
-        content: TextField(
-          controller: ctrl,
-          readOnly: readOnly,
-          decoration: const InputDecoration(hintText: "Example: 1234567/A/B/000"),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              if (ctrl.text.trim().isEmpty) return;
-              Navigator.pop(ctx, ctrl.text.trim());
-            },
-            child: const Text("Confirm"),
+  return showDialog<String?>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setStateDialog) {
+        void validateNow() {
+          if (readOnly) return;
+          final v = ctrl.text.trim();
+          if (v.isEmpty) {
+            setStateDialog(() => errorText = "Matricule fiscal obligatoire.");
+            return;
+          }
+          if (!_isValidMatricule(v)) {
+            setStateDialog(() => errorText =
+                "Format invalide. Exemple: 1234567/A/B/C/0/0/0");
+            return;
+          }
+          setStateDialog(() => errorText = null);
+        }
+
+        return AlertDialog(
+          title: const Text("Matricule fiscale"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: ctrl,
+                readOnly: readOnly,
+                onChanged: (_) => validateNow(),
+                decoration: InputDecoration(
+                  hintText: "Ex: 1234567/A/B/C/0/0/0",
+                  errorText: errorText,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "Format requis: (chiffres)/A/B/C/0/0/0",
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                if (readOnly) {
+                  // si readonly, on accepte directement (déjà validé avant)
+                  Navigator.pop(ctx, ctrl.text.trim());
+                  return;
+                }
+
+                final v = ctrl.text.trim();
+                if (v.isEmpty || !_isValidMatricule(v)) {
+                  validateNow(); // affiche l’erreur
+                  return;
+                }
+                Navigator.pop(ctx, v);
+              },
+              child: const Text("Confirm"),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
 
   Future<bool?> _confirmDelete({required String filename}) {
     return showDialog<bool>(

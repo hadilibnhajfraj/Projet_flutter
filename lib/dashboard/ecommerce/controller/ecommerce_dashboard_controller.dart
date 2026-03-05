@@ -16,9 +16,9 @@ class EcommerceDashboardController extends GetxController {
 
   // ✅ baseUrl
   String get baseUrl {
-    if (kIsWeb) return "https://api.crmprobar.com";
-    if (Platform.isAndroid) return "https://api.crmprobar.com";
-    return "https://api.crmprobar.com";
+    if (kIsWeb) return "http://localhost:4000";
+    if (Platform.isAndroid) return "http://localhost:4000";
+    return "http://localhost:4000";
   }
 
   // ✅ role admin/superadmin
