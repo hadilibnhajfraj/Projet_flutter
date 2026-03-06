@@ -7,7 +7,7 @@ import 'package:dash_master_toolkit/application/kanban/view/kanban_view_screen.d
 import 'package:dash_master_toolkit/application/users/view/user_grid_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/user_list_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/user_profile_screen.dart';
-
+import 'package:dash_master_toolkit/application/users/view/commercial_contact_create_screen.dart';
 import 'package:dash_master_toolkit/dashboard/academic/view/academic_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/ecommerce/view/ecommerce_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/finance/view/finance_dashboard_screen.dart';
@@ -102,7 +102,7 @@ class MyRoute {
   static const userListScreen = '/users/user-list';
   static const userGridScreen = '/users/project-list';
   static const userProfileScreen = '/users/user_profile';
-
+static const commercialProfileScreen = '/commercial';
   static const signInScreen = '/authentication/signin';
   static const signUpScreen = '/authentication/signup';
   static const forgotPasswordScreen = '/authentication/forgot_password';
@@ -272,7 +272,11 @@ class MyRoute {
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: TermsConditionScreen()),
           ),
-
+GoRoute(
+  path: MyRoute.commercialProfileScreen,
+  pageBuilder: (context, state) =>
+      NoTransitionPage(child: CommercialContactCreateScreen()),
+),
           // Tables
           GoRoute(
             path: '/tables',

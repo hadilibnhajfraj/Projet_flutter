@@ -33,11 +33,14 @@ final role = (auth.userRole ?? '').toString().trim().toLowerCase();
 
 // ✅ admin OU superadmin
 final isAdmin = role == 'admin' || role == 'superadmin';
-
+final isCommercial = role == 'commercial';
 
 
     final topMenus = buildTopMenus();
-    final groupedMenus = buildGroupedMenus(isAdmin: isAdmin);
+    final groupedMenus = buildGroupedMenus(
+  isAdmin: isAdmin,
+  isCommercial: isCommercial,
+);
 
     return Drawer(
       clipBehavior: Clip.none,
