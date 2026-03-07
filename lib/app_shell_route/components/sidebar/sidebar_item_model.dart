@@ -67,7 +67,7 @@ List<SidebarItemModel> buildTopMenus() {
 // =======================
 // ✅ GROUPED MENUS (role-based)
 // =======================
-List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin,required bool isCommercial}) {
+List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin,required bool isCommercial,required bool isAccueil}) {
   return <GroupedMenuModel>[
     GroupedMenuModel(
       name: 'Application',
@@ -127,6 +127,17 @@ List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin,required bool is
           ),
         ],
       ),
-
+if (isAccueil)
+      GroupedMenuModel(
+        name: 'Accueil',
+        menus: [
+          SidebarItemModel(
+            name: 'Accueil',
+            iconPath: usersIcon, // ⚠️ mets une icône dédiée si tu veux
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: MyRoute.accueilProfileScreen, // "/commercial"
+          ),
+        ],
+      ),
   ];
 }

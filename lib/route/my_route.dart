@@ -8,6 +8,7 @@ import 'package:dash_master_toolkit/application/users/view/user_grid_screen.dart
 import 'package:dash_master_toolkit/application/users/view/user_list_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/user_profile_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_contact_create_screen.dart';
+import 'package:dash_master_toolkit/application/users/view/accueil_project_stats_table_screen.dart';
 import 'package:dash_master_toolkit/dashboard/academic/view/academic_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/ecommerce/view/ecommerce_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/finance/view/finance_dashboard_screen.dart';
@@ -50,6 +51,7 @@ import '../providers/auth_service.dart';
 import '../providers/language_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:dash_master_toolkit/forms/view/devis_upload_screen.dart';
+import 'package:get_storage/get_storage.dart';
 
 class MyRoute {
   static const login = '/login';
@@ -103,6 +105,7 @@ class MyRoute {
   static const userGridScreen = '/users/project-list';
   static const userProfileScreen = '/users/user_profile';
 static const commercialProfileScreen = '/commercial';
+static const accueilProfileScreen = '/accueil';
   static const signInScreen = '/authentication/signin';
   static const signUpScreen = '/authentication/signup';
   static const forgotPasswordScreen = '/authentication/forgot_password';
@@ -276,6 +279,29 @@ GoRoute(
   path: MyRoute.commercialProfileScreen,
   pageBuilder: (context, state) =>
       NoTransitionPage(child: CommercialContactCreateScreen()),
+),
+GoRoute(
+  path: MyRoute.accueilProfileScreen,
+  pageBuilder: (context, state) {
+    final box = GetStorage();
+
+    final token = (box.read('accessToken') ?? '').toString();
+    final role = (box.read('userRole') ?? '').toString().trim().toLowerCase();
+    final userId = (box.read('userId') ?? '').toString();
+    final userEmail = (box.read('userEmail') ?? '').toString();
+
+    print('DEBUG route token = $token');
+    print('DEBUG route role = $role');
+    print('DEBUG route userId = $userId');
+    print('DEBUG route userEmail = $userEmail');
+
+    return NoTransitionPage(
+      child: AccueilProjectStatsTableScreen(
+        token: token,
+        userRole: role,
+      ),
+    );
+  },
 ),
           // Tables
           GoRoute(
