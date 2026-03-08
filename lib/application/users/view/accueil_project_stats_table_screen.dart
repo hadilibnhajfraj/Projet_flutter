@@ -59,7 +59,7 @@ class _AccueilProjectStatsTableScreenState
             userId: user.userId,
             displayName: user.displayName,
             email: user.email,
-            periodType: 'Journalier',
+            periodType: 'Daily',
             periodLabel: d.day,
             projectsCount: d.projectsCount,
             totalProjects: user.totalProjects,
@@ -79,7 +79,7 @@ class _AccueilProjectStatsTableScreenState
             userId: user.userId,
             displayName: user.displayName,
             email: user.email,
-            periodType: 'Hebdomadaire',
+            periodType: 'Weekly',
             periodLabel: w.weekStart,
             projectsCount: w.projectsCount,
             totalProjects: user.totalProjects,
@@ -99,7 +99,7 @@ class _AccueilProjectStatsTableScreenState
             userId: user.userId,
             displayName: user.displayName,
             email: user.email,
-            periodType: 'Mensuel',
+            periodType: 'Monthly',
             periodLabel: m.month,
             projectsCount: m.projectsCount,
             totalProjects: user.totalProjects,
@@ -132,7 +132,7 @@ class _AccueilProjectStatsTableScreenState
               border: Border.all(color: kBorder),
             ),
             child: Text(
-              'Accès réservé au rôle accueil. Rôle reçu: "$role"',
+              'Access is restricted to the accueil role. Received role: "$role"',
               style: const TextStyle(
                 fontSize: 16,
                 color: kTextDark,
@@ -164,7 +164,7 @@ class _AccueilProjectStatsTableScreenState
                   border: Border.all(color: const Color(0xFFFECACA)),
                 ),
                 child: Text(
-                  'Erreur: ${snapshot.error}',
+                  'Error: ${snapshot.error}',
                   style: const TextStyle(
                     color: Colors.red,
                     fontSize: 15,
@@ -179,7 +179,7 @@ class _AccueilProjectStatsTableScreenState
           if (items.isEmpty) {
             return const Center(
               child: Text(
-                'Aucune donnée trouvée.',
+                'No data found.',
                 style: TextStyle(fontSize: 16, color: kTextMuted),
               ),
             );
@@ -195,7 +195,7 @@ class _AccueilProjectStatsTableScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Statistiques des projets',
+                  'Project Statistics',
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w800,
@@ -205,7 +205,7 @@ class _AccueilProjectStatsTableScreenState
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Analyse détaillée des projets par utilisateur avec filtres, recherche, tri et export CSV.',
+                  'Detailed project analysis by user with filters, search, sorting, and CSV export.',
                   style: TextStyle(
                     fontSize: 15,
                     color: kTextMuted,
@@ -218,25 +218,25 @@ class _AccueilProjectStatsTableScreenState
                   runSpacing: 16,
                   children: [
                     _KpiCard(
-                      title: 'Utilisateurs suivis',
+                      title: 'Tracked Users',
                       value: _countUsers(items).toString(),
                       icon: Icons.people_alt_rounded,
                       color: kPrimary,
                     ),
                     _KpiCard(
-                      title: 'Total journalier',
+                      title: 'Daily Total',
                       value: _sumProjects(dailyRows).toString(),
                       icon: Icons.today_rounded,
                       color: const Color(0xFF0EA5E9),
                     ),
                     _KpiCard(
-                      title: 'Total hebdomadaire',
+                      title: 'Weekly Total',
                       value: _sumProjects(weeklyRows).toString(),
                       icon: Icons.calendar_view_week_rounded,
                       color: const Color(0xFF10B981),
                     ),
                     _KpiCard(
-                      title: 'Total mensuel',
+                      title: 'Monthly Total',
                       value: _sumProjects(monthlyRows).toString(),
                       icon: Icons.bar_chart_rounded,
                       color: const Color(0xFFF59E0B),
@@ -266,7 +266,7 @@ class _AccueilProjectStatsTableScreenState
                             Icon(Icons.insights_rounded, color: kPrimary, size: 22),
                             SizedBox(width: 10),
                             Text(
-                              'Tableau analytique',
+                              'Analytics Table',
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
@@ -297,9 +297,9 @@ class _AccueilProjectStatsTableScreenState
                             fontSize: 14,
                           ),
                           tabs: const [
-                            Tab(text: 'Journalier'),
-                            Tab(text: 'Hebdomadaire'),
-                            Tab(text: 'Mensuel'),
+                            Tab(text: 'Daily'),
+                            Tab(text: 'Weekly'),
+                            Tab(text: 'Monthly'),
                           ],
                         ),
                       ),
@@ -311,25 +311,25 @@ class _AccueilProjectStatsTableScreenState
                           children: [
                             StatsDataListView(
                               rows: dailyRows,
-                              title: 'Suivi journalier',
+                              title: 'Daily Tracking',
                               periodLabelTitle: 'Date',
-                              csvFileName: 'stats_journalieres',
+                              csvFileName: 'daily_stats',
                               badgeColor: const Color(0xFFDBEAFE),
                               badgeTextColor: const Color(0xFF1D4ED8),
                             ),
                             StatsDataListView(
                               rows: weeklyRows,
-                              title: 'Suivi hebdomadaire',
-                              periodLabelTitle: 'Semaine',
-                              csvFileName: 'stats_hebdomadaires',
+                              title: 'Weekly Tracking',
+                              periodLabelTitle: 'Week',
+                              csvFileName: 'weekly_stats',
                               badgeColor: const Color(0xFFD1FAE5),
                               badgeTextColor: const Color(0xFF047857),
                             ),
                             StatsDataListView(
                               rows: monthlyRows,
-                              title: 'Suivi mensuel',
-                              periodLabelTitle: 'Mois',
-                              csvFileName: 'stats_mensuelles',
+                              title: 'Monthly Tracking',
+                              periodLabelTitle: 'Month',
+                              csvFileName: 'monthly_stats',
                               badgeColor: const Color(0xFFFEF3C7),
                               badgeTextColor: const Color(0xFFB45309),
                             ),
@@ -452,7 +452,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
   final TextEditingController _searchCtrl = TextEditingController();
 
   String _search = '';
-  String _selectedUser = 'Tous';
+  String _selectedUser = 'All';
   int _sortColumnIndex = 0;
   bool _sortAscending = true;
 
@@ -462,7 +462,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
   List<ProjectStatsRow> get _filteredRows {
     List<ProjectStatsRow> data = List<ProjectStatsRow>.from(widget.rows);
 
-    if (_selectedUser != 'Tous') {
+    if (_selectedUser != 'All') {
       data = data.where((e) => e.displayName == _selectedUser).toList();
     }
 
@@ -530,10 +530,10 @@ class _StatsDataListViewState extends State<StatsDataListView> {
 
   List<String> get _userOptions {
     final users = widget.rows.map((e) => e.displayName).toSet().toList()..sort();
-    return ['Tous', ...users];
+    return ['All', ...users];
   }
 
-  int get _activeProjectsCount {
+  int get _filteredProjectsCount {
     return _filteredRows.fold(0, (sum, e) => sum + e.projectsCount);
   }
 
@@ -553,12 +553,12 @@ class _StatsDataListViewState extends State<StatsDataListView> {
     final rows = _filteredRows;
 
     final buffer = StringBuffer();
-    buffer.writeln('Utilisateur,Email,${widget.periodLabelTitle},Nb projets,Total projets,Statut');
+    buffer.writeln('User,Email,${widget.periodLabelTitle},Projects Count,Total Projects,Status');
 
     for (final r in rows) {
-      final statut = r.projectsCount > 0 ? 'Actif' : 'Vide';
+      final status = r.projectsCount > 0 ? 'Active' : 'Empty';
       buffer.writeln(
-        '"${_escapeCsv(r.displayName)}","${_escapeCsv(r.email)}","${_escapeCsv(r.periodLabel)}","${r.projectsCount}","${r.totalProjects}","$statut"',
+        '"${_escapeCsv(r.displayName)}","${_escapeCsv(r.email)}","${_escapeCsv(r.periodLabel)}","${r.projectsCount}","${r.totalProjects}","$status"',
       );
     }
 
@@ -602,7 +602,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '${totalRows.length} lignes',
+                  '${totalRows.length} rows',
                   style: TextStyle(
                     color: widget.badgeTextColor,
                     fontSize: 12,
@@ -618,7 +618,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  'Total filtré: $_activeProjectsCount',
+                  'Filtered total: $_filteredProjectsCount',
                   style: const TextStyle(
                     color: Color(0xFF4338CA),
                     fontSize: 12,
@@ -630,7 +630,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
               ElevatedButton.icon(
                 onPressed: totalRows.isEmpty ? null : _exportCsv,
                 icon: const Icon(Icons.download_rounded, size: 18),
-                label: const Text('Exporter CSV'),
+                label: const Text('Export CSV'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kPrimary,
                   foregroundColor: Colors.white,
@@ -667,7 +667,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                       });
                     },
                     decoration: InputDecoration(
-                      hintText: 'Rechercher par utilisateur, email, période...',
+                      hintText: 'Search by user, email, period...',
                       prefixIcon: const Icon(Icons.search_rounded),
                       suffixIcon: _search.isNotEmpty
                           ? IconButton(
@@ -716,12 +716,12 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                         .toList(),
                     onChanged: (value) {
                       setState(() {
-                        _selectedUser = value ?? 'Tous';
+                        _selectedUser = value ?? 'All';
                         _page = 0;
                       });
                     },
                     decoration: InputDecoration(
-                      labelText: 'Filtrer par utilisateur',
+                      labelText: 'Filter by user',
                       filled: true,
                       fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(
@@ -748,12 +748,12 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                     _searchCtrl.clear();
                     setState(() {
                       _search = '';
-                      _selectedUser = 'Tous';
+                      _selectedUser = 'All';
                       _page = 0;
                     });
                   },
                   icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Réinitialiser'),
+                  label: const Text('Reset'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: kTextDark,
                     side: const BorderSide(color: kBorder),
@@ -810,7 +810,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                     child: rows.isEmpty
                         ? const Center(
                             child: Text(
-                              'Aucune ligne à afficher.',
+                              'No rows to display.',
                               style: TextStyle(
                                 fontSize: 15,
                                 color: kTextMuted,
@@ -859,7 +859,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                                   });
                                 }
                               : null,
-                          child: const Text('Précédent'),
+                          child: const Text('Previous'),
                         ),
                         const SizedBox(width: 10),
                         ElevatedButton(
@@ -874,7 +874,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                             backgroundColor: kPrimary,
                             foregroundColor: Colors.white,
                           ),
-                          child: const Text('Suivant'),
+                          child: const Text('Next'),
                         ),
                       ],
                     ),
@@ -945,15 +945,15 @@ class _HeaderRow extends StatelessWidget {
         height: 52,
         child: Row(
           children: [
-            _header('Utilisateur', 0, width: 240),
+            _header('User', 0, width: 240),
             _header('Email', 1, width: 270),
             _header(periodLabelTitle, 2, width: 140),
-            _header('Nb projets', 3, width: 120),
-            _header('Total projets', 4, width: 130),
+            _header('Projects Count', 3, width: 120),
+            _header('Total Projects', 4, width: 130),
             const SizedBox(
               width: 110,
               child: Text(
-                'Statut',
+                'Status',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   color: kMuted,
@@ -1085,7 +1085,7 @@ class _StatsListTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: Text(
-                  isActive ? 'Actif' : 'Vide',
+                  isActive ? 'Active' : 'Empty',
                   style: TextStyle(
                     color: isActive
                         ? const Color(0xFF166534)
