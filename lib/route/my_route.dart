@@ -9,6 +9,7 @@ import 'package:dash_master_toolkit/application/users/view/user_list_screen.dart
 import 'package:dash_master_toolkit/application/users/view/user_profile_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_contact_create_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/accueil_project_stats_table_screen.dart';
+import 'package:dash_master_toolkit/application/users/view/user_projects_screen.dart';
 import 'package:dash_master_toolkit/dashboard/academic/view/academic_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/ecommerce/view/ecommerce_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/finance/view/finance_dashboard_screen.dart';
@@ -104,6 +105,7 @@ class MyRoute {
   static const userListScreen = '/users/user-list';
   static const userGridScreen = '/users/project-list';
   static const userProfileScreen = '/users/user_profile';
+  static const projectsProfileScreen = '/users/user_project';
 static const commercialProfileScreen = '/commercial';
 static const accueilProfileScreen = '/accueil';
   static const signInScreen = '/authentication/signin';
@@ -246,6 +248,14 @@ static const accueilProfileScreen = '/accueil';
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: UserProfileScreen()),
               ),
+              GoRoute(
+  path: 'user_project',
+  pageBuilder: (context, state) => NoTransitionPage(
+    child: UserProjectsScreen(
+      token: AuthService().accessToken ?? '',
+    ),
+  ),
+),
             ],
           ),
 

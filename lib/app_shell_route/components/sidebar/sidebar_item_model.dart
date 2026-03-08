@@ -116,6 +116,10 @@ List<GroupedMenuModel> buildGroupedMenus({
               name: "Project Management",
               navigationPath: 'project-list',
             ),
+            SidebarSubmenuModel(
+              name: "Project List",
+              navigationPath: 'user_project',
+            ),
             if (isAdmin)
               SidebarSubmenuModel(
                 name: "User List",
