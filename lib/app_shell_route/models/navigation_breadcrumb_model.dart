@@ -54,6 +54,11 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
       parentRoute: 'Application',
       childRoute: 'chat',
     ),
+      MyRoute.accueilProfileScreen: NavigationBreadcrumbModel(
+      title: 'Accueil',
+      parentRoute: 'Accueil',
+      childRoute: 'Accueil',
+    ),
     MyRoute.kanbanScreen: NavigationBreadcrumbModel(
       title: 'kanban',
       parentRoute: 'Application',

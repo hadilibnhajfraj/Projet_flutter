@@ -1,5 +1,5 @@
-import 'dart:html' as html;
 import 'dart:convert';
+import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:dash_master_toolkit/application/users/model/project_stats_model.dart';
 import 'package:dash_master_toolkit/application/users/model/project_stats_row_model.dart';
@@ -130,13 +130,6 @@ class _AccueilProjectStatsTableScreenState
               color: kCard,
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: kBorder),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x14000000),
-                  blurRadius: 18,
-                  offset: Offset(0, 8),
-                ),
-              ],
             ),
             child: Text(
               'Accès réservé au rôle accueil. Rôle reçu: "$role"',
@@ -295,13 +288,6 @@ class _AccueilProjectStatsTableScreenState
                           indicator: BoxDecoration(
                             color: kPrimary,
                             borderRadius: BorderRadius.circular(12),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x332563EB),
-                                blurRadius: 12,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
                           ),
                           dividerColor: Colors.transparent,
                           labelColor: Colors.white,
@@ -319,11 +305,11 @@ class _AccueilProjectStatsTableScreenState
                       ),
                       const SizedBox(height: 16),
                       SizedBox(
-                        height: 700,
+                        height: 760,
                         child: TabBarView(
                           controller: _tabController,
                           children: [
-                            StatsDataTable(
+                            StatsDataListView(
                               rows: dailyRows,
                               title: 'Suivi journalier',
                               periodLabelTitle: 'Date',
@@ -331,7 +317,7 @@ class _AccueilProjectStatsTableScreenState
                               badgeColor: const Color(0xFFDBEAFE),
                               badgeTextColor: const Color(0xFF1D4ED8),
                             ),
-                            StatsDataTable(
+                            StatsDataListView(
                               rows: weeklyRows,
                               title: 'Suivi hebdomadaire',
                               periodLabelTitle: 'Semaine',
@@ -339,7 +325,7 @@ class _AccueilProjectStatsTableScreenState
                               badgeColor: const Color(0xFFD1FAE5),
                               badgeTextColor: const Color(0xFF047857),
                             ),
-                            StatsDataTable(
+                            StatsDataListView(
                               rows: monthlyRows,
                               title: 'Suivi mensuel',
                               periodLabelTitle: 'Mois',
@@ -435,7 +421,7 @@ class _KpiCard extends StatelessWidget {
   }
 }
 
-class StatsDataTable extends StatefulWidget {
+class StatsDataListView extends StatefulWidget {
   final List<ProjectStatsRow> rows;
   final String title;
   final String periodLabelTitle;
@@ -443,7 +429,7 @@ class StatsDataTable extends StatefulWidget {
   final Color badgeColor;
   final Color badgeTextColor;
 
-  const StatsDataTable({
+  const StatsDataListView({
     super.key,
     required this.rows,
     required this.title,
@@ -454,10 +440,10 @@ class StatsDataTable extends StatefulWidget {
   });
 
   @override
-  State<StatsDataTable> createState() => _StatsDataTableState();
+  State<StatsDataListView> createState() => _StatsDataListViewState();
 }
 
-class _StatsDataTableState extends State<StatsDataTable> {
+class _StatsDataListViewState extends State<StatsDataListView> {
   static const Color kPrimary = Color(0xFF1F6FEB);
   static const Color kBorder = Color(0xFFE5EAF2);
   static const Color kTextDark = Color(0xFF111827);
@@ -469,7 +455,9 @@ class _StatsDataTableState extends State<StatsDataTable> {
   String _selectedUser = 'Tous';
   int _sortColumnIndex = 0;
   bool _sortAscending = true;
-  int _rowsPerPage = 5;
+
+  int _page = 0;
+  final int _pageSize = 5;
 
   List<ProjectStatsRow> get _filteredRows {
     List<ProjectStatsRow> data = List<ProjectStatsRow>.from(widget.rows);
@@ -526,6 +514,20 @@ class _StatsDataTableState extends State<StatsDataTable> {
     return data;
   }
 
+  List<ProjectStatsRow> get _pagedRows {
+    final data = _filteredRows;
+    final start = _page * _pageSize;
+    if (start >= data.length) return [];
+    final end = (start + _pageSize > data.length) ? data.length : start + _pageSize;
+    return data.sublist(start, end);
+  }
+
+  int get _pageCount {
+    final len = _filteredRows.length;
+    if (len == 0) return 1;
+    return (len / _pageSize).ceil();
+  }
+
   List<String> get _userOptions {
     final users = widget.rows.map((e) => e.displayName).toSet().toList()..sort();
     return ['Tous', ...users];
@@ -535,10 +537,15 @@ class _StatsDataTableState extends State<StatsDataTable> {
     return _filteredRows.fold(0, (sum, e) => sum + e.projectsCount);
   }
 
-  void _sort(int columnIndex, bool ascending) {
+  void _sort(int columnIndex) {
     setState(() {
-      _sortColumnIndex = columnIndex;
-      _sortAscending = ascending;
+      if (_sortColumnIndex == columnIndex) {
+        _sortAscending = !_sortAscending;
+      } else {
+        _sortColumnIndex = columnIndex;
+        _sortAscending = true;
+      }
+      _page = 0;
     });
   }
 
@@ -579,18 +586,8 @@ class _StatsDataTableState extends State<StatsDataTable> {
 
   @override
   Widget build(BuildContext context) {
-    final rows = _filteredRows;
-    final source = _StatsTableSource(rows);
-
-    final availableOptions = <int>[5, 10, 20, 50]
-        .where((e) => e <= rows.length)
-        .toList();
-
-    final effectiveOptions = availableOptions.isEmpty ? <int>[5] : availableOptions;
-
-    final effectiveRowsPerPage = effectiveOptions.contains(_rowsPerPage)
-        ? _rowsPerPage
-        : effectiveOptions.first;
+    final rows = _pagedRows;
+    final totalRows = _filteredRows;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
@@ -605,7 +602,7 @@ class _StatsDataTableState extends State<StatsDataTable> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '${rows.length} lignes',
+                  '${totalRows.length} lignes',
                   style: TextStyle(
                     color: widget.badgeTextColor,
                     fontSize: 12,
@@ -631,7 +628,7 @@ class _StatsDataTableState extends State<StatsDataTable> {
               ),
               const Spacer(),
               ElevatedButton.icon(
-                onPressed: rows.isEmpty ? null : _exportCsv,
+                onPressed: totalRows.isEmpty ? null : _exportCsv,
                 icon: const Icon(Icons.download_rounded, size: 18),
                 label: const Text('Exporter CSV'),
                 style: ElevatedButton.styleFrom(
@@ -663,7 +660,12 @@ class _StatsDataTableState extends State<StatsDataTable> {
                   width: 320,
                   child: TextField(
                     controller: _searchCtrl,
-                    onChanged: (value) => setState(() => _search = value),
+                    onChanged: (value) {
+                      setState(() {
+                        _search = value;
+                        _page = 0;
+                      });
+                    },
                     decoration: InputDecoration(
                       hintText: 'Rechercher par utilisateur, email, période...',
                       prefixIcon: const Icon(Icons.search_rounded),
@@ -671,7 +673,10 @@ class _StatsDataTableState extends State<StatsDataTable> {
                           ? IconButton(
                               onPressed: () {
                                 _searchCtrl.clear();
-                                setState(() => _search = '');
+                                setState(() {
+                                  _search = '';
+                                  _page = 0;
+                                });
                               },
                               icon: const Icon(Icons.close_rounded),
                             )
@@ -712,6 +717,7 @@ class _StatsDataTableState extends State<StatsDataTable> {
                     onChanged: (value) {
                       setState(() {
                         _selectedUser = value ?? 'Tous';
+                        _page = 0;
                       });
                     },
                     decoration: InputDecoration(
@@ -743,6 +749,7 @@ class _StatsDataTableState extends State<StatsDataTable> {
                     setState(() {
                       _search = '';
                       _selectedUser = 'Tous';
+                      _page = 0;
                     });
                   },
                   icon: const Icon(Icons.refresh_rounded),
@@ -775,91 +782,104 @@ class _StatsDataTableState extends State<StatsDataTable> {
                   ),
                 ],
               ),
-              child: Theme(
-                data: Theme.of(context).copyWith(
-                  cardColor: Colors.white,
-                  dividerColor: kBorder,
-                ),
-                child: PaginatedDataTable(
-                  header: Row(
-                    children: [
-                      Text(
-                        widget.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: kTextDark,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                    child: Row(
+                      children: [
+                        Text(
+                          widget.title,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: kTextDark,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                  showCheckboxColumn: false,
-                  rowsPerPage: effectiveRowsPerPage,
-                  availableRowsPerPage: effectiveOptions,
-                  onRowsPerPageChanged: (value) {
-                    if (value != null) {
-                      setState(() => _rowsPerPage = value);
-                    }
-                  },
-                  sortColumnIndex: _sortColumnIndex,
-                  sortAscending: _sortAscending,
-                  columnSpacing: 28,
-                  horizontalMargin: 20,
-                  headingRowHeight: 58,
-                  dataRowMinHeight: 64,
-                  dataRowMaxHeight: 70,
-                  columns: [
-                    DataColumn(
-                      label: const Text(
-                        'Utilisateur',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      onSort: (columnIndex, ascending) =>
-                          _sort(columnIndex, ascending),
-                    ),
-                    DataColumn(
-                      label: const Text(
-                        'Email',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      onSort: (columnIndex, ascending) =>
-                          _sort(columnIndex, ascending),
-                    ),
-                    DataColumn(
-                      label: Text(
-                        widget.periodLabelTitle,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      onSort: (columnIndex, ascending) =>
-                          _sort(columnIndex, ascending),
-                    ),
-                    DataColumn(
-                      numeric: true,
-                      label: const Text(
-                        'Nb projets',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      onSort: (columnIndex, ascending) =>
-                          _sort(columnIndex, ascending),
-                    ),
-                    DataColumn(
-                      numeric: true,
-                      label: const Text(
-                        'Total projets',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      onSort: (columnIndex, ascending) =>
-                          _sort(columnIndex, ascending),
-                    ),
-                    const DataColumn(
-                      label: Text(
-                        'Statut',
-                        style: TextStyle(fontWeight: FontWeight.w700),
+                  _HeaderRow(
+                    periodLabelTitle: widget.periodLabelTitle,
+                    sortColumnIndex: _sortColumnIndex,
+                    sortAscending: _sortAscending,
+                    onSort: _sort,
+                  ),
+                  const Divider(height: 1, thickness: 1),
+                  Expanded(
+                    child: rows.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Aucune ligne à afficher.',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: kTextMuted,
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            itemCount: rows.length,
+                            separatorBuilder: (_, __) => const Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: kBorder,
+                            ),
+                            itemBuilder: (context, index) {
+                              final r = rows[index];
+                              return _StatsListTile(
+                                row: r,
+                                periodLabelTitle: widget.periodLabelTitle,
+                              );
+                            },
+                          ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: kBorder),
                       ),
                     ),
-                  ],
-                  source: source,
-                ),
+                    child: Row(
+                      children: [
+                        Text(
+                          'Page ${_page + 1} / $_pageCount',
+                          style: const TextStyle(
+                            color: kTextMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Spacer(),
+                        OutlinedButton(
+                          onPressed: _page > 0
+                              ? () {
+                                  setState(() {
+                                    _page--;
+                                  });
+                                }
+                              : null,
+                          child: const Text('Précédent'),
+                        ),
+                        const SizedBox(width: 10),
+                        ElevatedButton(
+                          onPressed: (_page + 1) < _pageCount
+                              ? () {
+                                  setState(() {
+                                    _page++;
+                                  });
+                                }
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kPrimary,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: const Text('Suivant'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -869,134 +889,216 @@ class _StatsDataTableState extends State<StatsDataTable> {
   }
 }
 
-class _StatsTableSource extends DataTableSource {
-  final List<ProjectStatsRow> rows;
+class _HeaderRow extends StatelessWidget {
+  final String periodLabelTitle;
+  final int sortColumnIndex;
+  final bool sortAscending;
+  final void Function(int index) onSort;
 
-  _StatsTableSource(this.rows);
+  const _HeaderRow({
+    required this.periodLabelTitle,
+    required this.sortColumnIndex,
+    required this.sortAscending,
+    required this.onSort,
+  });
 
-  @override
-  DataRow? getRow(int index) {
-    if (index >= rows.length) return null;
+  static const Color kTextDark = Color(0xFF111827);
+  static const Color kMuted = Color(0xFF6B7280);
 
-    final r = rows[index];
-    final isEven = index.isEven;
-
-    return DataRow.byIndex(
-      index: index,
-      color: WidgetStateProperty.resolveWith<Color?>(
-        (states) => isEven ? Colors.white : const Color(0xFFFBFDFF),
+  Widget _header(String text, int index, {double width = 140}) {
+    final isActive = sortColumnIndex == index;
+    return InkWell(
+      onTap: () => onSort(index),
+      child: SizedBox(
+        width: width,
+        child: Row(
+          children: [
+            Flexible(
+              child: Text(
+                text,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: isActive ? kTextDark : kMuted,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            if (isActive)
+              Icon(
+                sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                size: 16,
+                color: kTextDark,
+              ),
+          ],
+        ),
       ),
-      cells: [
-        DataCell(
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: const Color(0xFFDBEAFE),
-                child: Text(
-                  r.displayName.isNotEmpty ? r.displayName[0].toUpperCase() : '?',
-                  style: const TextStyle(
-                    color: Color(0xFF1D4ED8),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 180,
-                child: Text(
-                  r.displayName,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF111827),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        DataCell(
-          SizedBox(
-            width: 220,
-            child: Text(
-              r.email,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Color(0xFF6B7280),
-              ),
-            ),
-          ),
-        ),
-        DataCell(
-          Text(
-            r.periodLabel,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF111827),
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEEF2FF),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Text(
-              r.projectsCount.toString(),
-              style: const TextStyle(
-                color: Color(0xFF4338CA),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-        DataCell(
-          Text(
-            r.totalProjects.toString(),
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF111827),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        DataCell(
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: r.projectsCount > 0
-                  ? const Color(0xFFDCFCE7)
-                  : const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Text(
-              r.projectsCount > 0 ? 'Actif' : 'Vide',
-              style: TextStyle(
-                color: r.projectsCount > 0
-                    ? const Color(0xFF166534)
-                    : const Color(0xFF6B7280),
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
   @override
-  bool get isRowCountApproximate => false;
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+      child: SizedBox(
+        height: 52,
+        child: Row(
+          children: [
+            _header('Utilisateur', 0, width: 240),
+            _header('Email', 1, width: 270),
+            _header(periodLabelTitle, 2, width: 140),
+            _header('Nb projets', 3, width: 120),
+            _header('Total projets', 4, width: 130),
+            const SizedBox(
+              width: 110,
+              child: Text(
+                'Statut',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: kMuted,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatsListTile extends StatelessWidget {
+  final ProjectStatsRow row;
+  final String periodLabelTitle;
+
+  const _StatsListTile({
+    required this.row,
+    required this.periodLabelTitle,
+  });
+
+  static const Color kTextDark = Color(0xFF111827);
+  static const Color kTextMuted = Color(0xFF6B7280);
 
   @override
-  int get rowCount => rows.length;
+  Widget build(BuildContext context) {
+    final isActive = row.projectsCount > 0;
 
-  @override
-  int get selectedRowCount => 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 240,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 22,
+                  backgroundColor: const Color(0xFFDBEAFE),
+                  child: Text(
+                    row.displayName.isNotEmpty ? row.displayName[0].toUpperCase() : '?',
+                    style: const TextStyle(
+                      color: Color(0xFF1D4ED8),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    row.displayName,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: kTextDark,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 270,
+            child: Text(
+              row.email,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 14,
+                color: kTextMuted,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 140,
+            child: Text(
+              row.periodLabel,
+              style: const TextStyle(
+                fontSize: 14,
+                color: kTextDark,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 120,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Text(
+                  row.projectsCount.toString(),
+                  style: const TextStyle(
+                    color: Color(0xFF4338CA),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 130,
+            child: Text(
+              row.totalProjects.toString(),
+              style: const TextStyle(
+                fontSize: 14,
+                color: kTextDark,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 110,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? const Color(0xFFDCFCE7)
+                      : const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Text(
+                  isActive ? 'Actif' : 'Vide',
+                  style: TextStyle(
+                    color: isActive
+                        ? const Color(0xFF166534)
+                        : const Color(0xFF6B7280),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
