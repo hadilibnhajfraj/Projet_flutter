@@ -36,7 +36,7 @@ final isAdmin = role == 'admin' || role == 'superadmin';
 final isCommercial = role == 'commercial';
 final isAccueil = role == 'accueil';
 
-    final topMenus = buildTopMenus();
+    final topMenus = buildTopMenus(isAccueil: isAccueil);
     final groupedMenus = buildGroupedMenus(
   isAdmin: isAdmin,
   isCommercial: isCommercial,

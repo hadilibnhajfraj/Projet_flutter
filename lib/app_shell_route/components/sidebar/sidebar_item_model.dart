@@ -49,7 +49,14 @@ enum SidebarItemType { tile, submenu }
 // =======================
 // ✅ TOP MENUS
 // =======================
-List<SidebarItemModel> buildTopMenus() {
+List<SidebarItemModel> buildTopMenus({
+  required bool isAccueil,
+}) {
+  // ✅ If accueil => no top menu at all
+  if (isAccueil) {
+    return <SidebarItemModel>[];
+  }
+
   return <SidebarItemModel>[
     SidebarItemModel(
       name: 'Dashboard',
@@ -57,8 +64,14 @@ List<SidebarItemModel> buildTopMenus() {
       navigationPath: '/dashboard',
       sidebarItemType: SidebarItemType.submenu,
       submenus: [
-        SidebarSubmenuModel(name: 'Project Performance Analytics', navigationPath: 'kpi-project'),
-        SidebarSubmenuModel(name: 'Project Validation & Success KPIs', navigationPath: 'kpi-projects'),
+        SidebarSubmenuModel(
+          name: 'Project Performance Analytics',
+          navigationPath: 'kpi-project',
+        ),
+        SidebarSubmenuModel(
+          name: 'Project Validation & Success KPIs',
+          navigationPath: 'kpi-projects',
+        ),
       ],
     ),
   ];
@@ -67,7 +80,28 @@ List<SidebarItemModel> buildTopMenus() {
 // =======================
 // ✅ GROUPED MENUS (role-based)
 // =======================
-List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin,required bool isCommercial,required bool isAccueil}) {
+List<GroupedMenuModel> buildGroupedMenus({
+  required bool isAdmin,
+  required bool isCommercial,
+  required bool isAccueil,
+}) {
+  // ✅ If accueil => show only Accueil menu
+  if (isAccueil) {
+    return <GroupedMenuModel>[
+      GroupedMenuModel(
+        name: 'Accueil',
+        menus: [
+          SidebarItemModel(
+            name: 'Accueil',
+            iconPath: usersIcon,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: MyRoute.accueilProfileScreen,
+          ),
+        ],
+      ),
+    ];
+  }
+
   return <GroupedMenuModel>[
     GroupedMenuModel(
       name: 'Application',
@@ -78,12 +112,15 @@ List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin,required bool is
           sidebarItemType: SidebarItemType.submenu,
           navigationPath: '/users',
           submenus: [
-            // ✅ Toujours visible
-            SidebarSubmenuModel(name: "Project Management", navigationPath: 'project-list'),
-
-            // ✅ Visible seulement Admin/SuperAdmin
+            SidebarSubmenuModel(
+              name: "Project Management",
+              navigationPath: 'project-list',
+            ),
             if (isAdmin)
-              SidebarSubmenuModel(name: "User List", navigationPath: 'user-list'),
+              SidebarSubmenuModel(
+                name: "User List",
+                navigationPath: 'user-list',
+              ),
           ],
         ),
       ],
@@ -92,7 +129,7 @@ List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin,required bool is
       name: 'Pages',
       menus: [
         SidebarItemModel(
-          name: 'googleMap',
+          name: 'Google Map',
           iconPath: projectsIcon,
           navigationPath: MyRoute.mapScreen,
         ),
@@ -108,7 +145,7 @@ List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin,required bool is
       menus: [
         if (!isAdmin)
           SidebarItemModel(
-            name: 'projects',
+            name: 'Projects',
             iconPath: formsIcon,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.projectFormScreen,
@@ -121,21 +158,9 @@ List<GroupedMenuModel> buildGroupedMenus({required bool isAdmin,required bool is
         menus: [
           SidebarItemModel(
             name: 'Commercial Profile',
-            iconPath: usersIcon, // ⚠️ mets une icône dédiée si tu veux
+            iconPath: usersIcon,
             sidebarItemType: SidebarItemType.tile,
-            navigationPath: MyRoute.commercialProfileScreen, // "/commercial"
-          ),
-        ],
-      ),
-if (isAccueil)
-      GroupedMenuModel(
-        name: 'Accueil',
-        menus: [
-          SidebarItemModel(
-            name: 'Accueil',
-            iconPath: usersIcon, // ⚠️ mets une icône dédiée si tu veux
-            sidebarItemType: SidebarItemType.tile,
-            navigationPath: MyRoute.accueilProfileScreen, // "/commercial"
+            navigationPath: MyRoute.commercialProfileScreen,
           ),
         ],
       ),
