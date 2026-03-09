@@ -45,6 +45,7 @@ import 'package:dash_master_toolkit/tables/view/basic_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/drag_and_drop_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/hover_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/stripped_row_table_screen.dart';
+import 'package:dash_master_toolkit/application/users/view/commercial_contact_list_getx_screen.dart';
 
 import 'package:go_router/go_router.dart';
 
@@ -78,6 +79,7 @@ class MyRoute {
   static const faqScreen = '/faq';
   static const privacyPolicyScreen = '/privacy_policy';
   static const termsConditionScreen = '/terms_condition';
+  static const commercialContacts = '/commercial-contacts';
 
   static const basicTablesScreen = '/tables/basic_tables';
   static const stripedRowTableScreen = '/tables/striped_row_table';
@@ -252,6 +254,14 @@ static const accueilProfileScreen = '/accueil';
   path: 'user_project',
   pageBuilder: (context, state) => NoTransitionPage(
     child: UserProjectsScreen(
+      token: AuthService().accessToken ?? '',
+    ),
+  ),
+),
+GoRoute(
+  path: '/commercial-contacts',
+  pageBuilder: (context, state) => NoTransitionPage(
+    child: CommercialContactListGetxScreen(
       token: AuthService().accessToken ?? '',
     ),
   ),

@@ -64,6 +64,11 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
       parentRoute: 'Project List',
       childRoute: 'Project List',
     ),
+    MyRoute.commercialContacts: NavigationBreadcrumbModel(
+      title: 'Commercial Project List',
+      parentRoute: 'Commercial Project List',
+      childRoute: 'Commercial Project List',
+    ),
     MyRoute.kanbanScreen: NavigationBreadcrumbModel(
       title: 'kanban',
       parentRoute: 'Application',

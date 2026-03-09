@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:dash_master_toolkit/application/users/controller/commercial_contact_create_controller.dart';
-
+import 'package:go_router/go_router.dart';
+import 'package:dash_master_toolkit/application/users/controller/commercial_contact_controller.dart';
+import 'package:dash_master_toolkit/application/users/model/commercial_contact_model.dart';
 class CommercialContactCreateScreen extends StatelessWidget {
   CommercialContactCreateScreen({super.key});
 
@@ -73,41 +75,45 @@ class CommercialContactCreateScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _handleSubmit(BuildContext context) async {
-    try {
-      final ok = await c.submit();
+Future<void> _handleSubmit(BuildContext context) async {
+  try {
+    final ok = await c.submit();
 
-      if (!context.mounted) return;
+    if (!context.mounted) return;
 
-      if (!ok) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("First name, last name and phone number are required."),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
+    if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Commercial contact created successfully."),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // If you want to navigate back after save, uncomment:
-      // Navigator.of(context).maybePop();
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Creation failed: $e"),
+          content: Text("First name, last name and phone number are required."),
           backgroundColor: Colors.red,
         ),
       );
+      return;
     }
+
+    if (Get.isRegistered<CommercialContactController>()) {
+      await Get.find<CommercialContactController>().fetchContacts();
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("Commercial contact created successfully."),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    if (!context.mounted) return;
+    GoRouter.of(context).go('/users/commercial-contacts');
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Creation failed: $e"),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
