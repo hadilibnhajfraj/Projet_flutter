@@ -40,12 +40,12 @@ class ApiClient {
   static final ApiClient instance = ApiClient._internal();
 
   // ✅ IMPORTANT :
-  // - Flutter Web => localhost
+  // - Flutter Web => https://api.crmprobar.com
   // - Android Emulator => 10.0.2.2
   // - Device réel => IP de ton PC (ex: api.crmprobar.com)
   static String get baseUrl {
-    if (kIsWeb) return 'http://localhost:4000';
-    return 'http://localhost:4000';
+    if (kIsWeb) return 'https://api.crmprobar.com';
+    return 'https://api.crmprobar.com';
   }
 
   late final Dio dio;

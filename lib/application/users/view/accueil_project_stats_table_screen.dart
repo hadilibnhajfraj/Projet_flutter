@@ -27,7 +27,7 @@ class _AccueilProjectStatsTableScreenState
   late TabController _tabController;
 
   final service = ProjectStatsService(
-    baseUrl: 'http://localhost:4000',
+    baseUrl: 'https://api.crmprobar.com',
   );
 
   static const Color kPrimary = Color(0xFF1F6FEB);
