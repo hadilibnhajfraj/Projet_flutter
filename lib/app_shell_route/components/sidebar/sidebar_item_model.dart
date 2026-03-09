@@ -51,9 +51,15 @@ enum SidebarItemType { tile, submenu }
 // =======================
 List<SidebarItemModel> buildTopMenus({
   required bool isAccueil,
+  required bool isCommercial,
 }) {
-  // ✅ If accueil => no top menu at all
+  // accueil => no top menu
   if (isAccueil) {
+    return <SidebarItemModel>[];
+  }
+
+  // commercial => no dashboard top menu
+  if (isCommercial) {
     return <SidebarItemModel>[];
   }
 
@@ -85,7 +91,7 @@ List<GroupedMenuModel> buildGroupedMenus({
   required bool isCommercial,
   required bool isAccueil,
 }) {
-  // ✅ If accueil => show only Accueil menu
+  // accueil => only Accueil
   if (isAccueil) {
     return <GroupedMenuModel>[
       GroupedMenuModel(
@@ -102,6 +108,30 @@ List<GroupedMenuModel> buildGroupedMenus({
     ];
   }
 
+  // commercial => ONLY Commercial List + Commercial Profile
+  if (isCommercial) {
+    return <GroupedMenuModel>[
+      GroupedMenuModel(
+        name: 'Commercial',
+        menus: [
+          SidebarItemModel(
+            name: 'Commercial List',
+            iconPath: usersIcon,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: '/users/commercial-contacts',
+          ),
+          SidebarItemModel(
+            name: 'Commercial Profile',
+            iconPath: usersIcon,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: MyRoute.commercialProfileScreen,
+          ),
+        ],
+      ),
+    ];
+  }
+
+  // other roles
   return <GroupedMenuModel>[
     GroupedMenuModel(
       name: 'Application',
@@ -120,10 +150,12 @@ List<GroupedMenuModel> buildGroupedMenus({
               name: "Project List",
               navigationPath: 'user_project',
             ),
-             SidebarSubmenuModel(
-              name: "Commercial List",
+          
+            if (isCommercial)
+              SidebarSubmenuModel(
+                 name: "Commercial List",
               navigationPath: 'commercial-contacts',
-            ),
+              ),
             if (isAdmin)
               SidebarSubmenuModel(
                 name: "User List",
@@ -160,17 +192,5 @@ List<GroupedMenuModel> buildGroupedMenus({
           ),
       ],
     ),
-    if (isCommercial)
-      GroupedMenuModel(
-        name: 'Commercial',
-        menus: [
-          SidebarItemModel(
-            name: 'Commercial Profile',
-            iconPath: usersIcon,
-            sidebarItemType: SidebarItemType.tile,
-            navigationPath: MyRoute.commercialProfileScreen,
-          ),
-        ],
-      ),
   ];
 }

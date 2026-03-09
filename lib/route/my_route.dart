@@ -79,7 +79,7 @@ class MyRoute {
   static const faqScreen = '/faq';
   static const privacyPolicyScreen = '/privacy_policy';
   static const termsConditionScreen = '/terms_condition';
-  static const commercialContacts = '/commercial-contacts';
+  static const commercialContacts = '/users/commercial-contacts';
 
   static const basicTablesScreen = '/tables/basic_tables';
   static const stripedRowTableScreen = '/tables/striped_row_table';
