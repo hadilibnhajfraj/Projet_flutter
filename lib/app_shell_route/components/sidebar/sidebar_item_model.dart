@@ -161,6 +161,11 @@ List<GroupedMenuModel> buildGroupedMenus({
                 name: "User List",
                 navigationPath: 'user-list',
               ),
+              if (isAdmin)
+              SidebarSubmenuModel(
+                name: "Client",
+                navigationPath: 'client',
+              ),
           ],
         ),
       ],

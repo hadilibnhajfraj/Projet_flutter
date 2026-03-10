@@ -99,6 +99,11 @@ MyRoute.commercialProfileScreen: NavigationBreadcrumbModel(
       parentRoute: 'Pages',
       childRoute: 'projects',
     ),
+   MyRoute.clientsProfileScreen: NavigationBreadcrumbModel(
+  title: 'Customers',
+  parentRoute: 'Customers',
+  childRoute: 'Customers',
+),
     MyRoute.mapScreen: NavigationBreadcrumbModel(
       title: 'googleMap',
       parentRoute: 'Pages',

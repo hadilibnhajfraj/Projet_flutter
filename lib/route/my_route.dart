@@ -9,6 +9,7 @@ import 'package:dash_master_toolkit/application/users/view/user_list_screen.dart
 import 'package:dash_master_toolkit/application/users/view/user_profile_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_contact_create_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/accueil_project_stats_table_screen.dart';
+import 'package:dash_master_toolkit/application/users/view/admin_clients_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/user_projects_screen.dart';
 import 'package:dash_master_toolkit/dashboard/academic/view/academic_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/ecommerce/view/ecommerce_dashboard_screen.dart';
@@ -110,6 +111,8 @@ class MyRoute {
   static const projectsProfileScreen = '/users/user_project';
 static const commercialProfileScreen = '/commercial';
 static const accueilProfileScreen = '/accueil';
+static const clientProfileScreen = '/client';
+static const clientsProfileScreen = '/users/client';
   static const signInScreen = '/authentication/signin';
   static const signUpScreen = '/authentication/signup';
   static const forgotPasswordScreen = '/authentication/forgot_password';
@@ -256,6 +259,12 @@ static const accueilProfileScreen = '/accueil';
     child: UserProjectsScreen(
       token: AuthService().accessToken ?? '',
     ),
+  ),
+),
+GoRoute(
+  path: MyRoute.clientProfileScreen,
+  pageBuilder: (context, state) => NoTransitionPage(
+    child: AdminClientsScreen(),
   ),
 ),
 GoRoute(
