@@ -12,7 +12,8 @@ class ProjectGridData {
   final bool hasDevis;
   final bool hasBonCommande;
 
-  final int commentCount; // ✅ NEW
+  final int commentCount;
+  final int taskCount; // NEW
 
   ProjectGridData({
     required this.id,
@@ -26,7 +27,8 @@ class ProjectGridData {
     required this.canDelete,
     required this.hasDevis,
     required this.hasBonCommande,
-    required this.commentCount, // ✅
+    required this.commentCount,
+    required this.taskCount,
   });
 
   factory ProjectGridData.fromJson(Map<String, dynamic> json) {
@@ -45,12 +47,17 @@ class ProjectGridData {
       adresse: (json["adresse"] ?? "").toString(),
 
       ownerName: (json["ownerName"] ?? "").toString(),
-      canEdit: (json["permission"] ?? "") == "owner" || (json["permission"] ?? "") == "editor",
-      canDelete: (json["permission"] ?? "") == "owner", // adapte si admin
+
+      canEdit: (json["permission"] ?? "") == "owner" ||
+          (json["permission"] ?? "") == "editor",
+
+      canDelete: (json["permission"] ?? "") == "owner",
+
       hasDevis: _toInt(json["devisCount"]) > 0,
       hasBonCommande: _toInt(json["bonCommandeCount"]) > 0,
 
-      commentCount: _toInt(json["commentCount"]), // ✅ ICI
+      commentCount: _toInt(json["commentCount"]),
+      taskCount: _toInt(json["taskCount"]), // NEW
     );
   }
 }

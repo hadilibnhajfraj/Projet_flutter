@@ -1,20 +1,12 @@
-import 'package:dash_master_toolkit/application/users/controller/user_grid_controller.dart';
-import 'package:dash_master_toolkit/application/users/model/project_grid_data.dart';
-import 'package:dash_master_toolkit/constant/app_color.dart';
-import 'package:dash_master_toolkit/constant/app_images.dart';
-import 'package:dash_master_toolkit/localization/app_localizations.dart';
-import 'package:dash_master_toolkit/route/my_route.dart';
-import 'package:dash_master_toolkit/theme/theme_controller.dart';
-import 'package:dash_master_toolkit/widgets/common_app_widget.dart';
-import 'package:dash_master_toolkit/widgets/common_search_field.dart';
-import 'package:dash_master_toolkit/forms/view/ProjectCommentScreen.dart';
-import 'package:dash_master_toolkit/app_shell_route/components/topbar/NotificationController.dart';
+import 'dart:convert';
+import 'dart:html' as html;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:go_router/go_router.dart';
-import 'package:responsive_grid/responsive_grid.dart';
-import 'package:responsive_framework/responsive_framework.dart' as rf;
+import 'package:csv/csv.dart';
+
+import '../controller/user_grid_controller.dart';
+import '../model/project_grid_data.dart';
 
 class UserGridScreen extends StatefulWidget {
   const UserGridScreen({super.key});
@@ -24,454 +16,332 @@ class UserGridScreen extends StatefulWidget {
 }
 
 class _UserGridScreenState extends State<UserGridScreen> {
-  late final UserGridController controller;
-  late final ThemeController themeController;
 
-  @override
-  void initState() {
-    super.initState();
+  final controller = Get.put(UserGridController());
 
-    controller = Get.isRegistered<UserGridController>()
-        ? Get.find<UserGridController>()
-        : Get.put(UserGridController(), permanent: true);
-
-    themeController = Get.isRegistered<ThemeController>()
-        ? Get.find<ThemeController>()
-        : Get.put(ThemeController(), permanent: true);
-  }
+  String? selectedOwner;
+  DateTime? selectedDate;
 
   @override
   Widget build(BuildContext context) {
-    final lang = AppLocalizations.of(context);
-    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: themeController.isDarkMode ? colorGrey900 : colorWhite,
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(
-          rf.ResponsiveValue<double>(
-            context,
-            conditionalValues: const [
-              rf.Condition.between(start: 0, end: 340, value: 10),
-              rf.Condition.between(start: 341, end: 992, value: 10),
-            ],
-            defaultValue: 10,
-          ).value,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsetsDirectional.only(start: 10, end: 10),
-              child: CommonSearchField(
-                controller: controller.searchController,
-                focusNode: controller.f1,
-                isDarkMode: themeController.isDarkMode,
-                onChanged: controller.searchProject,
-                inputDecoration: inputDecoration(
-                  context,
-                  borderColor: Colors.transparent,
-                  prefixIcon: searchIcon,
-                  fillColor: Colors.transparent,
-                  prefixIconColor: colorGrey400,
-                  hintText: (lang.translate("search") ?? "Search"),
-                  borderRadius: 8,
-                  topContentPadding: 0,
-                  bottomContentPadding: 0,
-                ),
-              ),
-            ),
-            const SizedBox(height: 15),
-            Obx(() {
-              if (controller.loading.value) {
-                return const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Obx(() {
 
-              if (controller.filtered.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text("No projects found."),
-                );
-              }
+          final projects = controller.filtered;
 
-              return ResponsiveGridRow(
-                children: List.generate(controller.filtered.length, (index) {
-                  return ResponsiveGridCol(
-                    lg: 4,
-                    xl: 4,
-                    md: 4,
-                    xs: 12,
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(top: 20, start: 10, end: 10),
-                      child: _buildProjectCard(context, controller.filtered[index], theme),
-                    ),
-                  );
-                }),
-              );
-            }),
-            const SizedBox(height: 15),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _editUrl(String id) {
-    return Uri(
-      path: MyRoute.projectFormScreen,
-      queryParameters: {'id': id},
-    ).toString();
-  }
-
-  Future<void> _goToComment(BuildContext context, ProjectGridData p) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ProjectCommentScreen(
-          projectId: p.id,
-          projectName: p.nomProjet,
-        ),
-      ),
-    );
-
-    // ✅ refresh list when coming back
-    await controller.loadProjects();
-
-    // ✅ optional: refresh notifications
-    if (Get.isRegistered<NotificationController>()) {
-      await Get.find<NotificationController>().fetchNotifications(silent: true);
-    }
-  }
-
-Widget _buildProjectCard(BuildContext context, ProjectGridData p, ThemeData theme) {
-  // ✅ Afficher le badge Tasks (même si 0). Si tu veux seulement quand >0 :
-  // final showTasks = p.taskCount > 0;
-  final showTasks = true;
-
-  Widget _badge({
-    required IconData icon,
-    required int count,
-    VoidCallback? onTap,
-  }) {
-    final w = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      margin: const EdgeInsets.only(right: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.04),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: Colors.blueGrey),
-          const SizedBox(width: 6),
-          Text(
-            "$count",
-            style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: Colors.blueGrey,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (onTap == null) return w;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: w,
-      ),
-    );
-  }
-
-  return InkWell(
-    borderRadius: BorderRadius.circular(12),
-
-    // ✅ click card: edit if canEdit else comments
-    onTap: () {
-      if (p.canEdit) {
-        context.go(_editUrl(p.id));
-      } else {
-        _goToComment(context, p);
-      }
-    },
-
-    child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: themeController.isDarkMode
-            ? colorDark
-            : (p.hasBonCommande
-                ? const Color(0xFFE8F5E9)
-                : (p.hasDevis ? const Color(0xFFFFEBEE) : Colors.white)),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black12)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // HEADER
-          Row(
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (p.ownerName.trim().isNotEmpty)
-                      Text(
-                        "Created by: ${p.ownerName}",
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colorGrey500,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    Text(
-                      p.nomProjet.isEmpty ? "Project" : p.nomProjet,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+
+              const Text(
+                "users & projects management",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
 
-              // ✅ TASKS BADGE (مرة واحدة فقط)
-              if (showTasks)
-                _badge(
-                  icon: Icons.event_note,
-                  count: p.taskCount,
-                  // onTap: () => context.go("/calendar?projectId=${p.id}"),
-                ),
+              const SizedBox(height: 20),
 
-              // ✅ COMMENTS BADGE (clickable)
-              _badge(
-                icon: Icons.comment,
-                count: p.commentCount,
-                onTap: () => _goToComment(context, p),
-              ),
+              /// FILTER BAR
+              Wrap(
+                spacing: 12,
+                runSpacing: 10,
+                children: [
 
-              // ✅ MENU
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert),
-                onSelected: (v) async {
-                  if (v == "comment") await _goToComment(context, p);
-                  if (v == "edit") context.go(_editUrl(p.id));
-                  if (v == "delete") await _confirmDelete(context, p);
-                  if (v == "tasks") {
-                    // optionnel: ouvrir calendar filtré
-                    // context.go("/calendar?projectId=${p.id}");
-                  }
-                },
-                itemBuilder: (_) {
-                  final items = <PopupMenuEntry<String>>[];
-
-                  items.add(
-                    PopupMenuItem(
-                      value: "comment",
-                      child: Row(
-                        children: [
-                          const Icon(Icons.comment, size: 18),
-                          const SizedBox(width: 8),
-                          Text("Comment (${p.commentCount})"),
-                        ],
+                  /// SEARCH
+                  SizedBox(
+                    width: 300,
+                    child: TextField(
+                      controller: controller.searchController,
+                      decoration: const InputDecoration(
+                        hintText: "Search project",
+                        prefixIcon: Icon(Icons.search),
                       ),
-                    ),
-                  );
-
-                  // ✅ Tasks menu item (toujours visible ici)
-                  items.add(
-                    PopupMenuItem(
-                      value: "tasks",
-                      child: Row(
-                        children: [
-                          const Icon(Icons.event_note, size: 18),
-                          const SizedBox(width: 8),
-                          Text("Tasks (${p.taskCount})"),
-                        ],
-                      ),
-                    ),
-                  );
-
-                  if (p.canEdit) {
-                    items.add(
-                      const PopupMenuItem(
-                        value: "edit",
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, size: 18),
-                            SizedBox(width: 8),
-                            Text("Edit"),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  if (p.canDelete) {
-                    items.add(
-                      const PopupMenuItem(
-                        value: "delete",
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, size: 18, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text("Delete"),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  return items;
-                },
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            p.entreprise.isEmpty ? "Company: -" : "Company: ${p.entreprise}",
-            style: theme.textTheme.bodyMedium?.copyWith(color: colorGrey500),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-
-          const SizedBox(height: 12),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _miniInfo(theme, "Status", p.statut.isEmpty ? "-" : p.statut),
-              _miniInfo(theme, "Start", p.dateDemarrage.isEmpty ? "-" : p.dateDemarrage),
-            ],
-          ),
-
-          const SizedBox(height: 10),
-
-          Text(
-            p.adresse.isEmpty ? "Address: -" : "Address: ${p.adresse}",
-            style: theme.textTheme.bodySmall?.copyWith(color: colorGrey500),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-
-          const SizedBox(height: 14),
-
-          Align(
-            alignment: Alignment.centerRight,
-            child: p.canEdit
-                ? ElevatedButton.icon(
-                    onPressed: () => context.go(_editUrl(p.id)),
-                    icon: const Icon(Icons.edit, size: 16),
-                    label: Text(
-                      "Edit",
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colorPrimary100,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  )
-                : ElevatedButton.icon(
-                    onPressed: () => _goToComment(context, p),
-                    icon: const Icon(Icons.comment, size: 16),
-                    label: Text(
-                      "Comment (${p.commentCount})",
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueGrey,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                      onChanged: (v) => controller.searchProject(v),
                     ),
                   ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
 
-  Widget _miniInfo(ThemeData theme, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: colorGrey500,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: theme.textTheme.bodySmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: Colors.blue,
-          ),
-        ),
-      ],
+                  /// OWNER FILTER
+                  SizedBox(
+                    width: 220,
+                    child: DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      value: selectedOwner,
+                      hint: const Text("Created by"),
+                      items: controller.projects
+                          .map((e) => e.ownerName)
+                          .toSet()
+                          .map((e) => DropdownMenuItem(
+                                value: e,
+                                child: Text(
+                                  e,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          selectedOwner = value;
+                        });
+                      },
+                    ),
+                  ),
+
+                  /// DATE FILTER
+                  SizedBox(
+                    width: 200,
+                    child: TextField(
+                      readOnly: true,
+                      decoration: const InputDecoration(
+                        hintText: "Start date",
+                        prefixIcon: Icon(Icons.calendar_today),
+                      ),
+                      onTap: () async {
+
+                        final date = await showDatePicker(
+                          context: context,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2035),
+                          initialDate: DateTime.now(),
+                        );
+
+                        if (date != null) {
+                          setState(() {
+                            selectedDate = date;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+
+                  /// APPLY FILTER
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.search),
+                    label: const Text("Apply Filters"),
+                    onPressed: _applyFilters,
+                  ),
+
+                  /// RESET
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.refresh),
+                    label: const Text("Reset"),
+                    onPressed: _resetFilters,
+                  ),
+
+                  /// EXPORT
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.download),
+                    label: const Text("Export CSV"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black,
+                    ),
+                    onPressed: _exportCSV,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              /// TABLE
+              Expanded(
+                child: Card(
+                  elevation: 2,
+                  child: SingleChildScrollView(
+                    child: DataTable(
+                      columnSpacing: 40,
+                      headingRowColor: MaterialStateProperty.all(
+                        Colors.grey.shade100,
+                      ),
+                      columns: const [
+
+                        DataColumn(label: Text("Project")),
+                        DataColumn(label: Text("Company")),
+                        DataColumn(label: Text("Status")),
+                        DataColumn(label: Text("Start")),
+                        DataColumn(label: Text("Created by")),
+                        DataColumn(label: Text("Tasks")),
+                        DataColumn(label: Text("Comments")),
+                        DataColumn(label: Text("Actions")),
+                      ],
+                      rows: projects.map((p) {
+
+                        Color? rowColor;
+
+                        if (p.hasBonCommande) {
+                          rowColor = const Color(0xFFC8E6C9);
+                        } else if (p.hasDevis) {
+                          rowColor = const Color(0xFFFFCDD2);
+                        }
+
+                        return DataRow(
+                          color: MaterialStateProperty.all(rowColor),
+                          cells: [
+
+                            DataCell(Text(p.nomProjet)),
+
+                            DataCell(Text(p.entreprise)),
+
+                            DataCell(_statusBadge(p.statut)),
+
+                            DataCell(Text(p.dateDemarrage)),
+
+                            DataCell(Text(p.ownerName)),
+
+                            const DataCell(
+                              Row(
+                                children: [
+                                  Icon(Icons.event_note),
+                                  SizedBox(width: 6),
+                                  Text("0")
+                                ],
+                              ),
+                            ),
+
+                            DataCell(
+                              Row(
+                                children: [
+                                  const Icon(Icons.comment),
+                                  const SizedBox(width: 6),
+                                  Text("${p.commentCount}")
+                                ],
+                              ),
+                            ),
+
+                            DataCell(
+                              Row(
+                                children: [
+
+                                  IconButton(
+                                    icon: const Icon(Icons.edit),
+                                    onPressed: () {},
+                                  ),
+
+                                  IconButton(
+                                    icon: const Icon(Icons.delete,
+                                        color: Colors.red),
+                                    onPressed: () {},
+                                  ),
+
+                                  IconButton(
+                                    icon: const Icon(Icons.comment),
+                                    onPressed: () {},
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }),
+      ),
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context, ProjectGridData p) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Delete project"),
-        content: Text("Do you really want to delete “${p.nomProjet.isEmpty ? 'Project' : p.nomProjet}” ?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            icon: const Icon(Icons.delete, size: 16),
-            label: const Text("Delete"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
+  /// APPLY FILTER
+  void _applyFilters() {
+
+    List<ProjectGridData> list = controller.projects.toList();
+
+    if (selectedOwner != null) {
+      list = list.where((p) => p.ownerName == selectedOwner).toList();
+    }
+
+    if (selectedDate != null) {
+
+      final d = selectedDate.toString().substring(0, 10);
+
+      list =
+          list.where((p) => p.dateDemarrage.startsWith(d)).toList();
+    }
+
+    controller.filtered.assignAll(list);
+  }
+
+  /// RESET FILTER
+  void _resetFilters() {
+
+    setState(() {
+      selectedOwner = null;
+      selectedDate = null;
+    });
+
+    controller.filtered.assignAll(controller.projects);
+  }
+
+  /// EXPORT CSV
+  void _exportCSV() {
+
+    List<List<dynamic>> rows = [];
+
+    rows.add([
+      "Project",
+      "Company",
+      "Status",
+      "Start",
+      "Created By",
+      "Comments"
+    ]);
+
+    for (var p in controller.filtered) {
+
+      rows.add([
+        p.nomProjet,
+        p.entreprise,
+        p.statut,
+        p.dateDemarrage,
+        p.ownerName,
+        p.commentCount
+      ]);
+    }
+
+    String csv = const ListToCsvConverter().convert(rows);
+
+    final bytes = utf8.encode(csv);
+
+    final blob = html.Blob([bytes]);
+
+    final url = html.Url.createObjectUrlFromBlob(blob);
+
+    html.AnchorElement(href: url)
+      ..setAttribute("download", "projects.csv")
+      ..click();
+  }
+
+  /// STATUS BADGE
+  Widget _statusBadge(String status) {
+
+    Color color = Colors.grey;
+
+    if (status == "Préparation") color = Colors.orange;
+    if (status == "En cours") color = Colors.blue;
+    if (status == "Terminé") color = Colors.green;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: color.withOpacity(.15),
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
-
-    if (confirmed != true) return;
-
-    try {
-      await controller.deleteProject(p.id);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Project deleted ✅")),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Delete error: $e")),
-      );
-    }
   }
 }

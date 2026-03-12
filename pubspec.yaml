@@ -75,6 +75,7 @@ dependencies:
   syncfusion_flutter_charts: ^29.1.38
   geocoding: ^3.0.0
   flutter_secure_storage: ^9.2.2
+  csv: ^5.1.1
 
   dio: ^5.7.0
 dev_dependencies:
