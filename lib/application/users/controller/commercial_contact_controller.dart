@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../model/commercial_contact_model.dart';
+import 'package:dash_master_toolkit/application/users/model/commercial_contact_model.dart';
 import 'package:dash_master_toolkit/services/commercial_contact_service.dart';
 
 class CommercialContactController extends GetxController {
@@ -28,15 +28,20 @@ class CommercialContactController extends GetxController {
 
       final data = await _service.fetchMyContacts(
         token: token,
-        query: query,
+        query: query?.trim(),
       );
 
       contacts.assignAll(data);
     } catch (e) {
       error.value = e.toString();
+      rethrow;
     } finally {
       isLoading.value = false;
     }
+  }
+
+  Future<void> refreshWithCurrentSearch() async {
+    await fetchContacts(query: searchCtrl.text.trim());
   }
 
   Future<void> updateContact({
@@ -53,20 +58,10 @@ class CommercialContactController extends GetxController {
         data: data,
       );
 
-      await fetchContacts(query: searchCtrl.text);
-      Get.snackbar(
-        'Success',
-        'Contact updated successfully',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      await refreshWithCurrentSearch();
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        e.toString(),
-        backgroundColor: Colors.red.shade50,
-        colorText: Colors.red.shade900,
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      error.value = e.toString();
+      rethrow;
     } finally {
       isLoading.value = false;
     }
@@ -77,22 +72,15 @@ class CommercialContactController extends GetxController {
       isLoading.value = true;
       error.value = '';
 
-      await _service.deleteContact(token: token, id: id);
-      contacts.removeWhere((e) => e.id == id);
+      await _service.deleteContact(
+        token: token,
+        id: id,
+      );
 
-      Get.snackbar(
-        'Success',
-        'Contact deleted successfully',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      contacts.removeWhere((e) => e.id == id);
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        e.toString(),
-        backgroundColor: Colors.red.shade50,
-        colorText: Colors.red.shade900,
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      error.value = e.toString();
+      rethrow;
     } finally {
       isLoading.value = false;
     }

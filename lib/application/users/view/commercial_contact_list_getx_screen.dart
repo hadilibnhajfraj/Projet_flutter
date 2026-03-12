@@ -1,15 +1,121 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import '../controller/commercial_contact_controller.dart';
 import '../model/commercial_contact_model.dart';
+import 'package:dash_master_toolkit/services/commercial_contact_service.dart';
 
-class CommercialContactListGetxScreen extends StatelessWidget {
+class CommercialContactListGetxScreen extends StatefulWidget {
   final String token;
 
   const CommercialContactListGetxScreen({
     super.key,
     required this.token,
   });
+
+  @override
+  State<CommercialContactListGetxScreen> createState() =>
+      _CommercialContactListGetxScreenState();
+}
+
+class _CommercialContactListGetxScreenState
+    extends State<CommercialContactListGetxScreen> {
+  final CommercialContactService _service = CommercialContactService();
+  final TextEditingController _searchController = TextEditingController();
+
+  final ScrollController _horizontalScrollController = ScrollController();
+  final ScrollController _verticalScrollController = ScrollController();
+
+  bool _loading = true;
+  String? _error;
+  List<CommercialContact> _contacts = [];
+
+  static const Color kPrimary = Color(0xFF1976D2);
+  static const Color kBg = Color(0xFFF8FAFC);
+  static const Color kText = Color(0xFF101828);
+  static const Color kMuted = Color(0xFF667085);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContacts();
+  }
+
+  Future<void> _loadContacts({String? query}) async {
+    try {
+      if (mounted) {
+        setState(() {
+          _loading = true;
+          _error = null;
+        });
+      }
+
+      final data = await _service.fetchMyContacts(
+        token: widget.token,
+        query: query?.trim(),
+      );
+
+      if (mounted) {
+        setState(() {
+          _contacts = data;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _updateContact({
+    required String id,
+    required Map<String, dynamic> data,
+  }) async {
+    await _service.updateContact(
+      token: widget.token,
+      id: id,
+      data: data,
+    );
+    await _loadContacts(query: _searchController.text);
+  }
+
+  Future<void> _deleteContact(String id) async {
+    await _service.deleteContact(
+      token: widget.token,
+      id: id,
+    );
+
+    if (mounted) {
+      setState(() {
+        _contacts.removeWhere((e) => e.id == id);
+      });
+    }
+  }
+
+  void _showSuccess(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
 
   Color _typeBgColor(String type) {
     switch (type.toLowerCase()) {
@@ -33,6 +139,51 @@ class CommercialContactListGetxScreen extends StatelessWidget {
     }
   }
 
+  Color _statusBgColor(String status) {
+    switch (status) {
+      case 'ok':
+        return const Color(0xFFEAFBF0);
+      case 'rappeler_plus_tard':
+        return const Color(0xFFFFF7E6);
+      case 'user_injoignable':
+        return const Color(0xFFFFF1F2);
+      case 'client_refuse':
+        return const Color(0xFFF2F4F7);
+      default:
+        return const Color(0xFFF2F4F7);
+    }
+  }
+
+  Color _statusTextColor(String status) {
+    switch (status) {
+      case 'ok':
+        return const Color(0xFF15803D);
+      case 'rappeler_plus_tard':
+        return const Color(0xFFB54708);
+      case 'user_injoignable':
+        return const Color(0xFFDC2626);
+      case 'client_refuse':
+        return const Color(0xFF475467);
+      default:
+        return const Color(0xFF475467);
+    }
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'ok':
+        return 'OK';
+      case 'rappeler_plus_tard':
+        return 'Call back later';
+      case 'user_injoignable':
+        return 'Unreachable';
+      case 'client_refuse':
+        return 'Client refused';
+      default:
+        return status;
+    }
+  }
+
   Widget _buildTypeBadge(String type) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -51,15 +202,33 @@ class CommercialContactListGetxScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildStatusBadge(String status) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: _statusBgColor(status),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        _statusLabel(status),
+        style: TextStyle(
+          color: _statusTextColor(status),
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
   Widget _buildProductsCell(List<CommercialContactProduct> produits) {
-    if (produits.isEmpty) {
-      return const Text('No products');
-    }
+    final items = produits.isEmpty
+        ? [CommercialContactProduct(id: '', produit: 'PROBAR', qte: 1)]
+        : produits;
 
     return Wrap(
       spacing: 6,
       runSpacing: 6,
-      children: produits.take(3).map((p) {
+      children: items.take(3).map((p) {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
           decoration: BoxDecoration(
@@ -76,72 +245,14 @@ class CommercialContactListGetxScreen extends StatelessWidget {
     );
   }
 
-void _showDeleteDialog(
-  BuildContext context,
-  CommercialContactController controller,
-  CommercialContact contact,
-) {
-  showDialog(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      title: const Text('Delete Contact'),
-      content: Text(
-        'Are you sure you want to delete "${contact.nom} ${contact.prenom}"?',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton.icon(
-          onPressed: () async {
-            Navigator.of(dialogContext).pop();
-            await controller.deleteContact(contact.id);
-          },
-          icon: const Icon(Icons.delete_outline),
-          label: const Text('Delete'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red,
-            foregroundColor: Colors.white,
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-void _showEditDialog(
-  BuildContext context,
-  CommercialContactController controller,
-  CommercialContact contact,
-) {
-  final nomCtrl = TextEditingController(text: contact.nom);
-  final prenomCtrl = TextEditingController(text: contact.prenom);
-  final societeCtrl = TextEditingController(text: contact.nomSociete ?? '');
-  final telCtrl = TextEditingController(text: contact.telephone);
-  final locCtrl = TextEditingController(text: contact.localisation ?? '');
-  final msgCtrl = TextEditingController(text: contact.message ?? '');
-
-  String selectedType =
-      contact.typeClient.isNotEmpty ? contact.typeClient : 'autre';
-
-  final List<Map<String, dynamic>> produits = contact.produits
-      .map((p) => {
-            'produit': p.produit,
-            'qte': p.qte,
-          })
-      .toList();
-
-  InputDecoration dec(String label, String hint, IconData icon) {
+  InputDecoration _inputDecoration(String label) {
     return InputDecoration(
       labelText: label,
-      hintText: hint,
       filled: true,
-      fillColor: const Color(0xFFF8FAFC),
+      fillColor: const Color(0xFFF9FAFB),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
+        borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
@@ -149,657 +260,631 @@ void _showEditDialog(
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: Color(0xFF1976D2), width: 1.5),
+        borderSide: const BorderSide(color: kPrimary),
       ),
-      suffixIcon: Icon(icon, color: const Color(0xFF1976D2)),
     );
   }
 
-  Widget sectionTitle(String text, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: const Color(0xFF1976D2), size: 20),
-        const SizedBox(width: 8),
-        Text(
-          text,
-          style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF111827),
-          ),
-        ),
-      ],
-    );
-  }
-
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (dialogContext) => StatefulBuilder(
-      builder: (context, setModalState) {
-        final isMobile = MediaQuery.of(context).size.width < 900;
-
-        return Dialog(
-          insetPadding: const EdgeInsets.all(24),
+  Future<void> _confirmDelete(CommercialContact contact) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(18),
           ),
-          child: Container(
-            width: 950,
-            constraints: const BoxConstraints(maxHeight: 760),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(22),
+          title: const Text("Delete"),
+          content: Text(
+            "Do you really want to delete ${contact.fullName}?",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text("Cancel"),
             ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text(
+                "Delete",
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm == true) {
+      try {
+        await _deleteContact(contact.id);
+        _showSuccess("Contact deleted successfully");
+      } catch (e) {
+        _showError(e.toString());
+      }
+    }
+  }
+
+  Future<void> _showRelanceDialog(CommercialContact contact) async {
+    final dateCtrl = TextEditingController(
+      text: contact.relances.isNotEmpty
+          ? (contact.relances.first.dateRelance ?? "")
+          : "",
+    );
+    final heureCtrl = TextEditingController(
+      text: contact.relances.isNotEmpty
+          ? (contact.relances.first.heureRelance ?? "")
+          : "",
+    );
+    final commentaireCtrl = TextEditingController(
+      text: contact.relances.isNotEmpty
+          ? (contact.relances.first.commentaire ?? "")
+          : "",
+    );
+
+    Future<void> pickDate(BuildContext dialogContext) async {
+      final picked = await showDatePicker(
+        context: dialogContext,
+        initialDate: DateTime.now(),
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+      );
+      if (picked != null) {
+        dateCtrl.text =
+            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      }
+    }
+
+    Future<void> pickTime(BuildContext dialogContext) async {
+      final picked = await showTimePicker(
+        context: dialogContext,
+        initialTime: TimeOfDay.now(),
+      );
+      if (picked != null) {
+        final hh = picked.hour.toString().padLeft(2, '0');
+        final mm = picked.minute.toString().padLeft(2, '0');
+        heureCtrl.text = "$hh:$mm";
+      }
+    }
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Text("Follow-up - ${contact.fullName}"),
+          content: SizedBox(
+            width: 520,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // HEADER
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFF1976D2),
-                        const Color(0xFF1976D2).withOpacity(.9),
-                      ],
-                    ),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(22),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.16),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(
-                          Icons.edit_note,
-                          color: Colors.white,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Edit Commercial Contact',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 21,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Update customer information and requested products.',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        icon: const Icon(Icons.close, color: Colors.white),
-                      ),
-                    ],
-                  ),
+                TextField(
+                  controller: dateCtrl,
+                  readOnly: true,
+                  decoration: _inputDecoration("Follow-up date"),
+                  onTap: () => pickDate(dialogContext),
                 ),
-
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // CUSTOMER INFO
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border:
-                                Border.all(color: const Color(0xFFE4E7EC)),
-                            boxShadow: const [
-                              BoxShadow(
-                                blurRadius: 12,
-                                color: Color(0x0A000000),
-                                offset: Offset(0, 3),
-                              )
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              sectionTitle(
-                                "Customer Information",
-                                Icons.person_outline,
-                              ),
-                              const SizedBox(height: 18),
-
-                              DropdownButtonFormField<String>(
-                                value: selectedType,
-                                items: const [
-                                  DropdownMenuItem(
-                                    value: "Tuteur",
-                                    child: Text("Tuteur"),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: "Cloture",
-                                    child: Text("Cloture"),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: "autre",
-                                    child: Text("Other"),
-                                  ),
-                                  DropdownMenuItem(
-                                    value: "societe",
-                                    child: Text("Company"),
-                                  ),
-                                ],
-                                onChanged: (v) {
-                                  if (v != null) {
-                                    setModalState(() => selectedType = v);
-                                  }
-                                },
-                                decoration: dec(
-                                  "Client Type",
-                                  "Select client type",
-                                  Icons.category_outlined,
-                                ),
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              TextField(
-                                controller: societeCtrl,
-                                decoration: dec(
-                                  "Company Name",
-                                  "Enter company name",
-                                  Icons.apartment_outlined,
-                                ),
-                              ),
-
-                              const SizedBox(height: 14),
-
-                              if (isMobile) ...[
-                                TextField(
-                                  controller: nomCtrl,
-                                  decoration: dec(
-                                    "Last Name *",
-                                    "Enter last name",
-                                    Icons.person_outline,
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                TextField(
-                                  controller: prenomCtrl,
-                                  decoration: dec(
-                                    "First Name *",
-                                    "Enter first name",
-                                    Icons.badge_outlined,
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                TextField(
-                                  controller: locCtrl,
-                                  decoration: dec(
-                                    "Location",
-                                    "City / Region",
-                                    Icons.location_on_outlined,
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                TextField(
-                                  controller: telCtrl,
-                                  keyboardType: TextInputType.phone,
-                                  decoration: dec(
-                                    "Phone Number *",
-                                    "Enter phone number",
-                                    Icons.phone_outlined,
-                                  ),
-                                ),
-                              ] else ...[
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: TextField(
-                                        controller: nomCtrl,
-                                        decoration: dec(
-                                          "Last Name *",
-                                          "Enter last name",
-                                          Icons.person_outline,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: TextField(
-                                        controller: prenomCtrl,
-                                        decoration: dec(
-                                          "First Name *",
-                                          "Enter first name",
-                                          Icons.badge_outlined,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: TextField(
-                                        controller: locCtrl,
-                                        decoration: dec(
-                                          "Location",
-                                          "City / Region",
-                                          Icons.location_on_outlined,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: TextField(
-                                        controller: telCtrl,
-                                        keyboardType: TextInputType.phone,
-                                        decoration: dec(
-                                          "Phone Number *",
-                                          "Enter phone number",
-                                          Icons.phone_outlined,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-
-                              const SizedBox(height: 14),
-
-                              TextField(
-                                controller: msgCtrl,
-                                maxLines: 4,
-                                decoration: dec(
-                                  "Message",
-                                  "Write a message or customer request",
-                                  Icons.message_outlined,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // PRODUCTS
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border:
-                                Border.all(color: const Color(0xFFE4E7EC)),
-                            boxShadow: const [
-                              BoxShadow(
-                                blurRadius: 12,
-                                color: Color(0x0A000000),
-                                offset: Offset(0, 3),
-                              )
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  sectionTitle(
-                                    "Requested Products",
-                                    Icons.inventory_2_outlined,
-                                  ),
-                                  const Spacer(),
-                                  ElevatedButton.icon(
-                                    onPressed: () {
-                                      setModalState(() {
-                                        produits.add({
-                                          'produit': '',
-                                          'qte': 1.0,
-                                        });
-                                      });
-                                    },
-                                    icon: const Icon(Icons.add),
-                                    label: const Text("Add"),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor:
-                                          const Color(0xFF1976D2),
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-
-                              if (produits.isEmpty)
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(18),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: const Text(
-                                    "No product added.",
-                                    style: TextStyle(
-                                      color: Colors.black54,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                )
-                              else
-                                Column(
-                                  children:
-                                      List.generate(produits.length, (i) {
-                                    final item = produits[i];
-
-                                    return Container(
-                                      margin:
-                                          const EdgeInsets.only(bottom: 12),
-                                      padding: const EdgeInsets.all(14),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF8FAFC),
-                                        borderRadius:
-                                            BorderRadius.circular(16),
-                                        border: Border.all(
-                                          color: const Color(0xFF1976D2)
-                                              .withOpacity(.12),
-                                        ),
-                                      ),
-                                      child: isMobile
-                                          ? Column(
-                                              children: [
-                                                TextFormField(
-                                                  initialValue:
-                                                      item['produit']
-                                                              ?.toString() ??
-                                                          '',
-                                                  decoration: dec(
-                                                    "Product",
-                                                    "Product name",
-                                                    Icons.widgets_outlined,
-                                                  ),
-                                                  onChanged: (v) =>
-                                                      item['produit'] = v,
-                                                ),
-                                                const SizedBox(height: 12),
-                                                TextFormField(
-                                                  initialValue: item['qte']
-                                                          ?.toString() ??
-                                                      '1',
-                                                  keyboardType:
-                                                      TextInputType.number,
-                                                  decoration: dec(
-                                                    "Quantity",
-                                                    "Enter quantity",
-                                                    Icons.numbers_outlined,
-                                                  ),
-                                                  onChanged: (v) {
-                                                    final n = double.tryParse(
-                                                      v.replaceAll(",", "."),
-                                                    );
-                                                    item['qte'] =
-                                                        (n == null || n <= 0)
-                                                            ? 1
-                                                            : n;
-                                                  },
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Align(
-                                                  alignment:
-                                                      Alignment.centerRight,
-                                                  child: IconButton(
-                                                    onPressed: () {
-                                                      setModalState(() {
-                                                        produits.removeAt(i);
-                                                      });
-                                                    },
-                                                    icon: const Icon(
-                                                      Icons.delete_outline,
-                                                      color: Colors.red,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            )
-                                          : Row(
-                                              children: [
-                                                Expanded(
-                                                  flex: 3,
-                                                  child: TextFormField(
-                                                    initialValue:
-                                                        item['produit']
-                                                                ?.toString() ??
-                                                            '',
-                                                    decoration: dec(
-                                                      "Product",
-                                                      "Product name",
-                                                      Icons.widgets_outlined,
-                                                    ),
-                                                    onChanged: (v) =>
-                                                        item['produit'] = v,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: TextFormField(
-                                                    initialValue: item['qte']
-                                                            ?.toString() ??
-                                                        '1',
-                                                    keyboardType:
-                                                        TextInputType.number,
-                                                    decoration: dec(
-                                                      "Quantity",
-                                                      "Enter quantity",
-                                                      Icons.numbers_outlined,
-                                                    ),
-                                                    onChanged: (v) {
-                                                      final n = double.tryParse(
-                                                        v.replaceAll(",", "."),
-                                                      );
-                                                      item['qte'] =
-                                                          (n == null || n <= 0)
-                                                              ? 1
-                                                              : n;
-                                                    },
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 10),
-                                                IconButton(
-                                                  onPressed: () {
-                                                    setModalState(() {
-                                                      produits.removeAt(i);
-                                                    });
-                                                  },
-                                                  icon: const Icon(
-                                                    Icons.delete_outline,
-                                                    color: Colors.red,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                    );
-                                  }),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: heureCtrl,
+                  readOnly: true,
+                  decoration: _inputDecoration("Follow-up time"),
+                  onTap: () => pickTime(dialogContext),
                 ),
-
-                // FOOTER
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                  decoration: const BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: Color(0xFFE4E7EC)),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      OutlinedButton(
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                        child: const Text('Cancel'),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          if (nomCtrl.text.trim().isEmpty ||
-                              prenomCtrl.text.trim().isEmpty ||
-                              telCtrl.text.trim().isEmpty) {
-                            ScaffoldMessenger.of(dialogContext).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Last name, first name and phone are required.',
-                                ),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
-                            return;
-                          }
-
-                          final cleanProduits = produits
-                              .where((p) =>
-                                  (p['produit'] ?? '')
-                                      .toString()
-                                      .trim()
-                                      .isNotEmpty)
-                              .map((p) => {
-                                    'produit':
-                                        p['produit'].toString().trim(),
-                                    'qte': p['qte'] ?? 1,
-                                  })
-                              .toList();
-
-                          await controller.updateContact(
-                            id: contact.id,
-                            data: {
-                              'typeClient': selectedType,
-                              'nomSociete': societeCtrl.text.trim(),
-                              'nom': nomCtrl.text.trim(),
-                              'prenom': prenomCtrl.text.trim(),
-                              'localisation': locCtrl.text.trim(),
-                              'telephone': telCtrl.text.trim(),
-                              'message': msgCtrl.text.trim(),
-                              'produits': cleanProduits,
-                            },
-                          );
-
-                          if (dialogContext.mounted) {
-                            Navigator.of(dialogContext).pop();
-                          }
-                        },
-                        icon: const Icon(Icons.save_outlined),
-                        label: const Text('Save Changes'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1976D2),
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: commentaireCtrl,
+                  maxLines: 3,
+                  decoration: _inputDecoration("Comment"),
                 ),
               ],
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimary,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                try {
+                  final payload = {
+                    "dateRelance": dateCtrl.text.trim(),
+                    "heureRelance": heureCtrl.text.trim().isEmpty
+                        ? null
+                        : heureCtrl.text.trim(),
+                    "commentaire": commentaireCtrl.text.trim().isEmpty
+                        ? null
+                        : commentaireCtrl.text.trim(),
+                    if (contact.statut != "ok" &&
+                        contact.statut != "rappeler_plus_tard")
+                      "statut": "rappeler_plus_tard",
+                  };
+
+                  await _updateContact(id: contact.id, data: payload);
+
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop(true);
+                  }
+                } catch (e) {
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop(false);
+                  }
+                  _showError(e.toString());
+                }
+              },
+              child: const Text("Save"),
+            ),
+          ],
         );
       },
-    ),
-  );
-}
-  Widget _buildSearchBar(CommercialContactController controller) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE4E7EC)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 20,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller.searchCtrl,
-              decoration: InputDecoration(
-                hintText: 'Search by name, company, phone or location...',
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: const Color(0xFFF9FAFB),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFF3B82F6)),
-                ),
-              ),
-              onSubmitted: (value) => controller.fetchContacts(query: value),
-            ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed: () =>
-                controller.fetchContacts(query: controller.searchCtrl.text),
-            icon: const Icon(Icons.search),
-            label: const Text('Search'),
-          ),
-          const SizedBox(width: 10),
-          OutlinedButton.icon(
-            onPressed: () {
-              controller.searchCtrl.clear();
-              controller.fetchContacts();
-            },
-            icon: const Icon(Icons.refresh),
-            label: const Text('Reset'),
-          ),
-        ],
-      ),
     );
+
+    if (saved == true) {
+      _showSuccess("Follow-up saved successfully");
+    }
   }
 
-  Widget _buildTable(
-    BuildContext context,
-    CommercialContactController controller,
-  ) {
+  Future<void> _showEditDialog(CommercialContact contact) async {
+    final nomSocieteCtrl = TextEditingController(text: contact.nomSociete ?? "");
+    final nomCtrl = TextEditingController(text: contact.nom);
+    final prenomCtrl = TextEditingController(text: contact.prenom);
+    final localisationCtrl =
+        TextEditingController(text: contact.localisation ?? "");
+    final telephoneCtrl = TextEditingController(text: contact.telephone);
+    final messageCtrl = TextEditingController(text: contact.message ?? "");
+    final nbAppelsCtrl = TextEditingController(text: contact.nbAppels.toString());
+    final sujetDiscussionCtrl =
+        TextEditingController(text: contact.sujetDiscussion ?? "");
+
+    String selectedType =
+        contact.typeClient.isNotEmpty ? contact.typeClient : "autre";
+    String selectedStatut =
+        contact.statut.isNotEmpty ? contact.statut : "user_injoignable";
+
+    final produits = (contact.produits.isEmpty
+            ? [CommercialContactProduct(id: "", produit: "PROBAR", qte: 1)]
+            : contact.produits)
+        .map((e) => {
+              "produitCtrl": TextEditingController(
+                text: e.produit.isEmpty ? "PROBAR" : e.produit,
+              ),
+              "qteCtrl": TextEditingController(text: e.qte.toString()),
+            })
+        .toList();
+
+    final dateRelanceCtrl = TextEditingController(
+      text: contact.relances.isNotEmpty
+          ? (contact.relances.first.dateRelance ?? "")
+          : "",
+    );
+    final heureRelanceCtrl = TextEditingController(
+      text: contact.relances.isNotEmpty
+          ? (contact.relances.first.heureRelance ?? "")
+          : "",
+    );
+    final commentaireRelanceCtrl = TextEditingController(
+      text: contact.relances.isNotEmpty
+          ? (contact.relances.first.commentaire ?? "")
+          : "",
+    );
+
+    Future<void> pickDate(BuildContext dialogContext) async {
+      final picked = await showDatePicker(
+        context: dialogContext,
+        initialDate: DateTime.now(),
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+      );
+      if (picked != null) {
+        dateRelanceCtrl.text =
+            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      }
+    }
+
+    Future<void> pickTime(BuildContext dialogContext) async {
+      final picked = await showTimePicker(
+        context: dialogContext,
+        initialTime: TimeOfDay.now(),
+      );
+      if (picked != null) {
+        final hh = picked.hour.toString().padLeft(2, '0');
+        final mm = picked.minute.toString().padLeft(2, '0');
+        heureRelanceCtrl.text = "$hh:$mm";
+      }
+    }
+
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final canScheduleRelance = selectedStatut == "ok" ||
+                selectedStatut == "rappeler_plus_tard";
+
+            return Dialog(
+              insetPadding: const EdgeInsets.all(20),
+              child: Container(
+                width: 900,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Edit contact",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          SizedBox(
+                            width: 260,
+                            child: TextField(
+                              controller: nomCtrl,
+                              decoration: _inputDecoration("Last name"),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 260,
+                            child: TextField(
+                              controller: prenomCtrl,
+                              decoration: _inputDecoration("First name"),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 220,
+                            child: TextField(
+                              controller: telephoneCtrl,
+                              decoration: _inputDecoration("Phone"),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 280,
+                            child: TextField(
+                              controller: nomSocieteCtrl,
+                              decoration: _inputDecoration("Company"),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 280,
+                            child: TextField(
+                              controller: localisationCtrl,
+                              decoration: _inputDecoration("Location"),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: selectedType,
+                              items: const [
+                                DropdownMenuItem(
+                                    value: "Tuteur", child: Text("Tuteur")),
+                                DropdownMenuItem(
+                                    value: "Cloture", child: Text("Cloture")),
+                                DropdownMenuItem(
+                                    value: "autre", child: Text("Other")),
+                              ],
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setDialogState(() {
+                                    selectedType = v;
+                                  });
+                                }
+                              },
+                              decoration: _inputDecoration("Client type"),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: selectedStatut,
+                              items: const [
+                                DropdownMenuItem(value: "ok", child: Text("OK")),
+                                DropdownMenuItem(
+                                  value: "rappeler_plus_tard",
+                                  child: Text("Call back later"),
+                                ),
+                                DropdownMenuItem(
+                                  value: "user_injoignable",
+                                  child: Text("Unreachable"),
+                                ),
+                                DropdownMenuItem(
+                                  value: "client_refuse",
+                                  child: Text("Client refused"),
+                                ),
+                              ],
+                              onChanged: (v) {
+                                if (v != null) {
+                                  setDialogState(() {
+                                    selectedStatut = v;
+                                  });
+                                }
+                              },
+                              decoration: _inputDecoration("Status"),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: nbAppelsCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: _inputDecoration("Number of calls"),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: sujetDiscussionCtrl,
+                              decoration: _inputDecoration("Discussion topic"),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: messageCtrl,
+                        maxLines: 3,
+                        decoration: _inputDecoration("Message"),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        "Products",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Column(
+                        children: List.generate(produits.length, (index) {
+                          final row = produits[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 3,
+                                  child: TextField(
+                                    controller:
+                                        row["produitCtrl"] as TextEditingController,
+                                    decoration: _inputDecoration("Product"),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  flex: 1,
+                                  child: TextField(
+                                    controller:
+                                        row["qteCtrl"] as TextEditingController,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                            decimal: true),
+                                    decoration: _inputDecoration("Qty"),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                IconButton(
+                                  onPressed: () {
+                                    if (produits.length > 1) {
+                                      setDialogState(() {
+                                        produits.removeAt(index);
+                                      });
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            setDialogState(() {
+                              produits.add({
+                                "produitCtrl":
+                                    TextEditingController(text: "PROBAR"),
+                                "qteCtrl": TextEditingController(text: "1"),
+                              });
+                            });
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text("Add product"),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      if (canScheduleRelance)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: kPrimary.withOpacity(.15),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Follow-up",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: dateRelanceCtrl,
+                                      readOnly: true,
+                                      decoration:
+                                          _inputDecoration("Follow-up date"),
+                                      onTap: () => pickDate(dialogContext),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: heureRelanceCtrl,
+                                      readOnly: true,
+                                      decoration:
+                                          _inputDecoration("Follow-up time"),
+                                      onTap: () => pickTime(dialogContext),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: commentaireRelanceCtrl,
+                                maxLines: 3,
+                                decoration:
+                                    _inputDecoration("Follow-up comment"),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 22),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.of(dialogContext).pop(false),
+                            child: const Text("Cancel"),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: kPrimary,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () async {
+                              try {
+                                final payload = {
+                                  "typeClient": selectedType,
+                                  "statut": selectedStatut,
+                                  "nomSociete":
+                                      nomSocieteCtrl.text.trim().isEmpty
+                                          ? null
+                                          : nomSocieteCtrl.text.trim(),
+                                  "nom": nomCtrl.text.trim(),
+                                  "prenom": prenomCtrl.text.trim(),
+                                  "localisation":
+                                      localisationCtrl.text.trim().isEmpty
+                                          ? null
+                                          : localisationCtrl.text.trim(),
+                                  "telephone": telephoneCtrl.text.trim(),
+                                  "message": messageCtrl.text.trim().isEmpty
+                                      ? null
+                                      : messageCtrl.text.trim(),
+                                  "nbAppels":
+                                      int.tryParse(nbAppelsCtrl.text.trim()) ?? 0,
+                                  "sujetDiscussion":
+                                      sujetDiscussionCtrl.text.trim().isEmpty
+                                          ? null
+                                          : sujetDiscussionCtrl.text.trim(),
+                                  "produits": produits.map((row) {
+                                    final produit =
+                                        (row["produitCtrl"]
+                                                as TextEditingController)
+                                            .text
+                                            .trim();
+                                    final qte = double.tryParse(
+                                            (row["qteCtrl"]
+                                                    as TextEditingController)
+                                                .text
+                                                .trim()) ??
+                                        1;
+                                    return {
+                                      "produit":
+                                          produit.isEmpty ? "PROBAR" : produit,
+                                      "qte": qte <= 0 ? 1 : qte,
+                                    };
+                                  }).toList(),
+                                  if (canScheduleRelance &&
+                                      dateRelanceCtrl.text.trim().isNotEmpty)
+                                    "dateRelance": dateRelanceCtrl.text.trim(),
+                                  if (canScheduleRelance &&
+                                      heureRelanceCtrl.text.trim().isNotEmpty)
+                                    "heureRelance": heureRelanceCtrl.text.trim(),
+                                  if (canScheduleRelance &&
+                                      commentaireRelanceCtrl.text
+                                          .trim()
+                                          .isNotEmpty)
+                                    "commentaire":
+                                        commentaireRelanceCtrl.text.trim(),
+                                };
+
+                                await _updateContact(
+                                  id: contact.id,
+                                  data: payload,
+                                );
+
+                                if (dialogContext.mounted) {
+                                  Navigator.of(dialogContext).pop(true);
+                                }
+                              } catch (e) {
+                                if (dialogContext.mounted) {
+                                  Navigator.of(dialogContext).pop(false);
+                                }
+                                _showError(e.toString());
+                              }
+                            },
+                            child: const Text("Save"),
+                          ),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (saved == true) {
+      _showSuccess("Contact updated successfully");
+    }
+  }
+
+  Widget _buildTable() {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -845,7 +930,7 @@ void _showEditDialog(
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    '${controller.contacts.length} records',
+                    '${_contacts.length} records',
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 12,
@@ -855,174 +940,196 @@ void _showEditDialog(
               ],
             ),
           ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Theme(
-              data: Theme.of(context).copyWith(
-                dividerColor: const Color(0xFFE4E7EC),
-              ),
-              child: DataTable(
-                showCheckboxColumn: false,
-                headingRowColor: WidgetStateProperty.all(
-                  const Color(0xFFF9FAFB),
+          SizedBox(
+            height: 520,
+            child: Scrollbar(
+              controller: _horizontalScrollController,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                controller: _horizontalScrollController,
+                scrollDirection: Axis.horizontal,
+                child: Scrollbar(
+                  controller: _verticalScrollController,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _verticalScrollController,
+                    scrollDirection: Axis.vertical,
+                    child: DataTable(
+                      columnSpacing: 28,
+                      headingRowHeight: 56,
+                      dataRowMinHeight: 64,
+                      dataRowMaxHeight: 90,
+                      headingTextStyle: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: kText,
+                        fontSize: 13,
+                      ),
+                      columns: const [
+                        DataColumn(label: Text('Full Name')),
+                        DataColumn(label: Text('Company')),
+                        DataColumn(label: Text('Phone')),
+                        DataColumn(label: Text('Location')),
+                        DataColumn(label: Text('Client Type')),
+                        DataColumn(label: Text('Status')),
+                        DataColumn(label: Text('Calls')),
+                        DataColumn(label: Text('Subject')),
+                        DataColumn(label: Text('Products')),
+                        DataColumn(label: Text('Follow-up')),
+                        DataColumn(label: Text('Message')),
+                        DataColumn(label: Text('Actions')),
+                      ],
+                      rows: _contacts.map((contact) {
+                        final relance = contact.relances.isNotEmpty
+                            ? contact.relances.first
+                            : null;
+
+                        return DataRow(
+                          cells: [
+                            DataCell(
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: const Color(0xFFEAF2FF),
+                                    child: Text(
+                                      contact.nom.isNotEmpty
+                                          ? contact.nom[0].toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1D4ED8),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  ConstrainedBox(
+                                    constraints:
+                                        const BoxConstraints(maxWidth: 180),
+                                    child: Text(
+                                      contact.fullName,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 160),
+                                child: Text(
+                                  (contact.nomSociete ?? '').trim().isNotEmpty
+                                      ? contact.nomSociete!
+                                      : 'N/A',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 130),
+                                child: Text(
+                                  contact.telephone,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 150),
+                                child: Text(
+                                  (contact.localisation ?? '').trim().isNotEmpty
+                                      ? contact.localisation!
+                                      : 'N/A',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            DataCell(_buildTypeBadge(contact.typeClient)),
+                            DataCell(_buildStatusBadge(contact.statut)),
+                            DataCell(Text('${contact.nbAppels}')),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 160),
+                                child: Text(
+                                  (contact.sujetDiscussion ?? '')
+                                          .trim()
+                                          .isNotEmpty
+                                      ? contact.sujetDiscussion!
+                                      : '-',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              SizedBox(
+                                width: 220,
+                                child: _buildProductsCell(contact.produits),
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 140),
+                                child: Text(
+                                  relance == null
+                                      ? '-'
+                                      : '${relance.dateRelance ?? '-'} ${relance.heureRelance ?? ''}',
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 2,
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 220),
+                                child: Text(
+                                  (contact.message ?? '').trim().isNotEmpty
+                                      ? contact.message!
+                                      : '-',
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 2,
+                                ),
+                              ),
+                            ),
+                            DataCell(
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    tooltip: 'Edit',
+                                    onPressed: () => _showEditDialog(contact),
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      color: Color(0xFF2563EB),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Calendar',
+                                    onPressed: () => _showRelanceDialog(contact),
+                                    icon: const Icon(
+                                      Icons.event_repeat_outlined,
+                                      color: Color(0xFF059669),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Delete',
+                                    onPressed: () => _confirmDelete(contact),
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      color: Color(0xFFDC2626),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
                 ),
-                dataRowColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.hovered)) {
-                    return const Color(0xFFF8FAFC);
-                  }
-                  return Colors.white;
-                }),
-                columnSpacing: 24,
-                horizontalMargin: 18,
-                headingRowHeight: 56,
-                dataRowMinHeight: 72,
-                dataRowMaxHeight: 88,
-                columns: const [
-                  DataColumn(label: Text('Full Name')),
-                  DataColumn(label: Text('Company')),
-                  DataColumn(label: Text('Phone')),
-                  DataColumn(label: Text('Location')),
-                  DataColumn(label: Text('Client Type')),
-                  DataColumn(label: Text('Products')),
-                  DataColumn(label: Text('Message')),
-                  DataColumn(label: Text('Actions')),
-                ],
-                rows: controller.contacts.map((contact) {
-                  return DataRow(
-                    cells: [
-                      DataCell(
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 18,
-                              backgroundColor: const Color(0xFFEAF2FF),
-                              child: Text(
-                                contact.nom.isNotEmpty
-                                    ? contact.nom[0].toUpperCase()
-                                    : '?',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1D4ED8),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            SizedBox(
-                              width: 170,
-                              child: Text(
-                                '${contact.nom} ${contact.prenom}',
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      DataCell(
-                        SizedBox(
-                          width: 140,
-                          child: Text(
-                            (contact.nomSociete ?? '').trim().isNotEmpty
-                                ? contact.nomSociete!
-                                : 'N/A',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      DataCell(
-                        SizedBox(
-                          width: 110,
-                          child: Text(
-                            contact.telephone,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      DataCell(
-                        SizedBox(
-                          width: 130,
-                          child: Text(
-                            (contact.localisation ?? '').trim().isNotEmpty
-                                ? contact.localisation!
-                                : 'N/A',
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      DataCell(_buildTypeBadge(contact.typeClient)),
-                      DataCell(
-                        SizedBox(
-                          width: 220,
-                          child: _buildProductsCell(contact.produits),
-                        ),
-                      ),
-                      DataCell(
-                        SizedBox(
-                          width: 200,
-                          child: Text(
-                            (contact.message ?? '').trim().isNotEmpty
-                                ? contact.message!
-                                : '-',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      DataCell(
-                        Row(
-                          children: [
-                            Tooltip(
-                              message: 'Edit',
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(10),
-                                onTap: () =>
-                                    _showEditDialog(context, controller, contact),
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEAF2FF),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.edit_outlined,
-                                    size: 18,
-                                    color: Color(0xFF1D4ED8),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Tooltip(
-                              message: 'Delete',
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(10),
-                                onTap: () => _showDeleteDialog(
-                                  context,
-                                  controller,
-                                  contact,
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF1F2),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.delete_outline,
-                                    size: 18,
-                                    color: Color(0xFFDC2626),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
               ),
             ),
           ),
@@ -1031,95 +1138,172 @@ void _showEditDialog(
     );
   }
 
-  Widget _buildEmpty() {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 460),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFE4E7EC)),
-        ),
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.folder_open_outlined,
-                size: 54, color: Color(0xFF98A2B3)),
-            SizedBox(height: 12),
-            Text(
-              'No commercial contacts found.',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+  Widget _buildSearchBar() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE4E7EC)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 20,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by name, company, phone or location...',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: const Color(0xFFF9FAFB),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFF3B82F6)),
+                ),
+              ),
+              onSubmitted: (value) => _loadContacts(query: value),
             ),
-            SizedBox(height: 8),
-            Text(
-              'Try changing your search criteria or add new contacts.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF667085)),
+          ),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed: () => _loadContacts(query: _searchController.text),
+            icon: const Icon(Icons.search),
+            label: const Text('Search'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 10),
+          OutlinedButton.icon(
+            onPressed: () {
+              _searchController.clear();
+              _loadContacts();
+            },
+            icon: const Icon(Icons.refresh),
+            label: const Text('Reset'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildError(String message) {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 500),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF1F2),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFFDA4AF)),
-        ),
-        child: Text(
-          message,
-          style: const TextStyle(
-            color: Color(0xFFB42318),
-            fontWeight: FontWeight.w500,
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF1F2),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFFDA4AF)),
           ),
-          textAlign: TextAlign.center,
+          child: Text(
+            _error!,
+            style: const TextStyle(
+              color: Color(0xFFB42318),
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ),
+      );
+    }
+
+    if (_contacts.isEmpty) {
+      return Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 460),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE4E7EC)),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.folder_open_outlined,
+                  size: 54, color: Color(0xFF98A2B3)),
+              SizedBox(height: 12),
+              Text(
+                'No commercial contacts found.',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Try changing your search criteria or add new contacts.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF667085)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => _loadContacts(query: _searchController.text),
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          _buildSearchBar(),
+          const SizedBox(height: 18),
+          _buildTable(),
+        ],
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final controller = Get.isRegistered<CommercialContactController>()
-        ? Get.find<CommercialContactController>()
-        : Get.put(CommercialContactController(token: token));
+  void dispose() {
+    _searchController.dispose();
+    _horizontalScrollController.dispose();
+    _verticalScrollController.dispose();
+    super.dispose();
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: kBg,
       appBar: AppBar(
         title: const Text('Commercial Contacts'),
+        centerTitle: false,
         elevation: 0,
       ),
-      body: Obx(() {
-        if (controller.isLoading.value && controller.contacts.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        return RefreshIndicator(
-          onRefresh: () =>
-              controller.fetchContacts(query: controller.searchCtrl.text),
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              _buildSearchBar(controller),
-              const SizedBox(height: 18),
-              if (controller.error.value.isNotEmpty)
-                _buildError(controller.error.value)
-              else if (controller.contacts.isEmpty)
-                _buildEmpty()
-              else
-                _buildTable(context, controller),
-            ],
-          ),
-        );
-      }),
+      body: _buildBody(),
     );
   }
 }

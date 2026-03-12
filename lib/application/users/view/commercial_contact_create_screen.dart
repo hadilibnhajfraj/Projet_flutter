@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:dash_master_toolkit/application/users/controller/commercial_contact_create_controller.dart';
 import 'package:go_router/go_router.dart';
-import 'package:dash_master_toolkit/application/users/controller/commercial_contact_controller.dart';
-import 'package:dash_master_toolkit/application/users/model/commercial_contact_model.dart';
 class CommercialContactCreateScreen extends StatelessWidget {
   CommercialContactCreateScreen({super.key});
 
@@ -14,11 +12,13 @@ class CommercialContactCreateScreen extends StatelessWidget {
   static const Color kCardBg = Colors.white;
   static const Color kFieldBg = Color(0xFFEAF0FF);
   static const Color kTextDark = Color(0xFF111827);
+  static const Color kMuted = Color(0xFF6B7280);
 
   InputDecoration _dec(String label, String hint, IconData icon) {
     return InputDecoration(
       labelText: label,
       hintText: hint,
+      prefixIcon: Icon(icon, color: kPrimary),
       filled: true,
       fillColor: kFieldBg,
       border: OutlineInputBorder(
@@ -31,27 +31,29 @@ class CommercialContactCreateScreen extends StatelessWidget {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: kPrimary, width: 2),
+        borderSide: const BorderSide(color: kPrimary, width: 1.3),
       ),
-      labelStyle: const TextStyle(
-        color: kTextDark,
-        fontWeight: FontWeight.w700,
-      ),
-      hintStyle: const TextStyle(color: Colors.grey),
-      suffixIcon: Icon(icon, color: kPrimary),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 
-  Widget _sectionTitle(String text, IconData icon) {
+  Widget _sectionTitle(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: kPrimary, size: 20),
-        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: kPrimary.withOpacity(.10),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: kPrimary),
+        ),
+        const SizedBox(width: 10),
         Text(
-          text,
+          title,
           style: const TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
             color: kTextDark,
           ),
         ),
@@ -62,507 +64,359 @@ class CommercialContactCreateScreen extends StatelessWidget {
   Widget _tf(
     String label,
     String hint,
-    TextEditingController controller, {
+    TextEditingController ctrl, {
     int maxLines = 1,
-    TextInputType? keyboardType,
+    TextInputType keyboardType = TextInputType.text,
     IconData icon = Icons.edit_outlined,
+    bool readOnly = false,
+    VoidCallback? onTap,
   }) {
     return TextField(
-      controller: controller,
+      controller: ctrl,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      readOnly: readOnly,
+      onTap: onTap,
       decoration: _dec(label, hint, icon),
     );
   }
 
-Future<void> _handleSubmit(BuildContext context) async {
-  try {
-    final ok = await c.submit();
+  Widget _buildProduitRow(BuildContext context, int index) {
+    final produit = c.produits[index];
 
-    if (!context.mounted) return;
-
-    if (!ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("First name, last name and phone number are required."),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (Get.isRegistered<CommercialContactController>()) {
-      await Get.find<CommercialContactController>().fetchContacts();
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Commercial contact created successfully."),
-        backgroundColor: Colors.green,
-      ),
+    final produitCtrl = TextEditingController(text: produit.produit);
+    final qteCtrl = TextEditingController(
+      text: produit.qte.toString().replaceAll(".0", ""),
     );
 
-    if (!context.mounted) return;
-    GoRouter.of(context).go('/users/commercial-contacts');
-  } catch (e) {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text("Creation failed: $e"),
-        backgroundColor: Colors.red,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: kPrimary.withOpacity(.10)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: produitCtrl,
+              onChanged: (v) => c.produits[index].produit = v,
+              decoration: _dec(
+                "Product",
+                "Example: PROBAR",
+                Icons.inventory_2_outlined,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 1,
+            child: TextField(
+              controller: qteCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (v) {
+                c.produits[index].qte = double.tryParse(v) ?? 1;
+              },
+              decoration: _dec(
+                "Quantity",
+                "1",
+                Icons.numbers_outlined,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: IconButton(
+              tooltip: "Delete",
+              onPressed: c.loading.value
+                  ? null
+                  : () => c.removeProduitRow(index),
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+            ),
+          ),
+        ],
       ),
     );
   }
-}
+
+  Widget _buildHeaderCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F172A), Color(0xFF1D4ED8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Create Commercial Contact",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          SizedBox(height: 8),
+          Text(
+            "Add client information, products, contact status and optional follow-up scheduling.",
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+              height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainForm(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.05),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          _sectionTitle("Client Information", Icons.person_outline),
+          const SizedBox(height: 18),
+
+          Row(
+            children: [
+              Expanded(
+                child: Obx(
+                  () => DropdownButtonFormField<String>(
+                    value: c.typeClient.value,
+                    items: const [
+                      DropdownMenuItem(value: "Tuteur", child: Text("Supervisor")),
+                      DropdownMenuItem(value: "Cloture", child: Text("Closure")),
+                      DropdownMenuItem(value: "autre", child: Text("Other")),
+                    ],
+                    onChanged: c.loading.value
+                        ? null
+                        : (v) => c.typeClient.value = v ?? "autre",
+                    decoration: _dec(
+                      "Client Type",
+                      "Select",
+                      Icons.category_outlined,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+
+              Expanded(
+                child: Obx(
+                  () => DropdownButtonFormField<String>(
+                    value: c.statut.value,
+                    items: const [
+                      DropdownMenuItem(value: "ok", child: Text("OK")),
+                      DropdownMenuItem(
+                        value: "rappeler_plus_tard",
+                        child: Text("Call Later"),
+                      ),
+                      DropdownMenuItem(
+                        value: "user_injoignable",
+                        child: Text("Not Reachable"),
+                      ),
+                      DropdownMenuItem(
+                        value: "client_refuse",
+                        child: Text("Client Refused"),
+                      ),
+                    ],
+                    onChanged: c.loading.value
+                        ? null
+                        : (v) => c.statut.value = v ?? "user_injoignable",
+                    decoration: _dec(
+                      "Contact Status",
+                      "Select",
+                      Icons.flag_outlined,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          Row(
+            children: [
+              Expanded(
+                child: _tf(
+                  "Last Name",
+                  "Example: Ben Salah",
+                  c.nomCtrl,
+                  icon: Icons.badge_outlined,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _tf(
+                  "First Name",
+                  "Example: Ali",
+                  c.prenomCtrl,
+                  icon: Icons.person_outline,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          Row(
+            children: [
+              Expanded(
+                child: _tf(
+                  "Company",
+                  "Example: CBI Tunisia",
+                  c.nomSocieteCtrl,
+                  icon: Icons.business_outlined,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: _tf(
+                  "Phone",
+                  "Example: 22123456",
+                  c.telephoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  icon: Icons.phone_outlined,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          _tf(
+            "Location",
+            "Example: Tunis, Sousse...",
+            c.localisationCtrl,
+            icon: Icons.location_on_outlined,
+          ),
+
+          const SizedBox(height: 14),
+
+          _tf(
+            "Message / Notes",
+            "Additional information",
+            c.messageCtrl,
+            maxLines: 4,
+            icon: Icons.notes_outlined,
+          ),
+
+          const SizedBox(height: 28),
+          _sectionTitle("Products", Icons.inventory_2_outlined),
+          const SizedBox(height: 16),
+
+          Obx(
+            () => Column(
+              children: List.generate(
+                c.produits.length,
+                (index) => _buildProduitRow(context, index),
+              ),
+            ),
+          ),
+
+          OutlinedButton.icon(
+            onPressed: c.loading.value ? null : c.addProduitRow,
+            icon: const Icon(Icons.add),
+            label: const Text("Add Product"),
+          ),
+
+          const SizedBox(height: 30),
+
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+
+  final success = await c.submit();
+
+  if (!context.mounted) return;
+
+  if (success == true) {
+
+    context.go('/users/commercial-contacts');
+
+  }
+},
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: const Icon(Icons.save_outlined),
+              label: const Text(
+                "Save Contact",
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 900;
-
     return Scaffold(
       backgroundColor: kPageBg,
-      body: Obx(
-        () => SingleChildScrollView(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: kPrimary,
+        foregroundColor: Colors.white,
+        title: const Text(
+          "New Commercial Contact",
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1200),
+              constraints: const BoxConstraints(maxWidth: 1100),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // HEADER
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          kPrimary,
-                          kPrimary.withOpacity(.85),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: kPrimary.withOpacity(.15),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Wrap(
-                      runSpacing: 14,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      alignment: WrapAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(.18),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              child: const Icon(
-                                Icons.business_center_outlined,
-                                color: Colors.white,
-                                size: 28,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            const Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "New Commercial Contact",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  "Add customer details and requested products.",
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: c.loading.value ? null : () => _handleSubmit(context),
-                          icon: c.loading.value
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                  ),
-                                )
-                              : const Icon(Icons.save, color: Colors.white),
-                          label: const Text("Save"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white.withOpacity(.18),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 22),
-
-                  // CUSTOMER INFORMATION
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: kCardBg,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
-                        BoxShadow(
-                          blurRadius: 12,
-                          color: Colors.black12,
-                          offset: Offset(0, 3),
-                        )
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _sectionTitle("Customer Information", Icons.person_outline),
-                        const SizedBox(height: 18),
-
-                        isMobile
-                            ? Column(
-                                children: [
-                                  DropdownButtonFormField<String>(
-                                    value: c.typeClient.value,
-                                    items: const [
-                                      DropdownMenuItem(value: "Tuteur", child: Text("Tuteur")),
-                                      DropdownMenuItem(value: "Cloture", child: Text("Cloture")),
-                                    ],
-                                    onChanged: c.loading.value
-                                        ? null
-                                        : (v) => c.typeClient.value = v ?? "autre",
-                                    decoration: _dec(
-                                      "Client Type",
-                                      "Select client type",
-                                      Icons.category_outlined,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 14),
-                                  _tf(
-                                    "Company Name",
-                                    "Enter company name",
-                                    c.nomSocieteCtrl,
-                                    icon: Icons.apartment_outlined,
-                                  ),
-                                  const SizedBox(height: 14),
-                                  _tf(
-                                    "Last Name *",
-                                    "Enter last name",
-                                    c.nomCtrl,
-                                    icon: Icons.person_outline,
-                                  ),
-                                  const SizedBox(height: 14),
-                                  _tf(
-                                    "First Name *",
-                                    "Enter first name",
-                                    c.prenomCtrl,
-                                    icon: Icons.badge_outlined,
-                                  ),
-                                  const SizedBox(height: 14),
-                                  _tf(
-                                    "Location",
-                                    "City / Region",
-                                    c.localisationCtrl,
-                                    icon: Icons.location_on_outlined,
-                                  ),
-                                  const SizedBox(height: 14),
-                                  _tf(
-                                    "Phone Number *",
-                                    "Enter phone number",
-                                    c.telephoneCtrl,
-                                    keyboardType: TextInputType.phone,
-                                    icon: Icons.phone_outlined,
-                                  ),
-                                ],
-                              )
-                            : Column(
-                                children: [
-                                  DropdownButtonFormField<String>(
-                                    value: c.typeClient.value,
-                                    items: const [
-                                       DropdownMenuItem(value: "Tuteur", child: Text("Tuteur")),
-                                      DropdownMenuItem(value: "Cloture", child: Text("Cloture")),
-                                    ],
-                                    onChanged: c.loading.value
-    ? null
-    : (v) => c.typeClient.value = v ?? "Tuteur",
-                                    decoration: _dec(
-                                      "Client Type",
-                                      "Select client type",
-                                      Icons.category_outlined,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 14),
-                                  _tf(
-                                    "Company Name",
-                                    "Enter company name",
-                                    c.nomSocieteCtrl,
-                                    icon: Icons.apartment_outlined,
-                                  ),
-                                  const SizedBox(height: 14),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: _tf(
-                                          "Last Name *",
-                                          "Enter last name",
-                                          c.nomCtrl,
-                                          icon: Icons.person_outline,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: _tf(
-                                          "First Name *",
-                                          "Enter first name",
-                                          c.prenomCtrl,
-                                          icon: Icons.badge_outlined,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 14),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: _tf(
-                                          "Location",
-                                          "City / Region",
-                                          c.localisationCtrl,
-                                          icon: Icons.location_on_outlined,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: _tf(
-                                          "Phone Number *",
-                                          "Enter phone number",
-                                          c.telephoneCtrl,
-                                          keyboardType: TextInputType.phone,
-                                          icon: Icons.phone_outlined,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-
-                        const SizedBox(height: 14),
-
-                        _tf(
-                          "Message",
-                          "Write a message or customer request",
-                          c.messageCtrl,
-                          maxLines: 4,
-                          icon: Icons.message_outlined,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 22),
-
-                  // PRODUCTS
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: kCardBg,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
-                        BoxShadow(
-                          blurRadius: 12,
-                          color: Colors.black12,
-                          offset: Offset(0, 3),
-                        )
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            _sectionTitle("Requested Products", Icons.inventory_2_outlined),
-                            const Spacer(),
-                            ElevatedButton.icon(
-                              onPressed: c.loading.value ? null : c.addProduitRow,
-                              icon: const Icon(Icons.add),
-                              label: const Text("Add"),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: kPrimary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        if (c.produits.isEmpty)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(18),
-                            decoration: BoxDecoration(
-                              color: kFieldBg,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: const Text(
-                              "No product added.",
-                              style: TextStyle(
-                                color: Colors.black54,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          )
-                        else
-                          Column(
-                            children: List.generate(c.produits.length, (i) {
-                              final item = c.produits[i];
-
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: kFieldBg,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: kPrimary.withOpacity(.12)),
-                                ),
-                                child: isMobile
-                                    ? Column(
-                                        children: [
-                                          TextFormField(
-                                            initialValue: item.produit,
-                                            decoration: _dec(
-                                              "Product",
-                                              "Product name",
-                                              Icons.widgets_outlined,
-                                            ),
-                                            onChanged: (v) => item.produit = v,
-                                          ),
-                                          const SizedBox(height: 12),
-                                          TextFormField(
-                                            initialValue: item.qte.toString(),
-                                            keyboardType: TextInputType.number,
-                                            decoration: _dec(
-                                              "Quantity",
-                                              "Enter quantity",
-                                              Icons.numbers_outlined,
-                                            ),
-                                            onChanged: (v) {
-                                              final n = double.tryParse(v.replaceAll(",", "."));
-                                              item.qte = (n == null || n <= 0) ? 1 : n;
-                                            },
-                                          ),
-                                          const SizedBox(height: 8),
-                                          Align(
-                                            alignment: Alignment.centerRight,
-                                            child: IconButton(
-                                              onPressed: c.loading.value ? null : () => c.removeProduitRow(i),
-                                              icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                              tooltip: "Delete",
-                                            ),
-                                          ),
-                                        ],
-                                      )
-                                    : Row(
-                                        children: [
-                                          Expanded(
-                                            flex: 3,
-                                            child: TextFormField(
-                                              initialValue: item.produit,
-                                              decoration: _dec(
-                                                "Product",
-                                                "Product name",
-                                                Icons.widgets_outlined,
-                                              ),
-                                              onChanged: (v) => item.produit = v,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            flex: 2,
-                                            child: TextFormField(
-                                              initialValue: item.qte.toString(),
-                                              keyboardType: TextInputType.number,
-                                              decoration: _dec(
-                                                "Quantity",
-                                                "Enter quantity",
-                                                Icons.numbers_outlined,
-                                              ),
-                                              onChanged: (v) {
-                                                final n = double.tryParse(v.replaceAll(",", "."));
-                                                item.qte = (n == null || n <= 0) ? 1 : n;
-                                              },
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          IconButton(
-                                            onPressed: c.loading.value ? null : () => c.removeProduitRow(i),
-                                            icon: const Icon(Icons.delete_outline, color: Colors.red),
-                                            tooltip: "Delete",
-                                          ),
-                                        ],
-                                      ),
-                              );
-                            }),
-                          ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton.icon(
-                      onPressed: c.loading.value ? null : () => _handleSubmit(context),
-                      icon: c.loading.value
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Icon(Icons.save),
-                      label: const Text("Save Contact"),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kPrimary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
+                  _buildHeaderCard(),
+                  const SizedBox(height: 18),
+                  _buildMainForm(context),
+                  const SizedBox(height: 20),
+                  const Center(
+                    child: Text(
+                      "Commercial Management • Contacts • Follow-ups",
+                      style: TextStyle(
+                        color: kMuted,
+                        fontSize: 12,
                       ),
                     ),
                   ),
