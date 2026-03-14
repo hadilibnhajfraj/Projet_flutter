@@ -18,7 +18,72 @@ class ProjectTimelineScreen extends StatefulWidget {
 class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
 
   final controller = Get.put(ProjectTimelineController());
+Future _deleteAction(String actionId) async {
 
+  final confirm = await showDialog<bool>(
+
+    context: context,
+
+    builder: (context) {
+
+      return AlertDialog(
+
+        title: const Text("Delete action"),
+
+        content: const Text(
+          "Are you sure you want to delete this action?"
+        ),
+
+        actions: [
+
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete"),
+          ),
+
+        ],
+
+      );
+    },
+  );
+
+  if (confirm != true) return;
+
+  try {
+
+    await ApiClient.instance.dio.delete(
+      "/projects/actions/$actionId",
+    );
+
+    Get.snackbar(
+      "Success",
+      "Action deleted",
+      backgroundColor: Colors.green,
+      colorText: Colors.white,
+    );
+
+    controller.loadActions(widget.projectId);
+
+  } catch (e) {
+
+    Get.snackbar(
+      "Error",
+      "Cannot delete action",
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
+    );
+
+  }
+
+}
   @override
   void initState() {
     super.initState();
@@ -88,32 +153,41 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
                   children: [
 
                     /// HEADER
-                    Row(
+                   Row(
 
-                      children: [
+  children: [
 
-                        const Icon(Icons.timeline, color: Colors.blue),
+    const Icon(Icons.timeline, color: Colors.blue),
 
-                        const SizedBox(width: 10),
+    const SizedBox(width: 10),
 
-                        Expanded(
-                          child: Text(
-                            action.typeAction,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
+    Expanded(
+      child: Text(
+        action.typeAction,
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 16,
+        ),
+      ),
+    ),
 
-                        Text(
-                          DateFormat("yyyy-MM-dd HH:mm")
-                              .format(DateTime.parse(action.dateAction)),
-                          style: const TextStyle(fontSize: 12),
-                        ),
+    Text(
+      DateFormat("yyyy-MM-dd HH:mm")
+          .format(DateTime.parse(action.dateAction)),
+      style: const TextStyle(fontSize: 12),
+    ),
 
-                      ],
-                    ),
+    const SizedBox(width: 10),
+
+    /// DELETE ACTION
+    IconButton(
+      icon: const Icon(Icons.delete, color: Colors.red),
+      onPressed: () => _deleteAction(action.id),
+    ),
+
+  ],
+
+),
 
                     /// COMMENT
                     if (action.commentaire != null &&
