@@ -13,6 +13,8 @@ class ProjectFormController extends GetxController {
   final formKey = GlobalKey<FormState>();
 
   // ---------------- Fields ----------------
+  // CRM ACTION
+final RxnString selectedAction = RxnString();
   final nomProjet = TextEditingController();
   final dateDemarrage = TextEditingController();
   final statut = TextEditingController();
@@ -20,7 +22,11 @@ class ProjectFormController extends GetxController {
 
   final ingenieurResponsable = TextEditingController();
   final telephoneIngenieur = TextEditingController();
+final emailIngenieur = TextEditingController();
+final emailArchitecte = TextEditingController();
 
+final dateVisite = TextEditingController();
+final Rxn<DateTime> selectedDateVisite = Rxn<DateTime>();
   // optional in UI
   final architecte = TextEditingController();
   final telephoneArchitecte = TextEditingController();
@@ -113,79 +119,177 @@ class ProjectFormController extends GetxController {
   // =========================
   // LOAD PROJECT (edit)
   // =========================
-  Future<void> loadProject(String id) async {
-    final res = await ApiClient.instance.dio.get('/projects/$id');
-    final j = Map<String, dynamic>.from(res.data);
+ Future<void> loadProject(String id) async {
 
-    nomProjet.text = (j['nomProjet'] ?? '').toString();
-    dateDemarrage.text = (j['dateDemarrage'] ?? '').toString();
-    statut.text = (j['statut'] ?? '').toString();
-    typeAdresseChantier.text = (j['typeAdresseChantier'] ?? '').toString();
+  final res = await ApiClient.instance.dio.get('/projects/$id');
+  final j = Map<String, dynamic>.from(res.data);
 
-    ingenieurResponsable.text = (j['ingenieurResponsable'] ?? '').toString();
-    telephoneIngenieur.text = (j['telephoneIngenieur'] ?? '').toString();
+  // =========================
+  // BASIC INFO
+  // =========================
 
-    architecte.text = (j['architecte'] ?? '').toString();
-    telephoneArchitecte.text = (j['telephoneArchitecte'] ?? '').toString();
+  nomProjet.text = (j['nomProjet'] ?? '').toString();
+  dateDemarrage.text = (j['dateDemarrage'] ?? '').toString();
+  statut.text = (j['statut'] ?? '').toString();
+  typeAdresseChantier.text = (j['typeAdresseChantier'] ?? '').toString();
 
-    matriculeFiscale.text = (j['matriculeFiscale'] ?? j['matricule_fiscale'] ?? '').toString();
+  ingenieurResponsable.text = (j['ingenieurResponsable'] ?? '').toString();
+  telephoneIngenieur.text = (j['telephoneIngenieur'] ?? '').toString();
 
-    entreprise.text = (j['entreprise'] ?? '').toString();
-    promoteur.text = (j['promoteur'] ?? '').toString();
-    bureauEtude.text = (j['bureauEtude'] ?? '').toString();
-    bureauControle.text = (j['bureauControle'] ?? '').toString();
+  architecte.text = (j['architecte'] ?? '').toString();
+  telephoneArchitecte.text = (j['telephoneArchitecte'] ?? '').toString();
 
-    entrepriseFluide.text = (j['entrepriseFluide'] ?? '').toString();
-    entrepriseElectricite.text = (j['entrepriseElectricite'] ?? '').toString();
+  matriculeFiscale.text =
+      (j['matriculeFiscale'] ?? j['matricule_fiscale'] ?? '').toString();
 
-    localisationAdresse.text = (j['adresse'] ?? '').toString();
+  entreprise.text = (j['entreprise'] ?? '').toString();
+  promoteur.text = (j['promoteur'] ?? '').toString();
+  bureauEtude.text = (j['bureauEtude'] ?? '').toString();
+  bureauControle.text = (j['bureauControle'] ?? '').toString();
 
-    typeProjet.text = (j['typeProjet'] ?? '').toString();
-    validationStatut.text = (j['validationStatut'] ?? 'Non validé').toString();
+  entrepriseFluide.text = (j['entrepriseFluide'] ?? '').toString();
+  entrepriseElectricite.text = (j['entrepriseElectricite'] ?? '').toString();
 
-    final pr = _toDouble(j['pourcentageReussite']);
-    pourcentageReussite.text = pr == null ? '' : pr.toString();
+  localisationAdresse.text = (j['adresse'] ?? '').toString();
+  commentaireCtrl.text =
+      (j['localisationCommentaire'] ?? '').toString();
 
-    final sp = _toDouble(j['surfaceProspectee']);
-    surfaceProspectee.text = sp == null ? '' : sp.toString();
+  typeProjet.text = (j['typeProjet'] ?? '').toString();
 
-    final dt = dateDemarrage.text.trim();
-    if (dt.isNotEmpty) {
-      try {
-        selectedDateDemarrage.value = DateFormat('yyyy-MM-dd').parseStrict(dt);
-      } catch (_) {}
-    }
+  validationStatut.text =
+      (j['validationStatut'] ?? 'Non validé').toString();
 
-    double? lat;
-    double? lng;
+  // =========================
+  // NUMBERS
+  // =========================
 
-    final loc = j['location'];
-    if (loc is Map) {
-      lat = _toDouble(loc['lat'] ?? loc['latitude']);
-      lng = _toDouble(loc['lng'] ?? loc['lon'] ?? loc['longitude']);
-    }
+  final pr = _toDouble(j['pourcentageReussite']);
+  pourcentageReussite.text = pr == null ? '' : pr.toString();
 
-    lat ??= _toDouble(j['lat'] ?? j['latitude']);
-    lng ??= _toDouble(j['lng'] ?? j['lon'] ?? j['longitude']);
+  final sp = _toDouble(j['surfaceProspectee']);
+  surfaceProspectee.text = sp == null ? '' : sp.toString();
 
-    if (lat != null && lng != null) {
-      latitude.value = lat;
-      longitude.value = lng;
-    } else {
-      latitude.value = null;
-      longitude.value = null;
-    }
+  // =========================
+  // DATE DEMARRAGE
+  // =========================
 
-    final cmts = j['comments'];
-    if (cmts is List) {
-      locationComments.value = cmts.map((e) => Map<String, dynamic>.from(e)).toList();
-    } else {
-      locationComments.clear();
-    }
+  final dt = dateDemarrage.text.trim();
 
-    update();
+  if (dt.isNotEmpty) {
+    try {
+      selectedDateDemarrage.value =
+          DateFormat('yyyy-MM-dd').parseStrict(dt);
+    } catch (_) {}
   }
 
+  // =========================
+  // LOCATION
+  // =========================
+
+  double? lat;
+  double? lng;
+
+  final loc = j['location'];
+
+  if (loc is Map) {
+    lat = _toDouble(loc['lat'] ?? loc['latitude']);
+    lng = _toDouble(loc['lng'] ?? loc['lon'] ?? loc['longitude']);
+  }
+
+  lat ??= _toDouble(j['lat'] ?? j['latitude']);
+  lng ??= _toDouble(j['lng'] ?? j['lon'] ?? j['longitude']);
+
+  if (lat != null && lng != null) {
+    latitude.value = lat;
+    longitude.value = lng;
+  } else {
+    latitude.value = null;
+    longitude.value = null;
+  }
+
+  // =========================
+  // COMMENTS LOCATION
+  // =========================
+
+  final cmts = j['comments'];
+
+  if (cmts is List) {
+    locationComments.value =
+        cmts.map((e) => Map<String, dynamic>.from(e)).toList();
+  } else {
+    locationComments.clear();
+  }
+
+  // =========================
+  // CRM ACTION
+  // =========================
+
+ // =========================
+// DATE VISITE
+// =========================
+
+final dv = (
+  j['dateVisite'] ??
+  j['date_visite'] ??
+  j['dateAction'] ??
+  ''
+).toString();
+
+if (dv.isNotEmpty) {
+
+  try {
+
+    final parsed = DateTime.parse(dv);
+
+    selectedDateVisite.value = parsed;
+
+    dateVisite.text = DateFormat('yyyy-MM-dd').format(parsed);
+
+  } catch (_) {
+
+    dateVisite.text = dv;
+
+  }
+
+} else {
+
+  dateVisite.text = "";
+
+}
+
+  // =========================
+  // NEXT ACTION
+  // =========================
+
+  final next = (
+    j['nextAction'] ??
+    j['firstAction'] ??
+    j['typeAction'] ??
+    ''
+  ).toString();
+
+  selectedAction.value =
+      next.isEmpty ? null : next;
+
+  update();
+}
+Future<void> pickDateVisite(BuildContext context) async {
+
+  final initial = selectedDateVisite.value ?? DateTime.now();
+
+  final picked = await showDatePicker(
+    context: context,
+    firstDate: DateTime(2000),
+    lastDate: DateTime(2100),
+    initialDate: initial,
+  );
+
+  if (picked == null) return;
+
+  selectedDateVisite.value = picked;
+
+  dateVisite.text = DateFormat('yyyy-MM-dd').format(picked);
+}
   // =========================
   // DATE PICKER
   // =========================
@@ -429,4 +533,5 @@ Future<void> _autoGeocode(String query) async {
 
     super.onClose();
   }
+
 }

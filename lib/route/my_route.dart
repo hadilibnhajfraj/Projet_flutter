@@ -55,7 +55,7 @@ import '../providers/language_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:dash_master_toolkit/forms/view/devis_upload_screen.dart';
 import 'package:get_storage/get_storage.dart';
-
+import 'package:dash_master_toolkit/forms/view/project_timeline_screen.dart';
 class MyRoute {
   static const login = '/login';
   static const dashboard = '/dashboard';
@@ -71,7 +71,7 @@ class MyRoute {
 
   static const ecommerceAdmin = '/kpi-project';
   static const dashboardEcommerceAdmin = '/dashboard/kpi-project';
-
+  static const projectTimeline = "/forms/project-timeline";
   static const calendarScreen = '/calendar';
   static const chatScreen = '/chat';
   static const kanbanScreen = '/kanban';
@@ -275,6 +275,7 @@ GoRoute(
     ),
   ),
 ),
+
             ],
           ),
 
@@ -402,6 +403,18 @@ GoRoute(
         isEdit: true, // ✅
       ),
     );
+  },
+),
+GoRoute(
+  path: "project-timeline",
+  builder: (context, state) {
+
+    final projectId = state.uri.queryParameters["projectId"]!;
+
+    return ProjectTimelineScreen(
+      projectId: projectId,
+    );
+
   },
 ),
             ],

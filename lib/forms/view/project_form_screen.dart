@@ -12,7 +12,7 @@ import 'package:dash_master_toolkit/widgets/common_app_widget.dart';
 import '../../pages/google_map/location_picker_screen.dart';
 import '../controller/project_form_controller.dart';
 import '../../providers/api_client.dart';
-
+import 'package:dash_master_toolkit/forms/view/project_timeline_screen.dart';
 // template imports
 import 'package:dash_master_toolkit/forms/form_imports.dart';
 import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
@@ -31,7 +31,8 @@ class ProjectFormScreen extends StatefulWidget {
 class _ProjectFormScreenState extends State<ProjectFormScreen> {
   late final ProjectFormController c;
   late final ThemeController themeController;
-
+  
+String? selectedAction;
   // ✅ Display (EN) -> API value (FR)
   final List<Map<String, String>> _statusOptions = const [
     {"label": "In progress", "value": "En cours"},
@@ -48,7 +49,30 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   String? _projectId;
   bool _loadedOnce = false;
   bool _loading = false;
+String? _getValidAction() {
 
+  const valid = [
+    "Visite",
+    "Plan technique",
+    "Echantillonnage",
+    "Devis envoyé",
+    "Negociation",
+    "Relance",
+    "Commande gagnée",
+    "Commande perdue",
+  ];
+
+  final v = c.selectedAction.value;
+
+  if (v == null) return null;
+
+  if (valid.contains(v)) return v;
+
+  // mapping API → dropdown
+  if (v == "Visite chantier") return "Visite";
+
+  return null;
+}
   // Block Purchase Order until Quotation is valid
   bool _devisIsValid = false;
 
@@ -215,6 +239,23 @@ Future<void> _refreshCardColors() async {
                           keyboardType: TextInputType.phone,
                         ),
                       ),
+                      _twoCols(
+  isMobile: isMobile,
+  left: _field(
+    theme: theme,
+    title: "Engineer Email",
+    controller: c.emailIngenieur,
+    validator: null,
+    keyboardType: TextInputType.emailAddress,
+  ),
+  right: _field(
+    theme: theme,
+    title: "Architect Email",
+    controller: c.emailArchitecte,
+    validator: null,
+    keyboardType: TextInputType.emailAddress,
+  ),
+),
 
                       _twoCols(
                         isMobile: isMobile,
@@ -232,6 +273,37 @@ Future<void> _refreshCardColors() async {
                           keyboardType: TextInputType.phone,
                         ),
                       ),
+                      Padding(
+  padding: const EdgeInsets.only(bottom: 16, top: 5),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _requiredTitle(theme, "Visit Date", required: true),
+      const SizedBox(height: 6),
+      TextFormField(
+        controller: c.dateVisite,
+        validator: (v) => c.requiredValidator(v, "Visit Date"),
+        readOnly: true,
+        onTap: () async {
+          await c.pickDateVisite(context);
+          if (mounted) setState(() {});
+        },
+        decoration: inputDecoration(
+          context,
+          hintText: "Select visit date",
+        ).copyWith(
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.calendar_month),
+            onPressed: () async {
+              await c.pickDateVisite(context);
+              if (mounted) setState(() {});
+            },
+          ),
+        ),
+      ),
+    ],
+  ),
+),
 
                       _field(
                         theme: theme,
@@ -293,7 +365,46 @@ Future<void> _refreshCardColors() async {
                         keyboardType: TextInputType.multiline,
                         maxLines: 4,
                       ),
+Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
 
+    const Text(
+      "Next Action",
+      style: TextStyle(
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+
+    const SizedBox(height: 6),
+
+    DropdownButtonFormField<String>(
+      value: _getValidAction(),
+       validator: (v) {
+    if (v == null || v.isEmpty) {
+      return "Next Action is required";
+    }
+    return null;
+  },
+      decoration: const InputDecoration(
+        border: OutlineInputBorder(),
+      ),
+      items: const [
+        DropdownMenuItem(value: "Visite", child: Text("Visite chantier")),
+        DropdownMenuItem(value: "Plan technique", child: Text("Plan technique")),
+        DropdownMenuItem(value: "Echantillonnage", child: Text("Echantillonnage")),
+        DropdownMenuItem(value: "Devis envoyé", child: Text("Devis envoyé")),
+        DropdownMenuItem(value: "Negociation", child: Text("Négociation")),
+        DropdownMenuItem(value: "Relance", child: Text("Relance")),
+        DropdownMenuItem(value: "Commande gagnée", child: Text("Commande gagnée")),
+        DropdownMenuItem(value: "Commande perdue", child: Text("Commande perdue")),
+      ],
+      onChanged: (v) {
+        c.selectedAction.value = v;
+      },
+    ),
+  ],
+),
                       const SizedBox(height: 18),
 
                       // ✅ Primary button: stay on page
@@ -347,7 +458,18 @@ Future<void> _refreshCardColors() async {
       await _refreshCardColors();
     },
   ),
+const SizedBox(height: 16),
 
+ElevatedButton(
+  child: const Text("CRM Timeline"),
+  onPressed: () {
+
+    context.go(
+      "/forms/project-timeline?projectId=$_projectId"
+    );
+
+  },
+),
   // ✅✅✅ MOVED HERE: button after Purchase Order
   const SizedBox(height: 16),
   CommonButton(
@@ -637,6 +759,21 @@ Future<void> _submit({required bool goBackAfterSave}) async {
         : c.validationStatut.text.trim(), // FR
     "pourcentageReussite": c.pourcentageReussiteValue,
     "surfaceProspectee": c.surfaceProspecteeValue,
+    "emailIngenieur": c.emailIngenieur.text.trim().isEmpty
+    ? null
+    : c.emailIngenieur.text.trim(),
+
+"emailArchitecte": c.emailArchitecte.text.trim().isEmpty
+    ? null
+    : c.emailArchitecte.text.trim(),
+
+"dateVisite": c.dateVisite.text.trim().isEmpty
+    ? null
+    : c.dateVisite.text.trim(),
+   "firstAction": c.selectedAction.value,
+"commentaireAction": c.commentaireCtrl.text.trim().isEmpty
+    ? null
+    : c.commentaireCtrl.text.trim(),
   };
 
   try {

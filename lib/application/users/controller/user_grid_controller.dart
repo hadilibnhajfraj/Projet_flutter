@@ -194,23 +194,4 @@ class UserGridController extends GetxController {
     super.onClose();
 
   }
-  void filterByOwner(String? owner) {
-
-  if (owner == null) {
-    filtered.assignAll(projects);
-    return;
-  }
-
-  filtered.assignAll(
-    projects.where((p) => p.ownerName == owner).toList(),
-  );
-}
-void filterByDate(DateTime date) {
-
-  final d = date.toString().substring(0, 10);
-
-  filtered.assignAll(
-    projects.where((p) => p.dateDemarrage.startsWith(d)).toList(),
-  );
-}
 }
