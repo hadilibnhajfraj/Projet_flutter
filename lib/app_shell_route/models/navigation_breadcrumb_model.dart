@@ -34,6 +34,11 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
       parentRoute: 'Commercial',
       childRoute: 'Commercial',
     ),
+     MyRoute.projectTimeline: NavigationBreadcrumbModel(
+      title: 'TimeLine',
+      parentRoute: 'TimeLine',
+      childRoute: 'TimeLine',
+    ),
     MyRoute.dashboardFinanceAdmin: NavigationBreadcrumbModel(
       title: 'Dashboard',
       parentRoute: 'Dashboard',

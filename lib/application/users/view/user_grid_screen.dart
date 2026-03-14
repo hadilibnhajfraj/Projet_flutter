@@ -443,20 +443,45 @@ Widget _buildProjectCard(BuildContext context, ProjectGridData p, ThemeData them
           const SizedBox(height: 16),
 
           /// ACTION BUTTON
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              onPressed: () => context.go(_editUrl(p.id)),
-              icon: const Icon(Icons.edit, size: 16),
-              label: const Text("Edit"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colorPrimary100,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
+          /// ACTION BUTTONS
+Row(
+  mainAxisAlignment: MainAxisAlignment.end,
+  children: [
+
+    /// CRM TIMELINE
+    ElevatedButton.icon(
+      icon: const Icon(Icons.timeline, size: 16),
+      label: const Text("CRM Timeline"),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.blueGrey,
+      ),
+      onPressed: () {
+
+        context.go(
+          "/forms/project-timeline?projectId=${p.id}"
+        );
+
+      },
+    ),
+
+    const SizedBox(width: 8),
+
+    /// EDIT
+    ElevatedButton.icon(
+      onPressed: () => context.go(_editUrl(p.id)),
+      icon: const Icon(Icons.edit, size: 16),
+      label: const Text("Edit"),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colorPrimary100,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    ),
+
+  ],
+),
+          
         ],
       ),
     ),
