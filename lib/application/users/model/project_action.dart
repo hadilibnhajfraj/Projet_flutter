@@ -20,7 +20,7 @@ class ProjectAction {
       id: json["id"].toString(),
       typeAction: json["typeAction"] ?? "",
       commentaire: json["commentaire"] ?? "",
-      dateAction: json["dateAction"] ?? json["createdAt"]
+      dateAction: json["dateAction"] ?? json["createdAt"],
       createdBy: json["createdBy"] ?? "",
     );
 

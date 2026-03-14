@@ -39,85 +39,163 @@ class _UserGridScreenState extends State<UserGridScreen> {
         ? Get.find<ThemeController>()
         : Get.put(ThemeController(), permanent: true);
   }
+Widget _sectionTitle(String title) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+    child: Text(
+      title,
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  );
+}
+@override
+Widget build(BuildContext context) {
+  final lang = AppLocalizations.of(context);
+  final theme = Theme.of(context);
 
-  @override
-  Widget build(BuildContext context) {
-    final lang = AppLocalizations.of(context);
-    final theme = Theme.of(context);
+  return Scaffold(
+    backgroundColor: themeController.isDarkMode ? colorGrey900 : colorWhite,
+    body: SingleChildScrollView(
+      padding: EdgeInsets.all(
+        rf.ResponsiveValue<double>(
+          context,
+          conditionalValues: const [
+            rf.Condition.between(start: 0, end: 340, value: 10),
+            rf.Condition.between(start: 341, end: 992, value: 10),
+          ],
+          defaultValue: 10,
+        ).value,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
 
-    return Scaffold(
-      backgroundColor: themeController.isDarkMode ? colorGrey900 : colorWhite,
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(
-          rf.ResponsiveValue<double>(
-            context,
-            conditionalValues: const [
-              rf.Condition.between(start: 0, end: 340, value: 10),
-              rf.Condition.between(start: 341, end: 992, value: 10),
-            ],
-            defaultValue: 10,
-          ).value,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsetsDirectional.only(start: 10, end: 10),
-              child: CommonSearchField(
-                controller: controller.searchController,
-                focusNode: controller.f1,
-                isDarkMode: themeController.isDarkMode,
-                onChanged: controller.searchProject,
-                inputDecoration: inputDecoration(
-                  context,
-                  borderColor: Colors.transparent,
-                  prefixIcon: searchIcon,
-                  fillColor: Colors.transparent,
-                  prefixIconColor: colorGrey400,
-                  hintText: (lang.translate("search") ?? "Search"),
-                  borderRadius: 8,
-                  topContentPadding: 0,
-                  bottomContentPadding: 0,
-                ),
+          /// SEARCH
+          Padding(
+            padding: const EdgeInsetsDirectional.only(start: 10, end: 10),
+            child: CommonSearchField(
+              controller: controller.searchController,
+              focusNode: controller.f1,
+              isDarkMode: themeController.isDarkMode,
+              onChanged: controller.searchProject,
+              inputDecoration: inputDecoration(
+                context,
+                borderColor: Colors.transparent,
+                prefixIcon: searchIcon,
+                fillColor: Colors.transparent,
+                prefixIconColor: colorGrey400,
+                hintText: (lang.translate("search") ?? "Search"),
+                borderRadius: 8,
+                topContentPadding: 0,
+                bottomContentPadding: 0,
               ),
             ),
-            const SizedBox(height: 15),
-            Obx(() {
-              if (controller.loading.value) {
-                return const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
+          ),
 
-              if (controller.filtered.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text("No projects found."),
-                );
-              }
+          const SizedBox(height: 15),
 
-              return ResponsiveGridRow(
-                children: List.generate(controller.filtered.length, (index) {
-                  return ResponsiveGridCol(
-                    lg: 4,
-                    xl: 4,
-                    md: 4,
-                    xs: 12,
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(top: 20, start: 10, end: 10),
-                      child: _buildProjectCard(context, controller.filtered[index], theme),
-                    ),
-                  );
-                }),
+          /// PROJECTS
+          Obx(() {
+
+            if (controller.loading.value) {
+              return const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator()),
               );
-            }),
-            const SizedBox(height: 15),
-          ],
-        ),
+            }
+
+            if (controller.filtered.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(20),
+                child: Text("No projects found."),
+              );
+            }
+
+            /// CRM PIPELINE GROUPING
+            final preparationProjects =
+                controller.filtered.where((p) => !p.hasDevis && !p.hasBonCommande).toList();
+
+            final devisProjects =
+                controller.filtered.where((p) => p.hasDevis && !p.hasBonCommande).toList();
+
+            final bonCommandeProjects =
+                controller.filtered.where((p) => p.hasBonCommande).toList();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+                /// PREPARATION
+                if (preparationProjects.isNotEmpty) ...[
+                  _sectionTitle("🔵 Projects in preparation"),
+                  ResponsiveGridRow(
+                    children: preparationProjects.map((p) {
+                      return ResponsiveGridCol(
+                        lg: 4,
+                        xl: 4,
+                        md: 6,
+                        xs: 12,
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: _buildProjectCard(context, p, theme),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 30),
+                ],
+
+                /// DEVIS
+                if (devisProjects.isNotEmpty) ...[
+                  _sectionTitle("🔴 Projects with quotation"),
+                  ResponsiveGridRow(
+                    children: devisProjects.map((p) {
+                      return ResponsiveGridCol(
+                        lg: 4,
+                        xl: 4,
+                        md: 6,
+                        xs: 12,
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: _buildProjectCard(context, p, theme),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 30),
+                ],
+
+                /// BON COMMANDE
+                if (bonCommandeProjects.isNotEmpty) ...[
+                  _sectionTitle("🟢 Projects confirmed"),
+                  ResponsiveGridRow(
+                    children: bonCommandeProjects.map((p) {
+                      return ResponsiveGridCol(
+                        lg: 4,
+                        xl: 4,
+                        md: 6,
+                        xs: 12,
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: _buildProjectCard(context, p, theme),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ],
+            );
+          }),
+
+          const SizedBox(height: 15),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   String _editUrl(String id) {
     return Uri(
@@ -146,30 +224,30 @@ class _UserGridScreenState extends State<UserGridScreen> {
   }
 
 Widget _buildProjectCard(BuildContext context, ProjectGridData p, ThemeData theme) {
-  // ✅ Afficher le badge Tasks (même si 0). Si tu veux seulement quand >0 :
-  // final showTasks = p.taskCount > 0;
-  final showTasks = true;
+
+  final Color statusColor = p.hasBonCommande
+      ? Colors.green
+      : (p.hasDevis ? Colors.red : Colors.blue);
 
   Widget _badge({
     required IconData icon,
     required int count,
     VoidCallback? onTap,
   }) {
-    final w = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      margin: const EdgeInsets.only(right: 6),
+    final widget = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(.04),
+        color: Colors.grey.shade100,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         children: [
           Icon(icon, size: 16, color: Colors.blueGrey),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Text(
             "$count",
             style: theme.textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.bold,
               color: Colors.blueGrey,
             ),
           ),
@@ -177,22 +255,17 @@ Widget _buildProjectCard(BuildContext context, ProjectGridData p, ThemeData them
       ),
     );
 
-    if (onTap == null) return w;
+    if (onTap == null) return widget;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: w,
-      ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: widget,
     );
   }
 
   return InkWell(
-    borderRadius: BorderRadius.circular(12),
-
-    // ✅ click card: edit if canEdit else comments
+    borderRadius: BorderRadius.circular(14),
     onTap: () {
       if (p.canEdit) {
         context.go(_editUrl(p.id));
@@ -200,154 +273,149 @@ Widget _buildProjectCard(BuildContext context, ProjectGridData p, ThemeData them
         _goToComment(context, p);
       }
     },
-
     child: Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: themeController.isDarkMode
-            ? colorDark
-            : (p.hasBonCommande
-                ? const Color(0xFFE8F5E9)
-                : (p.hasDevis ? const Color(0xFFFFEBEE) : Colors.white)),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black12)],
+        color: themeController.isDarkMode ? colorDark : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: statusColor.withOpacity(.4)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // HEADER
+
+          /// HEADER
           Row(
             children: [
+
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+
                     if (p.ownerName.trim().isNotEmpty)
                       Text(
-                        "Created by: ${p.ownerName}",
+                        "Created by ${p.ownerName}",
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: colorGrey500,
-                          fontWeight: FontWeight.w600,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
+
+                    const SizedBox(height: 4),
+
                     Text(
                       p.nomProjet.isEmpty ? "Project" : p.nomProjet,
                       style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.bold,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
 
-              // ✅ TASKS BADGE (مرة واحدة فقط)
-              if (showTasks)
-                _badge(
-                  icon: Icons.event_note,
-                  count: p.taskCount,
-                  // onTap: () => context.go("/calendar?projectId=${p.id}"),
-                ),
+              /// TASK BADGE
+              _badge(
+                icon: Icons.event_note,
+                count: p.taskCount,
+              ),
 
-              // ✅ COMMENTS BADGE (clickable)
+              const SizedBox(width: 6),
+
+              /// COMMENT BADGE
               _badge(
                 icon: Icons.comment,
                 count: p.commentCount,
                 onTap: () => _goToComment(context, p),
               ),
 
-              // ✅ MENU
+              const SizedBox(width: 6),
+
+              /// MENU
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert),
                 onSelected: (v) async {
                   if (v == "comment") await _goToComment(context, p);
                   if (v == "edit") context.go(_editUrl(p.id));
                   if (v == "delete") await _confirmDelete(context, p);
-                  if (v == "tasks") {
-                    // optionnel: ouvrir calendar filtré
-                    // context.go("/calendar?projectId=${p.id}");
-                  }
                 },
-                itemBuilder: (_) {
-                  final items = <PopupMenuEntry<String>>[];
+                itemBuilder: (_) => [
 
-                  items.add(
-                    PopupMenuItem(
-                      value: "comment",
+                  PopupMenuItem(
+                    value: "comment",
+                    child: Row(
+                      children: [
+                        const Icon(Icons.comment, size: 18),
+                        const SizedBox(width: 8),
+                        Text("Comment (${p.commentCount})"),
+                      ],
+                    ),
+                  ),
+
+                  PopupMenuItem(
+                    value: "tasks",
+                    child: Row(
+                      children: [
+                        const Icon(Icons.event_note, size: 18),
+                        const SizedBox(width: 8),
+                        Text("Tasks (${p.taskCount})"),
+                      ],
+                    ),
+                  ),
+
+                  if (p.canEdit)
+                    const PopupMenuItem(
+                      value: "edit",
                       child: Row(
                         children: [
-                          const Icon(Icons.comment, size: 18),
-                          const SizedBox(width: 8),
-                          Text("Comment (${p.commentCount})"),
+                          Icon(Icons.edit, size: 18),
+                          SizedBox(width: 8),
+                          Text("Edit"),
                         ],
                       ),
                     ),
-                  );
 
-                  // ✅ Tasks menu item (toujours visible ici)
-                  items.add(
-                    PopupMenuItem(
-                      value: "tasks",
+                  if (p.canDelete)
+                    const PopupMenuItem(
+                      value: "delete",
                       child: Row(
                         children: [
-                          const Icon(Icons.event_note, size: 18),
-                          const SizedBox(width: 8),
-                          Text("Tasks (${p.taskCount})"),
+                          Icon(Icons.delete, color: Colors.red, size: 18),
+                          SizedBox(width: 8),
+                          Text("Delete"),
                         ],
                       ),
                     ),
-                  );
+                ],
+              )
+            ],
+          ),
 
-                  if (p.canEdit) {
-                    items.add(
-                      const PopupMenuItem(
-                        value: "edit",
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit, size: 18),
-                            SizedBox(width: 8),
-                            Text("Edit"),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
+          const SizedBox(height: 14),
 
-                  if (p.canDelete) {
-                    items.add(
-                      const PopupMenuItem(
-                        value: "delete",
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete, size: 18, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text("Delete"),
-                          ],
-                        ),
-                      ),
-                    );
-                  }
-
-                  return items;
-                },
+          /// COMPANY
+          Row(
+            children: [
+              const Icon(Icons.business, size: 16, color: Colors.grey),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  p.entreprise.isEmpty ? "Company: -" : p.entreprise,
+                  style: theme.textTheme.bodyMedium,
+                ),
               ),
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
-          Text(
-            p.entreprise.isEmpty ? "Company: -" : "Company: ${p.entreprise}",
-            style: theme.textTheme.bodyMedium?.copyWith(color: colorGrey500),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-
-          const SizedBox(height: 12),
-
+          /// STATUS + START
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -358,52 +426,36 @@ Widget _buildProjectCard(BuildContext context, ProjectGridData p, ThemeData them
 
           const SizedBox(height: 10),
 
-          Text(
-            p.adresse.isEmpty ? "Address: -" : "Address: ${p.adresse}",
-            style: theme.textTheme.bodySmall?.copyWith(color: colorGrey500),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          /// ADDRESS
+          Row(
+            children: [
+              const Icon(Icons.location_on_outlined, size: 16, color: Colors.grey),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  p.adresse.isEmpty ? "-" : p.adresse,
+                  style: theme.textTheme.bodySmall?.copyWith(color: colorGrey500),
+                ),
+              ),
+            ],
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
 
+          /// ACTION BUTTON
           Align(
             alignment: Alignment.centerRight,
-            child: p.canEdit
-                ? ElevatedButton.icon(
-                    onPressed: () => context.go(_editUrl(p.id)),
-                    icon: const Icon(Icons.edit, size: 16),
-                    label: Text(
-                      "Edit",
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colorPrimary100,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  )
-                : ElevatedButton.icon(
-                    onPressed: () => _goToComment(context, p),
-                    icon: const Icon(Icons.comment, size: 16),
-                    label: Text(
-                      "Comment (${p.commentCount})",
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueGrey,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  ),
+            child: ElevatedButton.icon(
+              onPressed: () => context.go(_editUrl(p.id)),
+              icon: const Icon(Icons.edit, size: 16),
+              label: const Text("Edit"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorPrimary100,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
           ),
         ],
       ),

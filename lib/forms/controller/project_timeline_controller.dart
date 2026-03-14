@@ -1,7 +1,6 @@
 import 'package:get/get.dart';
 import '../../providers/api_client.dart';
 
-
 /// ==============================
 /// REMINDER MODEL
 /// ==============================
@@ -27,8 +26,6 @@ class ReminderModel {
   }
 }
 
-
-
 /// ==============================
 /// ACTION MODEL
 /// ==============================
@@ -38,7 +35,6 @@ class ProjectActionModel {
   final String typeAction;
   final String? commentaire;
   final String dateAction;
-
   final List<ReminderModel> reminders;
 
   ProjectActionModel({
@@ -71,17 +67,13 @@ class ProjectActionModel {
   }
 }
 
-
-
 /// ==============================
 /// CONTROLLER
 /// ==============================
 class ProjectTimelineController extends GetxController {
 
   final actions = <ProjectActionModel>[].obs;
-
   final loading = false.obs;
-
 
   Future loadActions(String projectId) async {
 

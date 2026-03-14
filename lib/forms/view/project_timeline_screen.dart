@@ -25,7 +25,7 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
     controller.loadActions(widget.projectId);
   }
 
-  /// couleur relance
+  /// RELANCE COLOR
   Color getRelanceColor(DateTime dateRelance) {
 
     final now = DateTime.now();
@@ -118,14 +118,14 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
                     /// COMMENT
                     if (action.commentaire != null &&
                         action.commentaire!.isNotEmpty)
+
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: Text(action.commentaire!),
                       ),
 
                     /// REMINDERS
-                    if (action.reminders != null &&
-                        action.reminders.isNotEmpty)
+                    if (action.reminders.isNotEmpty)
 
                       Column(
 
@@ -173,10 +173,12 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
                                   ],
                                 ),
 
-                                if (reminder.message != null)
+                                if (reminder.message != null &&
+                                    reminder.message!.isNotEmpty)
+
                                   Padding(
                                     padding: const EdgeInsets.only(top: 6),
-                                    child: Text(reminder.message ?? ""),
+                                    child: Text(reminder.message!),
                                   ),
 
                               ],
@@ -280,16 +282,6 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
               onPressed: () => Navigator.pop(context, "Negociation"),
             ),
 
-            SimpleDialogOption(
-              child: const Text("Commande gagnée"),
-              onPressed: () => Navigator.pop(context, "Commande gagnée"),
-            ),
-
-            SimpleDialogOption(
-              child: const Text("Commande perdue"),
-              onPressed: () => Navigator.pop(context, "Commande perdue"),
-            ),
-
           ],
         );
       },
@@ -297,12 +289,36 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
 
     if (action == null) return;
 
-    await ApiClient.instance.dio.post(
-      "/projects/$projectId/actions",
-      data: {"typeAction": action},
-    );
+    try {
 
-    controller.loadActions(projectId);
+      await ApiClient.instance.dio.post(
+        "/projects/$projectId/actions",
+        data: {
+          "typeAction": action,
+          "commentaire": "",
+          "dateRelance": null
+        },
+      );
+
+      controller.loadActions(projectId);
+
+      Get.snackbar(
+        "Success",
+        "Action added",
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+
+    } catch (e) {
+
+      Get.snackbar(
+        "Error",
+        "Cannot add action",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+
+    }
   }
 
   /// COMMENT
@@ -338,19 +354,21 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
               child: const Text("Save"),
               onPressed: () async {
 
-                if (text.text.isEmpty) {
+                if (text.text.trim().isEmpty) {
+
                   Get.snackbar(
                     "Error",
                     "Comment cannot be empty",
                     backgroundColor: Colors.red,
                     colorText: Colors.white,
                   );
+
                   return;
                 }
 
                 await ApiClient.instance.dio.post(
                   "/projects/$projectId/comments",
-                  data: {"body": text.text},
+                  data: {"body": text.text.trim()},
                 );
 
                 Navigator.pop(context);
@@ -385,18 +403,6 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
     );
 
     if (date == null) return;
-
-    if (date.difference(DateTime.now()).inHours > 48) {
-
-      Get.snackbar(
-        "Warning",
-        "Relance should not exceed 48 hours",
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-
-      return;
-    }
 
     final message = TextEditingController();
 
@@ -444,11 +450,10 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
               onPressed: () async {
 
                 await ApiClient.instance.dio.post(
-                  "/projects/$projectId/reminders",
+                  "/projects/actions/$actionId/reminders",
                   data: {
-                    "actionId": actionId,
                     "dateRelance": date.toIso8601String(),
-                    "message": message.text
+                    "message": message.text.trim()
                   },
                 );
 
@@ -457,6 +462,7 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
                 controller.loadActions(projectId);
 
               },
+
             ),
 
           ],

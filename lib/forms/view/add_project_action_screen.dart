@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../services/project_action_api.dart';
+
 class AddProjectActionScreen extends StatefulWidget {
 
   final String projectId;
@@ -131,14 +132,14 @@ class _AddProjectActionScreenState
 
                   type: type,
 
-                  commentaire: commentaire.text,
+                  commentaire: commentaire.text.trim(),
 
                   dateRelance:
                   relance?.toIso8601String()
 
                 );
 
-                Get.back();
+                Get.back(result: true);
 
               },
 
