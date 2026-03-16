@@ -47,7 +47,8 @@ import 'package:dash_master_toolkit/tables/view/drag_and_drop_table_screen.dart'
 import 'package:dash_master_toolkit/tables/view/hover_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/stripped_row_table_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_contact_list_getx_screen.dart';
-
+import 'package:dash_master_toolkit/application/users/view/users_table.dart';
+import 'package:dash_master_toolkit/application/users/view/user_project_screen.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/auth_service.dart';
@@ -64,6 +65,7 @@ class MyRoute {
   static const dashboardAcademicAdmin = '/dashboard/academic-admin';
 
   static const salesAdmin = '/kpi-projects';
+  static const dashboardComercial = "/dashboard-commercial";
   static const dashboardSalesAdmin = '/dashboard/kpi-projects';
 
   static const financeAdmin = 'finance-admin';
@@ -273,6 +275,20 @@ GoRoute(
     child: CommercialContactListGetxScreen(
       token: AuthService().accessToken ?? '',
     ),
+  ),
+),
+GoRoute(
+  path: '/dashboard-commercial',
+
+  redirect: (context, state) {
+    if (AuthService().userRole != "superadmin") {
+      return "/unauthorized";
+    }
+    return null;
+  },
+
+  pageBuilder: (context, state) => NoTransitionPage(
+    child: UsersTable(),
   ),
 ),
 

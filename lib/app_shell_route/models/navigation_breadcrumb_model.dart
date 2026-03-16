@@ -74,6 +74,11 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
   parentRoute: 'Commercial',
   childRoute: 'Commercial Contacts',
 ),
+ MyRoute.dashboardComercial: NavigationBreadcrumbModel(
+  title: 'Commercial Projects',
+  parentRoute: 'Commercial Projects',
+  childRoute: 'Commercial Projects',
+),
 MyRoute.commercialProfileScreen: NavigationBreadcrumbModel(
   title: 'Commercial Profile',
   parentRoute: 'Commercial',

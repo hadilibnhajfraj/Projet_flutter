@@ -166,6 +166,12 @@ List<GroupedMenuModel> buildGroupedMenus({
                 name: "Client",
                 navigationPath: 'client',
               ),
+               if (isAdmin)
+              SidebarSubmenuModel(
+                name: "Dashboard Commercial",
+                navigationPath: 'dashboard-commercial',
+              ),
+              
           ],
         ),
       ],
