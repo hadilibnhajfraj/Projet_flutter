@@ -467,17 +467,15 @@ Row(
     const SizedBox(width: 8),
 
     /// EDIT
-    ElevatedButton.icon(
-      onPressed: () => context.go(_editUrl(p.id)),
-      icon: const Icon(Icons.edit, size: 16),
-      label: const Text("Edit"),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: colorPrimary100,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-      ),
+    if (p.canEdit)
+  ElevatedButton.icon(
+    onPressed: () => context.go(_editUrl(p.id)),
+    icon: const Icon(Icons.edit, size: 16),
+    label: const Text("Edit"),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: colorPrimary100,
     ),
+  ),
 
   ],
 ),
