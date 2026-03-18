@@ -3,7 +3,8 @@ import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:dash_master_toolkit/application/users/model/user_project_model.dart';
 import 'package:dash_master_toolkit/services/user_project_service.dart';
-
+import 'package:http/http.dart' as http;
+import 'package:jwt_decoder/jwt_decoder.dart';
 class UserProjectsScreen extends StatefulWidget {
   final String token;
 
@@ -39,7 +40,10 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
   final TextEditingController _promoteurCtrl = TextEditingController();
   final TextEditingController _ingenieurCtrl = TextEditingController();
   final TextEditingController _societeCtrl = TextEditingController();
-
+  final TextEditingController _createdByCtrl = TextEditingController();
+ String? userRole;
+String? selectedUser;
+List<Map<String, dynamic>> users = [];
   bool _loading = false;
   String? _error;
   UserProjectsResponse? _response;
@@ -48,11 +52,43 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
   final int _limit = 10;
 
   @override
-  void initState() {
-    super.initState();
-    _loadProjects();
-  }
+void initState() {
+  super.initState();
 
+  Map<String, dynamic> decoded = JwtDecoder.decode(widget.token);
+
+  userRole = decoded["role"];
+
+  print("ROLE CONNECTED: $userRole"); // 🔥 DEBUG
+
+  _loadUsers();
+  _loadProjects();
+}
+Future<void> _loadUsers() async {
+  try {
+    final response = await http.get(
+      Uri.parse('${service.baseUrl}/users'),
+      headers: {
+        'Authorization': 'Bearer ${widget.token}',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+
+      setState(() {
+        final allUsers = List<Map<String, dynamic>>.from(data);
+
+users = allUsers.where((u) {
+  final role = (u['role'] ?? '').toString().toLowerCase();
+  return role == "user"; // 🔥 ou "agent" selon ton système
+}).toList();
+      });
+    }
+  } catch (e) {
+    print("Error loading users: $e");
+  }
+}
   Future<void> _loadProjects() async {
     setState(() {
       _loading = true;
@@ -64,6 +100,7 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
         token: widget.token,
         architecte: _architectCtrl.text,
         promoteur: _promoteurCtrl.text,
+        createdBy: selectedUser,
         ingenieur: _ingenieurCtrl.text,
         societe: _societeCtrl.text,
         q: _searchCtrl.text,
@@ -86,14 +123,17 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
   }
 
   void _resetFilters() {
-    _searchCtrl.clear();
-    _architectCtrl.clear();
-    _promoteurCtrl.clear();
-    _ingenieurCtrl.clear();
-    _societeCtrl.clear();
-    _page = 1;
-    _loadProjects();
-  }
+  _searchCtrl.clear();
+  _architectCtrl.clear();
+  _promoteurCtrl.clear();
+  _ingenieurCtrl.clear();
+  _societeCtrl.clear();
+
+  selectedUser = null; // 🔥 IMPORTANT
+
+  _page = 1;
+  _loadProjects();
+}
 
   void _exportCsv() {
     final items = _response?.items ?? [];
@@ -306,6 +346,25 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
                         controller: _societeCtrl,
                         hint: 'Company',
                       ),
+                      if (userRole == "superadmin") 
+  DropdownButtonFormField<String>(
+    value: selectedUser,
+    hint: const Text("Created By"),
+    items: users.map<DropdownMenuItem<String>>((u) {
+      return DropdownMenuItem<String>(
+        value: u['id'].toString(),
+        child: Text(u['email'] ?? ''),
+      );
+    }).toList(),
+    onChanged: (value) {
+      setState(() {
+        selectedUser = value;
+      });
+
+      _page = 1;
+      _loadProjects();
+    },
+  ),
                     ],
                   ),
                   const SizedBox(height: 16),

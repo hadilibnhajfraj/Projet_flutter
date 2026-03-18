@@ -12,6 +12,7 @@ class UserProjectService {
     String? architecte,
     String? promoteur,
     String? ingenieur,
+    String? createdBy,
     String? societe,
     String? q,
     int page = 1,
@@ -37,6 +38,9 @@ class UserProjectService {
     if ((q ?? '').trim().isNotEmpty) {
       queryParams['q'] = q!.trim();
     }
+    if (createdBy != null && createdBy.isNotEmpty) {
+  queryParams['createdBy'] = createdBy;
+}
 
     final uri = Uri.parse('$baseUrl/projects/my-projects')
         .replace(queryParameters: queryParams);
