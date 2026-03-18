@@ -33,12 +33,14 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   late final ThemeController themeController;
   
 String? selectedAction;
-  // ✅ Display (EN) -> API value (FR)
   final List<Map<String, String>> _statusOptions = const [
-    {"label": "In progress", "value": "En cours"},
-    {"label": "Preparation", "value": "Préparation"},
-    {"label": "Completed", "value": "Terminé"},
-  ];
+  {"label": "Identification", "value": "Identification"},
+  {"label": "Technical Proposal", "value": "Proposition technique"},
+  {"label": "Commercial Proposal", "value": "Proposition commerciale"},
+  {"label": "Negotiation", "value": "Négociation"},
+  {"label": "Delivery", "value": "Livraison"},
+  {"label": "Loyalty", "value": "Fidélisation"},
+];
 
   // ✅ Display (EN) -> API value (FR)
   final List<Map<String, String>> _validationOptions = const [
