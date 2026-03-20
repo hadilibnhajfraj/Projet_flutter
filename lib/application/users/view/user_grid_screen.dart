@@ -184,8 +184,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
   }
 
   /// ROW
- Widget _row(ProjectGridData p) {
-
+Widget _row(ProjectGridData p) {
   Color? bg;
 
   if (p.hasBonCommande) {
@@ -195,7 +194,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
   }
 
   return InkWell(
-   onTap: () {
+    onTap: () {
       if (p.canEdit) {
         context.go(_editUrl(p.id));
       } else {
@@ -203,15 +202,13 @@ class _UserGridScreenState extends State<UserGridScreen> {
       }
     },
     child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
-        color: bg, // ✅ CORRECT ICI
+        color: bg,
         border: Border(
           bottom: BorderSide(color: Colors.grey.shade300),
         ),
       ),
-
       child: Row(
         children: [
 
@@ -220,32 +217,56 @@ class _UserGridScreenState extends State<UserGridScreen> {
             flex: 3,
             child: Row(
               children: [
-
                 CircleAvatar(
                   backgroundColor: Colors.blue.shade100,
-                  child: Text(p.nomProjet.isNotEmpty ? p.nomProjet[0] : "P"),
+                  child: Text(
+                    p.nomProjet.isNotEmpty ? p.nomProjet[0] : "P",
+                  ),
                 ),
 
                 const SizedBox(width: 10),
 
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(p.nomProjet,
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text("By ${p.ownerName}",
-                        style: const TextStyle(fontSize: 11)),
-                  ],
-                )
+                /// ✅ FIX OVERFLOW HERE
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        p.nomProjet,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        "By ${p.ownerName}",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
 
           /// COMPANY
-          Expanded(flex: 2, child: Text(p.entreprise)),
+          Expanded(
+            flex: 2,
+            child: Text(
+              p.entreprise,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
 
           /// DATE
-          Expanded(flex: 2, child: Text(p.dateDemarrage)),
+          Expanded(
+            flex: 2,
+            child: Text(
+              p.dateDemarrage,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
 
           /// STATUS
           Expanded(
@@ -261,6 +282,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
               ),
               child: Text(
                 p.statut,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: p.hasBonCommande
                       ? Colors.green
@@ -287,7 +309,6 @@ class _UserGridScreenState extends State<UserGridScreen> {
             flex: 2,
             child: Row(
               children: [
-
                 IconButton(
                   icon: const Icon(Icons.timeline),
                   onPressed: () {
@@ -302,8 +323,8 @@ class _UserGridScreenState extends State<UserGridScreen> {
                   ),
 
                 PopupMenuButton(
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
                       value: "delete",
                       child: Text("Delete"),
                     ),
