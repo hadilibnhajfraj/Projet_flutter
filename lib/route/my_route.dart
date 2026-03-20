@@ -248,7 +248,7 @@ static const clientsProfileScreen = '/users/client';
               GoRoute(
                 path: 'project-list',
                 pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: UserGridScreen()),
+                    NoTransitionPage(child: UserGridScreen()),
               ),
               GoRoute(
                 path: 'user_profile',

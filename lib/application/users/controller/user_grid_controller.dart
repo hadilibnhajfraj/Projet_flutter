@@ -177,7 +177,21 @@ class UserGridController extends GetxController {
     update();
 
   }
+final RxInt currentPage = 1.obs;
+final RxInt rowsPerPage = 5.obs;
 
+int get totalPages =>
+    (filtered.length / rowsPerPage.value).ceil();
+
+List<ProjectGridData> get paginatedData {
+  final start = (currentPage.value - 1) * rowsPerPage.value;
+  final end = start + rowsPerPage.value;
+
+  return filtered.sublist(
+    start,
+    end > filtered.length ? filtered.length : end,
+  );
+}
   /// AFTER UPDATE PROJECT
   Future<void> afterProjectUpdate(String id) async {
 
