@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart'; // IMPORTANT
-import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart' as dio;
 import '../../../providers/api_client.dart';
 
 class ProjectActionApi {
@@ -12,51 +12,86 @@ class ProjectActionApi {
     required String type,
     String? commentaire,
     String? dateRelance,
-    dynamic file
+    dynamic file,
   }) async {
 
-    MultipartFile? multipartFile;
+    dio.MultipartFile? multipartFile;
 
-    if (file != null) {
+    try {
 
       /// =========================
-      /// WEB
+      /// FILE HANDLING
       /// =========================
-      if (kIsWeb) {
+      if (file != null) {
 
-        final bytes = file.bytes; // ✅ IMPORTANT (FilePicker)
+        /// WEB
+        if (kIsWeb) {
 
-        multipartFile = MultipartFile.fromBytes(
-          bytes,
-          filename: file.name,
-        );
+          if (file.bytes == null) {
+            throw Exception("File bytes is null (Web)");
+          }
 
-      } else {
+          print("🌐 WEB FILE => ${file.name}");
+          print("📦 BYTES => ${file.bytes.length}");
 
-        /// =========================
-        /// MOBILE / DESKTOP
-        /// =========================
-        multipartFile = await MultipartFile.fromFile(
-          file.path,
-          filename: file.path.split('/').last,
-        );
+          multipartFile = dio.MultipartFile.fromBytes(
+            file.bytes,
+            filename: file.name,
+          );
+
+        } else {
+
+          /// MOBILE / DESKTOP
+          print("📱 FILE PATH => ${file.path}");
+
+          multipartFile = await dio.MultipartFile.fromFile(
+            file.path,
+            filename: file.path.split('/').last,
+          );
+        }
       }
+
+      /// =========================
+      /// FORM DATA
+      /// =========================
+      final formData = dio.FormData.fromMap({
+
+        "typeAction": type,
+        "commentaire": commentaire ?? "",
+        "dateRelance": dateRelance,
+
+        if (multipartFile != null)
+          "file": multipartFile,
+
+      });
+
+      print("🚀 SEND ACTION...");
+      print("typeAction => $type");
+      print("commentaire => $commentaire");
+      print("dateRelance => $dateRelance");
+
+      /// =========================
+      /// API CALL
+      /// =========================
+      final response = await ApiClient.instance.dio.post(
+        "/projects/$projectId/actions",
+        data: formData,
+        options: dio.Options(
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        ),
+      );
+
+      print("✅ ACTION CREATED => ${response.data}");
+
+      return response.data;
+
+    } catch (e) {
+
+      print("❌ CREATE ACTION ERROR => $e");
+
+      rethrow;
     }
-
-    final formData = FormData.fromMap({
-
-      "typeAction": type,
-      "commentaire": commentaire,
-      "dateRelance": dateRelance,
-
-      if (multipartFile != null)
-        "file": multipartFile,
-
-    });
-
-    await ApiClient.instance.dio.post(
-      "/projects/$projectId/actions",
-      data: formData,
-    );
   }
 }

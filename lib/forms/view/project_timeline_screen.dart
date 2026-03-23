@@ -14,10 +14,31 @@ class ProjectTimelineScreen extends StatefulWidget {
 
   @override
   State<ProjectTimelineScreen> createState() => _ProjectTimelineScreenState();
+  
+
 }
 
 class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
-
+  String? getNextAction(String current) {
+  switch (current) {
+    case "Visite": return "Plan technique";
+    case "Plan technique": return "Echantillonnage";
+    case "Echantillonnage": return "Devis envoyé";
+    case "Devis envoyé": return "Negociation";
+    case "Negociation": return "Commande gagnée";
+    default: return null;
+  }
+}
+Color getActionColor(String action) {
+  switch(action){
+    case "Visite": return Colors.blue;
+    case "Plan technique": return Colors.orange;
+    case "Devis envoyé": return Colors.purple;
+    case "Negociation": return Colors.red;
+    case "Commande gagnée": return Colors.green;
+    default: return Colors.grey;
+  }
+}
   final controller = Get.put(ProjectTimelineController());
 Future _deleteAction(String actionId) async {
 
@@ -375,18 +396,41 @@ if (action.fileUrl != null)
   /// ADD ACTION
   Future _openAddAction(BuildContext context, String projectId) async {
 
-  /// 1. Choisir type action
+  String? suggested;
+
+  if (controller.actions.isNotEmpty) {
+
+  /// ✅ SORT BY DATE (VERY IMPORTANT)
+  final sorted = [...controller.actions];
+
+  sorted.sort((a, b) =>
+      DateTime.parse(b.dateAction)
+          .compareTo(DateTime.parse(a.dateAction)));
+
+  final last = sorted.first;
+
+  suggested = getNextAction(last.typeAction);
+}
+
   final action = await showDialog<String>(
-
     context: context,
-
     builder: (context) {
 
       return SimpleDialog(
-
         title: const Text("Select Action"),
 
         children: [
+
+          if (suggested != null)
+            Container(
+              color: Colors.green.withOpacity(0.1),
+              child: SimpleDialogOption(
+                child: Text("👉 Suggested: $suggested"),
+                onPressed: () => Navigator.pop(context, suggested),
+              ),
+            ),
+
+          const Divider(),
 
           SimpleDialogOption(
             child: const Text("Visite chantier"),
@@ -420,18 +464,16 @@ if (action.fileUrl != null)
 
   if (action == null) return;
 
-  /// 2. Ouvrir écran complet (UPLOAD + COMMENT + RELANCE)
   final result = await Navigator.push(
     context,
     MaterialPageRoute(
       builder: (_) => AddProjectActionScreen(
         projectId: projectId,
-        initialType: action, // ✅ on passe le type
+        initialType: action,
       ),
     ),
   );
 
-  /// 3. Refresh timeline
   if (result == true) {
     controller.loadActions(projectId);
   }
