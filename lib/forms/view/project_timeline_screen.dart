@@ -6,6 +6,7 @@ import '../controller/project_timeline_controller.dart';
 import '../../providers/api_client.dart';
 import 'add_project_action_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 class ProjectTimelineScreen extends StatefulWidget {
 
   final String projectId;
@@ -135,9 +136,26 @@ Future _deleteAction(String actionId) async {
 
     return Scaffold(
 
-      appBar: AppBar(
-        title: const Text("CRM Timeline"),
+     appBar: AppBar(
+    title: const Text("CRM Timeline"),
+    actions: [
+
+      ElevatedButton.icon(
+        icon: const Icon(Icons.view_kanban, size: 18),
+        label: const Text("Pipeline"),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.blue,
+        ),
+        onPressed: () {
+          context.go('/forms/pipeline');
+        },
       ),
+
+      const SizedBox(width: 10),
+
+    ],
+  ),
 
       body: Obx(() {
 
@@ -456,7 +474,18 @@ if (action.fileUrl != null)
             child: const Text("Négociation"),
             onPressed: () => Navigator.pop(context, "Negociation"),
           ),
-
+          SimpleDialogOption(
+            child: const Text("Relance"),
+            onPressed: () => Navigator.pop(context, "Relance"),
+          ),
+          SimpleDialogOption(
+            child: const Text("Commande gagnée"),
+            onPressed: () => Navigator.pop(context, "Commande gagnée"),
+          ),
+          SimpleDialogOption(
+            child: const Text("Commande perdue"),
+            onPressed: () => Navigator.pop(context, "Commande perdue"),
+          ),
         ],
       );
     },

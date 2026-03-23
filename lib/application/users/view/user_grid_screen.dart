@@ -15,6 +15,7 @@ import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 import 'package:responsive_grid/responsive_grid.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
+import 'package:dash_master_toolkit/providers/api_client.dart';
 
 class UserGridScreen extends StatefulWidget {
   const UserGridScreen({super.key});
@@ -29,7 +30,54 @@ class _UserGridScreenState extends State<UserGridScreen> {
 
   int currentPage = 1;
   int rowsPerPage = 5;
+final List<Map<String, String>> STATUS_LIST = [
+  {"label": "Identification", "value": "Identification"},
+  {"label": "Technical Proposal", "value": "Proposition technique"},
+  {"label": "Commercial Proposal", "value": "Proposition commerciale"},
+  {"label": "Negotiation", "value": "Négociation"},
+  {"label": "Delivery", "value": "Livraison"},
+  {"label": "Loyalty", "value": "Fidélisation"},
+];
+Color getStatusColor(String status) {
+  switch (status) {
+    case "Identification":
+      return Colors.blue;
 
+    case "Proposition technique":
+      return Colors.orange;
+
+    case "Proposition commerciale":
+      return Colors.purple;
+
+    case "Négociation":
+      return Colors.red;
+
+    case "Livraison":
+      return Colors.green;
+
+    case "Fidélisation":
+      return Colors.teal;
+
+    default:
+      return Colors.grey;
+  }
+}
+
+Future<void> updateStatus(String projectId, String newStatus) async {
+  try {
+    await ApiClient.instance.dio.put(
+      "/projects/$projectId",
+      data: {
+        "statut": newStatus,
+      },
+    );
+
+    controller.loadProjects(); // refresh
+
+  } catch (e) {
+    print("❌ STATUS UPDATE ERROR: $e");
+  }
+}
   @override
   Widget build(BuildContext context) {
 
@@ -41,14 +89,57 @@ class _UserGridScreenState extends State<UserGridScreen> {
 
           /// HEADER
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            color: Colors.white,
-            child: const Text(
-              "Projects Table",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+  width: double.infinity,
+  padding: const EdgeInsets.all(20),
+  color: Colors.white,
+
+  child: Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+
+      /// TITLE
+      const Text(
+        "Projects Table",
+        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+      ),
+
+      /// BUTTONS
+      Row(
+        children: [
+
+          /// 🔵 PIPELINE
+          ElevatedButton.icon(
+            onPressed: () {
+              context.go("/forms/pipeline");
+            },
+            icon: const Icon(Icons.view_kanban),
+            label: const Text("Pipeline"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
           ),
+
+          const SizedBox(width: 10),
+
+          /// 🟢 ADD PROJECT
+          ElevatedButton.icon(
+            onPressed: () {
+              context.go(MyRoute.projectFormScreen);
+            },
+            icon: const Icon(Icons.add),
+            label: const Text("Add Project"),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+          ),
+
+        ],
+      )
+    ],
+  ),
+),
 
           /// SEARCH
           Padding(
@@ -186,7 +277,9 @@ class _UserGridScreenState extends State<UserGridScreen> {
   /// ROW
 Widget _row(ProjectGridData p) {
   Color? bg;
-
+String safeValue = STATUS_LIST.any((s) => s["value"] == p.statut)
+    ? p.statut
+    : "Identification";
   if (p.hasBonCommande) {
     bg = Colors.green.withOpacity(0.08);
   } else if (p.hasDevis) {
@@ -269,28 +362,44 @@ Widget _row(ProjectGridData p) {
           ),
 
           /// STATUS
-          Expanded(
-            flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: (p.hasBonCommande
-                        ? Colors.green
-                        : (p.hasDevis ? Colors.red : Colors.blue))
-                    .withOpacity(.15),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                p.statut,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: p.hasBonCommande
-                      ? Colors.green
-                      : (p.hasDevis ? Colors.red : Colors.blue),
-                ),
-              ),
-            ),
-          ),
+Expanded(
+  flex: 2,
+  child: Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: (p.hasBonCommande
+              ? Colors.green
+              : (p.hasDevis ? Colors.red : getStatusColor(p.statut)))
+          .withOpacity(.15),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: DropdownButton<String>(
+      value: safeValue,
+      isExpanded: true,
+      underline: const SizedBox(),
+
+      items: STATUS_LIST.map((status) {
+        return DropdownMenuItem<String>(
+          value: status["value"],
+          child: Text(status["label"]!),
+        );
+      }).toList(),
+
+      onChanged: (value) async {
+        if (value == null) return;
+
+        await ApiClient.instance.dio.put(
+          "/projects/${p.id}",
+          data: {
+            "statut": value, // ✅ EXACT ENUM BACKEND
+          },
+        );
+
+        controller.loadProjects();
+      },
+    ),
+  ),
+),
 
           /// ACTIVITY
           Expanded(

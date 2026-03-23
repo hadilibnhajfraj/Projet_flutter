@@ -57,6 +57,7 @@ import 'package:provider/provider.dart';
 import 'package:dash_master_toolkit/forms/view/devis_upload_screen.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:dash_master_toolkit/forms/view/project_timeline_screen.dart';
+import 'package:dash_master_toolkit/forms/view/project_pipeline_screen.dart';
 class MyRoute {
   static const login = '/login';
   static const dashboard = '/dashboard';
@@ -104,7 +105,7 @@ class MyRoute {
   static const cardScreen = '/components/card';
   static const toastScreen = '/components/toast';
   static const ratingScreen = '/components/rating';
-
+static const  projectPipeline = "/pipeline";
   static const chartScreen = '/chart';
 
   static const userListScreen = '/users/user-list';
@@ -301,6 +302,7 @@ GoRoute(
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: ProjectsScreen()),
           ),
+          
           GoRoute(
             path: mapScreen,
             pageBuilder: (context, state) =>
@@ -433,6 +435,12 @@ GoRoute(
 
   },
 ),
+GoRoute(
+  path: 'pipeline', // ✅ IMPORTANT
+  name: 'pipeline',
+  builder: (context, state) => const ProjectPipelineScreen(),
+),
+
             ],
           ),
 

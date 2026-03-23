@@ -52,24 +52,66 @@ class _AddProjectActionScreenState
 
           children: [
 
-            DropdownButtonFormField<String>(
+DropdownButtonFormField<String>(
   value: type,
 
-  items: [
-    _buildItem("Visite"),
-    _buildItem("Plan technique"),
-    _buildItem("Echantillonnage"),
-    _buildItem("Devis envoyé"),
-    _buildItem("Negociation"),
-    _buildItem("Rappel"),
+  items: const [
+
+    DropdownMenuItem(
+      value:"Visite",
+      child: Text("Visite chantier")
+    ),
+
+    DropdownMenuItem(
+      value:"Plan technique",
+      child: Text("Plan technique")
+    ),
+
+    DropdownMenuItem(
+      value:"Echantillonnage",
+      child: Text("Echantillonnage")
+    ),
+
+    DropdownMenuItem(
+      value:"Devis envoyé",
+      child: Text("Devis envoyé")
+    ),
+
+    DropdownMenuItem(
+      value:"Negociation",
+      child: Text("Negociation")
+    ),
+
+    DropdownMenuItem(
+      value:"Rappel",
+      child: Text("Rappel")
+    )
+
   ],
 
-  onChanged: (v) {
+  onChanged:(v){
     setState(() {
       type = v!;
     });
   },
 ),
+if (widget.initialType != null)
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(10),
+    margin: const EdgeInsets.only(bottom: 10),
+    decoration: BoxDecoration(
+      color: Colors.green.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Text(
+      "👉 Suggested: ${widget.initialType}",
+      style: const TextStyle(
+        color: Colors.green,
+        fontWeight: FontWeight.bold,
+      ),
+    ),
+  ),
 
             const SizedBox(height:20),
 
