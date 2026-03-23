@@ -20,7 +20,8 @@ import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
 // IMPORTANT: sections (WITHOUT scaffold)
 import 'package:dash_master_toolkit/forms/view/devis_form_section.dart';
 import 'package:dash_master_toolkit/forms/view/bon_de_commande_form_section.dart';
-
+import 'package:file_picker/file_picker.dart';
+import 'package:dio/dio.dart' as dio;
 class ProjectFormScreen extends StatefulWidget {
   const ProjectFormScreen({super.key});
 
@@ -31,7 +32,8 @@ class ProjectFormScreen extends StatefulWidget {
 class _ProjectFormScreenState extends State<ProjectFormScreen> {
   late final ProjectFormController c;
   late final ThemeController themeController;
-  
+Uint8List? selectedFileBytes;
+String? actionFileName;
 String? selectedAction;
   final List<Map<String, String>> _statusOptions = const [
   {"label": "Identification", "value": "Identification"},
@@ -134,6 +136,21 @@ String? _getValidAction() {
       if (mounted) setState(() => _loading = false);
     }
   }
+Future pickActionFile() async {
+
+  final result = await FilePicker.platform.pickFiles(
+    withData: true, // 🔥 IMPORTANT WEB
+  );
+
+  if (result != null) {
+
+    setState(() {
+      selectedFileBytes = result.files.single.bytes;
+      actionFileName = result.files.single.name;
+    });
+
+  }
+}
 Future<void> _refreshCardColors() async {
   if (_projectId == null) return;
 
@@ -407,6 +424,29 @@ Column(
     ),
   ],
 ),
+if (c.selectedAction.value != null) ...[
+  const SizedBox(height: 10),
+
+  Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+
+      const Text(
+        "Fichier (optionnel)",
+        style: TextStyle(fontWeight: FontWeight.w600),
+      ),
+
+      const SizedBox(height: 6),
+
+      ElevatedButton.icon(
+        icon: const Icon(Icons.attach_file),
+        label: Text(actionFileName ?? "Choisir fichier"),
+        onPressed: pickActionFile,
+      ),
+
+    ],
+  ),
+],
                       const SizedBox(height: 18),
 
                       // ✅ Primary button: stay on page
@@ -724,6 +764,7 @@ ElevatedButton(
   }
 
 Future<void> _submit({required bool goBackAfterSave}) async {
+
   final ok = c.formKey.currentState?.validate() ?? false;
   if (!ok) return;
 
@@ -739,7 +780,7 @@ Future<void> _submit({required bool goBackAfterSave}) async {
   final payload = {
     "nomProjet": c.nomProjet.text.trim(),
     "dateDemarrage": c.dateDemarrage.text.trim(),
-    "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(), // FR
+    "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
     "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
     "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
     "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
@@ -758,37 +799,93 @@ Future<void> _submit({required bool goBackAfterSave}) async {
     "typeProjet": c.typeProjet.text.trim().isEmpty ? null : c.typeProjet.text.trim(),
     "validationStatut": c.validationStatut.text.trim().isEmpty
         ? "Non validé"
-        : c.validationStatut.text.trim(), // FR
+        : c.validationStatut.text.trim(),
     "pourcentageReussite": c.pourcentageReussiteValue,
     "surfaceProspectee": c.surfaceProspecteeValue,
-    "emailIngenieur": c.emailIngenieur.text.trim().isEmpty
-    ? null
-    : c.emailIngenieur.text.trim(),
+    "emailIngenieur": c.emailIngenieur.text.trim().isEmpty ? null : c.emailIngenieur.text.trim(),
+    "emailArchitecte": c.emailArchitecte.text.trim().isEmpty ? null : c.emailArchitecte.text.trim(),
+    "dateVisite": c.dateVisite.text.trim().isEmpty ? null : c.dateVisite.text.trim(),
 
-"emailArchitecte": c.emailArchitecte.text.trim().isEmpty
-    ? null
-    : c.emailArchitecte.text.trim(),
-
-"dateVisite": c.dateVisite.text.trim().isEmpty
-    ? null
-    : c.dateVisite.text.trim(),
-   "firstAction": c.selectedAction.value,
-"commentaireAction": c.commentaireCtrl.text.trim().isEmpty
-    ? null
-    : c.commentaireCtrl.text.trim(),
+    /// CRM
+    "firstAction": c.selectedAction.value,
+    "commentaireAction": c.commentaireCtrl.text.trim().isEmpty
+        ? null
+        : c.commentaireCtrl.text.trim(),
   };
 
   try {
+
     dynamic data;
 
+    /// ======================
+    /// CREATE PROJECT
+    /// ======================
     if (_projectId == null) {
-      final res = await ApiClient.instance.dio.post('/projects', data: payload);
+
+      final res = await ApiClient.instance.dio.post(
+        '/projects',
+        data: payload, // ✅ JSON ONLY
+      );
+
       data = res.data;
-    } else {
-      final res = await ApiClient.instance.dio.put('/projects/$_projectId', data: payload);
-      data = res.data;
+
+      final projectId = data["id"];
+
+      /// ✅ CREATE ACTION WITH FILE
+      if (selectedFileBytes != null && c.selectedAction.value != null) {
+
+        await ApiClient.instance.dio.post(
+          "/projects/$projectId/actions",
+          data: dio.FormData.fromMap({
+
+            "typeAction": c.selectedAction.value,
+            "commentaire": c.commentaireCtrl.text.trim(),
+
+            "file": dio.MultipartFile.fromBytes(
+              selectedFileBytes!,
+              filename: actionFileName,
+            ),
+
+          }),
+        );
+      }
+
     }
 
+    /// ======================
+    /// UPDATE PROJECT
+    /// ======================
+    else {
+
+      final res = await ApiClient.instance.dio.put(
+        '/projects/$_projectId',
+        data: payload, // ✅ JSON ONLY
+      );
+
+      data = res.data;
+
+      if (selectedFileBytes != null && c.selectedAction.value != null) {
+
+        await ApiClient.instance.dio.post(
+          "/projects/$_projectId/actions",
+          data: dio.FormData.fromMap({
+
+            "typeAction": c.selectedAction.value,
+            "commentaire": c.commentaireCtrl.text.trim(),
+
+            "file": dio.MultipartFile.fromBytes(
+              selectedFileBytes!,
+              filename: actionFileName,
+            ),
+
+          }),
+        );
+      }
+    }
+
+    /// ======================
+    /// REFRESH UI
+    /// ======================
     final map = Map<String, dynamic>.from(data as Map);
     final project = ProjectGridData.fromJson(map);
 
@@ -796,36 +893,40 @@ Future<void> _submit({required bool goBackAfterSave}) async {
         ? Get.find<UserGridController>()
         : Get.put(UserGridController(), permanent: true);
 
-    // ✅ Update list immediately
     gridCtrl.upsertProject(project);
     gridCtrl.forceRefresh();
 
-    // ✅✅✅ VERY IMPORTANT: re-fetch full project (brings devisCount/bonCommandeCount)
-    // This fixes the "need refresh to see colors"
     if (project.id != null && project.id!.isNotEmpty) {
       await gridCtrl.refreshProjectById(project.id!);
     }
 
-    // ---- CREATE MODE ----
+    /// ======================
+    /// CREATE MODE
+    /// ======================
     if (_projectId == null) {
+
       setState(() => _projectId = project.id);
 
-      // Reload form state for edit mode
       await c.loadProject(project.id);
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Project created ✅ Now upload Quotation, then Purchase Order"),
-        ),
+        const SnackBar(content: Text("Project created ✅")),
       );
 
       if (goBackAfterSave) context.go(MyRoute.userGridScreen);
+
+      /// RESET FILE
+      selectedFileBytes = null;
+      actionFileName = null;
+
       return;
     }
 
-    // ---- UPDATE MODE ----
+    /// ======================
+    /// UPDATE MODE
+    /// ======================
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -835,8 +936,17 @@ Future<void> _submit({required bool goBackAfterSave}) async {
     if (goBackAfterSave) {
       context.go(MyRoute.userGridScreen);
     }
+
+    /// RESET FILE
+    selectedFileBytes = null;
+    actionFileName = null;
+
   } catch (e) {
+
+    print("ERROR => $e");
+
     if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Network error: $e")),
     );
