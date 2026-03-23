@@ -4,7 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../controller/project_timeline_controller.dart';
 import '../../providers/api_client.dart';
-
+import 'add_project_action_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 class ProjectTimelineScreen extends StatefulWidget {
 
   final String projectId;
@@ -188,6 +189,61 @@ Future _deleteAction(String actionId) async {
   ],
 
 ),
+if (action.fileUrl != null)
+
+  Padding(
+    padding: const EdgeInsets.only(top: 10),
+    child: InkWell(
+      onTap: () async {
+
+  if (action.fileUrl == null) return;
+
+  final url = "http://localhost:4000${action.fileUrl}";
+
+  try {
+
+    final uri = Uri.parse(url);
+
+    if (!await launchUrl(uri)) {
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Cannot open file")),
+      );
+
+    }
+
+  } catch (e) {
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Invalid file URL")),
+    );
+
+  }
+},
+      child: Row(
+        children: [
+
+          Icon(
+            action.fileUrl!.endsWith(".pdf")
+                ? Icons.picture_as_pdf
+                : Icons.image,
+            color: Colors.blue,
+          ),
+
+          const SizedBox(width: 8),
+
+          const Text(
+            "Voir fichier",
+            style: TextStyle(
+              color: Colors.blue,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+
+        ],
+      ),
+    ),
+  ),
 
                     /// COMMENT
                     if (action.commentaire != null &&
@@ -206,7 +262,7 @@ Future _deleteAction(String actionId) async {
                         children: action.reminders.map<Widget>((reminder) {
 
                           final relanceDate =
-                              DateTime.parse(reminder.dateRelance);
+    DateTime.parse(reminder.dateRelance).toLocal();
 
                           final color = getRelanceColor(relanceDate);
 
@@ -319,81 +375,67 @@ Future _deleteAction(String actionId) async {
   /// ADD ACTION
   Future _openAddAction(BuildContext context, String projectId) async {
 
-    final action = await showDialog<String>(
+  /// 1. Choisir type action
+  final action = await showDialog<String>(
 
-      context: context,
+    context: context,
 
-      builder: (context) {
+    builder: (context) {
 
-        return SimpleDialog(
+      return SimpleDialog(
 
-          title: const Text("Select Action"),
+        title: const Text("Select Action"),
 
-          children: [
+        children: [
 
-            SimpleDialogOption(
-              child: const Text("Visite chantier"),
-              onPressed: () => Navigator.pop(context, "Visite"),
-            ),
+          SimpleDialogOption(
+            child: const Text("Visite chantier"),
+            onPressed: () => Navigator.pop(context, "Visite"),
+          ),
 
-            SimpleDialogOption(
-              child: const Text("Plan technique"),
-              onPressed: () => Navigator.pop(context, "Plan technique"),
-            ),
+          SimpleDialogOption(
+            child: const Text("Plan technique"),
+            onPressed: () => Navigator.pop(context, "Plan technique"),
+          ),
 
-            SimpleDialogOption(
-              child: const Text("Echantillonnage"),
-              onPressed: () => Navigator.pop(context, "Echantillonnage"),
-            ),
+          SimpleDialogOption(
+            child: const Text("Echantillonnage"),
+            onPressed: () => Navigator.pop(context, "Echantillonnage"),
+          ),
 
-            SimpleDialogOption(
-              child: const Text("Devis envoyé"),
-              onPressed: () => Navigator.pop(context, "Devis envoyé"),
-            ),
+          SimpleDialogOption(
+            child: const Text("Devis envoyé"),
+            onPressed: () => Navigator.pop(context, "Devis envoyé"),
+          ),
 
-            SimpleDialogOption(
-              child: const Text("Négociation"),
-              onPressed: () => Navigator.pop(context, "Negociation"),
-            ),
+          SimpleDialogOption(
+            child: const Text("Négociation"),
+            onPressed: () => Navigator.pop(context, "Negociation"),
+          ),
 
-          ],
-        );
-      },
-    );
-
-    if (action == null) return;
-
-    try {
-
-      await ApiClient.instance.dio.post(
-        "/projects/$projectId/actions",
-        data: {
-          "typeAction": action,
-          "commentaire": "",
-          "dateRelance": null
-        },
+        ],
       );
+    },
+  );
 
-      controller.loadActions(projectId);
+  if (action == null) return;
 
-      Get.snackbar(
-        "Success",
-        "Action added",
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
+  /// 2. Ouvrir écran complet (UPLOAD + COMMENT + RELANCE)
+  final result = await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => AddProjectActionScreen(
+        projectId: projectId,
+        initialType: action, // ✅ on passe le type
+      ),
+    ),
+  );
 
-    } catch (e) {
-
-      Get.snackbar(
-        "Error",
-        "Cannot add action",
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-
-    }
+  /// 3. Refresh timeline
+  if (result == true) {
+    controller.loadActions(projectId);
   }
+}
 
   /// COMMENT
   Future _openComment(BuildContext context, String projectId) async {

@@ -3,8 +3,11 @@ class ProjectAction {
   final String id;
   final String typeAction;
   final String commentaire;
-   final String dateAction;
+  final String dateAction;
   final String createdBy;
+
+  /// ✅ NEW
+  final String? fileUrl;
 
   ProjectAction({
     required this.id,
@@ -12,9 +15,10 @@ class ProjectAction {
     required this.commentaire,
     required this.dateAction,
     required this.createdBy,
+    this.fileUrl, // ✅ NEW
   });
 
-  factory ProjectAction.fromJson(Map<String,dynamic> json){
+  factory ProjectAction.fromJson(Map<String, dynamic> json) {
 
     return ProjectAction(
       id: json["id"].toString(),
@@ -22,6 +26,9 @@ class ProjectAction {
       commentaire: json["commentaire"] ?? "",
       dateAction: json["dateAction"] ?? json["createdAt"],
       createdBy: json["createdBy"] ?? "",
+
+      /// ✅ NEW
+      fileUrl: json["fileUrl"],
     );
 
   }

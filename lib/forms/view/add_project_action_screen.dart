@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../services/project_action_api.dart';
-
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 class AddProjectActionScreen extends StatefulWidget {
 
   final String projectId;
-
-  const AddProjectActionScreen({required this.projectId});
+final String initialType;
+  const AddProjectActionScreen({
+  required this.projectId,
+  required this.initialType,
+});
 
   @override
   State<AddProjectActionScreen> createState() =>
@@ -15,6 +21,7 @@ class AddProjectActionScreen extends StatefulWidget {
 
 class _AddProjectActionScreenState
     extends State<AddProjectActionScreen> {
+      dynamic selectedFile;
 
   String type="Visite";
 
@@ -88,38 +95,59 @@ class _AddProjectActionScreenState
 
             const SizedBox(height:20),
 
-            ElevatedButton(
+            ElevatedButton.icon(
+  icon: const Icon(Icons.calendar_today),
+  label: Text(
+    relance == null
+        ? "Select Relance Date"
+        : "Relance : ${relance!.toLocal().toString().split(' ')[0]}",
+  ),
+  onPressed: () async {
 
-              child: const Text("Select Relance Date"),
+    final d = await showDatePicker(
 
-              onPressed:()async{
+      context: context,
 
-                final d = await showDatePicker(
+      firstDate: DateTime(2020),
 
-                  context:context,
+      lastDate: DateTime(2030),
 
-                  firstDate:DateTime(2020),
+      initialDate: relance ?? DateTime.now(), // ✅ IMPORTANT
 
-                  lastDate:DateTime(2030),
+    );
 
-                  initialDate:DateTime.now(),
+    if (d != null) {
 
-                );
+      setState(() {
+        relance = d;
+      });
 
-                if(d!=null){
-
-                  setState(() {
-                    relance=d;
-                  });
-
-                }
-
-              },
-
-            ),
+    }
+  },
+),
 
             const SizedBox(height:30),
+ElevatedButton.icon(
+  icon: const Icon(Icons.attach_file),
+  label: const Text("Upload Image / PDF"),
+  onPressed: () async {
 
+    final result = await FilePicker.platform.pickFiles();
+
+if (result != null) {
+
+  setState(() {
+
+    if (kIsWeb) {
+      selectedFile = result.files.first; // contient bytes
+    } else {
+      selectedFile = File(result.files.single.path!);
+    }
+
+  });
+}
+  },
+),
             ElevatedButton(
 
               child: const Text("Save"),
@@ -134,12 +162,14 @@ class _AddProjectActionScreenState
 
                   commentaire: commentaire.text.trim(),
 
-                  dateRelance:
-                  relance?.toIso8601String()
+                dateRelance: relance != null
+    ? "${relance!.year}-${relance!.month.toString().padLeft(2,'0')}-${relance!.day.toString().padLeft(2,'0')}"
+    : null,
+                  file: selectedFile, // ✅ IMPORTANT
 
                 );
 
-                Get.back(result: true);
+                Navigator.pop(context, true);
 
               },
 

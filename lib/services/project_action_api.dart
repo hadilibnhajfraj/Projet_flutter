@@ -1,44 +1,62 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart'; // IMPORTANT
+import 'package:dio/dio.dart';
 import '../../../providers/api_client.dart';
-import 'package:dash_master_toolkit/application/users/model/project_action.dart';
 
 class ProjectActionApi {
 
   static final ProjectActionApi instance = ProjectActionApi();
 
-  Future<List<ProjectAction>> getActions(String projectId) async {
-
-    final res = await ApiClient.instance.dio
-        .get("/projects/$projectId/actions");
-
-    final data = List.from(res.data);
-
-    return data.map((e)=>ProjectAction.fromJson(e)).toList();
-
-  }
-
-  Future<void> createAction({
-
+  Future createAction({
     required String projectId,
     required String type,
     String? commentaire,
-    String? dateRelance
-
+    String? dateRelance,
+    dynamic file
   }) async {
 
-    await ApiClient.instance.dio.post(
+    MultipartFile? multipartFile;
 
-      "/projects/$projectId/actions",
+    if (file != null) {
 
-      data:{
+      /// =========================
+      /// WEB
+      /// =========================
+      if (kIsWeb) {
 
-        "typeAction":type,
-        "commentaire":commentaire,
-        "dateRelance":dateRelance
+        final bytes = file.bytes; // ✅ IMPORTANT (FilePicker)
 
+        multipartFile = MultipartFile.fromBytes(
+          bytes,
+          filename: file.name,
+        );
+
+      } else {
+
+        /// =========================
+        /// MOBILE / DESKTOP
+        /// =========================
+        multipartFile = await MultipartFile.fromFile(
+          file.path,
+          filename: file.path.split('/').last,
+        );
       }
+    }
 
+    final formData = FormData.fromMap({
+
+      "typeAction": type,
+      "commentaire": commentaire,
+      "dateRelance": dateRelance,
+
+      if (multipartFile != null)
+        "file": multipartFile,
+
+    });
+
+    await ApiClient.instance.dio.post(
+      "/projects/$projectId/actions",
+      data: formData,
     );
-
   }
-
 }

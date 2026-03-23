@@ -37,12 +37,16 @@ class ProjectActionModel {
   final String dateAction;
   final List<ReminderModel> reminders;
 
+  /// ✅ NEW
+  final String? fileUrl;
+
   ProjectActionModel({
     required this.id,
     required this.typeAction,
     this.commentaire,
     required this.dateAction,
     required this.reminders,
+    this.fileUrl, // ✅ NEW
   });
 
   factory ProjectActionModel.fromJson(Map<String, dynamic> json) {
@@ -63,6 +67,8 @@ class ProjectActionModel {
         remindersJson.map((r) => ReminderModel.fromJson(r)),
       ),
 
+      /// ✅ NEW (TRÈS IMPORTANT)
+      fileUrl: json["fileUrl"],
     );
   }
 }
