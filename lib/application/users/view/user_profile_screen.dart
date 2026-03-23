@@ -3,8 +3,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
-
+import 'dart:io';
 import 'package:dash_master_toolkit/application/users/users_imports.dart';
+import 'package:flutter/foundation.dart'; // IMPORTANT
 // Si SvgPicture n'est pas déjà importé via users_imports.dart, ajoute :
 // import 'package:flutter_svg/flutter_svg.dart';
 
@@ -54,14 +55,55 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 child: Row(
                   children: [
                     // ✅ Avatar (asset)
-                    ClipOval(
-                      child: Image.asset(
-                        profileIcon,
-                        width: 60,
-                        height: 60,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+   ClipOval(
+  child: GestureDetector(
+    onTap: controller.isEditing.value
+        ? controller.pickImage
+        : null,
+    child: Obx(() {
+      final avatar = controller.avatarPath.value;
+      final avatarUrl = controller.profile.value?.avatarUrl;
+
+      // ✅ CAS WEB → PAS Image.file
+      if (kIsWeb && avatar.isNotEmpty) {
+        return Image.network(
+          avatar,
+          width: 60,
+          height: 60,
+          fit: BoxFit.cover,
+        );
+      }
+
+      // ✅ CAS MOBILE
+      if (!kIsWeb && avatar.isNotEmpty) {
+        return Image.file(
+          File(avatar),
+          width: 60,
+          height: 60,
+          fit: BoxFit.cover,
+        );
+      }
+
+      // ✅ IMAGE BACKEND
+      if (avatarUrl != null && avatarUrl.isNotEmpty) {
+        return Image.network(
+          "https://api.crmprobar.com$avatarUrl",
+          width: 60,
+          height: 60,
+          fit: BoxFit.cover,
+        );
+      }
+
+      // ✅ FALLBACK
+      return Image.asset(
+        profileIcon,
+        width: 60,
+        height: 60,
+        fit: BoxFit.cover,
+      );
+    }),
+  ),
+),
 
                     const SizedBox(width: 12),
 

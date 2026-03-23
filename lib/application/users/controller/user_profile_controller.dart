@@ -3,16 +3,26 @@ import 'package:get/get.dart';
 
 import '../model/profile_model.dart';
 import '../../services/user_profile_service.dart';
-
-
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 class UserProfileController extends GetxController {
   Rx<ProfileModel?> profile = Rx<ProfileModel?>(null);
   RxBool isEditing = false.obs;
+// ✅ avatar local
+RxString avatarPath = "".obs;
 
-  // ✅ controllers champs (emailCtrl ajouté)
+// ✅ picker image
+Future<void> pickImage() async {
+  final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+
+  if (picked != null) {
+    avatarPath.value = picked.path;
+  }
+}
+  // ================= CONTROLLERS =================
   final nameCtrl = TextEditingController();
   final designationCtrl = TextEditingController();
-  final emailCtrl = TextEditingController(); // ✅ important
+  final emailCtrl = TextEditingController();
   final birthdayCtrl = TextEditingController();
   final phoneCtrl = TextEditingController();
   final countryCtrl = TextEditingController();
@@ -25,41 +35,41 @@ class UserProfileController extends GetxController {
     loadProfile();
   }
 
+  // ================= LOAD PROFILE =================
   Future<void> loadProfile() async {
-    final data = await UserProfileService.getMyProfile();
+    try {
+      final data = await UserProfileService.getMyProfile();
 
-    profile.value = ProfileModel(
-      name: data["name"] ?? "",
-      designation: data["designation"] ?? "",
-      email: data["email"] ?? "", // ✅
-      birthday: data["birthday"] ?? "",
-      phone: data["phone"] ?? "",
-      country: data["country"] ?? "",
-      state: data["state"] ?? "",
-      address: data["address"] ?? "",
-      about: data["about"] ?? "",
-      occupationType: const [],
-      department: "",
-      location: "",
-      activities: const [],
-      experiences: const [],
-    );
+      profile.value = ProfileModel(
+        name: data["name"] ?? "",
+        designation: data["designation"] ?? "",
+        email: data["email"] ?? "",
+        birthday: data["birthday"] ?? "",
+        phone: data["phone"] ?? "",
+        country: data["country"] ?? "",
+        state: data["state"] ?? "",
+        address: data["address"] ?? "",
+        about: data["about"] ?? "",
+        occupationType: const [],
+        department: "",
+        location: "",
+        activities: const [],
+        experiences: const [],
 
-    // ✅ remplir les TextEditingController
-    nameCtrl.text = profile.value!.name;
-    designationCtrl.text = profile.value!.designation;
-    emailCtrl.text = profile.value!.email;
-    birthdayCtrl.text = profile.value!.birthday;
-    phoneCtrl.text = profile.value!.phone;
-    countryCtrl.text = profile.value!.country;
-    stateCtrl.text = profile.value!.state;
-    addressCtrl.text = profile.value!.address;
+        // ✅ IMPORTANT (si backend envoie avatar)
+        avatarUrl: data["avatarUrl"],
+      );
+
+      _fillControllers();
+
+    } catch (e) {
+      Get.snackbar("Error", "Failed to load profile");
+      print("❌ LOAD PROFILE ERROR: $e");
+    }
   }
 
-  void startEdit() => isEditing.value = true;
-
-  void cancelEdit() {
-    isEditing.value = false;
+  // ================= FILL INPUTS =================
+  void _fillControllers() {
     final p = profile.value;
     if (p == null) return;
 
@@ -73,44 +83,50 @@ class UserProfileController extends GetxController {
     addressCtrl.text = p.address;
   }
 
-  Future<void> saveEdit() async {
-    final payload = {
-      "name": nameCtrl.text.trim(),
-      "designation": designationCtrl.text.trim(),
-      "birthday": birthdayCtrl.text.trim(),
-      "phone": phoneCtrl.text.trim(),
-      "country": countryCtrl.text.trim(),
-      "state": stateCtrl.text.trim(),
-      "address": addressCtrl.text.trim(),
+  // ================= EDIT =================
+  void startEdit() => isEditing.value = true;
 
-      // ⚠️ email généralement pas modifié ici (User table)
-      // "email": emailCtrl.text.trim(),
-    };
-
-    final updated = await UserProfileService.updateMyProfile(payload);
-
-    profile.value = profile.value!.copyWith(
-      name: updated["name"] ?? "",
-      designation: updated["designation"] ?? "",
-      email: updated["email"] ?? profile.value!.email,
-      birthday: updated["birthday"] ?? "",
-      phone: updated["phone"] ?? "",
-      country: updated["country"] ?? "",
-      state: updated["state"] ?? "",
-      address: updated["address"] ?? "",
-    );
-
-    // mettre à jour les inputs aussi
-    nameCtrl.text = profile.value!.name;
-    designationCtrl.text = profile.value!.designation;
-    emailCtrl.text = profile.value!.email;
-    birthdayCtrl.text = profile.value!.birthday;
-    phoneCtrl.text = profile.value!.phone;
-    countryCtrl.text = profile.value!.country;
-    stateCtrl.text = profile.value!.state;
-    addressCtrl.text = profile.value!.address;
-
+  void cancelEdit() {
     isEditing.value = false;
+    _fillControllers();
+  }
+
+  // ================= SAVE =================
+  Future<void> saveEdit() async {
+    try {
+      final payload = {
+        "name": nameCtrl.text.trim(),
+        "designation": designationCtrl.text.trim(),
+        "birthday": birthdayCtrl.text.trim(),
+        "phone": phoneCtrl.text.trim(),
+        "country": countryCtrl.text.trim(),
+        "state": stateCtrl.text.trim(),
+        "address": addressCtrl.text.trim(),
+      };
+
+      final updated = await UserProfileService.updateMyProfile(payload);
+
+      profile.value = profile.value!.copyWith(
+        name: updated["name"] ?? "",
+        designation: updated["designation"] ?? "",
+        email: updated["email"] ?? profile.value!.email,
+        birthday: updated["birthday"] ?? "",
+        phone: updated["phone"] ?? "",
+        country: updated["country"] ?? "",
+        state: updated["state"] ?? "",
+        address: updated["address"] ?? "",
+        avatarUrl: updated["avatarUrl"], // ✅ IMPORTANT
+      );
+
+      _fillControllers();
+      isEditing.value = false;
+
+      Get.snackbar("Success", "Profil mis à jour ✅");
+
+    } catch (e) {
+      Get.snackbar("Error", "Erreur lors de la mise à jour");
+      print("❌ SAVE PROFILE ERROR: $e");
+    }
   }
 
   @override
