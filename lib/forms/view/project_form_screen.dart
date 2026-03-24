@@ -205,6 +205,24 @@ Future<void> _refreshCardColors() async {
                       ),
 
                       _statusDropdown(theme),
+                      /// 🔥 NEW PROJECT MODELE
+DropdownButtonFormField<String>(
+  value: c.projectModele.value,
+  decoration: const InputDecoration(
+    labelText: "Project Type",
+    border: OutlineInputBorder(),
+  ),
+  items: const [
+    DropdownMenuItem(value: "project", child: Text("Project")),
+    DropdownMenuItem(value: "revendeur", child: Text("Revendeur")),
+    DropdownMenuItem(value: "applicateur", child: Text("Applicateur")),
+  ],
+  onChanged: (v) {
+    c.projectModele.value = v!;
+    setState(() {});
+  },
+),
+const SizedBox(height: 16),
 
                       _twoCols(
                         isMobile: isMobile,
@@ -242,22 +260,64 @@ Future<void> _refreshCardColors() async {
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       ),
 
-                      _twoCols(
-                        isMobile: isMobile,
-                        left: _field(
-                          theme: theme,
-                          title: "Responsible Engineer",
-                          controller: c.ingenieurResponsable,
-                          validator: (v) => c.requiredValidator(v, "Responsible Engineer"),
-                        ),
-                        right: _field(
-                          theme: theme,
-                          title: "Engineer Phone",
-                          controller: c.telephoneIngenieur,
-                          validator: (v) => c.phoneValidator(v, "Engineer Phone"),
-                          keyboardType: TextInputType.phone,
-                        ),
-                      ),
+                      /// 🔥 DYNAMIC FIELDS BASED ON MODELE
+
+if (c.projectModele.value == "project") ...[
+  _twoCols(
+    isMobile: isMobile,
+    left: _field(
+      theme: theme,
+      title: "Responsible Engineer",
+      controller: c.ingenieurResponsable,
+      validator: (v) => c.requiredValidator(v, "Responsible Engineer"),
+    ),
+    right: _field(
+      theme: theme,
+      title: "Engineer Phone",
+      controller: c.telephoneIngenieur,
+      validator: (v) => c.phoneValidator(v, "Engineer Phone"),
+      keyboardType: TextInputType.phone,
+    ),
+  ),
+],
+
+if (c.projectModele.value == "revendeur") ...[
+  _twoCols(
+    isMobile: isMobile,
+    left: _field(
+      theme: theme,
+      title: "Comptoir",
+      controller: c.comptoir,
+      validator: (v) => c.requiredValidator(v, "Comptoir"),
+    ),
+    right: _field(
+      theme: theme,
+      title: "Téléphone Comptoir",
+      controller: c.telephoneComptoir,
+      validator: (v) => c.phoneValidator(v, "Téléphone Comptoir"),
+      keyboardType: TextInputType.phone,
+    ),
+  ),
+],
+
+if (c.projectModele.value == "applicateur") ...[
+  _twoCols(
+    isMobile: isMobile,
+    left: _field(
+      theme: theme,
+      title: "Dallagiste",
+      controller: c.dallagiste,
+      validator: (v) => c.requiredValidator(v, "Dallagiste"),
+    ),
+    right: _field(
+      theme: theme,
+      title: "Téléphone Dallagiste",
+      controller: c.telephoneDallagiste,
+      validator: (v) => c.phoneValidator(v, "Téléphone Dallagiste"),
+      keyboardType: TextInputType.phone,
+    ),
+  ),
+],
                       _twoCols(
   isMobile: isMobile,
   left: _field(
@@ -811,6 +871,31 @@ Future<void> _submit({required bool goBackAfterSave}) async {
     "commentaireAction": c.commentaireCtrl.text.trim().isEmpty
         ? null
         : c.commentaireCtrl.text.trim(),
+        "projectModele": c.projectModele.value,
+
+"comptoir": c.projectModele.value == "revendeur"
+    ? c.comptoir.text
+    : null,
+
+"telephoneComptoir": c.projectModele.value == "revendeur"
+    ? c.telephoneComptoir.text
+    : null,
+
+"dallagiste": c.projectModele.value == "applicateur"
+    ? c.dallagiste.text
+    : null,
+
+"telephoneDallagiste": c.projectModele.value == "applicateur"
+    ? c.telephoneDallagiste.text
+    : null,
+
+"ingenieurResponsable": c.projectModele.value == "project"
+    ? c.ingenieurResponsable.text
+    : null,
+
+"telephoneIngenieur": c.projectModele.value == "project"
+    ? c.telephoneIngenieur.text
+    : null,
   };
 
   try {

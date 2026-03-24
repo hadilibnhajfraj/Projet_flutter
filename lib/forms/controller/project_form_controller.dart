@@ -19,7 +19,13 @@ final RxnString selectedAction = RxnString();
   final dateDemarrage = TextEditingController();
   final statut = TextEditingController();
   final typeAdresseChantier = TextEditingController();
+var projectModele = "project".obs;
 
+final comptoir = TextEditingController();
+final telephoneComptoir = TextEditingController();
+
+final dallagiste = TextEditingController();
+final telephoneDallagiste = TextEditingController();
   final ingenieurResponsable = TextEditingController();
   final telephoneIngenieur = TextEditingController();
 final emailIngenieur = TextEditingController();
