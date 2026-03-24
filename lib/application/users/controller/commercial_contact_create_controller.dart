@@ -18,7 +18,10 @@ class CommercialContactCreateController extends GetxController {
 
   final nbAppelsCtrl = TextEditingController(text: "0");
   final sujetDiscussionCtrl = TextEditingController();
+  var pipelineStage = "Prospect".obs;
 
+final dateAppelCtrl = TextEditingController();
+DateTime? dateAppel;
   final commentaireRelanceCtrl = TextEditingController();
   final dateRelanceCtrl = TextEditingController();
   final heureRelanceCtrl = TextEditingController();

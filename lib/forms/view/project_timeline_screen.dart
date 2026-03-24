@@ -237,7 +237,7 @@ if (action.fileUrl != null)
 
   if (action.fileUrl == null) return;
 
-  final url = "https://api.crmprobar.com${action.fileUrl}";
+  final url = "http://localhost:4000${action.fileUrl}";
 
   try {
 

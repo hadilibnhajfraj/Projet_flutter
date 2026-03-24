@@ -442,6 +442,16 @@ class _CommercialContactListGetxScreenState
     final nbAppelsCtrl = TextEditingController(text: contact.nbAppels.toString());
     final sujetDiscussionCtrl =
         TextEditingController(text: contact.sujetDiscussion ?? "");
+    final dateAppelCtrl = TextEditingController(
+  text: contact.dateAppel != null
+      ? "${contact.dateAppel!.year}-${contact.dateAppel!.month.toString().padLeft(2, '0')}-${contact.dateAppel!.day.toString().padLeft(2, '0')}"
+      : "",
+);
+
+DateTime? dateAppel = contact.dateAppel;
+
+String selectedPipeline =
+    contact.pipelineStage.isNotEmpty ? contact.pipelineStage : "Prospect";
 
     String selectedType =
         contact.typeClient.isNotEmpty ? contact.typeClient : "autre";
@@ -627,6 +637,64 @@ class _CommercialContactListGetxScreenState
                         ],
                       ),
                       const SizedBox(height: 12),
+
+Row(
+  children: [
+
+    /// ✅ DATE APPEL
+    Expanded(
+      child: TextField(
+        controller: dateAppelCtrl,
+        readOnly: true,
+        decoration: _inputDecoration("Call Date"),
+        onTap: () async {
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: dateAppel ?? DateTime.now(),
+            firstDate: DateTime(2020),
+            lastDate: DateTime(2100),
+          );
+
+          if (picked != null) {
+            setDialogState(() {
+              dateAppel = picked;
+              dateAppelCtrl.text =
+                  "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+            });
+          }
+        },
+      ),
+    ),
+
+    const SizedBox(width: 12),
+
+    /// ✅ PIPELINE
+    Expanded(
+      child: DropdownButtonFormField<String>(
+        value: selectedPipeline,
+        items: const [
+          DropdownMenuItem(value: "Prospect", child: Text("Prospect")),
+          DropdownMenuItem(value: "Plan technique", child: Text("Plan technique")),
+          DropdownMenuItem(value: "Echantillonnage", child: Text("Echantillonnage")),
+          DropdownMenuItem(value: "Devis envoyé", child: Text("Devis envoyé")),
+          DropdownMenuItem(value: "Negociation", child: Text("Négociation")),
+          DropdownMenuItem(value: "Relance", child: Text("Relance")),
+          DropdownMenuItem(value: "Gagné", child: Text("Commande gagnée")),
+          DropdownMenuItem(value: "Perdu", child: Text("Commande perdue")),
+        ],
+        onChanged: (v) {
+          if (v != null) {
+            setDialogState(() {
+              selectedPipeline = v;
+            });
+          }
+        },
+        decoration: _inputDecoration("Next Action"),
+      ),
+    ),
+  ],
+),
+                      const SizedBox(height: 12),
                       Row(
                         children: [
                           Expanded(
@@ -802,6 +870,8 @@ class _CommercialContactListGetxScreenState
                                       nomSocieteCtrl.text.trim().isEmpty
                                           ? null
                                           : nomSocieteCtrl.text.trim(),
+                                  "pipelineStage": selectedPipeline,
+"dateAppel": dateAppel?.toIso8601String(),
                                   "nom": nomCtrl.text.trim(),
                                   "prenom": prenomCtrl.text.trim(),
                                   "localisation":

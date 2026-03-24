@@ -59,6 +59,11 @@ class CommercialContact {
   final String? createdBy;
   final int nbAppels;
   final String? sujetDiscussion;
+
+  // ✅ NEW FIELDS (IMPORTANT)
+  final String pipelineStage;
+  final DateTime? dateAppel;
+
   final List<CommercialContactProduct> produits;
   final List<CommercialContactRelance> relances;
   final DateTime? createdAt;
@@ -76,6 +81,11 @@ class CommercialContact {
     this.createdBy,
     required this.nbAppels,
     this.sujetDiscussion,
+
+    // ✅ NEW
+    required this.pipelineStage,
+    this.dateAppel,
+
     required this.produits,
     required this.relances,
     this.createdAt,
@@ -84,23 +94,43 @@ class CommercialContact {
   factory CommercialContact.fromJson(Map<String, dynamic> json) {
     return CommercialContact(
       id: json['id']?.toString() ?? '',
+
       typeClient: json['typeClient']?.toString() ?? 'autre',
       statut: json['statut']?.toString() ?? 'user_injoignable',
+
       nomSociete: json['nomSociete']?.toString(),
-      nom: json['nom']?.toString() ?? '',
-      prenom: json['prenom']?.toString() ?? '',
+
+      nom: (json['nom']?.toString() ?? '').trim(),
+      prenom: (json['prenom']?.toString() ?? '').trim(),
+
       localisation: json['localisation']?.toString(),
       telephone: json['telephone']?.toString() ?? '',
+
       message: json['message']?.toString(),
       createdBy: json['createdBy']?.toString(),
+
       nbAppels: int.tryParse(json['nbAppels']?.toString() ?? '0') ?? 0,
       sujetDiscussion: json['sujetDiscussion']?.toString(),
+
+      // ✅ NEW PARSING
+      pipelineStage: json['pipelineStage']?.toString() ?? 'Prospect',
+
+      dateAppel: json['dateAppel'] != null
+          ? DateTime.tryParse(json['dateAppel'].toString())
+          : null,
+
       produits: (json['produits'] as List<dynamic>? ?? [])
-          .map((e) => CommercialContactProduct.fromJson(e as Map<String, dynamic>))
+          .map((e) => CommercialContactProduct.fromJson(
+                e as Map<String, dynamic>,
+              ))
           .toList(),
+
       relances: (json['relances'] as List<dynamic>? ?? [])
-          .map((e) => CommercialContactRelance.fromJson(e as Map<String, dynamic>))
+          .map((e) => CommercialContactRelance.fromJson(
+                e as Map<String, dynamic>,
+              ))
           .toList(),
+
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : null,
@@ -108,4 +138,22 @@ class CommercialContact {
   }
 
   String get fullName => '$nom $prenom';
+
+  // ✅ BONUS UI (pro)
+  String get displayPipeline {
+    switch (pipelineStage) {
+      case "Prospect":
+        return "🔵 Prospect";
+      case "Devis envoyé":
+        return "🟣 Devis";
+      case "Negociation":
+        return "🟡 Négociation";
+      case "Gagné":
+        return "🟢 Gagné";
+      case "Perdu":
+        return "🔴 Perdu";
+      default:
+        return pipelineStage;
+    }
+  }
 }

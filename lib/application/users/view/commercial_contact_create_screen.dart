@@ -258,9 +258,57 @@ class CommercialContactCreateScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              
             ],
           ),
+           const SizedBox(height: 14),
+// ✅ NOUVELLE ROW (séparée)
+Row(
+  children: [
+    Expanded(
+      child: _tf(
+        "Call Date",
+        "Select date",
+        c.dateAppelCtrl,
+        readOnly: true,
+        icon: Icons.calendar_today_outlined,
+        onTap: () async {
+          final d = await showDatePicker(
+            context: context,
+            initialDate: DateTime.now(),
+            firstDate: DateTime(2020),
+            lastDate: DateTime(2030),
+          );
 
+          if (d != null) {
+            c.dateAppel = d;
+            c.dateAppelCtrl.text = "${d.day}/${d.month}/${d.year}";
+          }
+        },
+      ),
+    ),
+
+    const SizedBox(width: 14),
+
+    Expanded(
+      child: Obx(() => DropdownButtonFormField<String>(
+        value: c.pipelineStage.value,
+        items: const [
+          DropdownMenuItem(value: "Prospect", child: Text("Prospect")),
+          DropdownMenuItem(value: "Plan technique", child: Text("Plan technique")),
+          DropdownMenuItem(value: "Echantillonnage", child: Text("Echantillonnage")),
+          DropdownMenuItem(value: "Devis envoyé", child: Text("Devis envoyé")),
+          DropdownMenuItem(value: "Negociation", child: Text("Négociation")),
+          DropdownMenuItem(value: "Relance", child: Text("Relance")),
+          DropdownMenuItem(value: "Gagné", child: Text("Commande gagnée")),
+          DropdownMenuItem(value: "Perdu", child: Text("Commande perdue")),
+        ],
+        onChanged: (v) => c.pipelineStage.value = v ?? "Prospect",
+        decoration: _dec("Next Action", "Select", Icons.timeline_outlined),
+      )),
+    ),
+  ],
+),
           const SizedBox(height: 14),
 
           Row(

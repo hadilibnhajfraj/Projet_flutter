@@ -52,6 +52,10 @@ class CommercialContactCreateDto {
   List<CommercialProductInput> produits;
   CommercialRelanceInput? relance;
 
+  // ✅ NEW
+  String pipelineStage;
+  String? dateAppel;
+
   CommercialContactCreateDto({
     this.typeClient = "autre",
     this.statut = "user_injoignable",
@@ -65,6 +69,10 @@ class CommercialContactCreateDto {
     this.sujetDiscussion = "",
     List<CommercialProductInput>? produits,
     this.relance,
+
+    // ✅ NEW
+    this.pipelineStage = "Prospect",
+    this.dateAppel,
   }) : produits = produits ?? [CommercialProductInput()];
 
   Map<String, dynamic> toJson() {
@@ -80,11 +88,18 @@ class CommercialContactCreateDto {
       "nbAppels": nbAppels,
       "sujetDiscussion":
           sujetDiscussion.trim().isEmpty ? null : sujetDiscussion.trim(),
+
+      // ✅ PRODUITS
       "produits": produits.isEmpty
           ? [CommercialProductInput().toJson()]
           : produits.map((p) => p.toJson()).toList(),
+
+      // ✅ NEW FIELDS
+      "pipelineStage": pipelineStage,
+      "dateAppel": dateAppel,
     };
 
+    // ✅ RELANCE (important: flatten comme ton backend attend)
     if (relance != null) {
       data.addAll(relance!.toJson());
     }
