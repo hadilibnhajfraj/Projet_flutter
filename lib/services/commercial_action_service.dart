@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dash_master_toolkit/application/users/model/commercial_action_model.dart';
+import '../providers/api_client.dart';
 class CommercialActionService {
 
   final String baseUrl = "http://localhost:4000";
@@ -24,4 +25,12 @@ class CommercialActionService {
 
     return CommercialAction.listFromJson(res.body);
   }
+  Future deleteAction({
+  required String token,
+  required String actionId,
+}) async {
+  await ApiClient.instance.dio.delete(
+    "/commercial-contacts/actions/$actionId",
+  );
+}
 }

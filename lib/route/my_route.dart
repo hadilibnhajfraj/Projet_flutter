@@ -59,6 +59,8 @@ import 'package:get_storage/get_storage.dart';
 import 'package:dash_master_toolkit/forms/view/project_timeline_screen.dart';
 import 'package:dash_master_toolkit/forms/view/project_pipeline_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_timeline_screen.dart';
+import 'package:dash_master_toolkit/application/users/view/add_commercial_action_screen.dart';
+
 class MyRoute {
   static const login = '/login';
   static const dashboard = '/dashboard';
@@ -303,6 +305,16 @@ GoRoute(
     return CommercialTimelineScreen(
       contactId: contactId,
       token: token,
+    );
+  },
+),
+GoRoute(
+  path: '/commercial-add-action',
+  builder: (context, state) {
+    final contactId = state.uri.queryParameters['contactId']!;
+
+    return AddCommercialActionScreen(
+      contactId: contactId,
     );
   },
 ),
