@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../model/commercial_contact_model.dart';
 import 'package:dash_master_toolkit/services/commercial_contact_service.dart';
-
+import 'package:dash_master_toolkit/application/users/view/commercial_timeline_screen.dart';
 class CommercialContactListGetxScreen extends StatefulWidget {
   final String token;
 
@@ -1191,6 +1191,24 @@ Row(
                                       color: Color(0xFFDC2626),
                                     ),
                                   ),
+                                        /// 🔥 TIMELINE (ICI)
+      IconButton(
+        tooltip: 'Timeline',
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CommercialTimelineScreen(
+                contactId: contact.id,
+                token: widget.token,
+              ),
+            ),
+          );
+        },
+        icon: const Icon(Icons.timeline, color: Colors.purple),
+      ),
+
+     
                                 ],
                               ),
                             ),

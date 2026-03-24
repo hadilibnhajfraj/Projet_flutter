@@ -58,6 +58,7 @@ import 'package:dash_master_toolkit/forms/view/devis_upload_screen.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:dash_master_toolkit/forms/view/project_timeline_screen.dart';
 import 'package:dash_master_toolkit/forms/view/project_pipeline_screen.dart';
+import 'package:dash_master_toolkit/application/users/view/commercial_timeline_screen.dart';
 class MyRoute {
   static const login = '/login';
   static const dashboard = '/dashboard';
@@ -107,7 +108,7 @@ class MyRoute {
   static const ratingScreen = '/components/rating';
 static const  projectPipeline = "/pipeline";
   static const chartScreen = '/chart';
-
+static const commercialTimeline = '/commercial-timeline';
   static const userListScreen = '/users/user-list';
   static const userGridScreen = '/users/project-list';
   static const userProfileScreen = '/users/user_profile';
@@ -291,6 +292,19 @@ GoRoute(
   pageBuilder: (context, state) => NoTransitionPage(
     child: UsersTable(),
   ),
+),
+GoRoute(
+  path: '/commercial-timeline/:id',
+  builder: (context, state) {
+
+    final contactId = state.pathParameters['id']!;
+    final token = state.extra as String;
+
+    return CommercialTimelineScreen(
+      contactId: contactId,
+      token: token,
+    );
+  },
 ),
 
             ],
