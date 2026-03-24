@@ -666,7 +666,40 @@ users = allUsers.where((u) {
                                     ),
                                   ),
                                 ),
-                                DataCell(Text(p.ingenieurResponsable)),
+                               DataCell(
+  Builder(
+    builder: (_) {
+
+      if (p.projectModele == "revendeur") {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(p.comptoir ?? "-", style: const TextStyle(fontWeight: FontWeight.w600)),
+          ],
+        );
+      }
+
+      if (p.projectModele == "applicateur") {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(p.dallagiste ?? "-", style: const TextStyle(fontWeight: FontWeight.w600)),
+           
+          ],
+        );
+      }
+
+      // DEFAULT = PROJECT
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(p.ingenieurResponsable ?? "-", style: const TextStyle(fontWeight: FontWeight.w600)),
+         
+        ],
+      );
+    },
+  ),
+),
                                 DataCell(Text(p.architecte ?? '-')),
                                 DataCell(Text(p.promoteur ?? '-')),
                                 DataCell(Text(p.entreprise)),
