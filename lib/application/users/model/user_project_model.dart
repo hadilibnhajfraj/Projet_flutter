@@ -5,6 +5,7 @@ class UserProjectModel {
   final String typeAdresseChantier;
   final String ingenieurResponsable;
   final String telephoneIngenieur;
+
   final String? architecte;
   final String? telephoneArchitecte;
   final String? matriculeFiscale;
@@ -13,18 +14,28 @@ class UserProjectModel {
   final String? bureauEtude;
   final String bureauControle;
   final String? adresse;
+
   final String latitude;
   final String longitude;
   final String? localisationCommentaire;
   final String? statut;
+
   final String? entrepriseFluide;
   final String? entrepriseElectricite;
   final String? pourcentageReussite;
   final String? validationStatut;
   final String? typeProjet;
   final String? surfaceProspectee;
+
   final String createdAt;
   final String updatedAt;
+
+  /// 🔥 NEW FIELDS
+  final String? projectModele;
+  final String? comptoir;
+  final String? telephoneComptoir;
+  final String? dallagiste;
+  final String? telephoneDallagiste;
 
   UserProjectModel({
     required this.id,
@@ -53,6 +64,13 @@ class UserProjectModel {
     required this.surfaceProspectee,
     required this.createdAt,
     required this.updatedAt,
+
+    /// 🔥 NEW
+    required this.projectModele,
+    required this.comptoir,
+    required this.telephoneComptoir,
+    required this.dallagiste,
+    required this.telephoneDallagiste,
   });
 
   factory UserProjectModel.fromJson(Map<String, dynamic> json) {
@@ -63,6 +81,7 @@ class UserProjectModel {
       typeAdresseChantier: (json['typeAdresseChantier'] ?? '').toString(),
       ingenieurResponsable: (json['ingenieurResponsable'] ?? '').toString(),
       telephoneIngenieur: (json['telephoneIngenieur'] ?? '').toString(),
+
       architecte: json['architecte']?.toString(),
       telephoneArchitecte: json['telephoneArchitecte']?.toString(),
       matriculeFiscale: json['matriculeFiscale']?.toString(),
@@ -71,48 +90,28 @@ class UserProjectModel {
       bureauEtude: json['bureauEtude']?.toString(),
       bureauControle: (json['bureauControle'] ?? '').toString(),
       adresse: json['adresse']?.toString(),
+
       latitude: (json['latitude'] ?? '').toString(),
       longitude: (json['longitude'] ?? '').toString(),
       localisationCommentaire: json['localisationCommentaire']?.toString(),
       statut: json['statut']?.toString(),
+
       entrepriseFluide: json['entrepriseFluide']?.toString(),
       entrepriseElectricite: json['entrepriseElectricite']?.toString(),
       pourcentageReussite: json['pourcentageReussite']?.toString(),
       validationStatut: json['validationStatut']?.toString(),
       typeProjet: json['typeProjet']?.toString(),
       surfaceProspectee: json['surfaceProspectee']?.toString(),
+
       createdAt: (json['createdAt'] ?? '').toString(),
       updatedAt: (json['updatedAt'] ?? '').toString(),
-    );
-  }
-}
 
-class UserProjectsResponse {
-  final int total;
-  final int page;
-  final int limit;
-  final int totalPages;
-  final List<UserProjectModel> items;
-
-  UserProjectsResponse({
-    required this.total,
-    required this.page,
-    required this.limit,
-    required this.totalPages,
-    required this.items,
-  });
-
-  factory UserProjectsResponse.fromJson(Map<String, dynamic> json) {
-    final itemsJson = (json['items'] as List?) ?? const [];
-
-    return UserProjectsResponse(
-      total: int.tryParse('${json['total'] ?? 0}') ?? 0,
-      page: int.tryParse('${json['page'] ?? 1}') ?? 1,
-      limit: int.tryParse('${json['limit'] ?? 10}') ?? 10,
-      totalPages: int.tryParse('${json['totalPages'] ?? 1}') ?? 1,
-      items: itemsJson
-          .map((e) => UserProjectModel.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList(),
+      /// 🔥 NEW
+      projectModele: json['projectModele']?.toString(),
+      comptoir: json['comptoir']?.toString(),
+      telephoneComptoir: json['telephoneComptoir']?.toString(),
+      dallagiste: json['dallagiste']?.toString(),
+      telephoneDallagiste: json['telephoneDallagiste']?.toString(),
     );
   }
 }

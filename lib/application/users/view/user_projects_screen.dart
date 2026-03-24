@@ -5,6 +5,9 @@ import 'package:dash_master_toolkit/application/users/model/user_project_model.d
 import 'package:dash_master_toolkit/services/user_project_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:go_router/go_router.dart';
+import 'package:dash_master_toolkit/route/my_route.dart';
+import 'package:dash_master_toolkit/application/users/model/user_projects_response.dart';
 class UserProjectsScreen extends StatefulWidget {
   final String token;
 
@@ -43,6 +46,7 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
   final TextEditingController _createdByCtrl = TextEditingController();
  String? userRole;
 String? selectedUser;
+String? selectedProjectModele;
 List<Map<String, dynamic>> users = [];
   bool _loading = false;
   String? _error;
@@ -64,6 +68,12 @@ void initState() {
   _loadUsers();
   _loadProjects();
 }
+String _editUrl(String id) {
+    return Uri(
+      path: MyRoute.projectFormScreen,
+      queryParameters: {'id': id},
+    ).toString();
+  }
 Future<void> _loadUsers() async {
   try {
     final response = await http.get(
@@ -104,6 +114,7 @@ users = allUsers.where((u) {
         ingenieur: _ingenieurCtrl.text,
         societe: _societeCtrl.text,
         q: _searchCtrl.text,
+         projectModele: selectedProjectModele,
         page: _page,
         limit: _limit,
       );
@@ -128,6 +139,8 @@ users = allUsers.where((u) {
   _promoteurCtrl.clear();
   _ingenieurCtrl.clear();
   _societeCtrl.clear();
+  selectedProjectModele = null; // ✅ IMPORTANT
+
 
   selectedUser = null; // 🔥 IMPORTANT
 
@@ -346,6 +359,23 @@ users = allUsers.where((u) {
                         controller: _societeCtrl,
                         hint: 'Company',
                       ),
+                      DropdownButtonFormField<String>(
+  value: selectedProjectModele,
+  hint: const Text("Project Model"),
+  items: const [
+    DropdownMenuItem(value: "project", child: Text("Project")),
+    DropdownMenuItem(value: "revendeur", child: Text("Revendeur")),
+    DropdownMenuItem(value: "applicateur", child: Text("Applicateur")),
+  ],
+  onChanged: (value) {
+    setState(() {
+      selectedProjectModele = value;
+    });
+
+    _page = 1;
+    _loadProjects();
+  },
+),
                       if (userRole == "superadmin") 
   DropdownButtonFormField<String>(
     value: selectedUser,
@@ -571,6 +601,7 @@ users = allUsers.where((u) {
                                 ),
                               ),
                             ),
+                          
                             DataColumn(
                               label: Text(
                                 'Validation',
@@ -583,6 +614,15 @@ users = allUsers.where((u) {
                             DataColumn(
                               label: Text(
                                 'Project Type',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: kTextDark,
+                                ),
+                              ),
+                            ),
+                              DataColumn(
+                              label: Text(
+                                'Actions',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: kTextDark,
@@ -631,13 +671,62 @@ users = allUsers.where((u) {
                                 DataCell(Text(p.promoteur ?? '-')),
                                 DataCell(Text(p.entreprise)),
                                 DataCell(Text(p.dateDemarrage)),
-                                DataCell(
-                                  _TagChip(
-                                    text: p.statut ?? 'No status',
-                                    bg: _statusBg(p.statut),
-                                    fg: _statusText(p.statut),
-                                  ),
-                                ),
+   DataCell(
+  Builder(
+    builder: (_) {
+
+      const allowedStatus = [
+        "Identification",
+        "Proposition technique",
+        "Proposition commerciale",
+        "Négociation",
+        "Livraison",
+        "Fidélisation"
+      ];
+
+      final safeStatus = allowedStatus.contains(p.statut)
+          ? p.statut
+          : "Identification";
+
+      return DropdownButton<String>(
+        value: safeStatus,
+        underline: const SizedBox(),
+
+        items: const [
+          DropdownMenuItem(value: "Identification", child: Text("Identification")),
+          DropdownMenuItem(value: "Proposition technique", child: Text("Technique")),
+          DropdownMenuItem(value: "Proposition commerciale", child: Text("Commerciale")),
+          DropdownMenuItem(value: "Négociation", child: Text("Négociation")),
+          DropdownMenuItem(value: "Livraison", child: Text("Livraison")),
+          DropdownMenuItem(value: "Fidélisation", child: Text("Fidélisation")),
+        ],
+
+        onChanged: (value) async {
+          if (value == null) return;
+
+          try {
+            await http.put(
+              Uri.parse("${service.baseUrl}/projects/${p.id}"),
+              headers: {
+                "Authorization": "Bearer ${widget.token}",
+                "Content-Type": "application/json",
+              },
+              body: jsonEncode({
+                "statut": value,
+              }),
+            );
+
+            _loadProjects();
+
+          } catch (e) {
+            print("❌ STATUS UPDATE ERROR: $e");
+          }
+        },
+      );
+    },
+  ),
+),
+                                
                                 DataCell(
                                   _TagChip(
                                     text: p.validationStatut ?? 'Unknown',
@@ -652,6 +741,29 @@ users = allUsers.where((u) {
                                     fg: const Color(0xFF374151),
                                   ),
                                 ),
+                                DataCell(
+  Row(
+    children: [
+
+      /// 🔵 TIMELINE
+      IconButton(
+        icon: const Icon(Icons.timeline, color: Colors.indigo),
+        onPressed: () {
+          context.go(
+            "/forms/project-timeline?projectId=${p.id}",
+          );
+        },
+      ),
+
+      /// 🟢 EDIT
+      IconButton(
+        icon: const Icon(Icons.edit, color: Colors.blue),
+        onPressed: () => context.go(_editUrl(p.id)),
+      ),
+
+    ],
+  ),
+),
                               ],
                             );
                           }).toList(),
