@@ -237,7 +237,7 @@ Widget build(BuildContext context) {
                     child: InkWell(
                       onTap: () async {
                         final url = Uri.parse(
-                          "http://localhost:4000${action.fileUrl}",
+                          "https://api.crmprobar.com${action.fileUrl}",
                         );
 
                         if (!await launchUrl(url)) {

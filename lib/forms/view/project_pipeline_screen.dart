@@ -9,7 +9,7 @@ class ProjectPipelineScreen extends StatefulWidget {
   State<ProjectPipelineScreen> createState() => _ProjectPipelineScreenState();
 }
 
-/// 🔥 ACTIONS = COLONNES CRM
+/// 🔥 BACKEND VALUES (NE PAS TOUCHER)
 const ACTION_STAGES = [
   "Visite",
   "Plan technique",
@@ -23,6 +23,17 @@ const ACTION_STAGES = [
 class _ProjectPipelineScreenState extends State<ProjectPipelineScreen> {
 
   Map<String, List<Map<String, dynamic>>> grouped = {};
+
+  /// ✅ UI LABELS ENGLISH
+  final Map<String, String> stageLabels = {
+    "Visite": "Site Visit",
+    "Plan technique": "Technical Plan",
+    "Echantillonnage": "Sampling",
+    "Devis envoyé": "Quote Sent",
+    "Negociation": "Negotiation",
+    "Commande gagnée": "✅ Won",
+    "Commande perdue": "❌ Lost",
+  };
 
   @override
   void initState() {
@@ -45,7 +56,6 @@ class _ProjectPipelineScreenState extends State<ProjectPipelineScreen> {
 
       final project = Map<String, dynamic>.from(p);
 
-      /// 🔥 récupérer dernière action
       final lastAction = project["lastAction"];
 
       String stage = "Visite";
@@ -64,49 +74,40 @@ class _ProjectPipelineScreenState extends State<ProjectPipelineScreen> {
     });
   }
 
-  /// ✅ DRAG LOGIC = UPDATE ACTION
+  /// ✅ DRAG LOGIC
   Future<void> _onMove(Map<String, dynamic> project, String newStage) async {
 
-  try {
+    try {
 
-    final projectId = project["id"];
-    final action = project["lastAction"];
+      final projectId = project["id"];
+      final action = project["lastAction"];
 
-    print("🔥 MOVE PROJECT → $newStage");
+      if (action != null && action["id"] != null) {
 
-    /// ✅ CAS 1 : action existe → UPDATE
-    if (action != null && action["id"] != null) {
+        await ApiClient.instance.dio.put(
+          "/projects/$projectId",
+          data: {
+            "typeAction": newStage,
+          },
+        );
 
-      await ApiClient.instance.dio.put(
-        "/projects/$projectId",
-        data: {
-          "typeAction": newStage,
-        },
-      );
+      } else {
 
-    } 
-    
-    /// ✅ CAS 2 : PAS D'ACTION → CREATE
-    else {
+        await ApiClient.instance.dio.post(
+          "/projects/$projectId/actions",
+          data: {
+            "typeAction": newStage,
+            "commentaire": "Auto pipeline move",
+          },
+        );
+      }
 
-      print("⚠️ No action → CREATE");
+      await loadProjects();
 
-      await ApiClient.instance.dio.post(
-        "/projects/$projectId/actions",
-        data: {
-          "typeAction": newStage,
-          "commentaire": "Auto pipeline move",
-        },
-      );
+    } catch (e) {
+      print("❌ MOVE ERROR: $e");
     }
-
-    /// 🔥 reload UI
-    await loadProjects();
-
-  } catch (e) {
-    print("❌ MOVE ERROR: $e");
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +120,7 @@ class _ProjectPipelineScreenState extends State<ProjectPipelineScreen> {
           : PipelineBoard(
               data: grouped,
               onMove: _onMove,
+             
             ),
     );
   }

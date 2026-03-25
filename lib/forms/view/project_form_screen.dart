@@ -30,6 +30,16 @@ class ProjectFormScreen extends StatefulWidget {
 }
 
 class _ProjectFormScreenState extends State<ProjectFormScreen> {
+  final Map<String, String> actionLabels = {
+  "Visite": "Site Visit",
+  "Plan technique": "Technical Plan",
+  "Echantillonnage": "Sampling",
+  "Devis envoyé": "Quote Sent",
+  "Negociation": "Negotiation",
+  "Relance": "Follow-up",
+  "Commande gagnée": "Won",
+  "Commande perdue": "Lost",
+};
   late final ProjectFormController c;
   late final ThemeController themeController;
 Uint8List? selectedFileBytes;
@@ -54,17 +64,7 @@ String? selectedAction;
   bool _loadedOnce = false;
   bool _loading = false;
 String? _getValidAction() {
-
-  const valid = [
-    "Visite",
-    "Plan technique",
-    "Echantillonnage",
-    "Devis envoyé",
-    "Negociation",
-    "Relance",
-    "Commande gagnée",
-    "Commande perdue",
-  ];
+  final valid = actionLabels.keys.toList();
 
   final v = c.selectedAction.value;
 
@@ -72,7 +72,6 @@ String? _getValidAction() {
 
   if (valid.contains(v)) return v;
 
-  // mapping API → dropdown
   if (v == "Visite chantier") return "Visite";
 
   return null;
@@ -349,7 +348,7 @@ if (c.projectModele.value == "applicateur") ...[
       theme: theme,
       title: "Engineer Email",
       controller: c.emailIngenieur,
-      validator: (v) => c.emailValidator(v, "Engineer Email"),
+       validator: null,
       keyboardType: TextInputType.emailAddress,
     ),
     right: _field(
@@ -483,31 +482,27 @@ Column(
 
     const SizedBox(height: 6),
 
-    DropdownButtonFormField<String>(
-      value: _getValidAction(),
-       validator: (v) {
+ DropdownButtonFormField<String>(
+  value: _getValidAction(),
+  validator: (v) {
     if (v == null || v.isEmpty) {
       return "Next Action is required";
     }
     return null;
   },
-      decoration: const InputDecoration(
-        border: OutlineInputBorder(),
-      ),
-      items: const [
-        DropdownMenuItem(value: "Visite", child: Text("Visite chantier")),
-        DropdownMenuItem(value: "Plan technique", child: Text("Plan technique")),
-        DropdownMenuItem(value: "Echantillonnage", child: Text("Echantillonnage")),
-        DropdownMenuItem(value: "Devis envoyé", child: Text("Devis envoyé")),
-        DropdownMenuItem(value: "Negociation", child: Text("Négociation")),
-        DropdownMenuItem(value: "Relance", child: Text("Relance")),
-        DropdownMenuItem(value: "Commande gagnée", child: Text("Commande gagnée")),
-        DropdownMenuItem(value: "Commande perdue", child: Text("Commande perdue")),
-      ],
-      onChanged: (v) {
-        c.selectedAction.value = v;
-      },
-    ),
+  decoration: const InputDecoration(
+    border: OutlineInputBorder(),
+  ),
+  items: actionLabels.entries.map((e) {
+    return DropdownMenuItem(
+      value: e.key,     // 🔥 FR (backend)
+      child: Text(e.value), // 🔥 EN (UI)
+    );
+  }).toList(),
+  onChanged: (v) {
+    c.selectedAction.value = v; // ✅ garde FR
+  },
+),
   ],
 ),
 if (c.selectedAction.value != null) ...[

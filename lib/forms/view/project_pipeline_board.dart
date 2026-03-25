@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
-import 'project_stats_dialog.dart'; // 🔥 IMPORTANT
+import 'project_stats_dialog.dart';
 
 class PipelineBoard extends StatelessWidget {
 
   final Map<String, List<Map<String, dynamic>>> data;
+
   final Function(Map<String, dynamic>, String) onMove;
 
   const PipelineBoard({
     super.key,
     required this.data,
     required this.onMove,
+   
   });
 
+  /// 🔥 BACKEND VALUES (NE PAS CHANGER)
   final stages = const [
     "Visite",
     "Plan technique",
@@ -21,6 +24,17 @@ class PipelineBoard extends StatelessWidget {
     "Commande gagnée",
     "Commande perdue",
   ];
+
+  /// ✅ ENGLISH LABELS (UI ONLY)
+  final Map<String, String> stageLabels = const {
+    "Visite": "Site Visit",
+    "Plan technique": "Technical Plan",
+    "Echantillonnage": "Sampling",
+    "Devis envoyé": "Quote Sent",
+    "Negociation": "Negotiation",
+    "Commande gagnée": "✅ Won",
+    "Commande perdue": "❌ Lost",
+  };
 
   Color getColor(String stage) {
     switch(stage){
@@ -64,9 +78,9 @@ class PipelineBoard extends StatelessWidget {
               child: Column(
                 children: [
 
-                  /// HEADER
+                  /// 🔥 HEADER (ENGLISH)
                   Text(
-                    "$stage (${projects.length})",
+                    "${stageLabels[stage] ?? stage} (${projects.length})",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: getColor(stage),
@@ -140,7 +154,7 @@ class PipelineBoard extends StatelessWidget {
   /// 🔥 CARD UI
   Widget _card(BuildContext context, Map<String, dynamic> p) {
 
-    final nom = p['nomProjet'] ?? "Sans nom";
+    final nom = p['nomProjet'] ?? "No name";
     final entreprise = p['entreprise'] ?? "";
     final stage = p['computedStage'] ?? "Visite";
 
@@ -180,7 +194,7 @@ class PipelineBoard extends StatelessWidget {
 
             const SizedBox(height: 8),
 
-            /// STATUS BADGE
+            /// 🔥 STATUS BADGE (ENGLISH)
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 8,
@@ -191,11 +205,10 @@ class PipelineBoard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
-                stage,
+                stageLabels[stage] ?? stage,
                 style: TextStyle(
                   fontSize: 11,
                   color: getColor(stage),
-                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
