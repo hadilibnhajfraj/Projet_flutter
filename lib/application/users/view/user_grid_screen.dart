@@ -27,7 +27,7 @@ class UserGridScreen extends StatefulWidget {
 class _UserGridScreenState extends State<UserGridScreen> {
 
   final controller = Get.put(UserGridController());
-
+String? selectedStatusFilter;
   int currentPage = 1;
   int rowsPerPage = 5;
 final List<Map<String, String>> STATUS_LIST = [
@@ -142,30 +142,80 @@ Future<void> updateStatus(String projectId, String newStatus) async {
 ),
 
           /// SEARCH
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: TextField(
-              controller: controller.searchController,
-              onChanged: controller.searchProject,
-              decoration: InputDecoration(
-                hintText: "Search...",
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+         Padding(
+  padding: const EdgeInsets.all(15),
+  child: Row(
+    children: [
+
+      /// 🔍 SEARCH
+      Expanded(
+        flex: 3,
+        child: TextField(
+          controller: controller.searchController,
+          onChanged: controller.searchProject,
+          decoration: InputDecoration(
+            hintText: "Search...",
+            prefixIcon: const Icon(Icons.search),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
             ),
           ),
+        ),
+      ),
+
+      const SizedBox(width: 10),
+
+      /// 🔥 STATUS FILTER
+      Expanded(
+        flex: 2,
+        child: DropdownButtonFormField<String>(
+          value: selectedStatusFilter,
+          decoration: InputDecoration(
+            hintText: "Filter status",
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          items: [
+            const DropdownMenuItem(
+              value: null,
+              child: Text("All"),
+            ),
+            ...STATUS_LIST.map((s) => DropdownMenuItem(
+                  value: s["value"],
+                  child: Text(s["label"]!),
+                ))
+          ],
+          onChanged: (value) {
+            setState(() {
+              selectedStatusFilter = value;
+            });
+          },
+        ),
+      ),
+    ],
+  ),
+),
 
           /// TABLE
           Expanded(
             child: Obx(() {
 
-              final list = controller.filtered;
+         final all = controller.filtered;
 
+List<ProjectGridData> list = all;
+
+if (selectedStatusFilter != null) {
+  list = all
+      .where((p) => p.statut == selectedStatusFilter)
+      .toList();
+}
               /// PAGINATION
               final start = (currentPage - 1) * rowsPerPage;
               final end = start + rowsPerPage;
@@ -374,30 +424,37 @@ Expanded(
       borderRadius: BorderRadius.circular(20),
     ),
     child: DropdownButton<String>(
-      value: safeValue,
-      isExpanded: true,
-      underline: const SizedBox(),
+  value: safeValue,
+  isExpanded: true,
+  underline: const SizedBox(),
 
-      items: STATUS_LIST.map((status) {
-        return DropdownMenuItem<String>(
-          value: status["value"],
-          child: Text(status["label"]!),
-        );
-      }).toList(),
+  style: TextStyle(
+    color: p.canEdit ? Colors.black : Colors.grey,
+  ),
+  iconEnabledColor: p.canEdit ? Colors.black : Colors.grey,
 
-      onChanged: (value) async {
-        if (value == null) return;
+  items: STATUS_LIST.map((status) {
+    return DropdownMenuItem<String>(
+      value: status["value"],
+      child: Text(status["label"]!),
+    );
+  }).toList(),
 
-        await ApiClient.instance.dio.put(
-          "/projects/${p.id}",
-          data: {
-            "statut": value, // ✅ EXACT ENUM BACKEND
-          },
-        );
+  onChanged: p.canEdit
+      ? (value) async {
+          if (value == null) return;
 
-        controller.loadProjects();
-      },
-    ),
+          await ApiClient.instance.dio.put(
+            "/projects/${p.id}",
+            data: {
+              "statut": value,
+            },
+          );
+
+          controller.loadProjects();
+        }
+      : null,
+),
   ),
 ),
 
