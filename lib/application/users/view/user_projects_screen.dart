@@ -45,6 +45,7 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
   final TextEditingController _societeCtrl = TextEditingController();
   final TextEditingController _createdByCtrl = TextEditingController();
  String? userRole;
+ String? selectedStatusFilter;
 String? selectedUser;
 String? selectedProjectModele;
 List<Map<String, dynamic>> users = [];
@@ -54,6 +55,33 @@ List<Map<String, dynamic>> users = [];
 
   int _page = 1;
   final int _limit = 10;
+  final List<Map<String, String>> STATUS_LIST = [
+  {"label": "Identification", "value": "Identification"},
+  {"label": "Technical Proposal", "value": "Proposition technique"},
+  {"label": "Commercial Proposal", "value": "Proposition commerciale"},
+  {"label": "Negotiation", "value": "Négociation"},
+  {"label": "Delivery", "value": "Livraison"},
+  {"label": "Loyalty", "value": "Fidélisation"},
+];
+
+Color getStatusColor(String status) {
+  switch (status) {
+    case "Identification":
+      return Colors.blue;
+    case "Proposition technique":
+      return Colors.orange;
+    case "Proposition commerciale":
+      return Colors.purple;
+    case "Négociation":
+      return Colors.red;
+    case "Livraison":
+      return Colors.green;
+    case "Fidélisation":
+      return Colors.teal;
+    default:
+      return Colors.grey;
+  }
+}
 
   @override
 void initState() {
@@ -260,7 +288,18 @@ users = allUsers.where((u) {
 
   @override
   Widget build(BuildContext context) {
-    final items = _response?.items ?? [];
+   final allItems = _response?.items ?? [];
+
+List<UserProjectModel> items = allItems;
+
+if (selectedStatusFilter != null) {
+  items = allItems.where((p) {
+    final statut = (p.statut ?? "").toString().trim().toLowerCase();
+    final filter = selectedStatusFilter!.trim().toLowerCase();
+
+    return statut == filter;
+  }).toList();
+}
     final total = _response?.total ?? 0;
     final totalPages = _response?.totalPages ?? 1;
 
@@ -374,6 +413,26 @@ users = allUsers.where((u) {
 
     _page = 1;
     _loadProjects();
+  },
+),
+DropdownButtonFormField<String>(
+  value: selectedStatusFilter ?? "ALL", // ✅ IMPORTANT
+  hint: const Text("Status"),
+  items: [
+    const DropdownMenuItem(
+      value: "ALL",
+      child: Text("All"),
+    ),
+    ...STATUS_LIST.map((s) => DropdownMenuItem<String>(
+          value: s["value"],
+          child: Text(s["label"]!),
+        ))
+  ],
+  onChanged: (value) {
+    setState(() {
+      selectedStatusFilter = value == "ALL" ? null : value;
+      _page = 1;
+    });
   },
 ),
                       if (userRole == "superadmin") 
@@ -704,57 +763,60 @@ users = allUsers.where((u) {
                                 DataCell(Text(p.promoteur ?? '-')),
                                 DataCell(Text(p.entreprise)),
                                 DataCell(Text(p.dateDemarrage)),
-   DataCell(
+  DataCell(
   Builder(
     builder: (_) {
 
-      const allowedStatus = [
-        "Identification",
-        "Proposition technique",
-        "Proposition commerciale",
-        "Négociation",
-        "Livraison",
-        "Fidélisation"
-      ];
-
-      final safeStatus = allowedStatus.contains(p.statut)
+      /// ✅ SAFE VALUE (évite crash dropdown)
+      final safeValue = STATUS_LIST.any((s) => s["value"] == p.statut)
           ? p.statut
           : "Identification";
 
-      return DropdownButton<String>(
-        value: safeStatus,
-        underline: const SizedBox(),
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: getStatusColor(safeValue!).withOpacity(.15),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: DropdownButton<String>(
+          value: safeValue,
+          isExpanded: true,
+          underline: const SizedBox(),
 
-        items: const [
-          DropdownMenuItem(value: "Identification", child: Text("Identification")),
-          DropdownMenuItem(value: "Proposition technique", child: Text("Technique")),
-          DropdownMenuItem(value: "Proposition commerciale", child: Text("Commerciale")),
-          DropdownMenuItem(value: "Négociation", child: Text("Négociation")),
-          DropdownMenuItem(value: "Livraison", child: Text("Livraison")),
-          DropdownMenuItem(value: "Fidélisation", child: Text("Fidélisation")),
-        ],
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w600,
+          ),
 
-        onChanged: (value) async {
-          if (value == null) return;
-
-          try {
-            await http.put(
-              Uri.parse("${service.baseUrl}/projects/${p.id}"),
-              headers: {
-                "Authorization": "Bearer ${widget.token}",
-                "Content-Type": "application/json",
-              },
-              body: jsonEncode({
-                "statut": value,
-              }),
+          items: STATUS_LIST.map((status) {
+            return DropdownMenuItem<String>(
+              value: status["value"],
+              child: Text(status["label"]!),
             );
+          }).toList(),
 
-            _loadProjects();
+          onChanged: (value) async {
+            if (value == null) return;
 
-          } catch (e) {
-            print("❌ STATUS UPDATE ERROR: $e");
-          }
-        },
+            try {
+              await http.put(
+                Uri.parse("${service.baseUrl}/projects/${p.id}"),
+                headers: {
+                  "Authorization": "Bearer ${widget.token}",
+                  "Content-Type": "application/json",
+                },
+                body: jsonEncode({
+                  "statut": value,
+                }),
+              );
+
+              _loadProjects();
+
+            } catch (e) {
+              print("❌ STATUS UPDATE ERROR: $e");
+            }
+          },
+        ),
       );
     },
   ),
