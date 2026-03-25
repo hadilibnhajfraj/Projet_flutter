@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'project_stats_dialog.dart'; // 🔥 IMPORTANT
 
 class PipelineBoard extends StatelessWidget {
 
@@ -96,16 +97,28 @@ class PipelineBoard extends StatelessWidget {
                                 elevation: 6,
                                 child: SizedBox(
                                   width: 260,
-                                  child: _card(p),
+                                  child: _card(context, p),
                                 ),
                               ),
 
                               childWhenDragging: Opacity(
                                 opacity: 0.3,
-                                child: _card(p),
+                                child: _card(context, p),
                               ),
 
-                              child: _card(p),
+                              /// 🔥 CLICK + DRAG OK
+                              child: InkWell(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => ProjectStatsDialog(
+                                      projectId: p["id"],
+                                    ),
+                                  );
+                                },
+                                mouseCursor: SystemMouseCursors.click,
+                                child: _card(context, p),
+                              ),
                             );
 
                           }).toList(),
@@ -124,7 +137,8 @@ class PipelineBoard extends StatelessWidget {
     );
   }
 
-  Widget _card(Map<String, dynamic> p) {
+  /// 🔥 CARD UI
+  Widget _card(BuildContext context, Map<String, dynamic> p) {
 
     final nom = p['nomProjet'] ?? "Sans nom";
     final entreprise = p['entreprise'] ?? "";
@@ -144,6 +158,7 @@ class PipelineBoard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
+            /// TITLE
             Text(
               nom,
               style: const TextStyle(
@@ -154,6 +169,7 @@ class PipelineBoard extends StatelessWidget {
 
             const SizedBox(height: 5),
 
+            /// COMPANY
             Text(
               entreprise,
               style: const TextStyle(
@@ -164,6 +180,7 @@ class PipelineBoard extends StatelessWidget {
 
             const SizedBox(height: 8),
 
+            /// STATUS BADGE
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 8,
@@ -178,6 +195,7 @@ class PipelineBoard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   color: getColor(stage),
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
