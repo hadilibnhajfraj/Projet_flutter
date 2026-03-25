@@ -168,7 +168,7 @@ users = allUsers.where((u) {
   _ingenieurCtrl.clear();
   _societeCtrl.clear();
   selectedProjectModele = null; // ✅ IMPORTANT
-
+selectedStatusFilter=null;
 
   selectedUser = null; // 🔥 IMPORTANT
 

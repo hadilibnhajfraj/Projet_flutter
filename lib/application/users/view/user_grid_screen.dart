@@ -28,6 +28,29 @@ class _UserGridScreenState extends State<UserGridScreen> {
 
   final controller = Get.put(UserGridController());
 String? selectedStatusFilter;
+String? selectedUser;
+List<String> users = [];
+Future<void> loadUsers() async {
+  try {
+    final res = await ApiClient.instance.dio.get("/users");
+
+    final data = res.data as List;
+
+    setState(() {
+      users = data
+          .map((u) => u["email"].toString()) // ou u["id"]
+          .toList();
+    });
+
+  } catch (e) {
+    print("❌ LOAD USERS ERROR: $e");
+  }
+}
+@override
+void initState() {
+  super.initState();
+  loadUsers();
+}
   int currentPage = 1;
   int rowsPerPage = 5;
 final List<Map<String, String>> STATUS_LIST = [
@@ -199,6 +222,37 @@ Future<void> updateStatus(String projectId, String newStatus) async {
           },
         ),
       ),
+      Expanded(
+  flex: 2,
+  child: DropdownButtonFormField<String>(
+    value: selectedUser,
+    decoration: InputDecoration(
+      hintText: "Filter user",
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide.none,
+      ),
+    ),
+    items: [
+      const DropdownMenuItem(
+        value: "ALL",
+        child: Text("All Users"),
+      ),
+      ...users.map((u) => DropdownMenuItem(
+            value: u,
+            child: Text(u),
+          ))
+    ],
+    onChanged: (value) {
+      setState(() {
+        selectedUser = value == "ALL" ? null : value;
+        currentPage = 1;
+      });
+    },
+  ),
+),
     ],
   ),
 ),
@@ -207,14 +261,24 @@ Future<void> updateStatus(String projectId, String newStatus) async {
           Expanded(
             child: Obx(() {
 
-         final all = controller.filtered;
+    final all = controller.filtered;
 
 List<ProjectGridData> list = all;
 
+/// 🔥 FILTER STATUS
 if (selectedStatusFilter != null) {
-  list = all
-      .where((p) => p.statut == selectedStatusFilter)
-      .toList();
+  list = list.where((p) {
+    final statut = (p.statut ?? "").toLowerCase().trim();
+    final filter = selectedStatusFilter!.toLowerCase().trim();
+    return statut == filter;
+  }).toList();
+}
+
+/// 🔥 FILTER USER
+if (selectedUser != null) {
+  list = list.where((p) {
+    return p.ownerName == selectedUser;
+  }).toList();
 }
               /// PAGINATION
               final start = (currentPage - 1) * rowsPerPage;
@@ -457,6 +521,7 @@ Expanded(
 ),
   ),
 ),
+
 
           /// ACTIVITY
           Expanded(
