@@ -53,7 +53,7 @@ class _GoogleMapScreenState extends State<GoogleMapScreen> {
     });
 
     try {
-      final items = await KpiService.fetchMapProjects();
+      final items = await KPIService.fetchMapProjects();
       if (!mounted) return;
       setState(() {
         _projects = items;

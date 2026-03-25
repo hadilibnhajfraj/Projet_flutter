@@ -12,10 +12,10 @@ import 'package:dash_master_toolkit/application/users/view/accueil_project_stats
 import 'package:dash_master_toolkit/application/users/view/admin_clients_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/user_projects_screen.dart';
 import 'package:dash_master_toolkit/dashboard/academic/view/academic_dashboard_screen.dart';
+import 'package:dash_master_toolkit/dashboard/academic/view/dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/ecommerce/view/ecommerce_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/finance/view/finance_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/sales/view/sales_dashboard_screen.dart';
-
 import 'package:dash_master_toolkit/forms/view/basic_form_fields_screen.dart';
 import 'package:dash_master_toolkit/forms/view/custom_form_screen.dart';
 import 'package:dash_master_toolkit/forms/view/validation_form_screen.dart';
@@ -96,7 +96,7 @@ class MyRoute {
   static const formsBasicFieldsScreen = '/forms/forms_basic_fields';
   static const customFormScreen = '/forms/custom_form';
   static const validationFormScreen = '/forms/validation_form';
-
+ static const dashboardScreen = '/kpi';
   // ✅ IMPORTANT : c’est bien /forms/project (pas null)
   static const projectFormScreen = '/forms/project';
  static const devisEditScreen = '/forms/devis-edit';
@@ -216,6 +216,15 @@ static const clientsProfileScreen = '/users/client';
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: EcommerceDashboardScreen()),
               ),
+GoRoute(
+  path: '/kpi',
+  builder: (context, state) {
+
+    final token = AuthService().accessToken;
+
+    return DashboardScreen(token: token!); // ⚠️ force
+  },
+),
             ],
           ),
 

@@ -298,8 +298,15 @@ if (c.projectModele.value == "revendeur") ...[
       keyboardType: TextInputType.phone,
     ),
   ),
-],
 
+  _field(
+    theme: theme,
+    title: "Téléphone Comptoir 2",
+    controller: c.telephoneComptoir2,
+    validator: (v) => c.phoneValidator(v, "Téléphone Comptoir 2"),
+    keyboardType: TextInputType.phone,
+  ),
+],
 if (c.projectModele.value == "applicateur") ...[
   _twoCols(
     isMobile: isMobile,
@@ -317,24 +324,43 @@ if (c.projectModele.value == "applicateur") ...[
       keyboardType: TextInputType.phone,
     ),
   ),
+
+  _twoCols(
+    isMobile: isMobile,
+    left: _field(
+      theme: theme,
+      title: "Email Dallagiste",
+      controller: c.emailDallagiste,
+      validator: (v) => c.emailValidator(v, "Email Dallagiste"),
+      keyboardType: TextInputType.emailAddress,
+    ),
+    right: _field(
+      theme: theme,
+      title: "Service Technique",
+      controller: c.serviceTechnique,
+      validator: (v) => c.requiredValidator(v, "Service Technique"),
+    ),
+  ),
 ],
-                      _twoCols(
-  isMobile: isMobile,
-  left: _field(
-    theme: theme,
-    title: "Engineer Email",
-    controller: c.emailIngenieur,
-    validator: null,
-    keyboardType: TextInputType.emailAddress,
+                      if (c.projectModele.value == "project") ...[
+  _twoCols(
+    isMobile: isMobile,
+    left: _field(
+      theme: theme,
+      title: "Engineer Email",
+      controller: c.emailIngenieur,
+      validator: (v) => c.emailValidator(v, "Engineer Email"),
+      keyboardType: TextInputType.emailAddress,
+    ),
+    right: _field(
+      theme: theme,
+      title: "Architect Email",
+      controller: c.emailArchitecte,
+      validator: null,
+      keyboardType: TextInputType.emailAddress,
+    ),
   ),
-  right: _field(
-    theme: theme,
-    title: "Architect Email",
-    controller: c.emailArchitecte,
-    validator: null,
-    keyboardType: TextInputType.emailAddress,
-  ),
-),
+],
 
                       _twoCols(
                         isMobile: isMobile,
@@ -639,10 +665,16 @@ ElevatedButton(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _requiredTitle(theme, "Project status", required: false),
+          _requiredTitle(theme, "Project status", required: true),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
             value: currentItem["value"], // FR value stored
+             validator: (v) {
+    if (v == null || v.isEmpty) {
+      return "Project status is required";
+    }
+    return null;
+  },
             decoration: inputDecoration(context, hintText: "Choose a status"),
             items: _statusOptions
                 .map((s) => DropdownMenuItem(
@@ -895,6 +927,17 @@ Future<void> _submit({required bool goBackAfterSave}) async {
 
 "telephoneIngenieur": c.projectModele.value == "project"
     ? c.telephoneIngenieur.text
+    : null,
+  "telephoneComptoir2": c.projectModele.value == "revendeur"
+    ? c.telephoneComptoir2.text
+    : null,
+
+"emailDallagiste": c.projectModele.value == "applicateur"
+    ? c.emailDallagiste.text
+    : null,
+
+"serviceTechnique": c.projectModele.value == "applicateur"
+    ? c.serviceTechnique.text
     : null,
   };
 

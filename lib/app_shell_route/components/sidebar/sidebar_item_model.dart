@@ -78,6 +78,10 @@ List<SidebarItemModel> buildTopMenus({
           name: 'Project Validation & Success KPIs',
           navigationPath: 'kpi-projects',
         ),
+         SidebarSubmenuModel(
+          name: 'Dashboard KPI',
+          navigationPath: 'kpi',
+        ),
       ],
     ),
   ];

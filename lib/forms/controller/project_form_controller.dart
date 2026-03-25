@@ -58,7 +58,10 @@ final Rxn<DateTime> selectedDateVisite = Rxn<DateTime>();
   final surfaceProspectee = TextEditingController(); // number (m²)
   final pourcentageReussite = TextEditingController(); // number (0-100)
   final validationStatut = TextEditingController(text: "Non validé"); // API expects FR
+final telephoneComptoir2 = TextEditingController();
 
+final emailDallagiste = TextEditingController();
+final serviceTechnique = TextEditingController();
   // ---------------- Location ----------------
   final RxnDouble latitude = RxnDouble();
   final RxnDouble longitude = RxnDouble();
@@ -108,7 +111,10 @@ final Rxn<DateTime> selectedDateVisite = Rxn<DateTime>();
 
     localisationAdresse.clear();
     commentaireCtrl.clear();
+telephoneComptoir2.clear();
 
+emailDallagiste.clear();
+serviceTechnique.clear();
     typeProjet.clear();
     surfaceProspectee.clear();
     pourcentageReussite.clear();
@@ -121,7 +127,54 @@ final Rxn<DateTime> selectedDateVisite = Rxn<DateTime>();
 
     update();
   }
+String? emailValidator(String? v, String label) {
+  final value = (v ?? "").trim();
 
+  if (value.isEmpty) return "$label is required";
+
+  final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  if (!emailRegex.hasMatch(value)) {
+    return "Invalid $label";
+  }
+
+  return null;
+}
+void onProjectModeleChanged(String value) {
+  projectModele.value = value;
+
+  if (value == "project") {
+    comptoir.clear();
+    telephoneComptoir.clear();
+    telephoneComptoir2.clear();
+
+    dallagiste.clear();
+    telephoneDallagiste.clear();
+    emailDallagiste.clear();
+    serviceTechnique.clear();
+  }
+
+  if (value == "revendeur") {
+    ingenieurResponsable.clear();
+    telephoneIngenieur.clear();
+
+    dallagiste.clear();
+    telephoneDallagiste.clear();
+    emailDallagiste.clear();
+    serviceTechnique.clear();
+  }
+
+  if (value == "applicateur") {
+    ingenieurResponsable.clear();
+    telephoneIngenieur.clear();
+
+    comptoir.clear();
+    telephoneComptoir.clear();
+    telephoneComptoir2.clear();
+  }
+
+  update();
+}
   // =========================
   // LOAD PROJECT (edit)
   // =========================
@@ -152,6 +205,17 @@ final Rxn<DateTime> selectedDateVisite = Rxn<DateTime>();
   promoteur.text = (j['promoteur'] ?? '').toString();
   bureauEtude.text = (j['bureauEtude'] ?? '').toString();
   bureauControle.text = (j['bureauControle'] ?? '').toString();
+  projectModele.value = (j['projectModele'] ?? 'project').toString();
+
+comptoir.text = (j['comptoir'] ?? '').toString();
+telephoneComptoir.text = (j['telephoneComptoir'] ?? '').toString();
+telephoneComptoir2.text = (j['telephoneComptoir2'] ?? '').toString();
+
+dallagiste.text = (j['dallagiste'] ?? '').toString();
+telephoneDallagiste.text = (j['telephoneDallagiste'] ?? '').toString();
+
+emailDallagiste.text = (j['emailDallagiste'] ?? '').toString();
+serviceTechnique.text = (j['serviceTechnique'] ?? '').toString();
 
   entrepriseFluide.text = (j['entrepriseFluide'] ?? '').toString();
   entrepriseElectricite.text = (j['entrepriseElectricite'] ?? '').toString();
