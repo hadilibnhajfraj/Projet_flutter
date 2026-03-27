@@ -44,7 +44,7 @@ class ApiClient {
   // - Android Emulator => 10.0.2.2
   // - Device réel => IP de ton PC (ex: api.crmprobar.com)
   static String get baseUrl {
-    if (kIsWeb) return 'https://api.crmprobar.com0';
+    if (kIsWeb) return 'https://api.crmprobar.com';
     return 'https://api.crmprobar.com';
   }
 
