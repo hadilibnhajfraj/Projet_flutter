@@ -268,13 +268,13 @@ if (c.projectModele.value == "project") ...[
       theme: theme,
       title: "Responsible Engineer",
       controller: c.ingenieurResponsable,
-      validator: (v) => c.requiredValidator(v, "Responsible Engineer"),
+      validator: null,
     ),
     right: _field(
       theme: theme,
       title: "Engineer Phone",
       controller: c.telephoneIngenieur,
-      validator: (v) => c.phoneValidator(v, "Engineer Phone"),
+      validator: null,
       keyboardType: TextInputType.phone,
     ),
   ),
@@ -851,7 +851,10 @@ ElevatedButton(
   }
 
 Future<void> _submit({required bool goBackAfterSave}) async {
-
+  String? clean(String v) {
+    final t = v.trim();
+    return t.isEmpty ? null : t;
+  }
   final ok = c.formKey.currentState?.validate() ?? false;
   if (!ok) return;
 
@@ -864,77 +867,100 @@ Future<void> _submit({required bool goBackAfterSave}) async {
 
   final manualComment = c.commentaireCtrl.text.trim();
 
-  final payload = {
-    "nomProjet": c.nomProjet.text.trim(),
-    "dateDemarrage": c.dateDemarrage.text.trim(),
-    "statut": c.statut.text.trim().isEmpty ? null : c.statut.text.trim(),
-    "typeAdresseChantier": c.typeAdresseChantier.text.trim(),
-    "ingenieurResponsable": c.ingenieurResponsable.text.trim(),
-    "telephoneIngenieur": c.telephoneIngenieur.text.trim(),
-    "architecte": c.architecte.text.trim().isEmpty ? null : c.architecte.text.trim(),
-    "telephoneArchitecte": c.telephoneArchitecte.text.trim().isEmpty ? null : c.telephoneArchitecte.text.trim(),
-    "matriculeFiscale": c.matriculeFiscale.text.trim().isEmpty ? null : c.matriculeFiscale.text.trim(),
-    "entreprise": c.entreprise.text.trim(),
-    "promoteur": c.promoteur.text.trim().isEmpty ? null : c.promoteur.text.trim(),
-    "bureauEtude": c.bureauEtude.text.trim().isEmpty ? null : c.bureauEtude.text.trim(),
-    "bureauControle": c.bureauControle.text.trim(),
-    "entrepriseFluide": c.entrepriseFluide.text.trim().isEmpty ? null : c.entrepriseFluide.text.trim(),
-    "entrepriseElectricite": c.entrepriseElectricite.text.trim().isEmpty ? null : c.entrepriseElectricite.text.trim(),
-    "adresse": c.localisationAdresse.text.trim().isEmpty ? null : c.localisationAdresse.text.trim(),
-    "location": {"lat": c.latitude.value, "lng": c.longitude.value},
-    "localisationCommentaire": manualComment.isEmpty ? null : manualComment,
-    "typeProjet": c.typeProjet.text.trim().isEmpty ? null : c.typeProjet.text.trim(),
-    "validationStatut": c.validationStatut.text.trim().isEmpty
-        ? "Non validé"
-        : c.validationStatut.text.trim(),
-    "pourcentageReussite": c.pourcentageReussiteValue,
-    "surfaceProspectee": c.surfaceProspecteeValue,
-    "emailIngenieur": c.emailIngenieur.text.trim().isEmpty ? null : c.emailIngenieur.text.trim(),
-    "emailArchitecte": c.emailArchitecte.text.trim().isEmpty ? null : c.emailArchitecte.text.trim(),
-    "dateVisite": c.dateVisite.text.trim().isEmpty ? null : c.dateVisite.text.trim(),
+final payload = {
+  "nomProjet": clean(c.nomProjet.text),
+  "dateDemarrage": clean(c.dateDemarrage.text),
 
-    /// CRM
-    "firstAction": c.selectedAction.value,
-    "commentaireAction": c.commentaireCtrl.text.trim().isEmpty
-        ? null
-        : c.commentaireCtrl.text.trim(),
-        "projectModele": c.projectModele.value,
+  "statut": clean(c.statut.text),
 
-"comptoir": c.projectModele.value == "revendeur"
-    ? c.comptoir.text
-    : null,
+  "typeAdresseChantier": clean(c.typeAdresseChantier.text),
 
-"telephoneComptoir": c.projectModele.value == "revendeur"
-    ? c.telephoneComptoir.text
-    : null,
+  "architecte": clean(c.architecte.text),
+  "telephoneArchitecte": clean(c.telephoneArchitecte.text),
 
-"dallagiste": c.projectModele.value == "applicateur"
-    ? c.dallagiste.text
-    : null,
+  "matriculeFiscale": clean(c.matriculeFiscale.text),
 
-"telephoneDallagiste": c.projectModele.value == "applicateur"
-    ? c.telephoneDallagiste.text
-    : null,
+  "entreprise": clean(c.entreprise.text),
 
-"ingenieurResponsable": c.projectModele.value == "project"
-    ? c.ingenieurResponsable.text
-    : null,
+  "promoteur": clean(c.promoteur.text),
+  "bureauEtude": clean(c.bureauEtude.text),
+  "bureauControle": clean(c.bureauControle.text),
 
-"telephoneIngenieur": c.projectModele.value == "project"
-    ? c.telephoneIngenieur.text
-    : null,
-  "telephoneComptoir2": c.projectModele.value == "revendeur"
-    ? c.telephoneComptoir2.text
-    : null,
+  "entrepriseFluide": clean(c.entrepriseFluide.text),
+  "entrepriseElectricite": clean(c.entrepriseElectricite.text),
 
-"emailDallagiste": c.projectModele.value == "applicateur"
-    ? c.emailDallagiste.text
-    : null,
+  "adresse": clean(c.localisationAdresse.text),
 
-"serviceTechnique": c.projectModele.value == "applicateur"
-    ? c.serviceTechnique.text
-    : null,
-  };
+  "location": {
+    "lat": c.latitude.value,
+    "lng": c.longitude.value,
+  },
+
+  "localisationCommentaire": clean(c.commentaireCtrl.text),
+
+  "typeProjet": clean(c.typeProjet.text),
+
+  "validationStatut": clean(c.validationStatut.text) ?? "Non validé",
+
+  "pourcentageReussite": c.pourcentageReussiteValue,
+  "surfaceProspectee": c.surfaceProspecteeValue,
+
+  "emailIngenieur": clean(c.emailIngenieur.text),
+  "emailArchitecte": clean(c.emailArchitecte.text),
+
+  "dateVisite": clean(c.dateVisite.text),
+
+  "firstAction": c.selectedAction.value,
+  "commentaireAction": clean(c.commentaireCtrl.text),
+
+  "projectModele": c.projectModele.value,
+
+  /// 🔥 LOGIQUE DYNAMIQUE PROPRE
+  "ingenieurResponsable":
+      c.projectModele.value == "project"
+          ? clean(c.ingenieurResponsable.text)
+          : null,
+
+  "telephoneIngenieur":
+      c.projectModele.value == "project"
+          ? clean(c.telephoneIngenieur.text)
+          : null,
+
+  "comptoir":
+      c.projectModele.value == "revendeur"
+          ? clean(c.comptoir.text)
+          : null,
+
+  "telephoneComptoir":
+      c.projectModele.value == "revendeur"
+          ? clean(c.telephoneComptoir.text)
+          : null,
+
+  "telephoneComptoir2":
+      c.projectModele.value == "revendeur"
+          ? clean(c.telephoneComptoir2.text)
+          : null,
+
+  "dallagiste":
+      c.projectModele.value == "applicateur"
+          ? clean(c.dallagiste.text)
+          : null,
+
+  "telephoneDallagiste":
+      c.projectModele.value == "applicateur"
+          ? clean(c.telephoneDallagiste.text)
+          : null,
+
+  "emailDallagiste":
+      c.projectModele.value == "applicateur"
+          ? clean(c.emailDallagiste.text)
+          : null,
+
+  "serviceTechnique":
+      c.projectModele.value == "applicateur"
+          ? clean(c.serviceTechnique.text)
+          : null,
+};
 
   try {
 
@@ -1074,6 +1100,7 @@ Future<void> _submit({required bool goBackAfterSave}) async {
       SnackBar(content: Text("Network error: $e")),
     );
   }
+ 
 }
 
   // ----------------- UI HELPERS -----------------
