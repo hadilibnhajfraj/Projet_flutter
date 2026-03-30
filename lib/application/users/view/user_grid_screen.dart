@@ -390,18 +390,29 @@ if (selectedUser != null) {
 
   /// ROW
 Widget _row(ProjectGridData p) {
+  bool isArchived = p.isArchived == true;
+
   Color? bg;
-String safeValue = STATUS_LIST.any((s) => s["value"] == p.statut)
-    ? p.statut
-    : "Identification";
+
   if (p.hasBonCommande) {
     bg = Colors.green.withOpacity(0.08);
   } else if (p.hasDevis) {
     bg = Colors.red.withOpacity(0.08);
   }
 
+  // 🔥 override couleur si archivé
+  final rowColor = isArchived
+      ? Colors.grey.withOpacity(0.15)
+      : bg;
+
+  String safeValue = STATUS_LIST.any((s) => s["value"] == p.statut)
+      ? p.statut
+      : "Identification";
+
   return InkWell(
     onTap: () {
+      if (isArchived) return; // ❌ bloc si archivé
+
       if (p.canEdit) {
         context.go(_editUrl(p.id));
       } else {
@@ -411,7 +422,7 @@ String safeValue = STATUS_LIST.any((s) => s["value"] == p.statut)
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
-        color: bg,
+        color: rowColor,
         border: Border(
           bottom: BorderSide(color: Colors.grey.shade300),
         ),
@@ -433,17 +444,48 @@ String safeValue = STATUS_LIST.any((s) => s["value"] == p.statut)
 
                 const SizedBox(width: 10),
 
-                /// ✅ FIX OVERFLOW HERE
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        p.nomProjet,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+
+                      /// 🔥 NOM + BADGE ARCHIVE
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              p.nomProjet,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                decoration: isArchived
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                              ),
+                            ),
+                          ),
+
+                          if (isArchived)
+                            Container(
+                              margin: const EdgeInsets.only(left: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.grey,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                "ARCHIVED",
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
+
                       Text(
                         "By ${p.ownerName}",
                         maxLines: 1,
@@ -476,52 +518,53 @@ String safeValue = STATUS_LIST.any((s) => s["value"] == p.statut)
           ),
 
           /// STATUS
-Expanded(
-  flex: 2,
-  child: Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(
-      color: (p.hasBonCommande
-              ? Colors.green
-              : (p.hasDevis ? Colors.red : getStatusColor(p.statut)))
-          .withOpacity(.15),
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: DropdownButton<String>(
-  value: safeValue,
-  isExpanded: true,
-  underline: const SizedBox(),
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: (p.hasBonCommande
+                        ? Colors.green
+                        : (p.hasDevis ? Colors.red : getStatusColor(p.statut)))
+                    .withOpacity(.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: DropdownButton<String>(
+                value: safeValue,
+                isExpanded: true,
+                underline: const SizedBox(),
 
-  style: TextStyle(
-    color: p.canEdit ? Colors.black : Colors.grey,
-  ),
-  iconEnabledColor: p.canEdit ? Colors.black : Colors.grey,
+                style: TextStyle(
+                  color: (p.canEdit && !isArchived) ? Colors.black : Colors.grey,
+                ),
 
-  items: STATUS_LIST.map((status) {
-    return DropdownMenuItem<String>(
-      value: status["value"],
-      child: Text(status["label"]!),
-    );
-  }).toList(),
+                iconEnabledColor:
+                    (p.canEdit && !isArchived) ? Colors.black : Colors.grey,
 
-  onChanged: p.canEdit
-      ? (value) async {
-          if (value == null) return;
+                items: STATUS_LIST.map((status) {
+                  return DropdownMenuItem<String>(
+                    value: status["value"],
+                    child: Text(status["label"]!),
+                  );
+                }).toList(),
 
-          await ApiClient.instance.dio.put(
-            "/projects/${p.id}",
-            data: {
-              "statut": value,
-            },
-          );
+                onChanged: (p.canEdit && !isArchived)
+                    ? (value) async {
+                        if (value == null) return;
 
-          controller.loadProjects();
-        }
-      : null,
-),
-  ),
-),
+                        await ApiClient.instance.dio.put(
+                          "/projects/${p.id}",
+                          data: {
+                            "statut": value,
+                          },
+                        );
 
+                        controller.loadProjects();
+                      }
+                    : null,
+              ),
+            ),
+          ),
 
           /// ACTIVITY
           Expanded(
@@ -540,6 +583,7 @@ Expanded(
             flex: 2,
             child: Row(
               children: [
+
                 IconButton(
                   icon: const Icon(Icons.timeline),
                   onPressed: () {
@@ -547,25 +591,26 @@ Expanded(
                   },
                 ),
 
-                if (p.canEdit)
+                if (p.canEdit && !isArchived)
                   IconButton(
                     icon: const Icon(Icons.edit, color: Colors.blue),
                     onPressed: () => context.go(_editUrl(p.id)),
                   ),
 
-                PopupMenuButton(
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: "delete",
-                      child: Text("Delete"),
-                    ),
-                  ],
-                  onSelected: (v) {
-                    if (v == "delete") {
-                      controller.deleteProject(p.id);
-                    }
-                  },
-                ),
+                if (!isArchived)
+                  PopupMenuButton(
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: "delete",
+                        child: Text("Delete"),
+                      ),
+                    ],
+                    onSelected: (v) {
+                      if (v == "delete") {
+                        controller.deleteProject(p.id);
+                      }
+                    },
+                  ),
               ],
             ),
           ),

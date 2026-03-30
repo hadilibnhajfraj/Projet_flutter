@@ -5,7 +5,7 @@ class UserProjectModel {
   final String typeAdresseChantier;
   final String ingenieurResponsable;
   final String telephoneIngenieur;
-
+  final bool isArchived;
   final String? architecte;
   final String? telephoneArchitecte;
   final String? matriculeFiscale;
@@ -46,6 +46,7 @@ class UserProjectModel {
     required this.telephoneIngenieur,
     required this.architecte,
     required this.telephoneArchitecte,
+    required this.isArchived,
     required this.matriculeFiscale,
     required this.entreprise,
     required this.promoteur,
@@ -90,7 +91,7 @@ class UserProjectModel {
       bureauEtude: json['bureauEtude']?.toString(),
       bureauControle: (json['bureauControle'] ?? '').toString(),
       adresse: json['adresse']?.toString(),
-
+      isArchived: json["isArchived"] ?? false,
       latitude: (json['latitude'] ?? '').toString(),
       longitude: (json['longitude'] ?? '').toString(),
       localisationCommentaire: json['localisationCommentaire']?.toString(),

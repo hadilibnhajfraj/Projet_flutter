@@ -15,7 +15,7 @@ class ProjectGridData {
 
   final String validationStatut;
   final String ownerName;
-
+  final bool isArchived;
   final bool hasDevis;
   final bool hasBonCommande;
 
@@ -30,6 +30,7 @@ class ProjectGridData {
     required this.commentCount,
     required this.taskCount,
     required this.ingenieurResponsable,
+    required this.isArchived,
     required this.architecte,
     required this.validationStatut,
     required this.ownerName,
@@ -54,6 +55,7 @@ class ProjectGridData {
       id: (json["id"] ?? "").toString(),
       nomProjet: (json["nomProjet"] ?? "").toString(),
       entreprise: (json["entreprise"] ?? "").toString(),
+      isArchived: json["isArchived"] ?? false,
       statut: (json["statut"] ?? "").toString(),
       adresse: (json["adresse"] ?? "").toString(),
       dateDemarrage: (json["dateDemarrage"] ?? "").toString(),

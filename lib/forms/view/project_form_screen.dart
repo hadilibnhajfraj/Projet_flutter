@@ -413,7 +413,7 @@ if (c.projectModele.value == "applicateur") ...[
                         theme: theme,
                         title: "Company",
                         controller: c.entreprise,
-                        validator: (v) => c.requiredValidator(v, "Company"),
+                     validator: null,
                       ),
 
                       _field(
@@ -439,7 +439,7 @@ if (c.projectModele.value == "applicateur") ...[
                         theme: theme,
                         title: "Control Office",
                         controller: c.bureauControle,
-                        validator: (v) => c.requiredValidator(v, "Control Office"),
+                        validator: null,
                       ),
 
                       _twoCols(

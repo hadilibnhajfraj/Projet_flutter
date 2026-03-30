@@ -291,7 +291,10 @@ selectedStatusFilter=null;
    final allItems = _response?.items ?? [];
 
 List<UserProjectModel> items = allItems;
-
+// ✅ FILTER ARCHIVED
+if (userRole != "admin" && userRole != "superadmin") {
+  items = items.where((p) => p.isArchived != true).toList();
+}
 if (selectedStatusFilter != null) {
   items = allItems.where((p) {
     final statut = (p.statut ?? "").toString().trim().toLowerCase();
@@ -712,15 +715,40 @@ DropdownButtonFormField<String>(
                                         ),
                                         const SizedBox(width: 10),
                                         Expanded(
-                                          child: Text(
-                                            p.nomProjet,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              color: kTextDark,
-                                            ),
-                                          ),
-                                        ),
+  child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        p.nomProjet,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          color: kTextDark,
+        ),
+      ),
+
+      // 🔥 BADGE ARCHIVED
+      if (p.isArchived == true) ...[
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: Colors.grey.withOpacity(0.3),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Text(
+            "ARCHIVED",
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: Colors.black54,
+            ),
+          ),
+        ),
+      ],
+    ],
+  ),
+),
                                       ],
                                     ),
                                   ),
@@ -795,7 +823,9 @@ DropdownButtonFormField<String>(
             );
           }).toList(),
 
-          onChanged: (value) async {
+          onChanged: p.isArchived == true
+    ? null
+    : (value) async {
             if (value == null) return;
 
             try {
@@ -853,7 +883,9 @@ DropdownButtonFormField<String>(
       /// 🟢 EDIT
       IconButton(
         icon: const Icon(Icons.edit, color: Colors.blue),
-        onPressed: () => context.go(_editUrl(p.id)),
+        onPressed: p.isArchived == true
+    ? null
+    : () => context.go(_editUrl(p.id)),
       ),
 
     ],
