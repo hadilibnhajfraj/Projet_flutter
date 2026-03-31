@@ -1036,6 +1036,75 @@ final payload = {
     /// REFRESH UI
     /// ======================
     final map = Map<String, dynamic>.from(data as Map);
+    final ai = map["ai"];
+
+if (ai != null) {
+
+  final score = ai["score"] ?? 100;
+  final issues = List<String>.from(ai["issues"] ?? []);
+  final corrections = List<String>.from(ai["corrections"] ?? []);
+
+  /// 🔥 POPUP IA PROFESSIONNEL
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(
+            score >= 80 ? Icons.check_circle : Icons.warning,
+            color: score >= 80 ? Colors.green : Colors.orange,
+          ),
+          const SizedBox(width: 8),
+          Text("AI Data Analysis"),
+        ],
+      ),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+
+            /// SCORE
+            Text(
+              "Score: $score%",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: score >= 80 ? Colors.green : Colors.orange,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            /// ISSUES
+            if (issues.isNotEmpty) ...[
+              const Text("⚠ Issues detected:"),
+              const SizedBox(height: 5),
+
+              ...issues.map((e) => Text("• $e")),
+
+              const SizedBox(height: 10),
+            ],
+
+            /// CORRECTIONS
+            if (corrections.isNotEmpty) ...[
+              const Text("✅ Auto corrections:"),
+              const SizedBox(height: 5),
+
+              ...corrections.map((e) => Text("• $e")),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text("OK"),
+        )
+      ],
+    ),
+  );
+}
     final project = ProjectGridData.fromJson(map);
 
     final gridCtrl = Get.isRegistered<UserGridController>()
