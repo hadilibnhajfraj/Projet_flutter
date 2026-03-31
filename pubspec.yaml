@@ -78,6 +78,7 @@ dependencies:
   csv: ^5.1.1
   font_awesome_flutter: ^10.7.0
   jwt_decoder: ^2.0.1
+  excel: ^2.1.0
 
   dio: ^5.7.0
 dev_dependencies:

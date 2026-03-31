@@ -13,7 +13,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final service = KPIService(baseUrl: "https://api.crmprobar.com");
+  final service = KPIService(baseUrl: "http://localhost:4000");
 
   KPIModel? data;
   bool loading = true;

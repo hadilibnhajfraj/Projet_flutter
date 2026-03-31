@@ -6,7 +6,7 @@ class NotificationApi {
   static final instance = NotificationApi._();
 
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: "https://api.crmprobar.com", // 🔁 remplace par ton IP serveur
+    baseUrl: "http://localhost:4000", // 🔁 remplace par ton IP serveur
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));

@@ -16,7 +16,9 @@ import 'package:go_router/go_router.dart';
 import 'package:responsive_grid/responsive_grid.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'package:dash_master_toolkit/providers/api_client.dart';
-
+import 'package:dash_master_toolkit/application/users/model/user_projects_response.dart';
+import 'dart:html' as html;
+import 'package:excel/excel.dart' as excel;
 class UserGridScreen extends StatefulWidget {
   const UserGridScreen({super.key});
 
@@ -30,6 +32,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
 String? selectedStatusFilter;
 String? selectedUser;
 List<String> users = [];
+  UserProjectsResponse? _response;
 Future<void> loadUsers() async {
   try {
     final res = await ApiClient.instance.dio.get("/users");
@@ -45,6 +48,186 @@ Future<void> loadUsers() async {
   } catch (e) {
     print("❌ LOAD USERS ERROR: $e");
   }
+}
+String safe(dynamic v) {
+  if (v == null || v.toString().trim().isEmpty || v.toString() == "null") {
+    return "-";
+  }
+  return v.toString();
+}
+void _exportExcelFull() {
+  final items = controller.filtered;
+
+  var excelFile = excel.Excel.createExcel();
+  excel.Sheet sheet = excelFile['Projects'];
+
+  final headers = [
+    'Project Name',   // 0
+    'Start Date',     // 1
+    'Engineer',       // 2
+    'Company',        // 3
+    'Status',         // 4 ✅
+    'Validation',     // 5 ✅
+  ];
+
+  /// HEADER
+  sheet.appendRow(headers);
+
+  for (int i = 0; i < headers.length; i++) {
+    sheet
+        .cell(excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+        .cellStyle = excel.CellStyle(
+      bold: true,
+      backgroundColorHex: "#111827",
+      fontColorHex: "#FFFFFF",
+      horizontalAlign: excel.HorizontalAlign.Center,
+    );
+  }
+
+  /// GROUP BY USER
+  Map<String, List<ProjectGridData>> grouped = {};
+
+  for (var p in items) {
+    final user = p.ownerName ?? "Unknown";
+    grouped.putIfAbsent(user, () => []).add(p);
+  }
+
+  List<String> userColors = [
+    "#DBEAFE",
+    "#FEF3C7",
+    "#DCFCE7",
+    "#FCE7F3",
+  ];
+
+  int rowIndex = 1;
+  int colorIndex = 0;
+
+  grouped.forEach((user, projects) {
+    String userColor = userColors[colorIndex % userColors.length];
+    colorIndex++;
+
+    /// 🔥 USER HEADER
+    sheet.appendRow([
+      "👤 $user",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
+
+    for (int col = 0; col < headers.length; col++) {
+      var cell = sheet.cell(
+        excel.CellIndex.indexByColumnRow(
+          columnIndex: col,
+          rowIndex: rowIndex,
+        ),
+      );
+
+      cell.cellStyle = excel.CellStyle(
+        backgroundColorHex: userColor,
+        bold: true,
+      );
+    }
+
+    rowIndex++;
+
+    /// 🔥 PROJECTS
+    for (var p in projects) {
+      sheet.appendRow([
+        safe(p.nomProjet),
+        safe(p.dateDemarrage),
+        safe(p.ingenieurResponsable),
+        safe(p.entreprise),
+        "  ${safe(p.statut)}  ",          // padding badge
+        "  ${safe(p.validationStatut)}  ",
+      ]);
+
+      /// 🎨 STATUS (index 4)
+      sheet
+          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
+          .cellStyle = excel.CellStyle(
+        backgroundColorHex: _getStatusColorHex(p.statut),
+        fontColorHex: "#000000",
+        bold: true,
+        horizontalAlign: excel.HorizontalAlign.Center,
+      );
+
+      /// 🎨 VALIDATION (index 5)
+      sheet
+          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
+          .cellStyle = excel.CellStyle(
+        backgroundColorHex: _getValidationColorHex(p.validationStatut),
+        fontColorHex: "#FFFFFF",
+        bold: true,
+        horizontalAlign: excel.HorizontalAlign.Center,
+      );
+
+      rowIndex++;
+    }
+
+    /// ESPACE ENTRE USERS
+    sheet.appendRow([""]);
+    rowIndex++;
+  });
+
+  /// LARGEUR COLONNES
+  for (int i = 0; i < headers.length; i++) {
+    sheet.setColWidth(i, 30);
+  }
+
+  /// SAVE
+  final bytes = excelFile.encode();
+  if (bytes == null) return;
+
+  final blob = html.Blob(
+    [bytes],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  );
+
+  final url = html.Url.createObjectUrlFromBlob(blob);
+
+  html.AnchorElement(href: url)
+    ..setAttribute('download', 'projects_grouped_clean.xlsx')
+    ..click();
+
+  html.Url.revokeObjectUrl(url);
+}
+String _getModelColorHex(String? model) {
+  switch (model) {
+    case "project":
+      return "#DBEAFE";
+    case "revendeur":
+      return "#FEF3C7";
+    case "applicateur":
+      return "#DCFCE7";
+    default:
+      return "#E5E7EB";
+  }
+}
+String _getStatusColorHex(String? status) {
+  switch (status) {
+    case "Identification":
+      return "#DBEAFE";
+    case "Préparation":
+      return "#E0F2FE";
+    case "Proposition technique":
+      return "#FEF3C7";
+    case "Proposition commerciale":
+      return "#E9D5FF";
+    case "Négociation":
+      return "#FECACA";
+    case "Livraison":
+      return "#DCFCE7";
+    default:
+      return "#F3F4F6";
+  }
+}
+
+String _getValidationColorHex(String? value) {
+  if (value == "Validé") return "#22C55E"; // vert fort
+  if (value == "Non validé") return "#F59E0B"; // orange
+  return "#E5E7EB";
 }
 @override
 void initState() {
@@ -127,7 +310,9 @@ Future<void> updateStatus(String projectId, String newStatus) async {
       ),
 
       /// BUTTONS
-      Row(
+      Wrap(
+        spacing: 8,
+  runSpacing: 8, // ✅ IMPORTANT
         children: [
 
           /// 🔵 PIPELINE
@@ -157,7 +342,19 @@ Future<void> updateStatus(String projectId, String newStatus) async {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             ),
           ),
-
+ ElevatedButton.icon(
+                        onPressed: _exportExcelFull,
+                        icon: const Icon(Icons.download_rounded),
+                        label: const Text('Export CSV'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF111827),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
         ],
       )
     ],

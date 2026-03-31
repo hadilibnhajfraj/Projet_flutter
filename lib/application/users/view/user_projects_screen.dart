@@ -8,6 +8,8 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/application/users/model/user_projects_response.dart';
+import 'package:csv/csv.dart';
+import 'package:excel/excel.dart' as excel;
 class UserProjectsScreen extends StatefulWidget {
   final String token;
 
@@ -35,7 +37,7 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
   static const Color kNeutralText = Color(0xFF6B7280);
 
   final UserProjectService service = UserProjectService(
-    baseUrl: 'https://api.crmprobar.com',
+    baseUrl: 'http://localhost:4000',
   );
 
   final TextEditingController _searchCtrl = TextEditingController();
@@ -175,42 +177,400 @@ selectedStatusFilter=null;
   _page = 1;
   _loadProjects();
 }
+String safe(dynamic v) {
+  if (v == null || v.toString().trim().isEmpty || v.toString() == "null") {
+    return "-";
+  }
+  return v.toString();
+}
+void _exportCsv() {
+  final items = _response?.items ?? [];
 
-  void _exportCsv() {
-    final items = _response?.items ?? [];
+  /// CREATE FILE
+  var excelFile = excel.Excel.createExcel();
+  excel.Sheet sheet = excelFile['Projects'];
 
-    final buffer = StringBuffer();
-    buffer.writeln(
-      'Project Name,Start Date,Engineer,Architect,Promoter,Company,Status,Validation Status,Project Type,Address',
+  /// HEADER
+  sheet.appendRow([
+    'Project Name',
+    'Start Date',
+    'Engineer',
+    'Architect',
+    'Promoter',
+    'Company',
+    'Status',
+    'Validation',
+    'Project Type',
+    'Address'
+  ]);
+
+  /// STYLE HEADER
+  for (int i = 0; i < 10; i++) {
+    var cell = sheet.cell(
+      excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
     );
 
-    for (final p in items) {
-      buffer.writeln(
-        '"${_escapeCsv(p.nomProjet)}",'
-        '"${_escapeCsv(p.dateDemarrage)}",'
-        '"${_escapeCsv(p.ingenieurResponsable)}",'
-        '"${_escapeCsv(p.architecte ?? '')}",'
-        '"${_escapeCsv(p.promoteur ?? '')}",'
-        '"${_escapeCsv(p.entreprise)}",'
-        '"${_escapeCsv(p.statut ?? '')}",'
-        '"${_escapeCsv(p.validationStatut ?? '')}",'
-        '"${_escapeCsv(p.typeProjet ?? '')}",'
-        '"${_escapeCsv(p.adresse ?? '')}"',
-      );
-    }
-
-    final bytes = utf8.encode(buffer.toString());
-    final blob = html.Blob([bytes], 'text/csv;charset=utf-8;');
-    final url = html.Url.createObjectUrlFromBlob(blob);
-
-    final anchor = html.AnchorElement(href: url)
-      ..setAttribute('download', 'user_projects.csv')
-      ..click();
-
-    html.Url.revokeObjectUrl(url);
-    anchor.remove();
+    cell.cellStyle = excel.CellStyle(
+      bold: true,
+      backgroundColorHex: "#D9E1F2",
+    );
   }
 
+  /// DATA
+  for (int i = 0; i < items.length; i++) {
+    final p = items[i];
+
+    sheet.appendRow([
+      p.nomProjet ?? '',
+      p.dateDemarrage ?? '',
+      p.ingenieurResponsable ?? '',
+      p.architecte ?? '',
+      p.promoteur ?? '',
+      p.entreprise ?? '',
+      p.statut ?? '',
+      p.validationStatut ?? '',
+      p.typeProjet ?? '',
+      p.adresse ?? '',
+    ]);
+
+    int rowIndex = i + 1;
+
+    /// 🎨 STATUS COLOR
+    var statusCell = sheet.cell(
+      excel.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex),
+    );
+
+    statusCell.cellStyle = excel.CellStyle(
+      backgroundColorHex: _getStatusColorHex(p.statut),
+    );
+
+    /// 🎨 VALIDATION COLOR
+    var validationCell = sheet.cell(
+      excel.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex),
+    );
+
+    validationCell.cellStyle = excel.CellStyle(
+      backgroundColorHex: _getValidationColorHex(p.validationStatut),
+    );
+  }
+
+  /// SAVE FILE
+  final bytes = excelFile.encode();
+
+  if (bytes == null) {
+    print("❌ Excel generation failed");
+    return;
+  }
+
+  final blob = html.Blob(
+    [bytes],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  );
+
+  final url = html.Url.createObjectUrlFromBlob(blob);
+
+  html.AnchorElement(href: url)
+    ..setAttribute('download', 'projects.xlsx')
+    ..click();
+
+  html.Url.revokeObjectUrl(url);
+}
+void _exportExcel() {
+  final items = _response?.items ?? [];
+
+  var excelFile = excel.Excel.createExcel();
+  excel.Sheet sheet = excelFile['Projects'];
+
+  final headers = [
+    'Project Name',
+    'Start Date',
+    'Engineer',
+    'Phone Engineer',
+    'Architect',
+    'Promoter',
+    'Company',
+    'Bureau Controle',
+    'Status',
+    'Validation',
+    'Project Type',
+    'Model',
+    'Surface',
+    'Latitude',
+    'Longitude',
+    'Address'
+  ];
+
+  sheet.appendRow(headers);
+
+  /// HEADER STYLE
+  for (int i = 0; i < headers.length; i++) {
+    var cell = sheet.cell(
+      excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
+    );
+
+    cell.cellStyle = excel.CellStyle(
+      bold: true,
+      backgroundColorHex: "#1F2937",
+      fontColorHex: "#FFFFFF",
+    );
+  }
+
+  /// DATA
+  for (int i = 0; i < items.length; i++) {
+    final p = items[i];
+
+    sheet.appendRow([
+      p.nomProjet ?? '',
+      p.dateDemarrage ?? '',
+      p.ingenieurResponsable ?? '',
+      p.telephoneIngenieur ?? '',
+      p.architecte ?? '',
+      p.promoteur ?? '',
+      p.entreprise ?? '',
+      p.bureauControle ?? '',
+      p.statut ?? '',
+      p.validationStatut ?? '',
+      p.typeProjet ?? '',
+      p.projectModele ?? '',
+      p.surfaceProspectee ?? '',
+      p.latitude ?? '',
+      p.longitude ?? '',
+      p.adresse ?? '',
+    ]);
+
+    int rowIndex = i + 1;
+
+    /// STATUS COLOR
+    var statusCell = sheet.cell(
+      excel.CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: rowIndex),
+    );
+
+    statusCell.cellStyle = excel.CellStyle(
+      backgroundColorHex: _getStatusColorHex(p.statut),
+      bold: true,
+    );
+
+    /// VALIDATION COLOR
+    var validationCell = sheet.cell(
+      excel.CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: rowIndex),
+    );
+
+    validationCell.cellStyle = excel.CellStyle(
+      backgroundColorHex: _getValidationColorHex(p.validationStatut),
+      bold: true,
+    );
+  }
+
+  /// AUTO WIDTH
+  for (int i = 0; i < headers.length; i++) {
+    sheet.setColWidth(i, 25);
+  }
+
+  /// SAVE
+  final bytes = excelFile.encode();
+  if (bytes == null) return;
+
+  final blob = html.Blob(
+    [bytes],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  );
+
+  final url = html.Url.createObjectUrlFromBlob(blob);
+
+  html.AnchorElement(href: url)
+    ..setAttribute('download', 'projects_pro.xlsx')
+    ..click();
+
+  html.Url.revokeObjectUrl(url);
+}
+void _exportExcelFull() {
+  final items = _response?.items ?? [];
+
+  var excelFile = excel.Excel.createExcel();
+  excel.Sheet sheet = excelFile['Projects'];
+
+  final headers = [
+    'Project Name',
+    'Start Date',
+    'Model',
+    'Engineer',
+    'Phone Engineer',
+    'Comptoir',
+    'Phone Comptoir',
+    'Dallagiste',
+    'Phone Dallagiste',
+    'Architect',
+    'Phone Architect',
+    'Promoter',
+    'Company',
+    'Bureau Controle',
+    'Adresse',
+    'Latitude',
+    'Longitude',
+    'Status',
+    'Validation',
+    'Type Projet',
+    'Surface',
+    'Fluide',
+    'Electricité',
+    'Réussite %',
+    'Created At',
+    'Updated At',
+  ];
+
+  sheet.appendRow(headers);
+
+  /// HEADER STYLE
+  for (int i = 0; i < headers.length; i++) {
+    var cell = sheet.cell(
+      excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
+    );
+
+    cell.cellStyle = excel.CellStyle(
+      bold: true,
+      backgroundColorHex: "#111827",
+      fontColorHex: "#FFFFFF",
+    );
+  }
+
+  /// DATA
+  for (int i = 0; i < items.length; i++) {
+    final p = items[i];
+
+    sheet.appendRow([
+      safe(p.nomProjet),
+      safe(p.dateDemarrage),
+      safe(p.projectModele),
+
+      /// 🔥 LOGIQUE SELON MODEL
+      p.projectModele == "project"
+          ? safe(p.ingenieurResponsable)
+          : "-",
+
+      p.projectModele == "project"
+          ? safe(p.telephoneIngenieur)
+          : "-",
+
+      p.projectModele == "revendeur"
+          ? safe(p.comptoir)
+          : "-",
+
+      p.projectModele == "revendeur"
+          ? safe(p.telephoneComptoir)
+          : "-",
+
+      p.projectModele == "applicateur"
+          ? safe(p.dallagiste)
+          : "-",
+
+      p.projectModele == "applicateur"
+          ? safe(p.telephoneDallagiste)
+          : "-",
+
+      safe(p.architecte),
+      safe(p.telephoneArchitecte),
+      safe(p.promoteur),
+      safe(p.entreprise),
+      safe(p.bureauControle),
+      safe(p.adresse),
+      safe(p.latitude),
+      safe(p.longitude),
+      safe(p.statut),
+      safe(p.validationStatut),
+      safe(p.typeProjet),
+      safe(p.surfaceProspectee),
+      safe(p.entrepriseFluide),
+      safe(p.entrepriseElectricite),
+      safe(p.pourcentageReussite),
+      safe(p.createdAt),
+      safe(p.updatedAt),
+    ]);
+
+    int rowIndex = i + 1;
+
+    /// 🎨 STATUS
+    sheet
+        .cell(excel.CellIndex.indexByColumnRow(columnIndex: 17, rowIndex: rowIndex))
+        .cellStyle = excel.CellStyle(
+      backgroundColorHex: _getStatusColorHex(p.statut),
+      bold: true,
+    );
+
+    /// 🎨 VALIDATION
+    sheet
+        .cell(excel.CellIndex.indexByColumnRow(columnIndex: 18, rowIndex: rowIndex))
+        .cellStyle = excel.CellStyle(
+      backgroundColorHex: _getValidationColorHex(p.validationStatut),
+      bold: true,
+    );
+
+    /// 🎨 MODEL
+    sheet
+        .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
+        .cellStyle = excel.CellStyle(
+      backgroundColorHex: _getModelColorHex(p.projectModele),
+      bold: true,
+    );
+  }
+
+  /// LARGEUR
+  for (int i = 0; i < headers.length; i++) {
+    sheet.setColWidth(i, 28);
+  }
+
+  /// SAVE
+  final bytes = excelFile.encode();
+  if (bytes == null) return;
+
+  final blob = html.Blob(
+    [bytes],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  );
+
+  final url = html.Url.createObjectUrlFromBlob(blob);
+
+  html.AnchorElement(href: url)
+    ..setAttribute('download', 'projects_FULL_PRO.xlsx')
+    ..click();
+
+  html.Url.revokeObjectUrl(url);
+}
+String _getModelColorHex(String? model) {
+  switch (model) {
+    case "project":
+      return "#DBEAFE";
+    case "revendeur":
+      return "#FEF3C7";
+    case "applicateur":
+      return "#DCFCE7";
+    default:
+      return "#E5E7EB";
+  }
+}
+String _getStatusColorHex(String? status) {
+  switch (status) {
+    case "Identification":
+      return "#DBEAFE";
+    case "Préparation":
+      return "#E0F2FE";
+    case "Proposition technique":
+      return "#FEF3C7";
+    case "Proposition commerciale":
+      return "#E9D5FF";
+    case "Négociation":
+      return "#FECACA";
+    case "Livraison":
+      return "#DCFCE7";
+    default:
+      return "#F3F4F6";
+  }
+}
+
+String _getValidationColorHex(String? value) {
+  if (value == "Validé") return "#22C55E"; // vert fort
+  if (value == "Non validé") return "#F59E0B"; // orange
+  return "#E5E7EB";
+}
   String _escapeCsv(String value) {
     return value.replaceAll('"', '""');
   }
@@ -494,7 +854,7 @@ DropdownButtonFormField<String>(
                       ),
                       const Spacer(),
                       ElevatedButton.icon(
-                        onPressed: items.isEmpty ? null : _exportCsv,
+                        onPressed: items.isEmpty ? null : _exportExcelFull,
                         icon: const Icon(Icons.download_rounded),
                         label: const Text('Export CSV'),
                         style: ElevatedButton.styleFrom(
