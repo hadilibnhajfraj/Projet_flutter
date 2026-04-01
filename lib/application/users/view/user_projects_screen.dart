@@ -37,7 +37,7 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
   static const Color kNeutralText = Color(0xFF6B7280);
 
   final UserProjectService service = UserProjectService(
-    baseUrl: 'https://api.crmprobar.com',
+    baseUrl: 'http://localhost:4000',
   );
 
   final TextEditingController _searchCtrl = TextEditingController();
@@ -1150,6 +1150,11 @@ DropdownButtonFormField<String>(
                           ],
                           rows: items.map((p) {
                             return DataRow(
+                              onSelectChanged: (selected) {
+    if (selected == true) {
+      context.go(_editUrl(p.id));
+    }
+  },
                               cells: [
                                 DataCell(
                                   SizedBox(

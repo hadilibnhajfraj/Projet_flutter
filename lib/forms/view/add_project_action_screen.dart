@@ -24,13 +24,7 @@ class _AddProjectActionScreenState
       dynamic selectedFile;
 
   String type="Visite";
- @override
-  void initState() {
-    super.initState();
 
-    /// ✅ AUTO SELECT suggested action
-    type = widget.initialType;
-  }
   final commentaire = TextEditingController();
 
   DateTime? relance;
@@ -52,66 +46,43 @@ class _AddProjectActionScreenState
 
           children: [
 
-DropdownButtonFormField<String>(
-  value: type,
+            DropdownButtonFormField(
 
-  items: const [
+              value: type,
 
-    DropdownMenuItem(
-      value:"Visite",
-      child: Text("Visite chantier")
-    ),
+              items: const [
 
-    DropdownMenuItem(
-      value:"Plan technique",
-      child: Text("Plan technique")
-    ),
+                DropdownMenuItem(
+                    value:"Visite",
+                    child: Text("Visite")),
 
-    DropdownMenuItem(
-      value:"Echantillonnage",
-      child: Text("Echantillonnage")
-    ),
+                DropdownMenuItem(
+                    value:"Plan technique",
+                    child: Text("Plan technique")),
 
-    DropdownMenuItem(
-      value:"Devis envoyé",
-      child: Text("Devis envoyé")
-    ),
+                DropdownMenuItem(
+                    value:"Echantillonnage",
+                    child: Text("Echantillonnage")),
 
-    DropdownMenuItem(
-      value:"Negociation",
-      child: Text("Negociation")
-    ),
+                DropdownMenuItem(
+                    value:"Negociation",
+                    child: Text("Negociation")),
 
-    DropdownMenuItem(
-      value:"Rappel",
-      child: Text("Rappel")
-    )
+                DropdownMenuItem(
+                    value:"Rappel",
+                    child: Text("Rappel"))
 
-  ],
+              ],
 
-  onChanged:(v){
-    setState(() {
-      type = v!;
-    });
-  },
-),
-if (widget.initialType != null)
-  Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(10),
-    margin: const EdgeInsets.only(bottom: 10),
-    decoration: BoxDecoration(
-      color: Colors.green.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Text(
-      "👉 Suggested: ${widget.initialType}",
-      style: const TextStyle(
-        color: Colors.green,
-        fontWeight: FontWeight.bold,
-      ),
-    ),
-  ),
+              onChanged:(v){
+
+                setState(() {
+                  type=v!;
+                });
+
+              },
+
+            ),
 
             const SizedBox(height:20),
 
@@ -213,37 +184,5 @@ if (result != null) {
     );
 
   }
-  DropdownMenuItem<String> _buildItem(String value) {
-
-  final isSuggested = value == widget.initialType;
-
-  return DropdownMenuItem(
-    value: value,
-    child: Row(
-      children: [
-
-        if (isSuggested)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: const Text(
-              "Suggested",
-              style: TextStyle(
-                color: Colors.green,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-        Text(value),
-      ],
-    ),
-  );
-}
 
 }

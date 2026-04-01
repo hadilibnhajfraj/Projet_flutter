@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../application/users/model/commercial_contact_model.dart';
 
 class CommercialContactService {
-  static const String baseUrl = 'https://api.crmprobar.com/commercial-contacts';
+  static const String baseUrl = 'http://localhost:4000/commercial-contacts';
 
   Future<List<CommercialContact>> fetchMyContacts({
     required String token,

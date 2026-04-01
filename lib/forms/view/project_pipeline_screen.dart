@@ -9,7 +9,6 @@ class ProjectPipelineScreen extends StatefulWidget {
   State<ProjectPipelineScreen> createState() => _ProjectPipelineScreenState();
 }
 
-/// 🔥 BACKEND VALUES (NE PAS TOUCHER)
 const ACTION_STAGES = [
   "Visite",
   "Plan technique",
@@ -24,27 +23,52 @@ class _ProjectPipelineScreenState extends State<ProjectPipelineScreen> {
 
   Map<String, List<Map<String, dynamic>>> grouped = {};
 
-  /// ✅ UI LABELS ENGLISH
-  final Map<String, String> stageLabels = {
-    "Visite": "Site Visit",
-    "Plan technique": "Technical Plan",
-    "Echantillonnage": "Sampling",
-    "Devis envoyé": "Quote Sent",
-    "Negociation": "Negotiation",
-    "Commande gagnée": "✅ Won",
-    "Commande perdue": "❌ Lost",
-  };
-
   @override
   void initState() {
     super.initState();
     loadProjects();
   }
 
-  /// ✅ LOAD PROJECTS
-  Future<void> loadProjects() async {
+  /// 🔥 NORMALIZE
+ String normalizeStage(String? stage) {
+  if (stage == null) return "Visite";
 
-    final res = await ApiClient.instance.dio.get("/projects/myprojects?limit=100");
+  final s = stage
+      .toLowerCase()
+      .trim()
+      .replaceAll("é", "e")
+      .replaceAll("è", "e");
+
+  if (s.contains("visite")) return "Visite";
+  if (s.contains("plan")) return "Plan technique";
+  if (s.contains("echant")) return "Echantillonnage";
+  if (s.contains("devis")) return "Devis envoyé";
+  if (s.contains("nego")) return "Negociation";
+  if (s.contains("gagn")) return "Commande gagnée";
+  if (s.contains("perd")) return "Commande perdue";
+
+  return "Visite";
+}
+
+  /// 🔥 FIX ICI (dateAction au lieu de createdAt)
+  Map<String, dynamic>? getLastAction(List actions) {
+    if (actions.isEmpty) return null;
+
+    actions.sort((a, b) {
+      final da = DateTime.tryParse(a["dateAction"] ?? "") ?? DateTime(2000);
+      final db = DateTime.tryParse(b["dateAction"] ?? "") ?? DateTime(2000);
+      return db.compareTo(da); // DESC (latest first)
+    });
+
+    return actions.first;
+  }
+
+  /// ✅ LOAD
+Future<void> loadProjects() async {
+  try {
+    final res = await ApiClient.instance.dio.get(
+      "/projects/myprojects?limit=1000",
+    );
 
     final List data = res.data["items"] ?? [];
 
@@ -55,52 +79,68 @@ class _ProjectPipelineScreenState extends State<ProjectPipelineScreen> {
     for (var p in data) {
 
       final project = Map<String, dynamic>.from(p);
+      final projectId = project["id"];
 
-      final lastAction = project["lastAction"];
+      /// 🔥 RÉCUPÉRER TOUTES LES ACTIONS
+      final actionsRes = await ApiClient.instance.dio.get(
+        "/projects/$projectId/actions",
+      );
 
-      String stage = "Visite";
+      final List actions = actionsRes.data ?? [];
 
-      if (lastAction != null && lastAction["typeAction"] != null) {
-        stage = lastAction["typeAction"];
-      }
+      /// 🔥 FILTRER (IGNORER RELANCE)
+      final validActions = actions.where((a) {
+        final type = (a["typeAction"] ?? "").toString().toLowerCase();
+        return !type.contains("relance");
+      }).toList();
+
+      /// 🔥 TRIER PAR DATE
+      validActions.sort((a, b) {
+        final da = DateTime.tryParse(a["dateAction"] ?? "") ?? DateTime(2000);
+        final db = DateTime.tryParse(b["dateAction"] ?? "") ?? DateTime(2000);
+        return db.compareTo(da);
+      });
+
+      /// 🔥 PRENDRE LA DERNIÈRE VRAIE ACTION
+      final lastAction = validActions.isNotEmpty
+          ? validActions.first
+          : project["lastAction"]; // fallback
+
+      print("--------------");
+      print("PROJECT: ${project["nomProjet"]}");
+      print("REAL LAST ACTION: ${lastAction?["typeAction"]}");
+
+      final stage = normalizeStage(
+        lastAction?["typeAction"],
+      );
 
       project["computedStage"] = stage;
+      project["lastAction"] = lastAction;
 
-      map[stage]?.add(project);
+      map[stage]!.add(project);
     }
 
     setState(() {
       grouped = map;
     });
+
+  } catch (e) {
+    print("❌ LOAD ERROR: $e");
   }
+}
 
-  /// ✅ DRAG LOGIC
+  /// ✅ MOVE
   Future<void> _onMove(Map<String, dynamic> project, String newStage) async {
-
     try {
-
       final projectId = project["id"];
-      final action = project["lastAction"];
 
-      if (action != null && action["id"] != null) {
-
-        await ApiClient.instance.dio.put(
-          "/projects/$projectId",
-          data: {
-            "typeAction": newStage,
-          },
-        );
-
-      } else {
-
-        await ApiClient.instance.dio.post(
-          "/projects/$projectId/actions",
-          data: {
-            "typeAction": newStage,
-            "commentaire": "Auto pipeline move",
-          },
-        );
-      }
+      await ApiClient.instance.dio.post(
+        "/projects/$projectId/actions",
+        data: {
+          "typeAction": newStage,
+          "commentaire": "Moved via pipeline",
+        },
+      );
 
       await loadProjects();
 
@@ -120,7 +160,6 @@ class _ProjectPipelineScreenState extends State<ProjectPipelineScreen> {
           : PipelineBoard(
               data: grouped,
               onMove: _onMove,
-             
             ),
     );
   }
