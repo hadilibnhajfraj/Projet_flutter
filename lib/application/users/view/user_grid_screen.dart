@@ -68,8 +68,8 @@ void _exportExcelFull() {
     'Company',        // 3
     'Status',         // 4
     'Validation',     // 5
-    'Surface',        // 6 ✅ NEW
-    'Réussite %',     // 7 ✅ NEW
+    'Surface',        // 6 ✅ NUMBER
+    'Réussite %',     // 7 ✅ NUMBER
   ];
 
   /// HEADER
@@ -110,7 +110,7 @@ void _exportExcelFull() {
 
     /// 🔥 USER HEADER
     sheet.appendRow([
-      "👤 $user (${projects.length})", // 🔥 bonus count
+      "👤 $user (${projects.length})",
       "",
       "",
       "",
@@ -134,6 +134,13 @@ void _exportExcelFull() {
 
     /// 🔥 PROJECTS
     for (var p in projects) {
+      /// ✅ CONVERSION EN DOUBLE (IMPORTANT)
+      double? surface =
+          double.tryParse(p.surfaceProspectee ?? "");
+
+      double? success =
+          double.tryParse(p.pourcentageReussite ?? "");
+
       sheet.appendRow([
         safe(p.nomProjet),
         safe(p.dateDemarrage),
@@ -141,8 +148,8 @@ void _exportExcelFull() {
         safe(p.entreprise),
         "  ${safe(p.statut)}  ",
         "  ${safe(p.validationStatut)}  ",
-        safe(p.surfaceProspectee),        // ✅ NEW
-        safe(p.pourcentageReussite),      // ✅ NEW
+        surface ?? "",   // ✅ NUMBER
+        success ?? "",   // ✅ NUMBER
       ]);
 
       /// 🎨 STATUS
@@ -164,16 +171,14 @@ void _exportExcelFull() {
         horizontalAlign: excel.HorizontalAlign.Center,
       );
 
-      /// 🎨 SUCCESS RATE (🔥 BONUS)
-      final success = double.tryParse(p.pourcentageReussite ?? "0") ?? 0;
-
+      /// 🎨 COLOR SUCCESS
       String color;
-      if (success >= 80) {
-        color = "#22C55E"; // vert
-      } else if (success >= 50) {
-        color = "#F59E0B"; // orange
+      if (success != null && success >= 80) {
+        color = "#22C55E";
+      } else if (success != null && success >= 50) {
+        color = "#F59E0B";
       } else {
-        color = "#EF4444"; // rouge
+        color = "#EF4444";
       }
 
       sheet
@@ -188,7 +193,7 @@ void _exportExcelFull() {
       rowIndex++;
     }
 
-    /// ESPACE
+    /// ESPACE ENTRE USERS
     sheet.appendRow([""]);
     rowIndex++;
   });

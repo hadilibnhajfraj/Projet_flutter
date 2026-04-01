@@ -411,10 +411,10 @@ void _exportExcelFull() {
     'Status',
     'Validation',
     'Type Projet',
-    'Surface',
+    'Surface',          // ✅ NUMBER
     'Fluide',
     'Electricité',
-    'Réussite %',
+    'Réussite %',       // ✅ NUMBER
     'Created At',
     'Updated At',
   ];
@@ -456,9 +456,9 @@ void _exportExcelFull() {
     String userColor = userColors[colorIndex % userColors.length];
     colorIndex++;
 
-    /// 🔥 USER HEADER ROW
+    /// 🔥 USER HEADER
     sheet.appendRow([
-      "👤 $user",
+      "👤 $user (${projects.length})",
       "",
       "",
       "",
@@ -487,7 +487,6 @@ void _exportExcelFull() {
       "",
     ]);
 
-    /// STYLE USER ROW
     for (int col = 0; col < headers.length; col++) {
       sheet
           .cell(excel.CellIndex.indexByColumnRow(
@@ -502,6 +501,13 @@ void _exportExcelFull() {
 
     /// 🔥 PROJECTS
     for (var p in projects) {
+      /// ✅ CONVERSION NUMBERS (IMPORTANT)
+      double? surface =
+          double.tryParse(p.surfaceProspectee ?? "");
+
+      double? success =
+          double.tryParse(p.pourcentageReussite ?? "");
+
       sheet.appendRow([
         safe(p.nomProjet),
         safe(p.dateDemarrage),
@@ -543,18 +549,19 @@ void _exportExcelFull() {
         safe(p.statut),
         safe(p.validationStatut),
         safe(p.typeProjet),
-        safe(p.surfaceProspectee),
+
+        surface ?? "",              // ✅ NUMBER
         safe(p.entrepriseFluide),
         safe(p.entrepriseElectricite),
-        safe(p.pourcentageReussite),
+        success ?? "",              // ✅ NUMBER
+
         safe(p.createdAt),
         safe(p.updatedAt),
       ]);
 
       /// 🎨 STATUS
       sheet
-          .cell(excel.CellIndex.indexByColumnRow(
-              columnIndex: 18, rowIndex: rowIndex))
+          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 18, rowIndex: rowIndex))
           .cellStyle = excel.CellStyle(
         backgroundColorHex: _getStatusColorHex(p.statut),
         bold: true,
@@ -562,8 +569,7 @@ void _exportExcelFull() {
 
       /// 🎨 VALIDATION
       sheet
-          .cell(excel.CellIndex.indexByColumnRow(
-              columnIndex: 19, rowIndex: rowIndex))
+          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 19, rowIndex: rowIndex))
           .cellStyle = excel.CellStyle(
         backgroundColorHex: _getValidationColorHex(p.validationStatut),
         bold: true,
@@ -571,17 +577,34 @@ void _exportExcelFull() {
 
       /// 🎨 MODEL
       sheet
-          .cell(excel.CellIndex.indexByColumnRow(
-              columnIndex: 3, rowIndex: rowIndex))
+          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: rowIndex))
           .cellStyle = excel.CellStyle(
         backgroundColorHex: _getModelColorHex(p.projectModele),
+        bold: true,
+      );
+
+      /// 🎨 SUCCESS COLOR
+      String color;
+      if (success != null && success >= 80) {
+        color = "#22C55E";
+      } else if (success != null && success >= 50) {
+        color = "#F59E0B";
+      } else {
+        color = "#EF4444";
+      }
+
+      sheet
+          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 24, rowIndex: rowIndex))
+          .cellStyle = excel.CellStyle(
+        backgroundColorHex: color,
+        fontColorHex: "#FFFFFF",
         bold: true,
       );
 
       rowIndex++;
     }
 
-    /// ESPACE ENTRE USERS
+    /// ESPACE
     sheet.appendRow([""]);
     rowIndex++;
   });
