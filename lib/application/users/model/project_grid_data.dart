@@ -6,6 +6,8 @@ class ProjectGridData {
   final String adresse;
   final String dateDemarrage;
   final String permission;
+  final String? surfaceProspectee;
+  final String? pourcentageReussite;
 
   final String ingenieurResponsable;
   final String architecte;
@@ -28,6 +30,8 @@ class ProjectGridData {
     required this.dateDemarrage,
     required this.permission,
     required this.commentCount,
+    required this.surfaceProspectee,
+    required this.pourcentageReussite,
     required this.taskCount,
     required this.ingenieurResponsable,
     required this.isArchived,
@@ -50,6 +54,7 @@ class ProjectGridData {
   factory ProjectGridData.fromJson(Map<String, dynamic> json) {
     final devisCount = _toInt(json["devisCount"]);
     final bcCount = _toInt(json["bonCommandeCount"]);
+   
 
     return ProjectGridData(
       id: (json["id"] ?? "").toString(),
@@ -62,7 +67,8 @@ class ProjectGridData {
       permission: (json["permission"] ?? "viewer").toString(),
       commentCount: _toInt(json["commentCount"]),
       taskCount: _toInt(json["taskCount"]), // ✅ IMPORTANT
-
+       surfaceProspectee: json["surfaceProspectee"]?.toString(),
+    pourcentageReussite: json["pourcentageReussite"]?.toString(),
       ingenieurResponsable: (json["ingenieurResponsable"] ?? "").toString(),
       architecte: (json["architecte"] ?? "").toString(),
       validationStatut: (json["validationStatut"] ?? "").toString(),

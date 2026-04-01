@@ -36,6 +36,7 @@ class UserProjectModel {
   final String? telephoneComptoir;
   final String? dallagiste;
   final String? telephoneDallagiste;
+  final String? createdByName;
 
   UserProjectModel({
     required this.id,
@@ -48,6 +49,7 @@ class UserProjectModel {
     required this.telephoneArchitecte,
     required this.isArchived,
     required this.matriculeFiscale,
+    required this.createdByName,
     required this.entreprise,
     required this.promoteur,
     required this.bureauEtude,
@@ -86,6 +88,7 @@ class UserProjectModel {
       architecte: json['architecte']?.toString(),
       telephoneArchitecte: json['telephoneArchitecte']?.toString(),
       matriculeFiscale: json['matriculeFiscale']?.toString(),
+      createdByName: json['createdByName']?.toString(),
       entreprise: (json['entreprise'] ?? '').toString(),
       promoteur: json['promoteur']?.toString(),
       bureauEtude: json['bureauEtude']?.toString(),

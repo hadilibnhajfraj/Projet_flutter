@@ -66,8 +66,10 @@ void _exportExcelFull() {
     'Start Date',     // 1
     'Engineer',       // 2
     'Company',        // 3
-    'Status',         // 4 ✅
-    'Validation',     // 5 ✅
+    'Status',         // 4
+    'Validation',     // 5
+    'Surface',        // 6 ✅ NEW
+    'Réussite %',     // 7 ✅ NEW
   ];
 
   /// HEADER
@@ -108,7 +110,9 @@ void _exportExcelFull() {
 
     /// 🔥 USER HEADER
     sheet.appendRow([
-      "👤 $user",
+      "👤 $user (${projects.length})", // 🔥 bonus count
+      "",
+      "",
       "",
       "",
       "",
@@ -117,14 +121,10 @@ void _exportExcelFull() {
     ]);
 
     for (int col = 0; col < headers.length; col++) {
-      var cell = sheet.cell(
-        excel.CellIndex.indexByColumnRow(
-          columnIndex: col,
-          rowIndex: rowIndex,
-        ),
-      );
-
-      cell.cellStyle = excel.CellStyle(
+      sheet
+          .cell(excel.CellIndex.indexByColumnRow(
+              columnIndex: col, rowIndex: rowIndex))
+          .cellStyle = excel.CellStyle(
         backgroundColorHex: userColor,
         bold: true,
       );
@@ -139,21 +139,22 @@ void _exportExcelFull() {
         safe(p.dateDemarrage),
         safe(p.ingenieurResponsable),
         safe(p.entreprise),
-        "  ${safe(p.statut)}  ",          // padding badge
+        "  ${safe(p.statut)}  ",
         "  ${safe(p.validationStatut)}  ",
+        safe(p.surfaceProspectee),        // ✅ NEW
+        safe(p.pourcentageReussite),      // ✅ NEW
       ]);
 
-      /// 🎨 STATUS (index 4)
+      /// 🎨 STATUS
       sheet
           .cell(excel.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
           .cellStyle = excel.CellStyle(
         backgroundColorHex: _getStatusColorHex(p.statut),
-        fontColorHex: "#000000",
         bold: true,
         horizontalAlign: excel.HorizontalAlign.Center,
       );
 
-      /// 🎨 VALIDATION (index 5)
+      /// 🎨 VALIDATION
       sheet
           .cell(excel.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
           .cellStyle = excel.CellStyle(
@@ -163,15 +164,36 @@ void _exportExcelFull() {
         horizontalAlign: excel.HorizontalAlign.Center,
       );
 
+      /// 🎨 SUCCESS RATE (🔥 BONUS)
+      final success = double.tryParse(p.pourcentageReussite ?? "0") ?? 0;
+
+      String color;
+      if (success >= 80) {
+        color = "#22C55E"; // vert
+      } else if (success >= 50) {
+        color = "#F59E0B"; // orange
+      } else {
+        color = "#EF4444"; // rouge
+      }
+
+      sheet
+          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
+          .cellStyle = excel.CellStyle(
+        backgroundColorHex: color,
+        fontColorHex: "#FFFFFF",
+        bold: true,
+        horizontalAlign: excel.HorizontalAlign.Center,
+      );
+
       rowIndex++;
     }
 
-    /// ESPACE ENTRE USERS
+    /// ESPACE
     sheet.appendRow([""]);
     rowIndex++;
   });
 
-  /// LARGEUR COLONNES
+  /// LARGEUR
   for (int i = 0; i < headers.length; i++) {
     sheet.setColWidth(i, 30);
   }
@@ -188,7 +210,7 @@ void _exportExcelFull() {
   final url = html.Url.createObjectUrlFromBlob(blob);
 
   html.AnchorElement(href: url)
-    ..setAttribute('download', 'projects_grouped_clean.xlsx')
+    ..setAttribute('download', 'projects_grouped_advanced.xlsx')
     ..click();
 
   html.Url.revokeObjectUrl(url);

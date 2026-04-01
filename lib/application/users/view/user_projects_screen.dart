@@ -392,6 +392,7 @@ void _exportExcelFull() {
   final headers = [
     'Project Name',
     'Start Date',
+    'Created By',
     'Model',
     'Engineer',
     'Phone Engineer',
@@ -422,96 +423,168 @@ void _exportExcelFull() {
 
   /// HEADER STYLE
   for (int i = 0; i < headers.length; i++) {
-    var cell = sheet.cell(
-      excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0),
-    );
-
-    cell.cellStyle = excel.CellStyle(
+    sheet
+        .cell(excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+        .cellStyle = excel.CellStyle(
       bold: true,
       backgroundColorHex: "#111827",
       fontColorHex: "#FFFFFF",
     );
   }
 
-  /// DATA
-  for (int i = 0; i < items.length; i++) {
-    final p = items[i];
+  /// =========================
+  /// 🔥 GROUP BY USER
+  /// =========================
+  Map<String, List<dynamic>> grouped = {};
 
+  for (var p in items) {
+    final user = p.createdByName ?? "Unknown";
+    grouped.putIfAbsent(user, () => []).add(p);
+  }
+
+  List<String> userColors = [
+    "#DBEAFE",
+    "#FEF3C7",
+    "#DCFCE7",
+    "#FCE7F3",
+  ];
+
+  int rowIndex = 1;
+  int colorIndex = 0;
+
+  grouped.forEach((user, projects) {
+    String userColor = userColors[colorIndex % userColors.length];
+    colorIndex++;
+
+    /// 🔥 USER HEADER ROW
     sheet.appendRow([
-      safe(p.nomProjet),
-      safe(p.dateDemarrage),
-      safe(p.projectModele),
-
-      /// 🔥 LOGIQUE SELON MODEL
-      p.projectModele == "project"
-          ? safe(p.ingenieurResponsable)
-          : "-",
-
-      p.projectModele == "project"
-          ? safe(p.telephoneIngenieur)
-          : "-",
-
-      p.projectModele == "revendeur"
-          ? safe(p.comptoir)
-          : "-",
-
-      p.projectModele == "revendeur"
-          ? safe(p.telephoneComptoir)
-          : "-",
-
-      p.projectModele == "applicateur"
-          ? safe(p.dallagiste)
-          : "-",
-
-      p.projectModele == "applicateur"
-          ? safe(p.telephoneDallagiste)
-          : "-",
-
-      safe(p.architecte),
-      safe(p.telephoneArchitecte),
-      safe(p.promoteur),
-      safe(p.entreprise),
-      safe(p.bureauControle),
-      safe(p.adresse),
-      safe(p.latitude),
-      safe(p.longitude),
-      safe(p.statut),
-      safe(p.validationStatut),
-      safe(p.typeProjet),
-      safe(p.surfaceProspectee),
-      safe(p.entrepriseFluide),
-      safe(p.entrepriseElectricite),
-      safe(p.pourcentageReussite),
-      safe(p.createdAt),
-      safe(p.updatedAt),
+      "👤 $user",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
     ]);
 
-    int rowIndex = i + 1;
+    /// STYLE USER ROW
+    for (int col = 0; col < headers.length; col++) {
+      sheet
+          .cell(excel.CellIndex.indexByColumnRow(
+              columnIndex: col, rowIndex: rowIndex))
+          .cellStyle = excel.CellStyle(
+        backgroundColorHex: userColor,
+        bold: true,
+      );
+    }
 
-    /// 🎨 STATUS
-    sheet
-        .cell(excel.CellIndex.indexByColumnRow(columnIndex: 17, rowIndex: rowIndex))
-        .cellStyle = excel.CellStyle(
-      backgroundColorHex: _getStatusColorHex(p.statut),
-      bold: true,
-    );
+    rowIndex++;
 
-    /// 🎨 VALIDATION
-    sheet
-        .cell(excel.CellIndex.indexByColumnRow(columnIndex: 18, rowIndex: rowIndex))
-        .cellStyle = excel.CellStyle(
-      backgroundColorHex: _getValidationColorHex(p.validationStatut),
-      bold: true,
-    );
+    /// 🔥 PROJECTS
+    for (var p in projects) {
+      sheet.appendRow([
+        safe(p.nomProjet),
+        safe(p.dateDemarrage),
+        safe(p.createdByName),
+        safe(p.projectModele),
 
-    /// 🎨 MODEL
-    sheet
-        .cell(excel.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: rowIndex))
-        .cellStyle = excel.CellStyle(
-      backgroundColorHex: _getModelColorHex(p.projectModele),
-      bold: true,
-    );
-  }
+        p.projectModele == "project"
+            ? safe(p.ingenieurResponsable)
+            : "-",
+
+        p.projectModele == "project"
+            ? safe(p.telephoneIngenieur)
+            : "-",
+
+        p.projectModele == "revendeur"
+            ? safe(p.comptoir)
+            : "-",
+
+        p.projectModele == "revendeur"
+            ? safe(p.telephoneComptoir)
+            : "-",
+
+        p.projectModele == "applicateur"
+            ? safe(p.dallagiste)
+            : "-",
+
+        p.projectModele == "applicateur"
+            ? safe(p.telephoneDallagiste)
+            : "-",
+
+        safe(p.architecte),
+        safe(p.telephoneArchitecte),
+        safe(p.promoteur),
+        safe(p.entreprise),
+        safe(p.bureauControle),
+        safe(p.adresse),
+        safe(p.latitude),
+        safe(p.longitude),
+        safe(p.statut),
+        safe(p.validationStatut),
+        safe(p.typeProjet),
+        safe(p.surfaceProspectee),
+        safe(p.entrepriseFluide),
+        safe(p.entrepriseElectricite),
+        safe(p.pourcentageReussite),
+        safe(p.createdAt),
+        safe(p.updatedAt),
+      ]);
+
+      /// 🎨 STATUS
+      sheet
+          .cell(excel.CellIndex.indexByColumnRow(
+              columnIndex: 18, rowIndex: rowIndex))
+          .cellStyle = excel.CellStyle(
+        backgroundColorHex: _getStatusColorHex(p.statut),
+        bold: true,
+      );
+
+      /// 🎨 VALIDATION
+      sheet
+          .cell(excel.CellIndex.indexByColumnRow(
+              columnIndex: 19, rowIndex: rowIndex))
+          .cellStyle = excel.CellStyle(
+        backgroundColorHex: _getValidationColorHex(p.validationStatut),
+        bold: true,
+      );
+
+      /// 🎨 MODEL
+      sheet
+          .cell(excel.CellIndex.indexByColumnRow(
+              columnIndex: 3, rowIndex: rowIndex))
+          .cellStyle = excel.CellStyle(
+        backgroundColorHex: _getModelColorHex(p.projectModele),
+        bold: true,
+      );
+
+      rowIndex++;
+    }
+
+    /// ESPACE ENTRE USERS
+    sheet.appendRow([""]);
+    rowIndex++;
+  });
 
   /// LARGEUR
   for (int i = 0; i < headers.length; i++) {
@@ -530,7 +603,7 @@ void _exportExcelFull() {
   final url = html.Url.createObjectUrlFromBlob(blob);
 
   html.AnchorElement(href: url)
-    ..setAttribute('download', 'projects_FULL_PRO.xlsx')
+    ..setAttribute('download', 'projects_grouped_FULL.xlsx')
     ..click();
 
   html.Url.revokeObjectUrl(url);
