@@ -24,7 +24,13 @@ class _AddProjectActionScreenState
       dynamic selectedFile;
 
   String type="Visite";
+ @override
+  void initState() {
+    super.initState();
 
+    /// ✅ AUTO SELECT suggested action
+    type = widget.initialType;
+  }
   final commentaire = TextEditingController();
 
   DateTime? relance;
@@ -46,43 +52,28 @@ class _AddProjectActionScreenState
 
           children: [
 
-            DropdownButtonFormField(
+            DropdownButtonFormField<String>(
+  value: type,
 
-              value: type,
+  items: [
+    _buildItem("Visite"),
+    _buildItem("Plan technique"),
+    _buildItem("Echantillonnage"),
+    _buildItem("Devis envoyé"),
+    _buildItem("Negociation"),
+    _buildItem("Rappel"),
+    _buildItem("Commande gagnée"), // ✅ AJOUT
+    _buildItem("Commande perdue"), // ✅ AJOUT
+    _buildItem("Fidelisation"),    // ✅ AJOUT IMPORTANT
+    _buildItem("Relance"),         // 🔥 remplacer Rappel
+  ],
 
-              items: const [
-
-                DropdownMenuItem(
-                    value:"Visite",
-                    child: Text("Visite")),
-
-                DropdownMenuItem(
-                    value:"Plan technique",
-                    child: Text("Plan technique")),
-
-                DropdownMenuItem(
-                    value:"Echantillonnage",
-                    child: Text("Echantillonnage")),
-
-                DropdownMenuItem(
-                    value:"Negociation",
-                    child: Text("Negociation")),
-
-                DropdownMenuItem(
-                    value:"Rappel",
-                    child: Text("Rappel"))
-
-              ],
-
-              onChanged:(v){
-
-                setState(() {
-                  type=v!;
-                });
-
-              },
-
-            ),
+  onChanged: (v) {
+    setState(() {
+      type = v!;
+    });
+  },
+),
 
             const SizedBox(height:20),
 
@@ -184,5 +175,37 @@ if (result != null) {
     );
 
   }
+  DropdownMenuItem<String> _buildItem(String value) {
+
+  final isSuggested = value == widget.initialType;
+
+  return DropdownMenuItem(
+    value: value,
+    child: Row(
+      children: [
+
+        if (isSuggested)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: const Text(
+              "Suggested",
+              style: TextStyle(
+                color: Colors.green,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+        Text(value),
+      ],
+    ),
+  );
+}
 
 }
