@@ -40,7 +40,8 @@ final Rxn<DateTime> selectedDateVisite = Rxn<DateTime>();
   final matriculeFiscale = TextEditingController();
 
   final entreprise = TextEditingController();
-
+  final registreCommerce = TextEditingController();
+  final fonction = TextEditingController();
   // optional in UI
   final promoteur = TextEditingController();
   final bureauEtude = TextEditingController();
@@ -49,6 +50,10 @@ final Rxn<DateTime> selectedDateVisite = Rxn<DateTime>();
 
   final entrepriseFluide = TextEditingController();
   final entrepriseElectricite = TextEditingController();
+  final revendeurNom = TextEditingController();
+final revendeurPrenom = TextEditingController();
+final revendeurEmail = TextEditingController();
+final revendeurStatut = TextEditingController(text: "prospect");
 
   final localisationAdresse = TextEditingController();
   final commentaireCtrl = TextEditingController();
@@ -87,46 +92,65 @@ final serviceTechnique = TextEditingController();
     return null;
   }
 
-  void resetForm() {
-    nomProjet.clear();
-    dateDemarrage.clear();
-    statut.clear();
-    typeAdresseChantier.clear();
+void resetForm() {
+  nomProjet.clear();
+  dateDemarrage.clear();
+  statut.clear();
+  typeAdresseChantier.clear();
 
-    ingenieurResponsable.clear();
-    telephoneIngenieur.clear();
+  ingenieurResponsable.clear();
+  telephoneIngenieur.clear();
 
-    architecte.clear();
-    telephoneArchitecte.clear();
+  architecte.clear();
+  telephoneArchitecte.clear();
 
-    matriculeFiscale.clear();
+  matriculeFiscale.clear();
 
-    entreprise.clear();
-    promoteur.clear();
-    bureauEtude.clear();
-    bureauControle.clear();
+  entreprise.clear();
+  promoteur.clear();
+  bureauEtude.clear();
+  bureauControle.clear();
 
-    entrepriseFluide.clear();
-    entrepriseElectricite.clear();
+  entrepriseFluide.clear();
+  entrepriseElectricite.clear();
 
-    localisationAdresse.clear();
-    commentaireCtrl.clear();
-telephoneComptoir2.clear();
+  localisationAdresse.clear();
+  commentaireCtrl.clear();
 
-emailDallagiste.clear();
-serviceTechnique.clear();
-    typeProjet.clear();
-    surfaceProspectee.clear();
-    pourcentageReussite.clear();
-    validationStatut.text = "Non validé";
+  // 🔥 REVENDEUR
+  comptoir.clear();
+  telephoneComptoir.clear();
+  telephoneComptoir2.clear();
+  registreCommerce.clear();
+  fonction.clear();
 
-    latitude.value = null;
-    longitude.value = null;
-    locationComments.clear();
-    selectedDateDemarrage.value = null;
+  // 🔥 APPLICATEUR
+  dallagiste.clear();
+  telephoneDallagiste.clear();
+  emailDallagiste.clear();
+  serviceTechnique.clear();
 
-    update();
-  }
+  typeProjet.clear();
+  surfaceProspectee.clear();
+  pourcentageReussite.clear();
+
+  validationStatut.text = "Non validé";
+
+  latitude.value = null;
+  longitude.value = null;
+
+  selectedAction.value = null;
+
+  locationComments.clear();
+  selectedDateDemarrage.value = null;
+  selectedDateVisite.value = null;
+  revendeurNom.clear();
+revendeurPrenom.clear();
+revendeurEmail.clear();
+revendeurStatut.text = "prospect";
+
+  update();
+}
 String? emailValidator(String? v, String label) {
   final value = (v ?? "").trim();
 
@@ -140,40 +164,26 @@ String? emailValidator(String? v, String label) {
 
   return null;
 }
-void onProjectModeleChanged(String value) {
-  projectModele.value = value;
+void onProjectModeleChanged(String mode) {
+  projectModele.value = mode;
 
-  if (value == "project") {
-    comptoir.clear();
-    telephoneComptoir.clear();
-    telephoneComptoir2.clear();
+  if (mode == "revendeur") {
+    // 🔥 RESET CHANTIER
+    dateDemarrage.clear();
+    typeAdresseChantier.clear();
+    localisationAdresse.clear();
+    latitude.value = null;
+    longitude.value = null;
 
-    dallagiste.clear();
-    telephoneDallagiste.clear();
-    emailDallagiste.clear();
-    serviceTechnique.clear();
+    statut.clear();
+    pourcentageReussite.clear();
+    surfaceProspectee.clear();
+
+    entreprise.clear();
+    promoteur.clear();
+    bureauEtude.clear();
+    bureauControle.clear();
   }
-
-  if (value == "revendeur") {
-    ingenieurResponsable.clear();
-    telephoneIngenieur.clear();
-
-    dallagiste.clear();
-    telephoneDallagiste.clear();
-    emailDallagiste.clear();
-    serviceTechnique.clear();
-  }
-
-  if (value == "applicateur") {
-    ingenieurResponsable.clear();
-    telephoneIngenieur.clear();
-
-    comptoir.clear();
-    telephoneComptoir.clear();
-    telephoneComptoir2.clear();
-  }
-
-  update();
 }
   // =========================
   // LOAD PROJECT (edit)
@@ -200,6 +210,10 @@ void onProjectModeleChanged(String value) {
 
   matriculeFiscale.text =
       (j['matriculeFiscale'] ?? j['matricule_fiscale'] ?? '').toString();
+      revendeurNom.text = (j['revendeurNom'] ?? '').toString();
+revendeurPrenom.text = (j['revendeurPrenom'] ?? '').toString();
+revendeurEmail.text = (j['revendeurEmail'] ?? '').toString();
+revendeurStatut.text = (j['revendeurStatut'] ?? 'prospect').toString();
 
   entreprise.text = (j['entreprise'] ?? '').toString();
   promoteur.text = (j['promoteur'] ?? '').toString();
@@ -210,6 +224,9 @@ void onProjectModeleChanged(String value) {
 comptoir.text = (j['comptoir'] ?? '').toString();
 telephoneComptoir.text = (j['telephoneComptoir'] ?? '').toString();
 telephoneComptoir2.text = (j['telephoneComptoir2'] ?? '').toString();
+// 🔥 REVENDEUR
+registreCommerce.text = (j['registreCommerce'] ?? '').toString();
+fonction.text = (j['fonction'] ?? '').toString();
 
 dallagiste.text = (j['dallagiste'] ?? '').toString();
 telephoneDallagiste.text = (j['telephoneDallagiste'] ?? '').toString();
@@ -341,6 +358,11 @@ if (dv.isNotEmpty) {
   selectedAction.value =
       next.isEmpty ? null : next;
 
+
+/// 🔥 AUTO ADAPT nomProjet pour revendeur
+if (projectModele.value == "revendeur" && comptoir.text.isNotEmpty) {
+  nomProjet.text = comptoir.text;
+}
   update();
 }
 Future<void> pickDateVisite(BuildContext context) async {
@@ -600,6 +622,20 @@ Future<void> _autoGeocode(String query) async {
     surfaceProspectee.dispose();
     pourcentageReussite.dispose();
     validationStatut.dispose();
+    comptoir.dispose();
+telephoneComptoir.dispose();
+telephoneComptoir2.dispose();
+registreCommerce.dispose();
+fonction.dispose();
+
+dallagiste.dispose();
+telephoneDallagiste.dispose();
+emailDallagiste.dispose();
+serviceTechnique.dispose();
+
+emailIngenieur.dispose();
+emailArchitecte.dispose();
+dateVisite.dispose();
 
     super.onClose();
   }

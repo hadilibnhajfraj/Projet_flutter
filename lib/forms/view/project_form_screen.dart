@@ -168,6 +168,9 @@ Future<void> _refreshCardColors() async {
     final theme = Theme.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 992;
+    final isRevendeur = c.projectModele.value == "revendeur";
+final isApplicateur = c.projectModele.value == "applicateur";
+final isProject = c.projectModele.value == "project";
 
     return Scaffold(
       backgroundColor: themeController.isDarkMode ? colorGrey900 : colorWhite,
@@ -188,7 +191,9 @@ Future<void> _refreshCardColors() async {
                         isMobile: isMobile,
                         left: _field(
                           theme: theme,
-                          title: "Project Name",
+                          title: c.projectModele.value == "revendeur"
+    ? "Nom Société / Personne"
+    : "Project Name",
                           controller: c.nomProjet,
                           validator: (v) => c.requiredValidator(v, "Project Name"),
                         ),
@@ -203,7 +208,9 @@ Future<void> _refreshCardColors() async {
                         ),
                       ),
 
-                      _statusDropdown(theme),
+                      if (c.projectModele.value != "revendeur") ...[
+  _statusDropdown(theme),
+],
                       /// 🔥 NEW PROJECT MODELE
 DropdownButtonFormField<String>(
   value: c.projectModele.value,
@@ -216,48 +223,54 @@ DropdownButtonFormField<String>(
     DropdownMenuItem(value: "revendeur", child: Text("Revendeur")),
     DropdownMenuItem(value: "applicateur", child: Text("Applicateur")),
   ],
-  onChanged: (v) {
-    c.projectModele.value = v!;
-    setState(() {});
-  },
+ onChanged: (v) {
+  c.onProjectModeleChanged(v!);
+  setState(() {});
+},
 ),
 const SizedBox(height: 16),
 
-                      _twoCols(
-                        isMobile: isMobile,
-                        left: _field(
-                          theme: theme,
-                          title: "Project Type (optional)",
-                          controller: c.typeProjet,
-                          validator: null,
-                        ),
-                        right: _field(
-                          theme: theme,
-                          title: "Site Type + Address",
-                          controller: c.typeAdresseChantier,
-                          validator: (v) => c.requiredValidator(v, "Site Type + Address"),
-                        ),
-                      ),
+                     if (!isRevendeur) ...[
+  _twoCols(
+    isMobile: isMobile,
+    left: _field(
+      theme: theme,
+      title: "Project Type (optional)",
+      controller: c.typeProjet,
+      validator: null,
+    ),
+    right: _field(
+      theme: theme,
+      title: "Site Type + Address",
+      controller: c.typeAdresseChantier,
+      validator: (v) => c.requiredValidator(v, "Site Type + Address"),
+    ),
+  ),
+],
 
-                      _twoCols(
-                        isMobile: isMobile,
-                        left: _validationDropdown(theme),
-                        right: _field(
-                          theme: theme,
-                          title: "Success Rate (0 - 100)",
-                          controller: c.pourcentageReussite,
-                          validator: c.percentValidator,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        ),
-                      ),
+                      if (!isRevendeur) ...[
+  _twoCols(
+    isMobile: isMobile,
+    left: _validationDropdown(theme),
+    right: _field(
+      theme: theme,
+      title: "Success Rate (0 - 100)",
+      controller: c.pourcentageReussite,
+      validator: c.percentValidator,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    ),
+  ),
+],
 
-                      _field(
-                        theme: theme,
-                        title: "Prospected Area (m²) (optional)",
-                        controller: c.surfaceProspectee,
-                        validator: c.surfaceValidator,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      ),
+                     if (!isRevendeur) ...[
+  _field(
+    theme: theme,
+    title: "Prospected Area (m²) (optional)",
+    controller: c.surfaceProspectee,
+    validator: c.surfaceValidator,
+    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+  ),
+],
 
                       /// 🔥 DYNAMIC FIELDS BASED ON MODELE
 
@@ -285,7 +298,7 @@ if (c.projectModele.value == "revendeur") ...[
     isMobile: isMobile,
     left: _field(
       theme: theme,
-      title: "Comptoir",
+      title: "Comptoir (Société)",
       controller: c.comptoir,
       validator: (v) => c.requiredValidator(v, "Comptoir"),
     ),
@@ -298,13 +311,91 @@ if (c.projectModele.value == "revendeur") ...[
     ),
   ),
 
-  _field(
-    theme: theme,
-    title: "Téléphone Comptoir 2",
-    controller: c.telephoneComptoir2,
-    validator: null,
-    keyboardType: TextInputType.phone,
+  _twoCols(
+    isMobile: isMobile,
+    left: _field(
+      theme: theme,
+      title: "Téléphone Comptoir 2",
+      controller: c.telephoneComptoir2,
+      validator: null,
+      keyboardType: TextInputType.phone,
+    ),
+    right: _field(
+      theme: theme,
+      title: "Registre de commerce",
+      controller: c.registreCommerce,
+      validator: null,
+    ),
   ),
+
+  /// 🔥 NEW DROPDOWN FONCTION
+  Padding(
+    padding: const EdgeInsets.only(bottom: 16),
+    child: DropdownButtonFormField<String>(
+      value: c.fonction.text.isEmpty ? null : c.fonction.text,
+      decoration: const InputDecoration(
+        labelText: "Fonction",
+        border: OutlineInputBorder(),
+      ),
+      items: const [
+        DropdownMenuItem(value: "achat", child: Text("Achat")),
+        DropdownMenuItem(value: "gerant", child: Text("Gérant")),
+      ],
+      onChanged: (v) {
+        c.fonction.text = v ?? "";
+      },
+      validator: (v) {
+        if (v == null || v.isEmpty) {
+          return "Fonction obligatoire";
+        }
+        return null;
+      },
+    ),
+  ),
+  /// 🔥 INFOS PERSONNE REVENDEUR
+_twoCols(
+  isMobile: isMobile,
+  left: _field(
+    theme: theme,
+    title: "Nom revendeur",
+    controller: c.revendeurNom,
+    validator: (v) => c.requiredValidator(v, "Nom"),
+  ),
+  right: _field(
+    theme: theme,
+    title: "Prénom revendeur",
+    controller: c.revendeurPrenom,
+    validator: (v) => c.requiredValidator(v, "Prénom"),
+  ),
+),
+
+_field(
+  theme: theme,
+  title: "Email revendeur",
+  controller: c.revendeurEmail,
+  validator: (v) => v != null && v.isNotEmpty
+      ? c.emailValidator(v, "Email")
+      : null,
+  keyboardType: TextInputType.emailAddress,
+),
+
+/// 🔥 STATUT REVENDEUR
+DropdownButtonFormField<String>(
+  value: c.revendeurStatut.text,
+  decoration: const InputDecoration(
+    labelText: "Statut revendeur",
+    border: OutlineInputBorder(),
+  ),
+  items: const [
+    DropdownMenuItem(value: "prospect", child: Text("Prospect")),
+    DropdownMenuItem(value: "offre", child: Text("Offre")),
+    DropdownMenuItem(value: "actif", child: Text("Actif")),
+    DropdownMenuItem(value: "rate", child: Text("Raté")),
+  ],
+  onChanged: (v) {
+    c.revendeurStatut.text = v ?? "prospect";
+  },
+),
 ],
 if (c.projectModele.value == "applicateur") ...[
   _twoCols(
@@ -342,13 +433,14 @@ if (c.projectModele.value == "applicateur") ...[
   ),
 ],
                       if (c.projectModele.value == "project") ...[
+  if (isProject) ...[
   _twoCols(
     isMobile: isMobile,
     left: _field(
       theme: theme,
       title: "Engineer Email",
       controller: c.emailIngenieur,
-       validator: null,
+      validator: null,
       keyboardType: TextInputType.emailAddress,
     ),
     right: _field(
@@ -359,24 +451,27 @@ if (c.projectModele.value == "applicateur") ...[
       keyboardType: TextInputType.emailAddress,
     ),
   ),
+]
 ],
 
-                      _twoCols(
-                        isMobile: isMobile,
-                        left: _field(
-                          theme: theme,
-                          title: "Architect (optional)",
-                          controller: c.architecte,
-                          validator: null,
-                        ),
-                        right: _field(
-                          theme: theme,
-                          title: "Architect Phone (optional)",
-                          controller: c.telephoneArchitecte,
-                          validator: null,
-                          keyboardType: TextInputType.phone,
-                        ),
-                      ),
+                     if (!isRevendeur) ...[
+  _twoCols(
+    isMobile: isMobile,
+    left: _field(
+      theme: theme,
+      title: "Architect (optional)",
+      controller: c.architecte,
+      validator: null,
+    ),
+    right: _field(
+      theme: theme,
+      title: "Architect Phone (optional)",
+      controller: c.telephoneArchitecte,
+      validator: null,
+      keyboardType: TextInputType.phone,
+    ),
+  ),
+],
                       Padding(
   padding: const EdgeInsets.only(bottom: 16, top: 5),
   child: Column(
@@ -409,12 +504,14 @@ if (c.projectModele.value == "applicateur") ...[
   ),
 ),
 
-                      _field(
-                        theme: theme,
-                        title: "Company",
-                        controller: c.entreprise,
-                     validator: null,
-                      ),
+                    if (!isRevendeur) ...[
+  _field(
+    theme: theme,
+    title: "Company",
+    controller: c.entreprise,
+    validator: null,
+  ),
+],
 
                       _field(
                         theme: theme,
@@ -423,43 +520,50 @@ if (c.projectModele.value == "applicateur") ...[
                         validator: null,
                       ),
 
-                      _field(
-                        theme: theme,
-                        title: "Developer (optional)",
-                        controller: c.promoteur,
-                        validator: null,
-                      ),
-                      _field(
-                        theme: theme,
-                        title: "Design Office (optional)",
-                        controller: c.bureauEtude,
-                        validator: null,
-                      ),
-                      _field(
-                        theme: theme,
-                        title: "Control Office",
-                        controller: c.bureauControle,
-                        validator: null,
-                      ),
+                   if (!isRevendeur) ...[
+  _field(
+    theme: theme,
+    title: "Developer (optional)",
+    controller: c.promoteur,
+    validator: null,
+  ),
 
-                      _twoCols(
-                        isMobile: isMobile,
-                        left: _field(
-                          theme: theme,
-                          title: "Plumbing/HVAC Company (optional)",
-                          controller: c.entrepriseFluide,
-                          validator: null,
-                        ),
-                        right: _field(
-                          theme: theme,
-                          title: "Electrical Company (optional)",
-                          controller: c.entrepriseElectricite,
-                          validator: null,
-                        ),
-                      ),
+  _field(
+    theme: theme,
+    title: "Design Office (optional)",
+    controller: c.bureauEtude,
+    validator: null,
+  ),
+
+  _field(
+    theme: theme,
+    title: "Control Office",
+    controller: c.bureauControle,
+    validator: null,
+  ),
+],
+                      if (!isRevendeur) ...[
+  _twoCols(
+    isMobile: isMobile,
+    left: _field(
+      theme: theme,
+      title: "Plumbing/HVAC Company (optional)",
+      controller: c.entrepriseFluide,
+      validator: null,
+    ),
+    right: _field(
+      theme: theme,
+      title: "Electrical Company (optional)",
+      controller: c.entrepriseElectricite,
+      validator: null,
+    ),
+  ),
+],
 
                       const SizedBox(height: 14),
-                      _locationBlock(theme),
+                      if (c.projectModele.value != "revendeur") ...[
+  _locationBlock(theme),
+],
 
                       _field(
                         theme: theme,
@@ -858,108 +962,132 @@ Future<void> _submit({required bool goBackAfterSave}) async {
   final ok = c.formKey.currentState?.validate() ?? false;
   if (!ok) return;
 
-  if (!c.hasLocation) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Location is required")),
-    );
-    return;
-  }
+ if (c.projectModele.value != "revendeur" && !c.hasLocation) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text("Location is required")),
+  );
+  return;
+}
 
   final manualComment = c.commentaireCtrl.text.trim();
 
+final isRevendeur = c.projectModele.value == "revendeur";
+final isApplicateur = c.projectModele.value == "applicateur";
+
 final payload = {
   "nomProjet": clean(c.nomProjet.text),
-  "dateDemarrage": clean(c.dateDemarrage.text),
-
-  "statut": clean(c.statut.text),
-
-  "typeAdresseChantier": clean(c.typeAdresseChantier.text),
-
-  "architecte": clean(c.architecte.text),
-  "telephoneArchitecte": clean(c.telephoneArchitecte.text),
-
-  "matriculeFiscale": clean(c.matriculeFiscale.text),
-
-  "entreprise": clean(c.entreprise.text),
-
-  "promoteur": clean(c.promoteur.text),
-  "bureauEtude": clean(c.bureauEtude.text),
-  "bureauControle": clean(c.bureauControle.text),
-
-  "entrepriseFluide": clean(c.entrepriseFluide.text),
-  "entrepriseElectricite": clean(c.entrepriseElectricite.text),
-
-  "adresse": clean(c.localisationAdresse.text),
-
-  "location": {
-    "lat": c.latitude.value,
-    "lng": c.longitude.value,
-  },
-
-  "localisationCommentaire": clean(c.commentaireCtrl.text),
-
-  "typeProjet": clean(c.typeProjet.text),
-
-  "validationStatut": clean(c.validationStatut.text) ?? "Non validé",
-
-  "pourcentageReussite": c.pourcentageReussiteValue,
-  "surfaceProspectee": c.surfaceProspecteeValue,
-
-  "emailIngenieur": clean(c.emailIngenieur.text),
-  "emailArchitecte": clean(c.emailArchitecte.text),
-
-  "dateVisite": clean(c.dateVisite.text),
-
-  "firstAction": c.selectedAction.value,
-  "commentaireAction": clean(c.commentaireCtrl.text),
 
   "projectModele": c.projectModele.value,
 
-  /// 🔥 LOGIQUE DYNAMIQUE PROPRE
+  // =====================
+  // 🔥 CHANTIER (NOT REVENDEUR)
+  // =====================
+  "dateDemarrage": isRevendeur ? null : clean(c.dateDemarrage.text),
+  "statut": isRevendeur ? null : clean(c.statut.text),
+  "typeAdresseChantier": isRevendeur ? null : clean(c.typeAdresseChantier.text),
+
+  "adresse": isRevendeur ? null : clean(c.localisationAdresse.text),
+
+  "location": isRevendeur
+      ? null
+      : {
+          "lat": c.latitude.value,
+          "lng": c.longitude.value,
+        },
+
+  "localisationCommentaire":
+      isRevendeur ? null : clean(c.commentaireCtrl.text),
+
+  "typeProjet": isRevendeur ? null : clean(c.typeProjet.text),
+
+  "pourcentageReussite":
+      isRevendeur ? null : c.pourcentageReussiteValue,
+
+  "surfaceProspectee":
+      isRevendeur ? null : c.surfaceProspecteeValue,
+
+  "entreprise": isRevendeur ? null : clean(c.entreprise.text),
+  "promoteur": isRevendeur ? null : clean(c.promoteur.text),
+  "bureauEtude": isRevendeur ? null : clean(c.bureauEtude.text),
+  "bureauControle": isRevendeur ? null : clean(c.bureauControle.text),
+
+  "entrepriseFluide":
+      isRevendeur ? null : clean(c.entrepriseFluide.text),
+  "entrepriseElectricite":
+      isRevendeur ? null : clean(c.entrepriseElectricite.text),
+
+  // =====================
+  // 👷 PROJECT
+  // =====================
   "ingenieurResponsable":
-      c.projectModele.value == "project"
+      (!isRevendeur && !isApplicateur)
           ? clean(c.ingenieurResponsable.text)
           : null,
 
   "telephoneIngenieur":
-      c.projectModele.value == "project"
+      (!isRevendeur && !isApplicateur)
           ? clean(c.telephoneIngenieur.text)
           : null,
 
-  "comptoir":
-      c.projectModele.value == "revendeur"
-          ? clean(c.comptoir.text)
-          : null,
+  "emailIngenieur":
+      isRevendeur ? null : clean(c.emailIngenieur.text),
 
+  "architecte": isRevendeur ? null : clean(c.architecte.text),
+  "telephoneArchitecte":
+      isRevendeur ? null : clean(c.telephoneArchitecte.text),
+  "emailArchitecte":
+      isRevendeur ? null : clean(c.emailArchitecte.text),
+
+  // =====================
+  // 🟠 REVENDEUR
+  // =====================
+  "comptoir": isRevendeur ? clean(c.comptoir.text) : null,
   "telephoneComptoir":
-      c.projectModele.value == "revendeur"
-          ? clean(c.telephoneComptoir.text)
-          : null,
-
+      isRevendeur ? clean(c.telephoneComptoir.text) : null,
   "telephoneComptoir2":
-      c.projectModele.value == "revendeur"
-          ? clean(c.telephoneComptoir2.text)
-          : null,
+      isRevendeur ? clean(c.telephoneComptoir2.text) : null,
 
+  "registreCommerce":
+      isRevendeur ? clean(c.registreCommerce.text) : null,
+
+  "fonction": isRevendeur ? clean(c.fonction.text) : null,
+
+  "revendeurNom":
+      isRevendeur ? clean(c.revendeurNom.text) : null,
+
+  "revendeurPrenom":
+      isRevendeur ? clean(c.revendeurPrenom.text) : null,
+
+  "revendeurEmail":
+      isRevendeur ? clean(c.revendeurEmail.text) : null,
+
+  "revendeurStatut":
+      isRevendeur ? c.revendeurStatut.text : null,
+
+  // =====================
+  // 🔵 APPLICATEUR
+  // =====================
   "dallagiste":
-      c.projectModele.value == "applicateur"
-          ? clean(c.dallagiste.text)
-          : null,
+      isApplicateur ? clean(c.dallagiste.text) : null,
 
   "telephoneDallagiste":
-      c.projectModele.value == "applicateur"
-          ? clean(c.telephoneDallagiste.text)
-          : null,
+      isApplicateur ? clean(c.telephoneDallagiste.text) : null,
 
   "emailDallagiste":
-      c.projectModele.value == "applicateur"
-          ? clean(c.emailDallagiste.text)
-          : null,
+      isApplicateur ? clean(c.emailDallagiste.text) : null,
 
   "serviceTechnique":
-      c.projectModele.value == "applicateur"
-          ? clean(c.serviceTechnique.text)
-          : null,
+      isApplicateur ? clean(c.serviceTechnique.text) : null,
+
+  // =====================
+  // GLOBAL
+  // =====================
+  "validationStatut":
+      clean(c.validationStatut.text) ?? "Non validé",
+
+  "dateVisite": clean(c.dateVisite.text),
+  "firstAction": c.selectedAction.value,
+  "commentaireAction": clean(c.commentaireCtrl.text),
 };
 
   try {
