@@ -186,7 +186,22 @@ final isProject = c.projectModele.value == "project";
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 20),
-
+DropdownButtonFormField<String>(
+  value: c.projectModele.value,
+  decoration: const InputDecoration(
+    labelText: "Project Type",
+    border: OutlineInputBorder(),
+  ),
+  items: const [
+    DropdownMenuItem(value: "project", child: Text("Project")),
+    DropdownMenuItem(value: "revendeur", child: Text("Revendeur")),
+    DropdownMenuItem(value: "applicateur", child: Text("Applicateur")),
+  ],
+ onChanged: (v) {
+  c.onProjectModeleChanged(v!);
+  setState(() {});
+},
+),
                       _twoCols(
                         isMobile: isMobile,
                         left: _field(
@@ -212,22 +227,7 @@ final isProject = c.projectModele.value == "project";
   _statusDropdown(theme),
 ],
                       /// 🔥 NEW PROJECT MODELE
-DropdownButtonFormField<String>(
-  value: c.projectModele.value,
-  decoration: const InputDecoration(
-    labelText: "Project Type",
-    border: OutlineInputBorder(),
-  ),
-  items: const [
-    DropdownMenuItem(value: "project", child: Text("Project")),
-    DropdownMenuItem(value: "revendeur", child: Text("Revendeur")),
-    DropdownMenuItem(value: "applicateur", child: Text("Applicateur")),
-  ],
- onChanged: (v) {
-  c.onProjectModeleChanged(v!);
-  setState(() {});
-},
-),
+
 const SizedBox(height: 16),
 
                      if (!isRevendeur) ...[
@@ -300,14 +300,13 @@ if (c.projectModele.value == "revendeur") ...[
       theme: theme,
       title: "Comptoir (Société)",
       controller: c.comptoir,
-      validator: (v) => c.requiredValidator(v, "Comptoir"),
+       validator: null,
     ),
     right: _field(
       theme: theme,
       title: "Téléphone Comptoir",
       controller: c.telephoneComptoir,
-      validator: (v) => c.phoneValidator(v, "Téléphone Comptoir"),
-      keyboardType: TextInputType.phone,
+       validator: null,
     ),
   ),
 
@@ -359,13 +358,13 @@ _twoCols(
     theme: theme,
     title: "Nom revendeur",
     controller: c.revendeurNom,
-    validator: (v) => c.requiredValidator(v, "Nom"),
+    validator: null,
   ),
   right: _field(
     theme: theme,
     title: "Prénom revendeur",
     controller: c.revendeurPrenom,
-    validator: (v) => c.requiredValidator(v, "Prénom"),
+     validator: null,
   ),
 ),
 
@@ -373,9 +372,7 @@ _field(
   theme: theme,
   title: "Email revendeur",
   controller: c.revendeurEmail,
-  validator: (v) => v != null && v.isNotEmpty
-      ? c.emailValidator(v, "Email")
-      : null,
+  validator: null,
   keyboardType: TextInputType.emailAddress,
 ),
 
@@ -395,6 +392,12 @@ DropdownButtonFormField<String>(
   onChanged: (v) {
     c.revendeurStatut.text = v ?? "prospect";
   },
+),
+_field(
+  theme: theme,
+  title: "Adresse revendeur",
+  controller: c.adresseRevendeur,
+  validator: (v) => c.requiredValidator(v, "Adresse"),
 ),
 ],
 if (c.projectModele.value == "applicateur") ...[
@@ -999,7 +1002,8 @@ final payload = {
       isRevendeur ? null : clean(c.commentaireCtrl.text),
 
   "typeProjet": isRevendeur ? null : clean(c.typeProjet.text),
-
+  "adresseRevendeur":
+    isRevendeur ? clean(c.adresseRevendeur.text) : null,
   "pourcentageReussite":
       isRevendeur ? null : c.pourcentageReussiteValue,
 
@@ -1015,6 +1019,8 @@ final payload = {
       isRevendeur ? null : clean(c.entrepriseFluide.text),
   "entrepriseElectricite":
       isRevendeur ? null : clean(c.entrepriseElectricite.text),
+      "adresseRevendeur":
+    isRevendeur ? clean(c.adresseRevendeur.text) : null,
 
   // =====================
   // 👷 PROJECT

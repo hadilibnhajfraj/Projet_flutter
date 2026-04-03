@@ -57,7 +57,7 @@ final revendeurStatut = TextEditingController(text: "prospect");
 
   final localisationAdresse = TextEditingController();
   final commentaireCtrl = TextEditingController();
-
+  final adresseRevendeur = TextEditingController();
   // ---------------- Extra fields ----------------
   final typeProjet = TextEditingController();
   final surfaceProspectee = TextEditingController(); // number (m²)
@@ -105,6 +105,7 @@ void resetForm() {
   telephoneArchitecte.clear();
 
   matriculeFiscale.clear();
+  adresseRevendeur.clear();
 
   entreprise.clear();
   promoteur.clear();
@@ -168,10 +169,11 @@ void onProjectModeleChanged(String mode) {
   projectModele.value = mode;
 
   if (mode == "revendeur") {
-    // 🔥 RESET CHANTIER
+    // 🔥 RESET UNIQUEMENT CHANTIER
     dateDemarrage.clear();
     typeAdresseChantier.clear();
     localisationAdresse.clear();
+
     latitude.value = null;
     longitude.value = null;
 
@@ -183,7 +185,28 @@ void onProjectModeleChanged(String mode) {
     promoteur.clear();
     bureauEtude.clear();
     bureauControle.clear();
+
+    // ❌ NE PAS TOUCHER AUX CHAMPS REVENDEUR
+    // adresseRevendeur.clear(); ❌ SUPPRIMER
   }
+
+  if (mode != "revendeur") {
+    // 🔥 RESET REVENDEUR (logique inverse)
+    comptoir.clear();
+    telephoneComptoir.clear();
+    telephoneComptoir2.clear();
+    registreCommerce.clear();
+    fonction.clear();
+
+    revendeurNom.clear();
+    revendeurPrenom.clear();
+    revendeurEmail.clear();
+    revendeurStatut.text = "prospect";
+
+    adresseRevendeur.clear(); // ✅ ici c'est correct
+  }
+
+  update();
 }
   // =========================
   // LOAD PROJECT (edit)
@@ -204,7 +227,7 @@ void onProjectModeleChanged(String mode) {
 
   ingenieurResponsable.text = (j['ingenieurResponsable'] ?? '').toString();
   telephoneIngenieur.text = (j['telephoneIngenieur'] ?? '').toString();
-
+  adresseRevendeur.text = (j['adresseRevendeur'] ?? '').toString();
   architecte.text = (j['architecte'] ?? '').toString();
   telephoneArchitecte.text = (j['telephoneArchitecte'] ?? '').toString();
 
@@ -616,6 +639,7 @@ Future<void> _autoGeocode(String query) async {
     bureauControle.dispose();
     entrepriseFluide.dispose();
     entrepriseElectricite.dispose();
+    adresseRevendeur.dispose();
     localisationAdresse.dispose();
     commentaireCtrl.dispose();
     typeProjet.dispose();
