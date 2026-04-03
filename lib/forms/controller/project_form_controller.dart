@@ -11,7 +11,12 @@ import 'package:http/http.dart' as http; // http.get
 class ProjectFormController extends GetxController {
   
   final formKey = GlobalKey<FormState>();
+var projectModele = "project".obs;
 
+/// 🔥 AJOUT ICI
+bool get isProject => projectModele.value == "project";
+bool get isRevendeur => projectModele.value == "revendeur";
+bool get isApplicateur => projectModele.value == "applicateur";
   // ---------------- Fields ----------------
   // CRM ACTION
 final RxnString selectedAction = RxnString();
@@ -19,7 +24,7 @@ final RxnString selectedAction = RxnString();
   final dateDemarrage = TextEditingController();
   final statut = TextEditingController();
   final typeAdresseChantier = TextEditingController();
-var projectModele = "project".obs;
+
 
 final comptoir = TextEditingController();
 final telephoneComptoir = TextEditingController();
@@ -67,6 +72,7 @@ final telephoneComptoir2 = TextEditingController();
 
 final emailDallagiste = TextEditingController();
 final serviceTechnique = TextEditingController();
+final montantMarche = TextEditingController();
   // ---------------- Location ----------------
   final RxnDouble latitude = RxnDouble();
   final RxnDouble longitude = RxnDouble();
@@ -97,6 +103,7 @@ void resetForm() {
   dateDemarrage.clear();
   statut.clear();
   typeAdresseChantier.clear();
+  montantMarche.clear();
 
   ingenieurResponsable.clear();
   telephoneIngenieur.clear();
@@ -224,6 +231,7 @@ void onProjectModeleChanged(String mode) {
   dateDemarrage.text = (j['dateDemarrage'] ?? '').toString();
   statut.text = (j['statut'] ?? '').toString();
   typeAdresseChantier.text = (j['typeAdresseChantier'] ?? '').toString();
+  montantMarche.text = (j['montantMarche'] ?? '').toString();
 
   ingenieurResponsable.text = (j['ingenieurResponsable'] ?? '').toString();
   telephoneIngenieur.text = (j['telephoneIngenieur'] ?? '').toString();
@@ -648,6 +656,7 @@ Future<void> _autoGeocode(String query) async {
     validationStatut.dispose();
     comptoir.dispose();
 telephoneComptoir.dispose();
+montantMarche.dispose();
 telephoneComptoir2.dispose();
 registreCommerce.dispose();
 fonction.dispose();
