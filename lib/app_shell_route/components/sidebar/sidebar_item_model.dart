@@ -130,6 +130,13 @@ List<GroupedMenuModel> buildGroupedMenus({
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.commercialProfileScreen,
           ),
+           SidebarItemModel(
+            name: 'Client',
+            iconPath: usersIcon,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: MyRoute.clientsProfileScreen,
+          ),
+          
         ],
       ),
     ];
@@ -160,6 +167,7 @@ List<GroupedMenuModel> buildGroupedMenus({
                  name: "Commercial List",
               navigationPath: 'commercial-contacts',
               ),
+             
             if (isAdmin)
               SidebarSubmenuModel(
                 name: "User List",

@@ -10,6 +10,7 @@ class ClientModel {
   final String? matriculeFiscal;
   final String? identifiantUnique;
   final String? contact;
+  final String? derniereFacturation;
 
   ClientModel({
     this.id,
@@ -23,6 +24,7 @@ class ClientModel {
     this.matriculeFiscal,
     this.identifiantUnique,
     this.contact,
+    this.derniereFacturation,
   });
 
   factory ClientModel.fromJson(Map<String, dynamic> json) {
@@ -38,6 +40,7 @@ class ClientModel {
       matriculeFiscal: json['matriculeFiscal']?.toString(),
       identifiantUnique: json['identifiantUnique']?.toString(),
       contact: json['contact']?.toString(),
+      derniereFacturation: json['derniereFacturation']?.toString(),
     );
   }
 }

@@ -264,6 +264,7 @@ Widget _buildClientsTable(BuildContext context) {
                     DataColumn(label: Text('Postal code')),
                     DataColumn(label: Text('Region')),
                     DataColumn(label: Text('Created on')),
+                    DataColumn(label: Text('Last invoice')), // ✅ AJOUT ICI
                     DataColumn(label: Text('Regime')),
                     DataColumn(label: Text('Tax identification number')),
                     DataColumn(label: Text('unique identifier')),
@@ -336,6 +337,47 @@ class ClientsDataSource extends DataTableSource {
           ),
         ),
         DataCell(Text(controller.formatText(client.creeLe))),
+DataCell(
+  Row(
+    children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: controller
+              .getFactureColor(client.derniereFacturation)
+              .withOpacity(0.15),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          controller.formatDate(client.derniereFacturation),
+          style: TextStyle(
+            color: controller.getFactureColor(client.derniereFacturation),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+
+      // 🔥 Badge INACTIVE
+      if (controller.isInactive(client.derniereFacturation))
+        Container(
+          margin: const EdgeInsets.only(left: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Text(
+            'Inactive',
+            style: TextStyle(
+              color: Colors.red,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+    ],
+  ),
+),
         DataCell(_cellText(client.regime, width: 110)),
         DataCell(_cellText(client.matriculeFiscal, width: 130)),
         DataCell(_cellText(client.identifiantUnique, width: 130)),
