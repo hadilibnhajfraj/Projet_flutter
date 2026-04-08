@@ -45,7 +45,31 @@ class CommercialContactRelance {
     );
   }
 }
+class CommercialProject {
+  final String id;
+  final String? nomProjet;
+  final String? localisation;
+  final String? typeProjet;
+  final String? description;
 
+  CommercialProject({
+    required this.id,
+    this.nomProjet,
+    this.localisation,
+    this.typeProjet,
+    this.description,
+  });
+
+  factory CommercialProject.fromJson(Map<String, dynamic> json) {
+    return CommercialProject(
+      id: json['id']?.toString() ?? '',
+      nomProjet: json['nomProjet']?.toString(),
+      localisation: json['localisation']?.toString(),
+      typeProjet: json['typeProjet']?.toString(),
+      description: json['description']?.toString(),
+    );
+  }
+}
 class CommercialContact {
   final String id;
   final String typeClient;
@@ -65,6 +89,7 @@ class CommercialContact {
   final DateTime? dateAppel;
 
   final List<CommercialContactProduct> produits;
+  final List<CommercialProject> projects;
   final List<CommercialContactRelance> relances;
   final DateTime? createdAt;
 
@@ -85,7 +110,7 @@ class CommercialContact {
     // ✅ NEW
     required this.pipelineStage,
     this.dateAppel,
-
+    required this.projects,
     required this.produits,
     required this.relances,
     this.createdAt,
@@ -124,6 +149,9 @@ class CommercialContact {
                 e as Map<String, dynamic>,
               ))
           .toList(),
+      projects: (json['projects'] as List<dynamic>? ?? [])
+    .map((e) => CommercialProject.fromJson(e as Map<String, dynamic>))
+    .toList(),
 
       relances: (json['relances'] as List<dynamic>? ?? [])
           .map((e) => CommercialContactRelance.fromJson(

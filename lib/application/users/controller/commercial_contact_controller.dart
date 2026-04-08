@@ -20,6 +20,7 @@ class CommercialContactController extends GetxController {
     super.onInit();
     fetchContacts();
   }
+  
 
   Future<void> fetchContacts({String? query}) async {
     try {

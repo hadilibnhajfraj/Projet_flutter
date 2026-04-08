@@ -484,7 +484,19 @@ String selectedPipeline =
           ? (contact.relances.first.commentaire ?? "")
           : "",
     );
+final projects = (contact.projects.isEmpty
+        ? [CommercialProject(id: "", nomProjet: "")]
+        : contact.projects)
+    .map((p) {
+  final proj = p as CommercialProject;
 
+  return {
+    "nomCtrl": TextEditingController(text: proj.nomProjet ?? ""),
+    "locCtrl": TextEditingController(text: proj.localisation ?? ""),
+    "typeCtrl": TextEditingController(text: proj.typeProjet ?? ""),
+    "descCtrl": TextEditingController(text: proj.description ?? ""),
+  };
+}).toList();
     Future<void> pickDate(BuildContext dialogContext) async {
       final picked = await showDatePicker(
         context: dialogContext,
@@ -593,7 +605,7 @@ String selectedPipeline =
                                 DropdownMenuItem(
                                     value: "Cloture", child: Text("Cloture")),
                                 DropdownMenuItem(
-                                    value: "autre", child: Text("Other")),
+                                    value: "Batiment", child: Text("Batiment")),
                               ],
                               onChanged: (v) {
                                 if (v != null) {
@@ -791,6 +803,87 @@ Row(
                         ),
                       ),
                       const SizedBox(height: 18),
+const Text(
+  "Projects",
+  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+),
+const SizedBox(height: 10),
+
+Column(
+  children: List.generate(projects.length, (index) {
+    final row = projects[index];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE4E7EC)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: row["nomCtrl"] as TextEditingController,
+                  decoration: _inputDecoration("Project name"),
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  if (projects.length > 1) {
+                    setDialogState(() => projects.removeAt(index));
+                  }
+                },
+                icon: const Icon(Icons.delete, color: Colors.red),
+              )
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          TextField(
+            controller: row["locCtrl"] as TextEditingController,
+            decoration: _inputDecoration("Location"),
+          ),
+
+          const SizedBox(height: 10),
+
+          TextField(
+            controller: row["typeCtrl"] as TextEditingController,
+            decoration: _inputDecoration("Type"),
+          ),
+
+          const SizedBox(height: 10),
+
+          TextField(
+            controller: row["descCtrl"] as TextEditingController,
+            maxLines: 2,
+            decoration: _inputDecoration("Description"),
+          ),
+        ],
+      ),
+    );
+  }),
+),
+
+OutlinedButton.icon(
+  onPressed: () {
+    setDialogState(() {
+      projects.add({
+        "nomCtrl": TextEditingController(),
+        "locCtrl": TextEditingController(),
+        "typeCtrl": TextEditingController(),
+        "descCtrl": TextEditingController(),
+      });
+    });
+  },
+  icon: const Icon(Icons.add),
+  label: const Text("Add project"),
+),
+                      const SizedBox(height: 18),
                       if (canScheduleRelance)
                         Container(
                           width: double.infinity,
@@ -906,6 +999,19 @@ Row(
                                       "qte": qte <= 0 ? 1 : qte,
                                     };
                                   }).toList(),
+                      // ✅ PROJECTS (PAS DE final)
+  "projects": projects.map((row) {
+    return {
+      "nomProjet":
+          (row["nomCtrl"] as TextEditingController).text.trim(),
+      "localisation":
+          (row["locCtrl"] as TextEditingController).text.trim(),
+      "typeProjet":
+          (row["typeCtrl"] as TextEditingController).text.trim(),
+      "description":
+          (row["descCtrl"] as TextEditingController).text.trim(),
+    };
+  }).toList(),
                                   if (canScheduleRelance &&
                                       dateRelanceCtrl.text.trim().isNotEmpty)
                                     "dateRelance": dateRelanceCtrl.text.trim(),

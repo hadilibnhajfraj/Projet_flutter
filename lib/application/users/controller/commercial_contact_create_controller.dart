@@ -27,13 +27,40 @@ DateTime? dateAppel;
   final heureRelanceCtrl = TextEditingController();
 
   final produits = <CommercialProductInput>[CommercialProductInput()].obs;
+  final userNom = "najeh".obs;
 
+final projects = <CommercialProjectInput>[
+  CommercialProjectInput()
+].obs;
+
+void addProjectRow() {
+  projects.add(
+    CommercialProjectInput(
+      createdBy: userNom.value, // ✅ auto assign
+    ),
+  );
+  projects.refresh();
+}
+
+void removeProjectRow(int index) {
+  projects.removeAt(index);
+  if (projects.isEmpty) {
+    projects.add(CommercialProjectInput());
+  }
+  projects.refresh();
+}
   bool get canScheduleRelance =>
       statut.value == "ok" || statut.value == "rappeler_plus_tard";
 
   @override
   void onInit() {
     super.onInit();
+    ever(userNom, (value) {
+    for (var p in projects) {
+      p.createdBy = value;
+    }
+    projects.refresh();
+  });
 
     if (produits.isEmpty) {
       produits.add(
@@ -164,6 +191,7 @@ DateTime? dateAppel;
       nbAppels: int.tryParse(nbAppelsCtrl.text.trim()) ?? 0,
       sujetDiscussion: sujetDiscussionCtrl.text.trim(),
       produits: cleanedProduits,
+      projects: projects,
       relance: relance,
     );
 

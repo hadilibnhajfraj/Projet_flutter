@@ -1,3 +1,4 @@
+// ================= PRODUCTS =================
 class CommercialProductInput {
   String produit;
   double qte;
@@ -13,6 +14,35 @@ class CommercialProductInput {
       };
 }
 
+// ================= PROJECTS =================
+class CommercialProjectInput {
+  String nomProjet;
+  String? localisation;
+  String? typeProjet;
+  String? description;
+   String createdBy; // ✅ NEW
+
+  CommercialProjectInput({
+    this.nomProjet = "",
+    this.localisation,
+    this.typeProjet,
+    this.description,
+    this.createdBy = "", // ✅ NEW
+  });
+
+  Map<String, dynamic> toJson() => {
+        "nomProjet": nomProjet.trim().isEmpty ? "Projet" : nomProjet.trim(),
+        "localisation":
+            (localisation ?? "").trim().isEmpty ? null : localisation!.trim(),
+        "typeProjet":
+            (typeProjet ?? "").trim().isEmpty ? null : typeProjet!.trim(),
+        "description":
+            (description ?? "").trim().isEmpty ? null : description!.trim(),
+             "createdBy": createdBy, // ✅ IMPORTANT
+      };
+}
+
+// ================= RELANCE =================
 class CommercialRelanceInput {
   String? dateRelance;
   String? heureRelance;
@@ -38,6 +68,7 @@ class CommercialRelanceInput {
       };
 }
 
+// ================= DTO =================
 class CommercialContactCreateDto {
   String typeClient;
   String statut;
@@ -49,10 +80,12 @@ class CommercialContactCreateDto {
   String message;
   int nbAppels;
   String sujetDiscussion;
+
   List<CommercialProductInput> produits;
+  List<CommercialProjectInput> projects;
+
   CommercialRelanceInput? relance;
 
-  // ✅ NEW
   String pipelineStage;
   String? dateAppel;
 
@@ -68,12 +101,12 @@ class CommercialContactCreateDto {
     this.nbAppels = 0,
     this.sujetDiscussion = "",
     List<CommercialProductInput>? produits,
+    List<CommercialProjectInput>? projects,
     this.relance,
-
-    // ✅ NEW
     this.pipelineStage = "Prospect",
     this.dateAppel,
-  }) : produits = produits ?? [CommercialProductInput()];
+  })  : produits = produits ?? [CommercialProductInput()],
+        projects = projects ?? [CommercialProjectInput()];
 
   Map<String, dynamic> toJson() {
     final data = <String, dynamic>{
@@ -90,16 +123,20 @@ class CommercialContactCreateDto {
           sujetDiscussion.trim().isEmpty ? null : sujetDiscussion.trim(),
 
       // ✅ PRODUITS
-      "produits": produits.isEmpty
-          ? [CommercialProductInput().toJson()]
-          : produits.map((p) => p.toJson()).toList(),
+      "produits": produits.map((p) => p.toJson()).toList(),
 
-      // ✅ NEW FIELDS
+      // ✅ PROJECTS
+      "projects": projects
+    .where((p) => p.nomProjet.trim().isNotEmpty)
+    .map((p) => p.toJson())
+    .toList(),
+
+      // ✅ PIPELINE
       "pipelineStage": pipelineStage,
       "dateAppel": dateAppel,
     };
 
-    // ✅ RELANCE (important: flatten comme ton backend attend)
+    // ✅ RELANCE
     if (relance != null) {
       data.addAll(relance!.toJson());
     }

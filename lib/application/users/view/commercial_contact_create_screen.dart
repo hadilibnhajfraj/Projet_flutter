@@ -61,26 +61,95 @@ class CommercialContactCreateScreen extends StatelessWidget {
     );
   }
 
-  Widget _tf(
-    String label,
-    String hint,
-    TextEditingController ctrl, {
-    int maxLines = 1,
-    TextInputType keyboardType = TextInputType.text,
-    IconData icon = Icons.edit_outlined,
-    bool readOnly = false,
-    VoidCallback? onTap,
-  }) {
-    return TextField(
-      controller: ctrl,
-      maxLines: maxLines,
-      keyboardType: keyboardType,
-      readOnly: readOnly,
-      onTap: onTap,
-      decoration: _dec(label, hint, icon),
-    );
-  }
+Widget _tf(
+  String label,
+  String hint,
+  TextEditingController ctrl, {
+  int maxLines = 1,
+  TextInputType keyboardType = TextInputType.text,
+  IconData icon = Icons.edit_outlined,
+  bool readOnly = false,
+  VoidCallback? onTap,
+  Function(String)? onChanged, // ✅ ADD
+}) {
+  return TextField(
+    controller: ctrl,
+    maxLines: maxLines,
+    keyboardType: keyboardType,
+    readOnly: readOnly,
+    onTap: onTap,
+    onChanged: onChanged, // ✅ ADD
+    decoration: _dec(label, hint, icon),
+  );
+}
+Widget _buildProjectRow(BuildContext context, int index) {
+  final project = c.projects[index];
 
+  return Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF8FAFC),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: kPrimary.withOpacity(.10)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                onChanged: (v) => c.projects[index].nomProjet = v,
+                decoration: _dec(
+                  "Project Name",
+                  "Villa, Building...",
+                  Icons.home_work_outlined,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: () => c.removeProjectRow(index),
+              icon: const Icon(Icons.delete, color: Colors.red),
+            )
+          ],
+        ),
+
+        // ✅ Created by
+        Padding(
+          padding: const EdgeInsets.only(top: 6, left: 4),
+          child: Obx(() => Text(
+                "👤 Created by: ${c.userNom.value}",
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              )),
+        ),
+
+        const SizedBox(height: 10),
+
+        _tf("Location", "Tunis...",
+            TextEditingController(text: project.localisation ?? ""),
+            onChanged: (v) => c.projects[index].localisation = v),
+
+        const SizedBox(height: 10),
+
+        _tf("Type", "Residential...",
+            TextEditingController(text: project.typeProjet ?? ""),
+            onChanged: (v) => c.projects[index].typeProjet = v),
+
+        const SizedBox(height: 10),
+
+        _tf("Description", "Details...",
+            TextEditingController(text: project.description ?? ""),
+            maxLines: 3,
+            onChanged: (v) => c.projects[index].description = v),
+      ],
+    ),
+  );
+}
   Widget _buildProduitRow(BuildContext context, int index) {
     final produit = c.produits[index];
 
@@ -204,63 +273,78 @@ class CommercialContactCreateScreen extends StatelessWidget {
           _sectionTitle("Client Information", Icons.person_outline),
           const SizedBox(height: 18),
 
-          Row(
-            children: [
-              Expanded(
-                child: Obx(
-                  () => DropdownButtonFormField<String>(
-                    value: c.typeClient.value,
-                    items: const [
-                      DropdownMenuItem(value: "Tuteur", child: Text("Supervisor")),
-                      DropdownMenuItem(value: "Cloture", child: Text("Closure")),
-                      DropdownMenuItem(value: "autre", child: Text("Other")),
-                    ],
-                    onChanged: c.loading.value
-                        ? null
-                        : (v) => c.typeClient.value = v ?? "autre",
-                    decoration: _dec(
-                      "Client Type",
-                      "Select",
-                      Icons.category_outlined,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
+Row(
+  children: [
+    Expanded(
+      child: Obx(() => DropdownButtonFormField<String>(
+        value: c.userNom.value,
+        items: const [
+          DropdownMenuItem(value: "najeh", child: Text("Najeh")),
+          DropdownMenuItem(value: "moumen", child: Text("Moumen")),
+          DropdownMenuItem(value: "mayssa", child: Text("Mayssa")),
+        ],
+        onChanged: (v) => c.userNom.value = v ?? "najeh",
+        decoration: _dec(
+          "Assigned User",
+          "Select user",
+          Icons.person_pin_outlined,
+        ),
+      )),
+    ),
 
-              Expanded(
-                child: Obx(
-                  () => DropdownButtonFormField<String>(
-                    value: c.statut.value,
-                    items: const [
-                      DropdownMenuItem(value: "ok", child: Text("OK")),
-                      DropdownMenuItem(
-                        value: "rappeler_plus_tard",
-                        child: Text("Call Later"),
-                      ),
-                      DropdownMenuItem(
-                        value: "user_injoignable",
-                        child: Text("Not Reachable"),
-                      ),
-                      DropdownMenuItem(
-                        value: "client_refuse",
-                        child: Text("Client Refused"),
-                      ),
-                    ],
-                    onChanged: c.loading.value
-                        ? null
-                        : (v) => c.statut.value = v ?? "user_injoignable",
-                    decoration: _dec(
-                      "Contact Status",
-                      "Select",
-                      Icons.flag_outlined,
-                    ),
-                  ),
-                ),
-              ),
-              
-            ],
+    const SizedBox(width: 14),
+
+    Expanded(
+       child: Obx(() => DropdownButtonFormField<String>(
+        value: c.typeClient.value,
+        items: const [
+          DropdownMenuItem(value: "Tuteur", child: Text("Supervisor")),
+          DropdownMenuItem(value: "Cloture", child: Text("Closure")),
+          DropdownMenuItem(value: "Batiment", child: Text("Batiment")),
+        ],
+        onChanged: c.loading.value
+            ? null
+            : (v) => c.typeClient.value = v ?? "autre",
+        decoration: _dec(
+          "Client Type",
+          "Select",
+          Icons.category_outlined,
+        ),
+      )),
+    ),
+
+    const SizedBox(width: 14),
+
+    Expanded(
+      child: Obx(() => DropdownButtonFormField<String>(
+        value: c.statut.value,
+        items: const [
+          DropdownMenuItem(value: "ok", child: Text("OK")),
+          DropdownMenuItem(
+            value: "rappeler_plus_tard",
+            child: Text("Call Later"),
           ),
+          DropdownMenuItem(
+            value: "user_injoignable",
+            child: Text("Not Reachable"),
+          ),
+          DropdownMenuItem(
+            value: "client_refuse",
+            child: Text("Client Refused"),
+          ),
+        ],
+        onChanged: c.loading.value
+            ? null
+            : (v) => c.statut.value = v ?? "user_injoignable",
+        decoration: _dec(
+          "Contact Status",
+          "Select",
+          Icons.flag_outlined,
+        ),
+      )),
+    ),
+  ],
+),
            const SizedBox(height: 14),
 // ✅ NOUVELLE ROW (séparée)
 Row(
@@ -395,7 +479,24 @@ Row(
             icon: const Icon(Icons.add),
             label: const Text("Add Product"),
           ),
+const SizedBox(height: 28),
+_sectionTitle("Projects", Icons.home_work_outlined),
+const SizedBox(height: 16),
 
+Obx(
+  () => Column(
+    children: List.generate(
+      c.projects.length,
+      (index) => _buildProjectRow(context, index),
+    ),
+  ),
+),
+
+OutlinedButton.icon(
+  onPressed: c.loading.value ? null : c.addProjectRow,
+  icon: const Icon(Icons.add),
+  label: const Text("Add Project"),
+),
           const SizedBox(height: 30),
 
           SizedBox(
