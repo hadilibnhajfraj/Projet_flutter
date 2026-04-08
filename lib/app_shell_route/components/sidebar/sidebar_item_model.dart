@@ -215,10 +215,10 @@ List<GroupedMenuModel> buildGroupedMenus({
             navigationPath: MyRoute.projectFormScreen,
           ),
            SidebarItemModel(
-            name: 'Commercial Profile',
+            name: 'Commercial List',
             iconPath: usersIcon,
             sidebarItemType: SidebarItemType.tile,
-            navigationPath: MyRoute.commercialProfileScreen,
+            navigationPath: '/users/commercial-contacts',
           ),
       ],
     ),
