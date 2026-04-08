@@ -183,6 +183,7 @@ List<GroupedMenuModel> buildGroupedMenus({
                 name: "Dashboard Commercial",
                 navigationPath: 'dashboard-commercial',
               ),
+
               
           ],
         ),
@@ -212,6 +213,12 @@ List<GroupedMenuModel> buildGroupedMenus({
             iconPath: formsIcon,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.projectFormScreen,
+          ),
+           SidebarItemModel(
+            name: 'Commercial Profile',
+            iconPath: usersIcon,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: MyRoute.commercialProfileScreen,
           ),
       ],
     ),
