@@ -13,9 +13,9 @@ class SalesDashboardController extends GetxController {
 
   // ================== BASE URL ==================
   String get baseUrl {
-    if (kIsWeb) return "http://localhost:4000";
-    if (Platform.isAndroid) return "http://10.0.2.2:4000"; // Android emulator
-    return "http://localhost:4000"; // Windows / iOS / macOS
+    if (kIsWeb) return "https://api.crmprobar.com";
+    if (Platform.isAndroid) return "https://api.crmprobar.com"; // Android emulator
+    return "https://api.crmprobar.com"; // Windows / iOS / macOS
   }
 
   // ================== STATE ==================

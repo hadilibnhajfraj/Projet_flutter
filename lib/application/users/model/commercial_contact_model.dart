@@ -77,6 +77,7 @@ class CommercialContact {
   final String? nomSociete;
   final String nom;
   final String prenom;
+  
   final String? localisation;
   final String telephone;
   final String? message;

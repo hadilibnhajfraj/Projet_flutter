@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../model/commercial_contact_model.dart';
 import 'package:dash_master_toolkit/services/commercial_contact_service.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_timeline_screen.dart';
+import 'package:excel/excel.dart' as excel;
+import 'dart:html' as html;
 class CommercialContactListGetxScreen extends StatefulWidget {
   final String token;
   
@@ -24,6 +26,8 @@ class _CommercialContactListGetxScreenState
   final ScrollController _verticalScrollController = ScrollController();
   String? selectedUser;
   String? selectedType;
+  int currentPage = 1;
+  int rowsPerPage = 10;
   bool _loading = true;
   String? _error;
   List<CommercialContact> _contacts = [];
@@ -38,7 +42,180 @@ class _CommercialContactListGetxScreenState
     super.initState();
     _loadContacts();
   }
+List<CommercialContact> get paginatedContacts {
+  final start = (currentPage - 1) * rowsPerPage;
+  final end = start + rowsPerPage;
 
+  if (start >= _contacts.length) return [];
+
+  return _contacts.sublist(
+    start,
+    end > _contacts.length ? _contacts.length : end,
+  );
+}
+void _exportContactsExcel() {
+  final items = _contacts;
+
+  var excelFile = excel.Excel.createExcel();
+  excel.Sheet sheet = excelFile['Contacts'];
+
+  final headers = [
+    'ID',
+    'Full Name',
+    'First Name',
+    'Last Name',
+    'Company',
+    'Phone',
+    'Location',
+    'Client Type',
+    'Status',
+    'Pipeline',
+    'Calls',
+    'Subject',
+    'Message',
+    'Date Appel',
+    'User',
+    'Products',
+    'Projects',
+    'Relances',
+    'Created At',
+  ];
+
+  sheet.appendRow(headers);
+
+  /// 🎨 HEADER STYLE
+  for (int i = 0; i < headers.length; i++) {
+    sheet
+        .cell(excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+        .cellStyle = excel.CellStyle(
+      bold: true,
+      backgroundColorHex: "#111827",
+      fontColorHex: "#FFFFFF",
+    );
+  }
+
+  /// 🔥 GROUP BY USER
+  Map<String, List<CommercialContact>> grouped = {};
+
+  for (var c in items) {
+    final user = c.userNom ?? "Unknown";
+    grouped.putIfAbsent(user, () => []).add(c);
+  }
+
+  int rowIndex = 1;
+
+  grouped.forEach((user, contacts) {
+    /// 🔥 TOTAL PROJECTS PAR USER
+    int totalProjects =
+        contacts.fold(0, (sum, c) => sum + c.projects.length);
+
+    /// 🔥 USER HEADER ROW
+    sheet.appendRow([
+      "", // ID
+      "👤 $user ($totalProjects projects)", // Full Name
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      user,
+      "",
+      "",
+      "",
+      "",
+    ]);
+
+    /// 🎨 STYLE USER ROW
+    for (int col = 0; col < headers.length; col++) {
+      sheet
+          .cell(excel.CellIndex.indexByColumnRow(
+              columnIndex: col, rowIndex: rowIndex))
+          .cellStyle = excel.CellStyle(
+        bold: true,
+        backgroundColorHex: "#E0F2FE",
+      );
+    }
+
+    rowIndex++;
+
+    /// 🔥 CONTACTS
+    for (var c in contacts) {
+      /// PRODUITS
+      String produits = c.produits
+          .map((p) => "${p.produit} (${p.qte})")
+          .join(" | ");
+
+      /// PROJECTS
+      String projects = c.projects
+          .map((p) =>
+              "${p.nomProjet} (${p.localisation})")
+          .join(" | ");
+
+      /// RELANCES
+      String relances = c.relances
+          .map((r) =>
+              "${r.dateRelance ?? ''} ${r.heureRelance ?? ''}")
+          .join(" | ");
+
+      sheet.appendRow([
+        c.id,
+        c.fullName,
+        c.prenom,
+        c.nom,
+        c.nomSociete ?? "",
+        c.telephone,
+        c.localisation ?? "",
+        c.typeClient,
+        c.statut,
+        c.pipelineStage,
+        c.nbAppels,
+        c.sujetDiscussion ?? "",
+        c.message ?? "",
+        c.dateAppel?.toIso8601String() ?? "",
+        c.userNom ?? "",
+        produits,
+        projects,
+        relances,
+        c.createdAt?.toIso8601String() ?? "",
+      ]);
+
+      rowIndex++;
+    }
+
+    /// ESPACE ENTRE USERS
+    sheet.appendRow([""]);
+    rowIndex++;
+  });
+
+  /// WIDTH
+  for (int i = 0; i < headers.length; i++) {
+    sheet.setColWidth(i, 28);
+  }
+
+  /// SAVE
+  final bytes = excelFile.encode();
+  if (bytes == null) return;
+
+  final blob = html.Blob(
+    [bytes],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  );
+
+  final url = html.Url.createObjectUrlFromBlob(blob);
+
+  html.AnchorElement(href: url)
+    ..setAttribute('download', 'contacts_full_grouped.xlsx')
+    ..click();
+
+  html.Url.revokeObjectUrl(url);
+}
 Future<void> _loadContacts({
   String? query,
   String? userNom,
@@ -1162,7 +1339,7 @@ OutlinedButton.icon(
                         DataColumn(label: Text('Message')),
                         DataColumn(label: Text('Actions')),
                       ],
-                      rows: _contacts.map((contact) {
+                      rows: paginatedContacts.map((contact)  {
                         final relance = contact.relances.isNotEmpty
                             ? contact.relances.first
                             : null;
@@ -1496,6 +1673,11 @@ Widget _buildSearchBar() {
                 ),
               ),
             ),
+            ElevatedButton.icon(
+  onPressed: _exportContactsExcel,
+  icon: const Icon(Icons.download),
+  label: const Text("Export Excel"),
+),
           ],
         ),
       ],
