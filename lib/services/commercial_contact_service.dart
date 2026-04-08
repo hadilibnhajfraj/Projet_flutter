@@ -5,33 +5,46 @@ import '../application/users/model/commercial_contact_model.dart';
 class CommercialContactService {
   static const String baseUrl = 'http://localhost:4000/commercial-contacts';
 
-  Future<List<CommercialContact>> fetchMyContacts({
-    required String token,
-    String? query,
-  }) async {
-    final uri = Uri.parse(
-      query != null && query.trim().isNotEmpty
-          ? '$baseUrl?q=${Uri.encodeComponent(query.trim())}'
-          : baseUrl,
-    );
+Future<List<CommercialContact>> fetchMyContacts({
+  required String token,
+  String? query,
+  String? userNom,
+  String? typeClient,
+}) async {
+  final queryParams = <String, String>{};
 
-    final response = await http.get(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      final List<dynamic> data = jsonDecode(response.body);
-      return data
-          .map((e) => CommercialContact.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } else {
-      throw Exception('Failed to load commercial contacts');
-    }
+  if (query != null && query.trim().isNotEmpty) {
+    queryParams['q'] = query.trim();
   }
+
+  if (userNom != null && userNom.isNotEmpty) {
+    queryParams['user_nom'] = userNom;
+  }
+
+  if (typeClient != null && typeClient.isNotEmpty) {
+    queryParams['typeClient'] = typeClient;
+  }
+
+  final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
+
+  final response = await http.get(
+    uri,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    final List<dynamic> data = jsonDecode(response.body);
+
+    return data
+        .map((e) => CommercialContact.fromJson(e as Map<String, dynamic>))
+        .toList();
+  } else {
+    throw Exception('Failed to load commercial contacts');
+  }
+}
 
   Future<CommercialContact> updateContact({
     required String token,

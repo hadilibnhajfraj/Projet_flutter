@@ -4,7 +4,7 @@ import 'package:dash_master_toolkit/services/commercial_contact_service.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_timeline_screen.dart';
 class CommercialContactListGetxScreen extends StatefulWidget {
   final String token;
-
+  
   const CommercialContactListGetxScreen({
     super.key,
     required this.token,
@@ -22,7 +22,8 @@ class _CommercialContactListGetxScreenState
 
   final ScrollController _horizontalScrollController = ScrollController();
   final ScrollController _verticalScrollController = ScrollController();
-
+  String? selectedUser;
+  String? selectedType;
   bool _loading = true;
   String? _error;
   List<CommercialContact> _contacts = [];
@@ -38,39 +39,45 @@ class _CommercialContactListGetxScreenState
     _loadContacts();
   }
 
-  Future<void> _loadContacts({String? query}) async {
-    try {
-      if (mounted) {
-        setState(() {
-          _loading = true;
-          _error = null;
-        });
-      }
+Future<void> _loadContacts({
+  String? query,
+  String? userNom,
+  String? typeClient,
+}) async {
+  try {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
 
-      final data = await _service.fetchMyContacts(
-        token: widget.token,
-        query: query?.trim(),
-      );
+    final data = await _service.fetchMyContacts(
+      token: widget.token,
+      query: query,
+      userNom: userNom,        // ✅ IMPORTANT
+      typeClient: typeClient,  // ✅ IMPORTANT
+    );
 
-      if (mounted) {
-        setState(() {
-          _contacts = data;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
+    if (mounted) {
+      setState(() {
+        _contacts = data;
+      });
+    }
+  } catch (e) {
+    if (mounted) {
+      setState(() {
+        _error = e.toString();
+      });
+    }
+  } finally {
+    if (mounted) {
+      setState(() {
+        _loading = false;
+      });
     }
   }
+}
 
   Future<void> _updateContact({
     required String id,
@@ -1350,78 +1357,151 @@ OutlinedButton.icon(
     );
   }
 
-  Widget _buildSearchBar() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE4E7EC)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0A000000),
-            blurRadius: 20,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search by name, company, phone or location...',
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: const Color(0xFFF9FAFB),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
+Widget _buildSearchBar() {
+  return Container(
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFFE4E7EC)),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x0A000000),
+          blurRadius: 20,
+          offset: Offset(0, 6),
+        ),
+      ],
+    ),
+    child: Column(
+      children: [
+        /// 🔍 SEARCH TEXT
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText:
+                      'Search by name, company, phone or location...',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: const Color(0xFFF9FAFB),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFFD0D5DD)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFF3B82F6)),
+                onSubmitted: (value) => _loadContacts(
+                  query: value,
+                  userNom: selectedUser,
+                  typeClient: selectedType,
                 ),
               ),
-              onSubmitted: (value) => _loadContacts(query: value),
             ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed: () => _loadContacts(query: _searchController.text),
-            icon: const Icon(Icons.search),
-            label: const Text('Search'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+            const SizedBox(width: 12),
+
+            /// 🔍 SEARCH BUTTON
+            ElevatedButton.icon(
+              onPressed: () => _loadContacts(
+                query: _searchController.text,
+                userNom: selectedUser,
+                typeClient: selectedType,
+              ),
+              icon: const Icon(Icons.search),
+              label: const Text('Search'),
+            ),
+
+            const SizedBox(width: 10),
+
+            /// 🔄 RESET
+            OutlinedButton.icon(
+              onPressed: () {
+                _searchController.clear();
+                setState(() {
+                  selectedUser = null;
+                  selectedType = null;
+                });
+                _loadContacts();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reset'),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        /// 🔥 FILTERS (USER + TYPE)
+        Row(
+          children: [
+            /// 👤 USER FILTER
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: selectedUser,
+                hint: const Text("Filter by User"),
+                items: const [
+                  DropdownMenuItem(value: "najeh", child: Text("Najeh")),
+                  DropdownMenuItem(value: "moumen", child: Text("Moumen")),
+                  DropdownMenuItem(value: "mayssa", child: Text("Mayssa")),
+                ],
+                onChanged: (v) {
+                  setState(() {
+                    selectedUser = v;
+                  });
+                  _loadContacts(
+                    query: _searchController.text,
+                    userNom: selectedUser,
+                    typeClient: selectedType,
+                  );
+                },
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.person),
+                  filled: true,
+                  fillColor: const Color(0xFFF9FAFB),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          OutlinedButton.icon(
-            onPressed: () {
-              _searchController.clear();
-              _loadContacts();
-            },
-            icon: const Icon(Icons.refresh),
-            label: const Text('Reset'),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+
+            const SizedBox(width: 12),
+
+            /// 🏢 TYPE FILTER
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: selectedType,
+                hint: const Text("Filter by Type"),
+                items: const [
+                  DropdownMenuItem(value: "Tuteur", child: Text("Tuteur")),
+                  DropdownMenuItem(value: "Cloture", child: Text("Cloture")),
+                  DropdownMenuItem(value: "Batiment", child: Text("Batiment")),
+                ],
+                onChanged: (v) {
+                  setState(() {
+                    selectedType = v;
+                  });
+                  _loadContacts(
+                    query: _searchController.text,
+                    userNom: selectedUser,
+                    typeClient: selectedType,
+                  );
+                },
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.business),
+                  filled: true,
+                  fillColor: const Color(0xFFF9FAFB),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
+          ],
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildBody() {
     if (_loading) {
