@@ -193,6 +193,7 @@ void removeProjectRow(int index) {
       produits: cleanedProduits,
       projects: projects,
       relance: relance,
+      userNom: userNom.value,
     );
 
     loading.value = true;

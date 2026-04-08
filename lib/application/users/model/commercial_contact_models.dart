@@ -88,6 +88,7 @@ class CommercialContactCreateDto {
 
   String pipelineStage;
   String? dateAppel;
+  String userNom;
 
   CommercialContactCreateDto({
     this.typeClient = "autre",
@@ -104,6 +105,7 @@ class CommercialContactCreateDto {
     List<CommercialProjectInput>? projects,
     this.relance,
     this.pipelineStage = "Prospect",
+    this.userNom = "najeh",
     this.dateAppel,
   })  : produits = produits ?? [CommercialProductInput()],
         projects = projects ?? [CommercialProjectInput()];
@@ -121,6 +123,7 @@ class CommercialContactCreateDto {
       "nbAppels": nbAppels,
       "sujetDiscussion":
           sujetDiscussion.trim().isEmpty ? null : sujetDiscussion.trim(),
+      "user_nom": userNom,
 
       // ✅ PRODUITS
       "produits": produits.map((p) => p.toJson()).toList(),

@@ -446,6 +446,7 @@ class _CommercialContactListGetxScreenState
   text: contact.dateAppel != null
       ? "${contact.dateAppel!.year}-${contact.dateAppel!.month.toString().padLeft(2, '0')}-${contact.dateAppel!.day.toString().padLeft(2, '0')}"
       : "",
+      
 );
 
 DateTime? dateAppel = contact.dateAppel;
@@ -1162,36 +1163,53 @@ OutlinedButton.icon(
                         return DataRow(
                           cells: [
                             DataCell(
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 18,
-                                    backgroundColor: const Color(0xFFEAF2FF),
-                                    child: Text(
-                                      contact.nom.isNotEmpty
-                                          ? contact.nom[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF1D4ED8),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  ConstrainedBox(
-                                    constraints:
-                                        const BoxConstraints(maxWidth: 180),
-                                    child: Text(
-                                      contact.fullName,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+  Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      CircleAvatar(
+        radius: 18,
+        backgroundColor: const Color(0xFFEAF2FF),
+        child: Text(
+          contact.nom.isNotEmpty
+              ? contact.nom[0].toUpperCase()
+              : '?',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1D4ED8),
+          ),
+        ),
+      ),
+      const SizedBox(width: 10),
+
+      /// 🔥 TEXTE + CREATED BY
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              contact.fullName,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+
+            const SizedBox(height: 4),
+
+            Text(
+              "👤 Created by: ${contact.userNom ?? '-'}",
+              style: const TextStyle(
+                fontSize: 11,
+                color: Colors.grey,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  ),
+),
                             DataCell(
                               ConstrainedBox(
                                 constraints: const BoxConstraints(maxWidth: 160),
