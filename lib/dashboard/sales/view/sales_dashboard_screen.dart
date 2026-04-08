@@ -1,6 +1,9 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:dash_master_toolkit/dashboard/sales/sales_imports.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'package:syncfusion_flutter_maps/maps.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class SalesDashboardScreen extends StatefulWidget {
   const SalesDashboardScreen({super.key});
@@ -13,7 +16,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
   final ThemeController themeController = Get.put(ThemeController());
   final SalesDashboardController controller = Get.put(SalesDashboardController());
 
-  // ✅ Single helper (duplicate removed)
+  // ================== Helpers ==================
   double _toDouble(dynamic v, {double fallback = 0}) {
     if (v == null) return fallback;
     if (v is num) return v.toDouble();
@@ -22,17 +25,7 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final lang = AppLocalizations.of(context);
     final theme = Theme.of(context);
-
-    final isMobileScreen = responsiveValue<bool>(
-      context,
-      xs: true,
-      sm: true,
-      md: false,
-      lg: false,
-      xl: false,
-    );
 
     return GetBuilder<SalesDashboardController>(
       init: controller,
@@ -48,15 +41,15 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
                   const rf.Condition.between(start: 0, end: 340, value: 2),
                   const rf.Condition.between(start: 341, end: 992, value: 8),
                 ],
-                defaultValue: 16,
+                defaultValue: 12,
               ).value,
             ),
             child: ResponsiveGridRow(
               children: [
-                _commonCard(5, _buildTodaySaleWidget(lang, theme)),
-                _commonCard(7, _buildVisitorChart(lang, theme, isMobileScreen)),
-                _commonCard(5, _buildTopProductsWidget(lang, theme)),
-                _commonCard(7, _buildCountryMapSalesWidget(lang)),
+                _commonCard(5, _buildTodaySaleWidget(theme)),
+                _commonCard(7, _buildVisitorChart(theme)),
+                _commonCard(5, _buildTopProductsWidget(theme)),
+                _commonCard(7, _buildCountryMapSalesWidget()),
               ],
             ),
           ),
@@ -65,780 +58,637 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
     );
   }
 
-  // =========================
-  // MAP KPI (Projects mapping)
-  // =========================
-  Widget _buildCountryMapSalesWidget(AppLocalizations lang) {
-    return Padding(
-      padding: const EdgeInsets.all(7.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _titleTextStyle("Projects Mapping (lat/lng)"),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 280,
-            child: Obx(() {
-              final rows = controller.projectLocationKpi;
-
-              if (controller.isLoadingKpi.value) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (controller.kpiError.value.isNotEmpty) {
-                return Center(
-                  child: Text(
-                    controller.kpiError.value,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                );
-              }
-              if (rows.isEmpty) {
-                return const Center(child: Text("No location KPI data"));
-              }
-
-              final first = rows.first as Map;
-              final centerLat = _toDouble(first["latitude"], fallback: 36.8);
-              final centerLng = _toDouble(first["longitude"], fallback: 10.2);
-
-              return SfMaps(
-                layers: [
-                  MapTileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    initialFocalLatLng: MapLatLng(centerLat, centerLng),
-                    initialZoomLevel: 6,
-                    initialMarkersCount: rows.length,
-                    markerBuilder: (context, index) {
-                      final d = rows[index] as Map;
-
-                      final name = (d["nomProjet"] ?? "Project").toString();
-                      final lat = _toDouble(d["latitude"]);
-                      final lng = _toDouble(d["longitude"]);
-                      final status = (d["validationStatut"] ?? "Not Validated").toString();
-
-                      final isValid = status == "Validated";
-
-                      return MapMarker(
-                        latitude: lat,
-                        longitude: lng,
-                        size: const Size(160, 36),
-                        alignment: Alignment.center,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: isValid ? Colors.green.shade600 : Colors.red.shade600,
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: const [
-                              BoxShadow(blurRadius: 6, color: Colors.black26),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                isValid ? Icons.verified : Icons.error,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-
-                    // ✅ Global tooltip for layer markers (correct place)
-                    markerTooltipBuilder: (context, index) {
-                      final d = rows[index] as Map;
-
-                      final name = (d["nomProjet"] ?? "").toString();
-                      final status = (d["validationStatut"] ?? "").toString();
-                      final adr = (d["adresse"] ?? d["localisationCommentaire"] ?? "").toString();
-
-                      return Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.black87,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: DefaultTextStyle(
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 6),
-                              Text("Status: $status"),
-                              if (adr.trim().isNotEmpty) Text("Address: $adr"),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              );
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =========================
-  // Validation status list
-  // =========================
-  Widget _buildValidationStatusWidget(AppLocalizations lang, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.all(7.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _titleTextStyle("Validation Status Count"),
-          const SizedBox(height: 10),
-          Obx(() {
-            final rows = controller.projectValidationStatus;
-
-            if (controller.isLoadingKpi.value) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (controller.kpiError.value.isNotEmpty) {
-              return Text(controller.kpiError.value, style: const TextStyle(color: Colors.red));
-            }
-            if (rows.isEmpty) return const Text("No status data");
-
-            return Column(
-              children: rows.map((e) {
-                final d = e as Map;
-                return ListTile(
-                  dense: true,
-                  title: Text("${d["validationStatut"]}"),
-                  trailing: Text("${d["projectCount"]}"),
-                );
-              }).toList(),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  // =========================
-  // Surface KPI table
-  // =========================
-  Widget _buildTopProductsWidget(AppLocalizations lang, ThemeData theme) {
-    final titleTextStyle = theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600);
-    final rowTextStyle = theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500, fontSize: 14);
-
-    return Padding(
-      padding: const EdgeInsets.all(7.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _titleTextStyle("Validation by Surface (m²)"),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 300,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return Obx(() {
-                  final rows = controller.surfacePagedRows;
-
-                  if (controller.isLoadingKpi.value) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (controller.kpiError.value.isNotEmpty) {
-                    return Center(
-                      child: Text(controller.kpiError.value, style: const TextStyle(color: Colors.red)),
-                    );
-                  }
-                  if (rows.isEmpty) {
-                    return const Center(child: Text("No surface KPI data"));
-                  }
-
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                      child: Theme(
-                        data: Theme.of(context).copyWith(
-                          dividerColor: Colors.transparent,
-                          dividerTheme: const DividerThemeData(color: Colors.transparent, space: 0, thickness: 0),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: DataTable(
-                            border: TableBorder(
-                              borderRadius: BorderRadius.circular(8.0),
-                              horizontalInside: BorderSide(
-                                color: themeController.isDarkMode ? colorGrey700 : colorGrey100,
-                              ),
-                            ),
-                            dividerThickness: 1.0,
-                            horizontalMargin: 16.0,
-                            headingRowColor: WidgetStateColor.transparent,
-                            columnSpacing: 24,
-                            dataRowMaxHeight: 65,
-                            columns: [
-                              DataColumn(label: Text("#", style: titleTextStyle)),
-                              DataColumn(label: Text("Surface", style: titleTextStyle)),
-                              DataColumn(label: Text("Total", style: titleTextStyle)),
-                              DataColumn(label: Text("Validated", style: titleTextStyle)),
-                              DataColumn(label: Text("%", style: titleTextStyle)),
-                            ],
-                            rows: List.generate(rows.length, (index) {
-                              final d = rows[index];
-
-                              final surface = controller.surfaceLabel(d);
-                              final total = controller.surfaceTotal(d).toString();
-                              final valid = controller.surfaceValidated(d).toString();
-                              final pctNum = controller.surfaceAvgReussite(d);
-
-                              return DataRow(
-                                cells: [
-                                  DataCell(Text("${index + 1}", style: rowTextStyle)),
-                                  DataCell(Text(surface, style: rowTextStyle)),
-                                  DataCell(Text(total, style: rowTextStyle)),
-                                  DataCell(Text(valid, style: rowTextStyle)),
-                                  DataCell(Text("${pctNum.toStringAsFixed(2)}%", style: rowTextStyle)),
-                                ],
-                              );
-                            }),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                });
-              },
-            ),
-          ),
-
-          // Pagination controls
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: controller.prevSurfacePage,
-              ),
-              Text("Page ${controller.surfacePage} of ${controller.surfaceTotalPages}"),
-              IconButton(
-                icon: const Icon(Icons.arrow_forward),
-                onPressed: controller.nextSurfacePage,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<BarChartGroupData> _buildTargetRealityBarGroups({double animationValue = 1.0}) {
-    final realitySales = [8000, 8200, 9000, 8800, 9500, 9700, 8800];
-    final targetSales = [10000, 10200, 12000, 11000, 13000, 12800, 12122];
-
-    return List.generate(realitySales.length, (index) {
-      return BarChartGroupData(
-        x: index,
-        barRods: [
-          BarChartRodData(
-            toY: realitySales[index] * animationValue,
-            width: 10,
-            color: const Color(0xFF31C48D),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          BarChartRodData(
-            toY: targetSales[index] * animationValue,
-            width: 10,
-            color: const Color(0xFFFFC300),
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ],
-        barsSpace: 4,
-      );
-    });
-  }
-
-  LineChartBarData _lineBarDataForCustomerStratification({
-    required List<double> data,
-    required Color color,
-    required Gradient gradient,
-    double animationValue = 1.0,
-  }) {
-    return LineChartBarData(
-      spots: List.generate(
-        data.length,
-        (index) => FlSpot(index.toDouble(), data[index] * animationValue),
-      ),
-      isCurved: true,
-      barWidth: 3,
-      color: color,
-      belowBarData: BarAreaData(show: true, gradient: gradient),
-      dotData: FlDotData(show: true),
-    );
-  }
-
-  Widget _buildCustomerStratificationLegend(AppLocalizations lang) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        LegendItem(color: colorLightBlue, label: lang.translate("LastMonth"), amount: "\$3,004"),
-        const SizedBox(width: 6),
-        SizedBox(
-          height: 25,
-          child: VerticalDivider(
-            color: themeController.isDarkMode ? colorGrey700 : colorGrey100,
-            thickness: 2,
-            width: 15,
-          ),
-        ),
-        const SizedBox(width: 6),
-        LegendItem(color: colorLightGreen, label: lang.translate("ThisMonth"), amount: "\$5,004"),
-      ],
-    );
-  }
-
-  List<BarChartGroupData> _getRevenueBarGroups({double animationValue = 1.0}) {
-    final online = [12000, 15000, 5000, 14000, 11000, 13000, 20000];
-    final offline = [10000, 10000, 20000, 7000, 9000, 11000, 9000];
-
-    return List.generate(7, (index) {
-      return BarChartGroupData(
-        x: index,
-        barRods: [
-          BarChartRodData(
-            toY: online[index] * animationValue,
-            color: colorLightBlue,
-            width: 8,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          BarChartRodData(
-            toY: offline[index] * animationValue,
-            color: colorLightGreen,
-            width: 8,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ],
-        barsSpace: 4,
-      );
-    });
-  }
-
-  Widget _buildRevenueLegend(AppLocalizations lang, bool isMobileScreen) {
-    final items = [
-      LegendItem(color: colorLightBlue, label: lang.translate("OnlineSales")),
-      LegendItem(color: colorLightGreen, label: lang.translate("OfflineSales")),
-    ];
-
-    return isMobileScreen
-        ? Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: items.expand((item) => [item, const SizedBox(height: 5)]).toList()
-              ..removeLast(),
-          )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: items.expand((item) => [item, const SizedBox(width: 10)]).toList()
-              ..removeLast(),
-          );
-  }
-
-  // =========================
-  // Visitors chart (uses controller.projectStatusData)
-  // =========================
-  Widget _buildVisitorChart(AppLocalizations lang, ThemeData theme, bool isMobileScreen) {
-    return Padding(
-      padding: const EdgeInsets.all(7.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _titleTextStyle(lang.translate('Project Performance Overview')),
-          const SizedBox(height: 30),
-          SizedBox(
-            height: 300,
-            child: TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 800),
-              curve: Curves.easeOutCubic,
-              tween: Tween(begin: 0, end: 1),
-              builder: (context, animationValue, _) {
-                return Obx(() {
-                  final rows = controller.projectStatusData;
-
-                  if (controller.isLoadingKpi.value) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (controller.kpiError.value.isNotEmpty) {
-                    return Center(
-                      child: Text(
-                        controller.kpiError.value,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    );
-                  }
-                  if (rows.isEmpty) {
-                    return const Center(child: Text("No status data"));
-                  }
-
-                  // Convert project status data to chart-friendly format
-                  final projectCounts = <double>[];
-                  final projectStatuses = <String>[];
-
-                  for (var item in rows) {
-                    projectStatuses.add((item["statut"] ?? "").toString());
-                    projectCounts.add(_toDouble(item["projectCount"]));
-                  }
-
-                  return LineChart(
-                    LineChartData(
-                      minY: 0,
-                      maxY: projectCounts.isNotEmpty
-                          ? projectCounts.reduce((a, b) => a > b ? a : b) * 1.2
-                          : 400,
-                      borderData: FlBorderData(show: false),
-                      titlesData: FlTitlesData(
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            interval: 1,
-                            getTitlesWidget: (value, _) {
-                              final i = value.toInt();
-                              if (i < 0 || i >= projectStatuses.length) return const SizedBox.shrink();
-                              return Text(
-                                projectStatuses[i],
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            interval: 50,
-                            reservedSize: 40,
-                            getTitlesWidget: (value, meta) {
-                              return Text(
-                                value.toInt().toString(),
-                                style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
-                                textAlign: TextAlign.left,
-                              );
-                            },
-                          ),
-                        ),
-                        rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      ),
-                      lineBarsData: [
-                        LineChartBarData(
-                          spots: List.generate(
-                            projectCounts.length,
-                            (index) => FlSpot(index.toDouble(), projectCounts[index] * animationValue),
-                          ),
-                          isCurved: true,
-                          barWidth: 3,
-                          color: Colors.blue,
-                          belowBarData: BarAreaData(show: false),
-                          dotData: FlDotData(show: true),
-                        ),
-                      ],
-                      gridData: FlGridData(drawHorizontalLine: true, drawVerticalLine: false),
-                    ),
-                  );
-                });
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  LineChartBarData _line(
-    List<VisitorData> data,
-    double Function(VisitorData) valueSelector,
-    Color color, {
-    double animationValue = 1.0,
-  }) {
-    return LineChartBarData(
-      spots: data
-          .map((e) => FlSpot(
-                e.month.toDouble(),
-                valueSelector(e) * animationValue,
-              ))
-          .toList(),
-      isCurved: true,
-      color: color,
-      barWidth: 3,
-      isStrokeCapRound: true,
-      belowBarData: BarAreaData(show: false),
-      dotData: FlDotData(
-        show: true,
-        checkToShowDot: (spot, _) => spot.x == 6,
-        getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
-          radius: 6,
-          color: Colors.white,
-          strokeWidth: 3,
-          strokeColor: color,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLegend(AppLocalizations lang, bool isMobileScreen) {
-    final items = [
-      LegendItem(color: Colors.purple, label: lang.translate("LoyalCustomers")),
-      LegendItem(color: Colors.red, label: lang.translate("NewCustomers")),
-      LegendItem(color: Colors.green, label: lang.translate("UniqueCustomers")),
-    ];
-
-    return isMobileScreen
-        ? Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: items.expand((item) => [item, const SizedBox(height: 5)]).toList()
-              ..removeLast(),
-          )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: items.expand((item) => [item, const SizedBox(width: 5)]).toList()
-              ..removeLast(),
-          );
-  }
-
-  // =========================
-  // Today Sales (Projects KPI)
-  // =========================
-  Widget _buildTodaySaleWidget(AppLocalizations lang, ThemeData theme) {
+  // ================== Today KPI ==================
+Widget _buildTodaySaleWidget(ThemeData theme) {
+  return Obx(() {
     final total = controller.totalProjects;
     final validated = controller.validatedProjects;
     final nonValidated = controller.nonValidatedProjects;
     final pct = controller.validatedPercentage;
 
+    if (controller.isLoadingKpi.value) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (controller.kpiError.value.isNotEmpty) {
+      return Center(
+        child: Text(controller.kpiError.value,
+            style: const TextStyle(color: Colors.red)),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.all(7.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _titleTextStyle(lang.translate('Project Intelligence Dashboard')),
-                  const SizedBox(height: 3),
-                  Text(
-                    "Projects KPI Summary",
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: themeController.isDarkMode ? colorGrey500 : colorGrey400,
-                    ),
-                  ),
-                ],
-              ),
-              ElevatedButton.icon(
-                onPressed: () => controller.fetchProjectKpis(),
-                style: ElevatedButton.styleFrom(
-                  elevation: 0,
-                  backgroundColor: themeController.isDarkMode ? colorGrey900 : colorWhite,
-                  shape: RoundedRectangleBorder(
-                    side: BorderSide(
-                      color: themeController.isDarkMode ? colorGrey700 : colorGrey100,
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: Icon(Icons.refresh, color: themeController.isDarkMode ? colorWhite : colorGrey900),
-                label: Text(
-                  "Refresh",
-                  style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-                ),
-              )
-            ],
-          ),
-        ),
-
-        // ✅ IMPORTANT: show Rx via Obx
-        Obx(() {
-          if (controller.isLoadingKpi.value) {
-            return const Padding(
-              padding: EdgeInsets.all(12),
-              child: LinearProgressIndicator(),
-            );
-          }
-          if (controller.kpiError.value.isNotEmpty) {
-            return Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(controller.kpiError.value, style: const TextStyle(color: Colors.red)),
-            );
-          }
-          return const SizedBox.shrink();
-        }),
-
-        const SizedBox(height: 10),
-
-        ResponsiveGridRow(
+        /// 🔥 HEADER
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _commonSaleCardWidget(
-              cardBgColor: const Color(0xffFFE2E6),
-              iconBgColor: const Color(0xffFA5A7E),
-              theme: theme,
-              icon: chartSalesIcon,
-              totalCount: total.toString(),
-              title: "Total Projects",
-              profit: "All created projects",
-              index: 0,
+            Text(
+              "Project Intelligence",
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            _commonSaleCardWidget(
-              cardBgColor: const Color(0xffDCFCE7),
-              iconBgColor: const Color(0xff3BD755),
-              theme: theme,
-              icon: tagIcon,
-              totalCount: validated.toString(),
-              title: "Validated",
-              profit: "Status = Validated",
-              index: 1,
-            ),
-            _commonSaleCardWidget(
-              cardBgColor: const Color(0xffFFF4DE),
-              iconBgColor: const Color(0xffFF947A),
-              theme: theme,
-              icon: fileMinusIcon,
-              totalCount: controller.pctText(pct),
-              title: "Validation %",
-              profit: "Validated / Total",
-              index: 2,
-            ),
-            _commonSaleCardWidget(
-              cardBgColor: const Color(0xffF4E8FF),
-              iconBgColor: const Color(0xffBF83FE),
-              theme: theme,
-              icon: addUserIcon,
-              totalCount: nonValidated.toString(),
-              title: "Not Validated",
-              profit: "Total - Validated",
-              index: 3,
-            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                "Overview",
+                style: TextStyle(color: Colors.blue, fontSize: 12),
+              ),
+            )
           ],
         ),
 
-        const SizedBox(height: 10),
+        const SizedBox(height: 20),
+
+        /// 🔥 KPI GRID
+        ResponsiveGridRow(
+          children: [
+            _modernCard(
+              title: "Total Projects",
+              value: "$total",
+              icon: Icons.dashboard,
+              gradient: [Color(0xffFF7E79), Color(0xffFFB199)],
+            ),
+            _modernCard(
+              title: "Validated",
+              value: "$validated",
+              icon: Icons.check_circle,
+              gradient: [Color(0xff56ab2f), Color(0xffa8e063)],
+            ),
+            _modernCard(
+              title: "Validation Rate",
+              value: "${pct.toStringAsFixed(1)}%",
+              icon: Icons.show_chart,
+              gradient: [Color(0xfff7971e), Color(0xffffd200)],
+            ),
+            _modernCard(
+              title: "Pending",
+              value: "$nonValidated",
+              icon: Icons.pending_actions,
+              gradient: [Color(0xff8E2DE2), Color(0xffC33764)],
+            ),
+          ],
+        ),
       ],
     );
-  }
+  });
+}
+ResponsiveGridCol _modernCard({
+  required String title,
+  required String value,
+  required IconData icon,
+  required List<Color> gradient,
+}) {
+  return ResponsiveGridCol(
+    xs: 12,
+    sm: 6,
+    md: 6,
+    lg: 6,
+    xl: 6,
+    child: Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: gradient.first.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          /// ICON
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 22),
+          ),
 
-  ResponsiveGridCol _commonSaleCardWidget({
-    required Color cardBgColor,
-    required Color iconBgColor,
-    required ThemeData theme,
-    required int index,
-    required String icon,
-    required String totalCount,
-    required String title,
-    required String profit,
-  }) {
+          const SizedBox(width: 12),
+
+          /// TEXT
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Colors.white70,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+}
+  ResponsiveGridCol _commonSaleCardWidget(ThemeData theme, String title, String totalCount, String icon, Color cardBgColor, Color iconBgColor) {
     return ResponsiveGridCol(
       xs: 6,
       sm: 6,
       md: 6,
       lg: 6,
       xl: 6,
-      child: IntrinsicHeight(
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 5),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: cardBgColor),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        margin: const EdgeInsets.all(5),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: cardBgColor),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: iconBgColor),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: SvgPicture.asset(icon, colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(totalCount, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Text(title, style: theme.textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================== Visitor chart ==================
+int touchedIndex = -1; // 👉 ajouter dans ton State
+
+Widget _buildVisitorChart(ThemeData theme) {
+  return Obx(() {
+    if (controller.isLoadingKpi.value) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (controller.kpiError.value.isNotEmpty) {
+      return Center(
+        child: Text(controller.kpiError.value,
+            style: const TextStyle(color: Colors.red)),
+      );
+    }
+
+    final rows = controller.projectStatusData;
+
+    if (rows.isEmpty) {
+      return const Center(child: Text("No status data"));
+    }
+
+    final total = controller.totalProjects;
+
+    final colors = [
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.red,
+      Colors.teal,
+      Colors.pink,
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Projects by Status", style: theme.textTheme.titleLarge),
+        const SizedBox(height: 20),
+
+        SizedBox(
+          height: 300,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: iconBgColor),
-                child: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: SvgPicture.asset(
-                    icon,
-                    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+              PieChart(
+                PieChartData(
+                  sectionsSpace: 3,
+                  centerSpaceRadius: 70,
+                  pieTouchData: PieTouchData(
+                    touchCallback: (event, response) {
+                      setState(() {
+                        if (!event.isInterestedForInteractions ||
+                            response == null ||
+                            response.touchedSection == null) {
+                          touchedIndex = -1;
+                          return;
+                        }
+                        touchedIndex =
+                            response.touchedSection!.touchedSectionIndex;
+                      });
+                    },
                   ),
+                  sections: List.generate(rows.length, (index) {
+                    final d = rows[index];
+                    final value = _toDouble(d["projectCount"]);
+                    final percent =
+                        total == 0 ? 0 : (value / total) * 100;
+
+                    final isTouched = index == touchedIndex;
+
+                    return PieChartSectionData(
+                      color: colors[index % colors.length],
+                      value: value,
+                      radius: isTouched ? 95 : 85,
+                      title: "${percent.toStringAsFixed(1)}%",
+                      titleStyle: TextStyle(
+                        fontSize: isTouched ? 14 : 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    );
+                  }),
                 ),
+                swapAnimationDuration: const Duration(milliseconds: 500),
               ),
-              const SizedBox(height: 10),
-              Text(
-                totalCount,
-                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600, color: colorGrey900),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                title,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w500, color: colorGrey900),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                profit,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-                style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w400, color: colorPrimary100),
+
+              /// ✅ TOTAL AU CENTRE
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "${total.toInt()}",
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Total Projects",
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
 
-  ResponsiveGridCol _commonCard(int count, Widget child) {
-    return ResponsiveGridCol(
-      xs: 12,
-      sm: 12,
-      md: count,
-      lg: count,
-      xl: count,
-      child: Container(
-        margin: const EdgeInsetsDirectional.only(start: 8, end: 8, top: 15),
-        padding: const EdgeInsets.all(7),
-        decoration: BoxDecoration(
-          color: themeController.isDarkMode ? colorDark : colorWhite,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: const [BoxShadow(blurRadius: 6, color: Colors.black12)],
-        ),
-        child: child,
-      ),
-    );
-  }
+        const SizedBox(height: 20),
 
-  Widget _titleTextStyle(String title) {
-    final isMobile = responsiveValue<bool>(
-      context,
-      xs: true,
-      sm: true,
-      md: false,
-      lg: false,
-      xl: false,
-    );
-
-    return Text(
-      title,
-      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontSize: isMobile ? 16 : 18,
-            fontWeight: FontWeight.w600,
+        /// ✅ TOOLTIP / LABEL dynamique
+        if (touchedIndex != -1)
+          Container(
+            padding: const EdgeInsets.all(10),
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: Colors.black87,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              "${rows[touchedIndex]["statut"]} : ${rows[touchedIndex]["projectCount"]} projects",
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
+
+        /// ✅ LEGEND
+        Wrap(
+          spacing: 12,
+          runSpacing: 8,
+          children: List.generate(rows.length, (index) {
+            final d = rows[index];
+
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: colors[index % colors.length],
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  "${d["statut"]} (${d["projectCount"]})",
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            );
+          }),
+        ),
+      ],
     );
+  });
+}
+
+  // ================== Top Products / Surface table ==================
+Widget _buildTopProductsWidget(ThemeData theme) {
+  return Obx(() {
+    final rows = controller.surfacePagedRows;
+
+    if (controller.isLoadingKpi.value) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (controller.kpiError.value.isNotEmpty) {
+      return Center(
+        child: Text(controller.kpiError.value,
+            style: const TextStyle(color: Colors.red)),
+      );
+    }
+
+    if (rows.isEmpty) {
+      return const Center(child: Text("No data"));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        /// 🔥 HEADER
+        Text(
+          "Projects Performance by Surface",
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        /// 🔥 TABLE
+        Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const [
+              BoxShadow(color: Colors.black12, blurRadius: 8),
+            ],
+          ),
+          child: Column(
+            children: [
+              /// HEADER
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: const [
+                    Expanded(
+                      flex: 2,
+                      child: Text("Project",
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    Expanded(child: Text("Surface")),
+                    Expanded(child: Text("Status")),
+                    Expanded(child: Text("Success")),
+                  ],
+                ),
+              ),
+
+              const Divider(height: 1),
+
+              /// ROWS
+              ...List.generate(rows.length, (index) {
+                final d = rows[index];
+
+                /// ✅ DATA SAFE
+                final projectName =
+                    d["projectName"] ?? d["name"] ?? "Unnamed";
+
+                final surface = d["surfaceProspectee"] ?? "-";
+
+                final percent =
+                    double.tryParse(d["successPercentage"]?.toString() ?? "0") ??
+                        0;
+
+                final statut = d["statut"] ?? "Unknown";
+
+                Color statusColor;
+                if (statut == "Validé") {
+                  statusColor = Colors.green;
+                } else if (statut == "En cours") {
+                  statusColor = Colors.orange;
+                } else {
+                  statusColor = Colors.red;
+                }
+
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom:
+                          BorderSide(color: Colors.grey.shade200),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      /// 📌 PROJECT NAME
+                      Expanded(
+                        flex: 2,
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 14,
+                              backgroundColor:
+                                  Colors.blue.withOpacity(0.1),
+                              child: Text(
+                                projectName.isNotEmpty
+                                    ? projectName[0].toUpperCase()
+                                    : "?",
+                                style: const TextStyle(
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                projectName,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      /// 📐 SURFACE
+                      Expanded(
+                        child: Text("$surface m²"),
+                      ),
+
+                      /// 🏷 STATUS BADGE
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            statut,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: statusColor,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      /// 📊 SUCCESS %
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text("${percent.toStringAsFixed(0)}%"),
+                            const SizedBox(height: 4),
+                            ClipRRect(
+                              borderRadius:
+                                  BorderRadius.circular(6),
+                              child: LinearProgressIndicator(
+                                value: percent / 100,
+                                minHeight: 6,
+                                backgroundColor:
+                                    Colors.grey.shade200,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(
+                                  percent > 70
+                                      ? Colors.green
+                                      : percent > 40
+                                          ? Colors.orange
+                                          : Colors.red,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 15),
+
+        /// 🔥 PAGINATION
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios),
+              onPressed: controller.prevSurfacePage,
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                "Page ${controller.surfacePage} / ${controller.surfaceTotalPages}",
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.arrow_forward_ios),
+              onPressed: controller.nextSurfacePage,
+            ),
+          ],
+        ),
+      ],
+    );
+  });
+}
+  // ================== Projects Map ==================
+  Widget _buildCountryMapSalesWidget() {
+    return Obx(() {
+      final rows = controller.projectLocationKpi;
+      if (controller.isLoadingKpi.value) return const Center(child: CircularProgressIndicator());
+      if (controller.kpiError.value.isNotEmpty) return Center(child: Text(controller.kpiError.value, style: const TextStyle(color: Colors.red)));
+      if (rows.isEmpty) return const Center(child: Text("No map data"));
+
+      final center = rows.isNotEmpty
+          ? MapLatLng(_toDouble(rows.first["latitude"], fallback: 36.8), _toDouble(rows.first["longitude"], fallback: 10.2))
+          : MapLatLng(36.8, 10.2);
+
+      return SfMaps(
+        layers: [
+          MapTileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            initialFocalLatLng: center,
+            initialZoomLevel: 6,
+            initialMarkersCount: rows.length,
+            markerBuilder: (context, index) {
+              final d = rows[index];
+              final status = (d["validationStatut"] ?? "").toString();
+              final isValid = status == "Validated";
+              return MapMarker(
+                latitude: _toDouble(d["latitude"]),
+                longitude: _toDouble(d["longitude"]),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: isValid ? Colors.green : Colors.red,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(d["nomProjet"] ?? "Project", style: const TextStyle(color: Colors.white)),
+                ),
+              );
+            },
+          ),
+        ],
+      );
+    });
   }
+
+ ResponsiveGridCol _commonCard(int count, Widget child) {
+  return ResponsiveGridCol(
+    xs: 12,
+    sm: 12,
+    md: count,
+    lg: count,
+    xl: count,
+    child: Container(
+      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 6), // 🔥 réduit
+      padding: const EdgeInsets.all(12), // 🔥 propre
+      decoration: BoxDecoration(
+        color: themeController.isDarkMode ? colorDark : colorWhite,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 4, // 🔥 plus subtil
+            color: Colors.black12,
+          )
+        ],
+      ),
+      child: child,
+    ),
+  );
+}
 }

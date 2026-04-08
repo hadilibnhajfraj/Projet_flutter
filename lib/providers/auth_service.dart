@@ -18,7 +18,10 @@ class AuthService extends ChangeNotifier {
   String? get userId => _box.read<String>('userId');
   String? get userEmail => _box.read<String>('userEmail');
   String? get userRole => _box.read<String>('userRole');
-
+  // Ajouter à la fin de AuthService (avant la fin de la classe)
+bool get isAdmin => userRole?.toLowerCase() == 'admin';
+bool get isAgent => userRole?.toLowerCase() == 'agent';
+bool get isClient => userRole?.toLowerCase() == 'client';
   // ---------------- SIGNUP ----------------
   Future<void> signup({required String email, required String password}) async {
     await ApiClient.instance.dio.post('/auth/signup', data: {

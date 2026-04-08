@@ -107,157 +107,122 @@ class EcommerceDashboardScreenState extends State<EcommerceDashboardScreen> {
     );
   }
 
-  Widget _buildRevenueReportWidget(AppLocalizations lang, ThemeData theme, bool isMobileScreen) {
-    return Padding(
-      padding: const EdgeInsets.all(7.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  "Projects by period",
-                  style: theme.textTheme.titleLarge?.copyWith(fontSize: 18, fontWeight: FontWeight.w500),
+Widget _buildRevenueReportWidget(AppLocalizations lang, ThemeData theme, bool isMobileScreen) {
+  return Padding(
+    padding: const EdgeInsets.all(7.0),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Projects Performance by Month",
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        Obx(() {
+          final data = controller.revenueList;
+
+          if (data.isEmpty) {
+            return const Center(child: Text("No data"));
+          }
+
+          return Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: data.map((e) {
+              final validated = e.earning;
+              final success = e.expense;
+
+              return Container(
+                width: 220,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black12, blurRadius: 6),
+                  ],
                 ),
-              ),
-              Row(
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.circle, size: 10, color: colorPrimary50),
-                      const SizedBox(width: 4),
-                      Text(
-                        "% Validated",
-                        style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500, color: colorPrimary50),
+                child: Column(
+                  children: [
+                    /// 📅 MONTH
+                    Text(
+                      e.month,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
-                    ],
-                  ),
-                  const SizedBox(width: 16),
-                  Row(
-                    children: [
-                      Icon(Icons.circle, size: 10, color: colorPrimary100),
-                      const SizedBox(width: 4),
-                      Text(
-                        "% Success",
-                        style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500, color: colorPrimary100),
-                      ),
-                    ],
-                  ),
-                ],
-              )
-            ],
-          ),
-          const SizedBox(height: 10),
+                    ),
 
-          Obx(() {
-            final total = controller.totalProjects.value;
-            final validated = controller.validatedProjects.value;
-            final pct = total == 0 ? 0 : ((validated / total) * 100);
-            return Text(
-              "${pct.toStringAsFixed(1)}%",
-              style: theme.textTheme.titleLarge?.copyWith(fontSize: 32, fontWeight: FontWeight.w600),
-            );
-          }),
+                    const SizedBox(height: 10),
 
-          const SizedBox(height: 8),
-          Text(
-            "Validated projects rate (global)",
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: controller.themeController.isDarkMode ? colorGrey500 : colorGrey400,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          SizedBox(
-            height: 396,
-            child: TweenAnimationBuilder<double>(
-              duration: const Duration(milliseconds: 800),
-              curve: Curves.easeOut,
-              tween: Tween(begin: 0, end: 1),
-              builder: (context, animationValue, _) {
-                return Obx(() {
-                  return BarChart(
-                    BarChartData(
-                      maxY: 100,
-                      minY: 0,
-                      gridData: FlGridData(show: false),
-                      borderData: FlBorderData(show: false),
-                      titlesData: FlTitlesData(
-                        bottomTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            getTitlesWidget: (value, meta) {
-                              final index = value.toInt();
-                              if (index < controller.revenueList.length) {
-                                return Text(
-                                  controller.revenueList[index].month,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    fontSize: 10,
-                                    color: controller.themeController.isDarkMode ? colorGrey500 : colorGrey400,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                );
-                              }
-                              return const Text('');
-                            },
-                          ),
-                        ),
-                        leftTitles: AxisTitles(
-                          sideTitles: SideTitles(
-                            showTitles: true,
-                            reservedSize: 30,
-                            interval: 20,
-                            getTitlesWidget: (value, meta) {
-                              return Text(
-                                value.toInt().toString(),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  fontSize: 10,
-                                  color: controller.themeController.isDarkMode ? colorGrey500 : colorGrey400,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      ),
-                      barGroups: controller.revenueList.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final data = entry.value;
-
-                        return BarChartGroupData(
-                          x: index,
-                          barRods: [
-                            BarChartRodData(
-                              toY: data.earning * animationValue,
-                              width: isMobileScreen ? 10 : 20,
-                              color: colorPrimary50,
-                              borderRadius: BorderRadius.circular(4),
+                    /// 🔥 PIE CHART
+                    SizedBox(
+                      height: 120,
+                      child: PieChart(
+                        PieChartData(
+                          sectionsSpace: 2,
+                          centerSpaceRadius: 30,
+                          sections: [
+                            PieChartSectionData(
+                              value: validated,
+                              color: Colors.green,
+                              title: "${validated.toStringAsFixed(0)}%",
+                              radius: 40,
+                              titleStyle: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                              ),
                             ),
-                            BarChartRodData(
-                              toY: data.expense * animationValue,
-                              width: isMobileScreen ? 10 : 20,
-                              color: colorPrimary100,
-                              borderRadius: BorderRadius.circular(4),
+                            PieChartSectionData(
+                              value: success,
+                              color: Colors.blue,
+                              title: "${success.toStringAsFixed(0)}%",
+                              radius: 40,
+                              titleStyle: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.white,
+                              ),
                             ),
                           ],
-                          barsSpace: 4,
-                        );
-                      }).toList(),
+                        ),
+                      ),
                     ),
-                  );
-                });
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
+                    const SizedBox(height: 10),
+
+                    /// LEGEND
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Row(
+                          children: const [
+                            Icon(Icons.circle, size: 10, color: Colors.green),
+                            SizedBox(width: 4),
+                            Text("Validated", style: TextStyle(fontSize: 10)),
+                          ],
+                        ),
+                        Row(
+                          children: const [
+                            Icon(Icons.circle, size: 10, color: Colors.blue),
+                            SizedBox(width: 4),
+                            Text("Success", style: TextStyle(fontSize: 10)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          );
+        }),
+      ],
+    ),
+  );
+}
 
   Widget _buildOrderListWidget(AppLocalizations lang, ThemeData theme, bool isMobileScreen) {
     final titleTextStyle = theme.textTheme.bodyMedium?.copyWith(
