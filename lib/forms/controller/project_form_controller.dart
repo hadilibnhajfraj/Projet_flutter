@@ -97,7 +97,14 @@ final montantMarche = TextEditingController();
     if (v is String) return double.tryParse(v.replaceAll(',', '.'));
     return null;
   }
+String formatDate(String? isoDate) {
+  if (isoDate == null || isoDate.isEmpty) return "";
 
+  final date = DateTime.tryParse(isoDate);
+  if (date == null) return "";
+
+  return DateFormat("dd/MM/yyyy").format(date);
+}
 void resetForm() {
   nomProjet.clear();
   dateDemarrage.clear();
@@ -238,14 +245,19 @@ void onProjectModeleChanged(String mode) {
   adresseRevendeur.text = (j['adresseRevendeur'] ?? '').toString();
   architecte.text = (j['architecte'] ?? '').toString();
   telephoneArchitecte.text = (j['telephoneArchitecte'] ?? '').toString();
-
+latitude.value = j["location"]?["lat"];
+longitude.value = j["location"]?["lng"];
   matriculeFiscale.text =
       (j['matriculeFiscale'] ?? j['matricule_fiscale'] ?? '').toString();
       revendeurNom.text = (j['revendeurNom'] ?? '').toString();
 revendeurPrenom.text = (j['revendeurPrenom'] ?? '').toString();
 revendeurEmail.text = (j['revendeurEmail'] ?? '').toString();
 revendeurStatut.text = (j['revendeurStatut'] ?? 'prospect').toString();
-
+dateDemarrage.text = formatDate(j["startDate"]);
+commentaireCtrl.text =
+    j["localisationCommentaire"] ??
+    j["commentaireAction"] ??
+    "";
   entreprise.text = (j['entreprise'] ?? '').toString();
   promoteur.text = (j['promoteur'] ?? '').toString();
   bureauEtude.text = (j['bureauEtude'] ?? '').toString();
@@ -417,55 +429,60 @@ Future<void> pickDateVisite(BuildContext context) async {
   // DATE PICKER
   // =========================
   Future<void> pickDateDemarrage(BuildContext context) async {
-    FocusScope.of(context).unfocus();
+  FocusScope.of(context).unfocus();
 
-    final now = DateTime.now();
-    DateTime initialDate = selectedDateDemarrage.value ?? now;
+  final now = DateTime.now();
+  DateTime initialDate = selectedDateDemarrage.value ?? now;
 
-    final txt = dateDemarrage.text.trim();
-    if (txt.isNotEmpty) {
-      try {
-        initialDate = DateFormat('yyyy-MM-dd').parseStrict(txt);
-      } catch (_) {
-        initialDate = now;
-      }
+  final txt = dateDemarrage.text.trim();
+
+  if (txt.isNotEmpty) {
+    try {
+      // ✅ CORRECT FORMAT (dd/MM/yyyy)
+      initialDate = DateFormat('dd/MM/yyyy').parseStrict(txt);
+    } catch (_) {
+      initialDate = now;
     }
+  }
 
-    final picked = await showDialog<DateTime>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text("Select a date"),
-          content: SizedBox(
-            width: 420,
-            height: 360,
-            child: CalendarDatePicker(
-              initialDate: initialDate,
-              firstDate: DateTime(2000),
-              lastDate: DateTime(2100),
-              onDateChanged: (d) => Navigator.of(ctx).pop(d),
-            ),
+  final picked = await showDialog<DateTime>(
+    context: context,
+    builder: (ctx) {
+      return AlertDialog(
+        title: const Text("Select a date"),
+        content: SizedBox(
+          width: 420,
+          height: 360,
+          child: CalendarDatePicker(
+            initialDate: initialDate,
+            firstDate: DateTime(2000),
+            lastDate: DateTime(2100),
+            onDateChanged: (d) => Navigator.of(ctx).pop(d),
           ),
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
 
-    if (picked == null) return;
-    setDateDemarrage(picked);
-  }
+  if (picked == null) return;
 
-  void setDateDemarrage(DateTime d) {
-    selectedDateDemarrage.value = d;
-    final formatted = DateFormat('yyyy-MM-dd').format(d);
+  setDateDemarrage(picked);
+}
 
-    dateDemarrage.value = dateDemarrage.value.copyWith(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-      composing: TextRange.empty,
-    );
+ void setDateDemarrage(DateTime d) {
+  selectedDateDemarrage.value = d;
 
-    update(['dateDemarrage']);
-  }
+  // ✅ FORMAT UI (CORRIGÉ)
+  final formatted = DateFormat('dd/MM/yyyy').format(d);
+
+  dateDemarrage.value = dateDemarrage.value.copyWith(
+    text: formatted,
+    selection: TextSelection.collapsed(offset: formatted.length),
+    composing: TextRange.empty,
+  );
+
+  update(['dateDemarrage']);
+}
 
   // =========================
   // AUTO GEOCODE

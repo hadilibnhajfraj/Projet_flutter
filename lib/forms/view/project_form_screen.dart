@@ -22,6 +22,8 @@ import 'package:dash_master_toolkit/forms/view/devis_form_section.dart';
 import 'package:dash_master_toolkit/forms/view/bon_de_commande_form_section.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:dio/dio.dart' as dio;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
 class ProjectFormScreen extends StatefulWidget {
   const ProjectFormScreen({super.key});
 
@@ -913,7 +915,15 @@ ElevatedButton(
           Expanded(
             child: TextFormField(
               controller: c.localisationAdresse,
-              validator: (v) => c.requiredValidator(v, "Location"),
+              validator: (v) {
+  final hasAddress = v != null && v.trim().isNotEmpty;
+  final hasCoords = c.latitude.value != null && c.longitude.value != null;
+
+  if (!hasAddress && !hasCoords) {
+    return "Location is required";
+  }
+  return null;
+},
               keyboardType: TextInputType.url, // ✅ utile sur mobile pour coller des liens
               decoration: inputDecoration(
                 context,
@@ -934,21 +944,61 @@ ElevatedButton(
       const SizedBox(height: 8),
 
       Obx(() {
-        final lat = c.latitude.value;
-        final lng = c.longitude.value;
+  final lat = c.latitude.value;
+  final lng = c.longitude.value;
 
-        final hasLoc = lat != null && lng != null;
+  final hasLoc = lat != null && lng != null;
 
-        return Text(
-          hasLoc
-              ? "Lat: ${lat.toStringAsFixed(7)}, Lng: ${lng.toStringAsFixed(7)}"
-              : "Select an address or choose it on the map.",
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: hasLoc ? colorPrimary100 : colorGrey700,
-            fontWeight: FontWeight.w600,
+  final url = hasLoc
+      ? "https://www.google.com/maps?q=$lat,$lng"
+      : "";
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+
+      /// 📍 COORDONNÉES
+      Text(
+        hasLoc
+            ? "Lat: ${lat.toStringAsFixed(7)}, Lng: ${lng.toStringAsFixed(7)}"
+            : "Select an address or choose it on the map.",
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: hasLoc ? colorPrimary100 : colorGrey700,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+
+      /// 🔗 LIEN DIRECT GOOGLE MAPS
+      if (hasLoc) ...[
+        const SizedBox(height: 6),
+
+        InkWell(
+          onTap: () async {
+            final uri = Uri.parse(url);
+            await launchUrl(uri);
+          },
+          child: Row(
+            children: [
+              const Icon(Icons.link, size: 16, color: Colors.blue),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  url,
+                  style: const TextStyle(
+                    color: Colors.blue,
+                    decoration: TextDecoration.underline,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-        );
-      }),
+        ),
+      ],
+    ],
+  );
+})
     ],
   );
 }
@@ -981,6 +1031,15 @@ ElevatedButton(
       });
     }
   }
+  DateTime? parseDate(String? input) {
+  if (input == null || input.isEmpty) return null;
+
+  try {
+    return DateFormat("dd/MM/yyyy").parse(input);
+  } catch (e) {
+    return null;
+  }
+}
 
 Future<void> _submit({required bool goBackAfterSave}) async {
   String? clean(String v) {
@@ -999,7 +1058,7 @@ if (c.isProject && !c.hasLocation)  {
 
   final manualComment = c.commentaireCtrl.text.trim();
 
-
+  DateTime? parsed = parseDate(c.dateDemarrage.text);
 
 final payload = {
   "nomProjet": clean(c.nomProjet.text),
@@ -1008,7 +1067,13 @@ final payload = {
   /// =====================
   /// 🔵 PROJECT ONLY
   /// =====================
-  "dateDemarrage": c.isProject ? clean(c.dateDemarrage.text) : null,
+
+
+"dateDemarrage": c.isProject && parsed != null
+    ? "${parsed.year.toString().padLeft(4, '0')}-"
+      "${parsed.month.toString().padLeft(2, '0')}-"
+      "${parsed.day.toString().padLeft(2, '0')}"
+    : null,
   "statut": c.isProject ? clean(c.statut.text) : null,
   "typeAdresseChantier": c.isProject ? clean(c.typeAdresseChantier.text) : null,
 
@@ -1075,7 +1140,10 @@ final payload = {
   "validationStatut": clean(c.validationStatut.text) ?? "Non validé",
   "dateVisite": clean(c.dateVisite.text),
   "firstAction": c.selectedAction.value,
-  "commentaireAction": clean(c.commentaireCtrl.text),
+  "localisationCommentaire": clean(c.commentaireCtrl.text), // 📍
+
+"commentaireAction": clean(c.commentaireCtrl.text), // 🧠 (optionnel si action)
+
 };
 
   try {

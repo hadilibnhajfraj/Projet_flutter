@@ -13,6 +13,7 @@ import '../../../utils/validation.dart';
 import '../../../widgets/common_app_widget.dart';
 import 'package:go_router/go_router.dart';
 import '../../../route/my_route.dart';
+import 'dart:ui';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -24,314 +25,236 @@ class SignInScreen extends StatefulWidget {
 class SignInScreenState extends State<SignInScreen> {
   final SignInController controller = SignInController();
   final ThemeController themeController = Get.put(ThemeController());
+Widget _buildInput({
+  required TextEditingController controller,
+  required String hint,
+  bool isPassword = false,
+}) {
+  return TextFormField(
+    controller: controller,
+    obscureText: isPassword,
+    style: const TextStyle(color: Colors.white),
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    final lang = AppLocalizations.of(context);
-    final desktopView = screenWidth >= 1200;
+    decoration: InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: Colors.white60),
 
-    // ✅ Remplacement de responsiveValue (responsive_grid) par MediaQuery
-    final isMobile = screenWidth < 600;
+      filled: true,
+      fillColor: Colors.white.withOpacity(0.08),
 
-    return GetBuilder<SignInController>(
-      init: controller,
-      tag: 'sign_in',
-      builder: (controller) {
-        return Scaffold(
-          backgroundColor: themeController.isDarkMode ? colorDark : colorGrey50,
-          body: Padding(
-            padding: const EdgeInsets.only(bottom: 20.0),
-            child: Stack(
-              children: [
-                Container(
-                  color: colorPrimary100,
-                  width: screenWidth,
-                  height: screenHeight / 2,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+    ),
+  );
+}
+@override
+Widget build(BuildContext context) {
+  final theme = Theme.of(context);
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  final lang = AppLocalizations.of(context);
+  final desktopView = screenWidth >= 1200;
+  final isMobile = screenWidth < 600;
+
+  return GetBuilder<SignInController>(
+    init: controller,
+    tag: 'sign_in',
+    builder: (controller) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+
+        body: SizedBox.expand(
+          child: Stack(
+            children: [
+              // 🔥 BACKGROUND IMAGE FULL
+              Positioned.fill(
+                child: Image.asset(
+                  "assets/images/login_bg.png",
+                  fit: BoxFit.cover,
                 ),
-                Center(
-                  child: IntrinsicHeight(
+              ),
+
+              // 🔥 OVERLAY PRO
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.black.withOpacity(0.7),
+                        Colors.black.withOpacity(0.4),
+                        Colors.black.withOpacity(0.2),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                ),
+              ),
+
+              // 🔥 FORMULAIRE CENTER
+              Center(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
                     child: Container(
-                      margin: EdgeInsetsDirectional.only(
-                        top: isMobile ? screenWidth * 0.20 : screenWidth * 0.06,
-                        start: 20,
-                        end: 20,
-                      ),
+                      margin: EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.all(25),
                       constraints: BoxConstraints(
-                        minWidth: desktopView ? (screenWidth * 0.30) : screenWidth,
+                        maxWidth: desktopView ? 450 : double.infinity,
                       ),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(15),
-                        color: themeController.isDarkMode ? colorGrey900 : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+
+                        // 🔥 GLASS EFFECT
+                        color: Colors.white.withOpacity(0.10),
+
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                        ),
+
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 25,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
                       ),
-                      child: SafeArea(
-                        child: Column(
-                          children: [
-                            Flexible(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 500),
-                                child: Center(
-                                  child: ScrollConfiguration(
-                                    behavior: ScrollBehavior().copyWith(scrollbars: false),
-                                    child: SingleChildScrollView(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: isMobile ? 10 : 40,
-                                      ),
-                                      child: Form(
-                                        key: controller.formKey,
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            _buildUserImageView(desktopView),
-                                            const SizedBox(height: 10),
 
-                                            Text(
-                                              lang.translate("signYourAccount"),
-                                              style: theme.textTheme.headlineSmall?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 10),
+                      child: SingleChildScrollView(
+                        child: Form(
+                          key: controller.formKey,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                             
+                              const SizedBox(height: 15),
 
-                                            Text(
-                                              lang.translate("enterYourDetailToSignIn"),
-                                              style: theme.textTheme.bodyMedium?.copyWith(
-                                                fontWeight: FontWeight.w400,
-                                                color: colorGrey500,
-                                              ),
-                                              textAlign: TextAlign.center,
-                                            ),
-
-                                            // ✅ Bloc Google/Twitter + OR supprimés
-                                            const SizedBox(height: 30),
-
-                                            // -------- Username / Email --------
-                                            Obx(
-                                              () => TextFormField(
-                                                style: theme.textTheme.bodyLarge?.copyWith(
-                                                  color: themeController.isDarkMode
-                                                      ? colorWhite
-                                                      : colorGrey900,
-                                                ),
-                                                textInputAction: TextInputAction.next,
-                                                keyboardType: TextInputType.text,
-                                                focusNode: controller.f1,
-                                                onFieldSubmitted: (v) {
-                                                  controller.f1.unfocus();
-                                                  FocusScope.of(context).requestFocus(controller.f2);
-                                                },
-                                                validator: (value) => validateUsernameOrEmail(value),
-                                                onChanged: (value) {
-                                                  controller.userNameFieldFocused.value = true;
-                                                  controller.passwordFieldFocused.value = false;
-                                                },
-                                                autovalidateMode: controller.userNameFieldFocused.value
-                                                    ? AutovalidateMode.onUserInteraction
-                                                    : AutovalidateMode.disabled,
-                                                controller: controller.userNameController,
-                                                decoration: inputDecoration(
-                                                  context,
-                                                  topContentPadding: isMobile ? 15 : 20,
-                                                  bottomContentPadding: isMobile ? 15 : 20,
-                                                  hintText: lang.translate("usernameEmail"),
-                                                ),
-                                              ),
-                                            ),
-
-                                            const SizedBox(height: 20),
-
-                                            // -------- Password --------
-                                            Obx(
-                                              () => TextFormField(
-                                                style: theme.textTheme.bodyLarge?.copyWith(
-                                                  color: themeController.isDarkMode
-                                                      ? colorWhite
-                                                      : colorGrey900,
-                                                ),
-                                                textInputAction: TextInputAction.done,
-                                                keyboardType: TextInputType.text,
-                                                focusNode: controller.f2,
-                                                onFieldSubmitted: (v) {
-                                                  controller.f2.unfocus();
-                                                },
-                                                validator: (value) => validatePassword(value),
-                                                onChanged: (value) {
-                                                  controller.userNameFieldFocused.value = false;
-                                                  controller.passwordFieldFocused.value = true;
-                                                },
-                                                autovalidateMode: controller.passwordFieldFocused.value
-                                                    ? AutovalidateMode.onUserInteraction
-                                                    : AutovalidateMode.disabled,
-                                                controller: controller.passwordController,
-                                                obscureText: controller.isShowPasswordIcon.value,
-                                                decoration: inputDecoration(
-                                                  context,
-                                                  topContentPadding: isMobile ? 15 : 20,
-                                                  bottomContentPadding: isMobile ? 15 : 20,
-                                                  onSuffixPressed: () {
-                                                    controller.isShowPasswordIcon.value =
-                                                        !controller.isShowPasswordIcon.value;
-                                                  },
-                                                  suffixIcon: controller.isShowPasswordIcon.value
-                                                      ? eyeOffIcon
-                                                      : eyeIcon,
-                                                  hintText: lang.translate("password"),
-                                                ),
-                                              ),
-                                            ),
-
-                                            const SizedBox(height: 30),
-
-                                            // -------- Remember + Forgot --------
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Flexible(
-                                                  child: Row(
-                                                    children: [
-                                                      SizedBox(
-                                                        width: 20,
-                                                        height: 20,
-                                                        child: Obx(
-                                                          () => Checkbox(
-                                                            side: BorderSide(
-                                                              color: Get.isDarkMode
-                                                                  ? colorGrey700
-                                                                  : colorGrey100,
-                                                              width: 2,
-                                                            ),
-                                                            shape: RoundedRectangleBorder(
-                                                              borderRadius: BorderRadius.circular(6),
-                                                            ),
-                                                            activeColor: colorPrimary300,
-                                                            value: controller.rememberMe.value,
-                                                            onChanged: (value) =>
-                                                                controller.rememberMe.value = value!,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 6),
-                                                      Text(
-                                                        lang.translate("keepMeLogIn"),
-                                                        style: theme.textTheme.bodyMedium?.copyWith(
-                                                          fontWeight: FontWeight.w400,
-                                                          color: Get.isDarkMode
-                                                              ? colorWhite
-                                                              : colorGrey900,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                           /*    GestureDetector(
-  onTap: () {
-    context.go(MyRoute.forgotPasswordScreen);
-  },
-  child: Text(
-    lang.translate("forgotPassword"),
-    style: theme.textTheme.bodyMedium?.copyWith(
-      decorationColor: colorPrimary300,
-      decoration: TextDecoration.underline,
-      fontWeight: FontWeight.w500,
-      color: colorPrimary300,
-    ),
-  ),
-),*/
-
-                                              ],
-                                            ),
-
-                                            const SizedBox(height: 30),
-
-                                            // -------- Button Sign In --------
-                                            CommonButton(
-                                              height: 55,
-                                              bgColor: colorPrimary100,
-                                              onPressed: () async {
-                                                if (!controller.formKey.currentState!.validate()) return;
-
-                                                try {
-                                                  final authService = AuthService();
-
-                                                  final email = controller.userNameController.text
-                                                      .trim()
-                                                      .toLowerCase();
-                                                  final password = controller.passwordController.text;
-
-                                                  await authService.signin(
-                                                    email: email,
-                                                    password: password,
-                                                  );
-
-                                                  if (!mounted) return;
-
-                                                  context.go(MyRoute.dashboardSalesAdmin);
-                                                } catch (e) {
-                                                  if (!mounted) return;
-
-                                                  final msg = e.toString().replaceFirst('Exception: ', '');
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(content: Text(msg)),
-                                                  );
-                                                }
-                                              },
-                                              text: lang.translate("signIn"),
-                                            ),
-
-                                            const SizedBox(height: 30),
-
-                                            // -------- Sign Up Link --------
-                                            InkWell(
-                                              onTap: () {
-                                                context.go(MyRoute.signUpScreen);
-                                              },
-                                              child: Text.rich(
-                                                textAlign: TextAlign.center,
-                                                TextSpan(
-                                                  text: '${lang.translate("donHaveAcc")} ',
-                                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                                    fontWeight: FontWeight.w400,
-                                                    color: colorGrey500,
-                                                  ),
-                                                  children: [
-                                                    TextSpan(
-                                                      text: lang.translate("signUp"),
-                                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                                        fontWeight: FontWeight.w600,
-                                                        color: colorPrimary200,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-
-                                            const SizedBox(height: 30),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
+                              Text(
+                                "Sign In to your account",
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            ),
-                          ],
+
+                              const SizedBox(height: 8),
+
+                              Text(
+                                "Enter your details to sign in",
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: Colors.white70,
+                                ),
+                              ),
+
+                              const SizedBox(height: 30),
+
+                              // 🔥 USERNAME
+                              _buildInput(
+                                controller: controller.userNameController,
+                                hint: "Username or Email",
+                              ),
+
+                              const SizedBox(height: 20),
+
+                              // 🔥 PASSWORD
+                              _buildInput(
+                                controller: controller.passwordController,
+                                hint: "Password",
+                                isPassword: true,
+                              ),
+
+                              const SizedBox(height: 20),
+
+                              Row(
+                                children: [
+                                  Obx(() => Checkbox(
+                                        value: controller.rememberMe.value,
+                                        onChanged: (v) =>
+                                            controller.rememberMe.value = v!,
+                                        activeColor: Colors.blueAccent,
+                                      )),
+                                  const SizedBox(width: 5),
+                                  const Text(
+                                    "Keep me logged in",
+                                    style: TextStyle(color: Colors.white70),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 20),
+
+                              // 🔥 BUTTON
+                              SizedBox(
+                                width: double.infinity,
+                                height: 50,
+                                child: ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.black,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  onPressed: () async {
+                                    if (!controller.formKey.currentState!
+                                        .validate()) return;
+
+                                    try {
+                                      final authService = AuthService();
+
+                                      await authService.signin(
+                                        email: controller.userNameController.text,
+                                        password:
+                                            controller.passwordController.text,
+                                      );
+
+                                      if (!mounted) return;
+
+                                      context.go(
+                                          MyRoute.dashboardSalesAdmin);
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                            content: Text(e.toString())),
+                                      );
+                                    }
+                                  },
+                                  child: const Text(
+  "Sign In",
+  style: TextStyle(color: Colors.white70),
+),
+                                ),
+                              ),
+
+                              const SizedBox(height: 20),
+
+                              TextButton(
+                                onPressed: () {
+                                  context.go(MyRoute.signUpScreen);
+                                },
+                                child: const Text(
+                                  "Don't have an account? Sign Up",
+                                  style: TextStyle(color: Colors.white70),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        );
-      },
-    );
-  }
-
+        ),
+      );
+    },
+  );
+}
   Widget _buildUserImageView(bool desktopView) {
     return Container(
       width: desktopView ? 84 : 64,
