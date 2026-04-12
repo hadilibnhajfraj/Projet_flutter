@@ -546,35 +546,51 @@ bool _looksLikeMapsUrl(String s) {
 
 Future<void> _autoGeocode(String query) async {
   try {
-    // ✅ 1) si l'utilisateur colle un lien Google Maps
-    if (_looksLikeMapsUrl(query)) {
-      final uri = Uri.parse("${AddressService.apiBase}/utils/expand-maps")
-          .replace(queryParameters: {"url": query.trim()});
+    final uri = Uri.parse("${AddressService.apiBase}/utils/geocode")
+        .replace(queryParameters: {"q": query});
 
-      final res = await http.get(uri).timeout(const Duration(seconds: 12));
+    final res = await http.get(uri);
 
-      if (res.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(res.bodyBytes));
-        if (data is Map && data["lat"] != null && data["lng"] != null) {
-          final lat = (data["lat"] as num).toDouble();
-          final lng = (data["lng"] as num).toDouble();
+    if (res.statusCode != 200) return;
 
-          _lastAuto = query.trim();
-          setLocation(lat: lat, lng: lng, address: query.trim());
-          return;
-        }
-      }
-      // si expand échoue, on continue vers geocode normal
+    final List data = jsonDecode(res.body);
+
+    if (data.isEmpty) return;
+
+    final best = data.first;
+
+    final lat = best["lat"];
+    final lng = best["lon"];
+    final address = best["displayName"];
+
+    // ✅ CAS 1 : adresse trouvée
+    if (lat != null && lng != null) {
+      setLocation(
+        lat: lat,
+        lng: lng,
+        address: address,
+      );
+      return;
     }
 
-    // ✅ 2) geocode normal (texte)
-    final results = await AddressService.search(query);
-    if (results.isEmpty) return;
+    // ⚠️ CAS 2 : adresse inconnue → RESET coords
+    latitude.value = null;
+    longitude.value = null;
 
-    final best = results.first;
-    _lastAuto = best.displayName;
-    setLocation(lat: best.lat, lng: best.lon, address: best.displayName);
-  } catch (_) {}
+    // 🔥 SAFE SNACKBAR
+    final ctx = Get.context;
+    if (ctx != null) {
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        const SnackBar(
+          content: Text("Adresse non reconnue, veuillez choisir sur la carte"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+
+  } catch (e) {
+    print("AUTO GEOCODE ERROR: $e");
+  }
 }
 
   // =========================

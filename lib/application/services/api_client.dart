@@ -41,7 +41,7 @@ class ApiClient {
 
   // ✅ IMPORTANT :
   // - Flutter Web => https://api.crmprobar.com
-  // - Android Emulator => 10.0.2.2
+  // - Android Emulator => http://localhost:4000
   // - Device réel => IP de ton PC (ex: api.crmprobar.com)
   static String get baseUrl {
     if (kIsWeb) return 'https://api.crmprobar.com';

@@ -1,7 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:dash_master_toolkit/forms/form_imports.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
-
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 class CustomFormScreen extends StatefulWidget {
   const CustomFormScreen({super.key});
 
@@ -11,8 +12,29 @@ class CustomFormScreen extends StatefulWidget {
 
 class _CustomFormScreenState extends State<CustomFormScreen> {
   final CustomFormController controller = Get.put(CustomFormController());
+  List<Map<String, dynamic>> _geoOptions = [];
+  TextEditingController _addressController = TextEditingController();
   ThemeController themeController = Get.put(ThemeController());
+   Future<void> _fetchGeoSuggestions(String query) async {
+  if (query.length < 3) return;
 
+  try {
+    final uri = Uri.parse("https://api.crmprobar.com/utils/geocode")
+        .replace(queryParameters: {"q": query});
+
+    final res = await http.get(uri);
+
+    if (res.statusCode == 200) {
+      final List data = jsonDecode(res.body);
+
+      setState(() {
+        _geoOptions = data.cast<Map<String, dynamic>>();
+      });
+    }
+  } catch (e) {
+    print("Geo error: $e");
+  }
+}
   @override
   Widget build(BuildContext context) {
     AppLocalizations lang = AppLocalizations.of(context);
@@ -303,28 +325,42 @@ class _CustomFormScreenState extends State<CustomFormScreen> {
                     title: lang.translate('skillsSuggestions'),
                   ),
                   const SizedBox(height: 16),
-                  Autocomplete<String>(
-                    optionsBuilder: (TextEditingValue textEditingValue) {
-                      return controller.suggestions
-                          .where((option) => option
-                              .toLowerCase()
-                              .contains(textEditingValue.text.toLowerCase()))
-                          .toList();
-                    },
-                    onSelected: (value) =>
-                        controller.selectedSuggestion.value = value,
-                    fieldViewBuilder: (context, textController, focusNode,
-                        onFieldSubmitted) {
-                      return TextField(
-                        controller: textController,
-                        focusNode: focusNode,
-                        decoration: inputDecoration(
-                          context,
-                          hintText: lang.translate('typeToSuggest'),
-                        ),
-                      );
-                    },
-                  ),
+                Autocomplete<Map<String, dynamic>>(
+  optionsBuilder: (TextEditingValue textEditingValue) {
+    return _geoOptions.where((option) =>
+        option["displayName"]
+            .toLowerCase()
+            .contains(textEditingValue.text.toLowerCase()));
+  },
+
+  displayStringForOption: (option) => option["displayName"],
+
+  onSelected: (option) {
+    final lat = option["lat"];
+    final lng = option["lon"];
+
+    _addressController.text = option["displayName"];
+
+    // 👉 ici tu peux stocker lat/lng si besoin
+    print("LAT: $lat, LNG: $lng");
+  },
+
+  fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
+    _addressController = textController;
+
+    return TextFormField(
+      controller: textController,
+      focusNode: focusNode,
+      onChanged: (value) {
+        _fetchGeoSuggestions(value);
+      },
+      decoration: inputDecoration(
+        context,
+        hintText: "Ex: Tunis, Ariana...",
+      ),
+    );
+  },
+),
                   const SizedBox(height: 16),
                   Row(
                     children: [

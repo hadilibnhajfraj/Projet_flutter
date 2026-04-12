@@ -903,7 +903,7 @@ ElevatedButton(
   }
 
   // ----------------- LOCATION -----------------
- Widget _locationBlock(ThemeData theme) {
+Widget _locationBlock(ThemeData theme) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -916,18 +916,19 @@ ElevatedButton(
             child: TextFormField(
               controller: c.localisationAdresse,
               validator: (v) {
-  final hasAddress = v != null && v.trim().isNotEmpty;
-  final hasCoords = c.latitude.value != null && c.longitude.value != null;
+                final hasAddress = v != null && v.trim().isNotEmpty;
+                final hasCoords =
+                    c.latitude.value != null && c.longitude.value != null;
 
-  if (!hasAddress && !hasCoords) {
-    return "Location is required";
-  }
-  return null;
-},
-              keyboardType: TextInputType.url, // ✅ utile sur mobile pour coller des liens
+                if (!hasAddress && !hasCoords) {
+                  return "Location is required";
+                }
+                return null;
+              },
+              keyboardType: TextInputType.text,
               decoration: inputDecoration(
                 context,
-                hintText: "Enter an address or pick on the map",
+                hintText: "Enter address (ex: Ariana) or paste map link",
               ),
             ),
           ),
@@ -941,64 +942,97 @@ ElevatedButton(
         ],
       ),
 
-      const SizedBox(height: 8),
+      const SizedBox(height: 10),
 
       Obx(() {
-  final lat = c.latitude.value;
-  final lng = c.longitude.value;
+        final lat = c.latitude.value;
+        final lng = c.longitude.value;
 
-  final hasLoc = lat != null && lng != null;
+        final hasLoc = lat != null && lng != null;
 
-  final url = hasLoc
-      ? "https://www.google.com/maps?q=$lat,$lng"
-      : "";
+        final url = hasLoc
+            ? "https://www.google.com/maps?q=$lat,$lng"
+            : "";
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
+        /// 🔥 DETECTION TYPE (important)
+        final isApprox =
+            c.localisationAdresse.text.toLowerCase().contains("(approx)");
+        final isManual =
+            c.localisationAdresse.text.toLowerCase().contains("(manual)");
 
-      /// 📍 COORDONNÉES
-      Text(
-        hasLoc
-            ? "Lat: ${lat.toStringAsFixed(7)}, Lng: ${lng.toStringAsFixed(7)}"
-            : "Select an address or choose it on the map.",
-        style: theme.textTheme.bodySmall?.copyWith(
-          color: hasLoc ? colorPrimary100 : colorGrey700,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+        Color statusColor;
+        String statusText;
 
-      /// 🔗 LIEN DIRECT GOOGLE MAPS
-      if (hasLoc) ...[
-        const SizedBox(height: 6),
+        if (hasLoc && !isApprox && !isManual) {
+          statusColor = Colors.green;
+          statusText = "✔️ Adresse validée";
+        } else if (hasLoc && isApprox) {
+          statusColor = Colors.orange;
+          statusText = "⚠️ Adresse approximative";
+        } else if (hasLoc && isManual) {
+          statusColor = Colors.blue;
+          statusText = "📍 Position manuelle";
+        } else {
+          statusColor = Colors.red;
+          statusText = "❌ Adresse non reconnue";
+        }
 
-        InkWell(
-          onTap: () async {
-            final uri = Uri.parse(url);
-            await launchUrl(uri);
-          },
-          child: Row(
-            children: [
-              const Icon(Icons.link, size: 16, color: Colors.blue),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  url,
-                  style: const TextStyle(
-                    color: Colors.blue,
-                    decoration: TextDecoration.underline,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            /// 🔥 STATUS
+            Text(
+              statusText,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: statusColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            /// 📍 COORDONNÉES
+            Text(
+              hasLoc
+                  ? "Lat: ${lat!.toStringAsFixed(7)}, Lng: ${lng!.toStringAsFixed(7)}"
+                  : "👉 Cliquez sur 'Pick on map' si adresse inconnue",
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: hasLoc ? colorPrimary100 : colorGrey700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+
+            /// 🔗 GOOGLE MAP LINK
+            if (hasLoc) ...[
+              const SizedBox(height: 6),
+
+              InkWell(
+                onTap: () async {
+                  final uri = Uri.parse(url);
+                  await launchUrl(uri);
+                },
+                child: Row(
+                  children: [
+                    const Icon(Icons.link, size: 16, color: Colors.blue),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        url,
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-        ),
-      ],
-    ],
-  );
-})
+          ],
+        );
+      }),
     ],
   );
 }
