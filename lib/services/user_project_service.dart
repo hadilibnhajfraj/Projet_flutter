@@ -15,7 +15,7 @@ class UserProjectService {
     String? createdBy,
     String? societe,
     String? q,
-
+      String? statut, // 🔥 AJOUT ICI
     /// ✅ NEW
     String? projectModele,
 
@@ -27,7 +27,9 @@ class UserProjectService {
       'page': page.toString(),
       'limit': limit.toString(),
     };
-
+    if (statut != null && statut.isNotEmpty) {
+  queryParams["statut"] = statut;
+}
     /// ✅ FILTERS
     if ((architecte ?? '').trim().isNotEmpty) {
       queryParams['architecte'] = architecte!.trim();

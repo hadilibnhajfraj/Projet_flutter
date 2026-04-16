@@ -37,7 +37,7 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
   static const Color kNeutralText = Color(0xFF6B7280);
 
   final UserProjectService service = UserProjectService(
-    baseUrl: 'https://api.crmprobar.com',
+    baseUrl: 'http://localhost:4000',
   );
 
   final TextEditingController _searchCtrl = TextEditingController();
@@ -145,6 +145,7 @@ users = allUsers.where((u) {
         societe: _societeCtrl.text,
         q: _searchCtrl.text,
          projectModele: selectedProjectModele,
+         statut: selectedStatusFilter, // 🔥 AJOUT
         page: _page,
         limit: _limit,
       );
@@ -744,21 +745,15 @@ String _getValidationColorHex(String? value) {
 
   @override
   Widget build(BuildContext context) {
-   final allItems = _response?.items ?? [];
+  List<UserProjectModel> items = _response?.items ?? [];
 
-List<UserProjectModel> items = allItems;
+// 🔥 FILTRE PROJECT UNIQUEMENT
+items = items.where((p) => p.projectModele == "project").toList();
 // ✅ FILTER ARCHIVED
-if (userRole != "admin" && userRole != "superadmin") {
-  items = items.where((p) => p.isArchived != true).toList();
-}
-if (selectedStatusFilter != null) {
-  items = allItems.where((p) {
-    final statut = (p.statut ?? "").toString().trim().toLowerCase();
-    final filter = selectedStatusFilter!.trim().toLowerCase();
+//if (userRole != "admin" && userRole != "superadmin") {
+  //items = items.where((p) => p.isArchived != true).toList();
+//}
 
-    return statut == filter;
-  }).toList();
-}
     final total = _response?.total ?? 0;
     final totalPages = _response?.totalPages ?? 1;
 
@@ -857,23 +852,7 @@ if (selectedStatusFilter != null) {
                         controller: _societeCtrl,
                         hint: 'Company',
                       ),
-                      DropdownButtonFormField<String>(
-  value: selectedProjectModele,
-  hint: const Text("Project Model"),
-  items: const [
-    DropdownMenuItem(value: "project", child: Text("Project")),
-    DropdownMenuItem(value: "revendeur", child: Text("Revendeur")),
-    DropdownMenuItem(value: "applicateur", child: Text("Applicateur")),
-  ],
-  onChanged: (value) {
-    setState(() {
-      selectedProjectModele = value;
-    });
 
-    _page = 1;
-    _loadProjects();
-  },
-),
 DropdownButtonFormField<String>(
   value: selectedStatusFilter ?? "ALL", // ✅ IMPORTANT
   hint: const Text("Status"),

@@ -161,6 +161,14 @@ List<GroupedMenuModel> buildGroupedMenus({
               name: "Project List",
               navigationPath: 'user_project',
             ),
+             SidebarSubmenuModel(
+              name: "Applicateur List",
+              navigationPath: 'applicateur',
+            ),
+             SidebarSubmenuModel(
+              name: "Revendeur List",
+              navigationPath: 'revendeur',
+            ),
           
             if (isCommercial)
               SidebarSubmenuModel(

@@ -114,6 +114,17 @@ MyRoute.commercialProfileScreen: NavigationBreadcrumbModel(
       parentRoute: 'Pages',
       childRoute: 'projects',
     ),
+   MyRoute.applicateurProjectsScreen: NavigationBreadcrumbModel(
+  title: 'Applicateurs',
+  parentRoute: 'CRM',
+  childRoute: 'Applicateur',
+),
+
+MyRoute.revendeurProjectsScreen: NavigationBreadcrumbModel(
+  title: 'Revendeurs',
+  parentRoute: 'CRM',
+  childRoute: 'Revendeur',
+),
    MyRoute.clientsProfileScreen: NavigationBreadcrumbModel(
   title: 'Customers',
   parentRoute: 'Customers',

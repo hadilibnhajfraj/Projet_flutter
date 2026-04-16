@@ -11,6 +11,8 @@ import 'package:dash_master_toolkit/application/users/view/commercial_contact_cr
 import 'package:dash_master_toolkit/application/users/view/accueil_project_stats_table_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/admin_clients_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/user_projects_screen.dart';
+import 'package:dash_master_toolkit/application/users/view/revendeur_projects_screen.dart';
+import 'package:dash_master_toolkit/application/users/view/applicateur_projects_screen.dart';
 import 'package:dash_master_toolkit/dashboard/academic/view/academic_dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/academic/view/dashboard_screen.dart';
 import 'package:dash_master_toolkit/dashboard/ecommerce/view/ecommerce_dashboard_screen.dart';
@@ -123,7 +125,8 @@ static const clientsProfileScreen = '/users/client';
   static const signUpScreen = '/authentication/signup';
   static const forgotPasswordScreen = '/authentication/forgot_password';
   static const resetPasswordScreen = '/authentication/reset_password';
-
+    static const  applicateurProjectsScreen = "/users/applicateur";
+  static const  revendeurProjectsScreen = "/users/revendeur";
   static const initialPath = '/';
   static final rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -275,6 +278,15 @@ GoRoute(
       token: AuthService().accessToken ?? '',
     ),
   ),
+),
+GoRoute(
+  path: "applicateur",
+  builder: (context, state) => const ApplicateurProjectsScreen(),
+),
+
+GoRoute(
+  path: '/revendeur',
+  builder: (context, state) => const RevendeurProjectsScreen(),
 ),
 GoRoute(
   path: MyRoute.clientProfileScreen,
