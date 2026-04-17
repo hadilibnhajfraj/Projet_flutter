@@ -711,11 +711,14 @@ Widget _row(ProjectGridData p) {
                       ),
 
                       Text(
-                        "By ${p.ownerName}",
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11),
-                      ),
+  "👤 ${p.ownerName}",
+  maxLines: 1,
+  overflow: TextOverflow.ellipsis,
+  style: const TextStyle(
+    fontSize: 11,
+    color: Colors.grey,
+  ),
+),
                     ],
                   ),
                 ),

@@ -24,6 +24,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:dio/dio.dart' as dio;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 class ProjectFormScreen extends StatefulWidget {
   const ProjectFormScreen({super.key});
 
@@ -1093,6 +1094,8 @@ if (c.isProject && !c.hasLocation)  {
   final manualComment = c.commentaireCtrl.text.trim();
 
   DateTime? parsed = parseDate(c.dateDemarrage.text);
+final auth = Get.find<AuthService>();
+final currentUser = auth.getUserName();
 
 final payload = {
   "nomProjet": clean(c.nomProjet.text),
@@ -1177,6 +1180,7 @@ final payload = {
   "localisationCommentaire": clean(c.commentaireCtrl.text), // 📍
 
 "commentaireAction": clean(c.commentaireCtrl.text), // 🧠 (optionnel si action)
+"user_nom": currentUser, // ✅ IMPORTANT
 
 };
 

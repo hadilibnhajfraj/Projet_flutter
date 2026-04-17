@@ -44,7 +44,40 @@ class ProjectGridData {
 
   bool get canEdit => permission == "owner" || permission == "editor";
   bool get canDelete => permission == "owner";
+static String _resolveOwnerName(Map<String, dynamic> json) {
+  final userNom = json["user_nom"]?.toString().trim();
+  final userNomCustom = json["user_nom_custom"]?.toString().trim();
+  final email = json["ownerName"]?.toString().trim();
 
+  // 🔥 CAS 1 : user_nom + custom
+  if (userNom != null && userNom.isNotEmpty) {
+    if (userNomCustom != null && userNomCustom.isNotEmpty) {
+      return "$userNom ($userNomCustom)";
+    }
+    return userNom;
+  }
+
+  // 🔥 CAS 2 : seulement custom
+  if (userNomCustom != null && userNomCustom.isNotEmpty) {
+    return userNomCustom;
+  }
+
+  // 🔥 CAS 3 : fallback email
+  if (email != null && email.isNotEmpty) {
+    return email;
+  }
+
+  return "Unknown";
+}
+static String _safeUser(dynamic v) {
+  if (v == null) return "Unknown";
+
+  final s = v.toString().trim();
+
+  if (s.isEmpty || s == "null") return "Unknown";
+
+  return s;
+}
   static int _toInt(dynamic v) {
     if (v == null) return 0;
     if (v is int) return v;
@@ -72,7 +105,7 @@ class ProjectGridData {
       ingenieurResponsable: (json["ingenieurResponsable"] ?? "").toString(),
       architecte: (json["architecte"] ?? "").toString(),
       validationStatut: (json["validationStatut"] ?? "").toString(),
-      ownerName: (json["ownerName"] ?? "").toString(),
+      ownerName: _resolveOwnerName(json),
 
       hasDevis: devisCount > 0,
       hasBonCommande: bcCount > 0,

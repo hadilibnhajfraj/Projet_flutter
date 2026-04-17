@@ -8,6 +8,7 @@ import '../../providers/api_client.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:convert'; // jsonDecode + utf8
 import 'package:http/http.dart' as http; // http.get
+import 'package:get_storage/get_storage.dart';
 class ProjectFormController extends GetxController {
   
   final formKey = GlobalKey<FormState>();
@@ -19,6 +20,9 @@ bool get isRevendeur => projectModele.value == "revendeur";
 bool get isApplicateur => projectModele.value == "applicateur";
   // ---------------- Fields ----------------
   // CRM ACTION
+  final box = GetStorage();
+
+String? get currentUserName => box.read("user_name");
 final RxnString selectedAction = RxnString();
   final nomProjet = TextEditingController();
   final dateDemarrage = TextEditingController();
@@ -87,6 +91,11 @@ final montantMarche = TextEditingController();
   void onInit() {
     super.onInit();
     localisationAdresse.addListener(_onAddressChanged);
+    // 🔥 AUTO LOAD USER
+  final savedUser = box.read("user_name");
+  if (savedUser != null) {
+    print("👤 Current user: $savedUser");
+  }
   }
 
   String _trim(String v) => v.trim();

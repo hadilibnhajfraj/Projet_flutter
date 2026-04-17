@@ -18,6 +18,11 @@ void setUserName(String name) {
 String? getUserName() {
   return _box.read("user_nom");
 }
+String get displayName {
+  return getUserName() ??
+      userEmail ??
+      "Unknown";
+}
   bool get isLoggedIn => _box.read<bool>('isLoggedIn') ?? false;
   String? get accessToken => _box.read<String>('accessToken');
 
