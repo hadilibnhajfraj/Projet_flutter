@@ -5,7 +5,7 @@ import 'package:dash_master_toolkit/theme/theme_controller.dart';
 import 'package:dash_master_toolkit/widgets/common_button.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
-
+import '../../../widgets/user_name_dialog.dart';
 import '../../../constant/app_images.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../providers/auth_service.dart';
@@ -14,7 +14,7 @@ import '../../../widgets/common_app_widget.dart';
 import 'package:go_router/go_router.dart';
 import '../../../route/my_route.dart';
 import 'dart:ui';
-
+import '../../../widgets/user_name_dialog.dart';
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
 
@@ -209,8 +209,17 @@ Widget build(BuildContext context) {
                                         password:
                                             controller.passwordController.text,
                                       );
+                                      // 🔥 LOGIN AUTO
+await authService.signin(
+  email: controller.userNameController.text,
+  password: controller.passwordController.text,
+);
 
-                                      if (!mounted) return;
+// 🔥 CHECK ROLE
+if (authService.userRole == "commercial") {
+  await showUserNameDialog(context);
+}
+                                      //if (!mounted) return;
 
                                       context.go(
                                           MyRoute.dashboardSalesAdmin);

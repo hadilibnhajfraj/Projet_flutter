@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:dash_master_toolkit/application/users/controller/commercial_contact_create_controller.dart';
 import 'package:go_router/go_router.dart';
+import '../../../widgets/user_name_dialog.dart';
+import '../../../providers/auth_service.dart';
 class CommercialContactCreateScreen extends StatelessWidget {
   CommercialContactCreateScreen({super.key});
 
@@ -275,22 +277,47 @@ Widget _buildProjectRow(BuildContext context, int index) {
 
 Row(
   children: [
-    Expanded(
-      child: Obx(() => DropdownButtonFormField<String>(
-        value: c.userNom.value,
-        items: const [
-          DropdownMenuItem(value: "najeh", child: Text("Najeh")),
-          DropdownMenuItem(value: "moumen", child: Text("Moumen")),
-          DropdownMenuItem(value: "mayssa", child: Text("Mayssa")),
-        ],
-        onChanged: (v) => c.userNom.value = v ?? "najeh",
-        decoration: _dec(
-          "Assigned User",
-          "Select user",
-          Icons.person_pin_outlined,
+  Expanded(
+  child: Obx(() => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        decoration: BoxDecoration(
+          color: kFieldBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: kPrimary.withOpacity(.18)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.person, color: kPrimary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                c.userNom.value,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: kTextDark,
+                ),
+              ),
+            ),
+
+            // 🔥 BONUS bouton changer user
+            IconButton(
+              icon: const Icon(Icons.edit, size: 18),
+              onPressed: () async {
+                await showUserNameDialog(context);
+
+                // 🔥 refresh après popup
+                final auth = Get.find<AuthService>();
+                final newUser = auth.getUserName();
+
+                if (newUser != null) {
+                  c.userNom.value = newUser;
+                }
+              },
+            )
+          ],
         ),
       )),
-    ),
+),
 
     const SizedBox(width: 14),
 

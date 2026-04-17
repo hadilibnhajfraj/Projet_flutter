@@ -1,21 +1,21 @@
 import 'package:dio/dio.dart';
+import 'package:get/get.dart'; // 🔥 IMPORTANT
 import 'package:dash_master_toolkit/application/users/model/commercial_contact_models.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
-// ⚠️ adapte selon ton projet (baseUrl + headers token)
+
 class CommercialContactApi {
   CommercialContactApi._();
   static final instance = CommercialContactApi._();
 
   final Dio _dio = Dio(
     BaseOptions(
-      baseUrl: "http://localhost:4000", // ✅ change to your API
+      baseUrl: "http://localhost:4000",
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 20),
     ),
   );
 
-  // ✅ Remplace par ta fonction authHeaders() si tu l'as déjà
- Map<String, String> _authHeaders() {
+  Map<String, String> _authHeaders() {
     final token = AuthService().accessToken ?? "";
     return {
       "Authorization": "Bearer $token",
@@ -24,10 +24,24 @@ class CommercialContactApi {
     };
   }
 
-  Future<Map<String, dynamic>> createContact(CommercialContactCreateDto dto) async {
+  Future<Map<String, dynamic>> createContact(
+      CommercialContactCreateDto dto) async {
+    
+    // 🔥 1. récupérer user_nom
+    final userNom = Get.find<AuthService>().getUserName();
+
+    // 🔥 2. convertir DTO en JSON
+    final data = dto.toJson();
+
+    // 🔥 3. injecter user_nom
+    data["user_nom"] = userNom;
+
+    // 🔥 DEBUG (optionnel)
+    print("📤 SEND CONTACT DATA: $data");
+
     final res = await _dio.post(
       "/commercial-contacts",
-      data: dto.toJson(),
+      data: data,
       options: Options(headers: _authHeaders()),
     );
 

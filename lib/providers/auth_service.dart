@@ -11,7 +11,13 @@ class AuthService extends ChangeNotifier {
   factory AuthService() => _instance;
 
   final GetStorage _box = GetStorage();
+void setUserName(String name) {
+  _box.write("user_nom", name);
+}
 
+String? getUserName() {
+  return _box.read("user_nom");
+}
   bool get isLoggedIn => _box.read<bool>('isLoggedIn') ?? false;
   String? get accessToken => _box.read<String>('accessToken');
 
@@ -29,7 +35,13 @@ bool get isClient => userRole?.toLowerCase() == 'client';
       'password': password,
     });
   }
+Future<List<String>> getUserNames() async {
+  final response = await ApiClient.instance.dio.get(
+    "/commercial-contacts/user-names/list",
+  );
 
+  return List<String>.from(response.data);
+}
   // ---------------- SIGNIN (7 days session) ----------------
   Future<void> signin({required String email, required String password}) async {
     // ✅ reset session avant tentative

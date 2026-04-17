@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../model/commercial_contact_models.dart';
 import '../../../services/commercial_contact_api.dart';
+import '../../../providers/auth_service.dart';
 
 class CommercialContactCreateController extends GetxController {
   final loading = false.obs;
@@ -18,135 +19,99 @@ class CommercialContactCreateController extends GetxController {
 
   final nbAppelsCtrl = TextEditingController(text: "0");
   final sujetDiscussionCtrl = TextEditingController();
+
   var pipelineStage = "Prospect".obs;
 
-final dateAppelCtrl = TextEditingController();
-DateTime? dateAppel;
+  final dateAppelCtrl = TextEditingController();
+  DateTime? dateAppel;
+
   final commentaireRelanceCtrl = TextEditingController();
   final dateRelanceCtrl = TextEditingController();
   final heureRelanceCtrl = TextEditingController();
 
-  final produits = <CommercialProductInput>[CommercialProductInput()].obs;
-  final userNom = "najeh".obs;
+  final produits = <CommercialProductInput>[].obs;
 
-final projects = <CommercialProjectInput>[
-  CommercialProjectInput()
-].obs;
+  final userNom = "".obs;
 
-void addProjectRow() {
-  projects.add(
-    CommercialProjectInput(
-      createdBy: userNom.value, // ✅ auto assign
-    ),
-  );
-  projects.refresh();
-}
+  final projects = <CommercialProjectInput>[].obs;
 
-void removeProjectRow(int index) {
-  projects.removeAt(index);
-  if (projects.isEmpty) {
-    projects.add(CommercialProjectInput());
-  }
-  projects.refresh();
-}
-  bool get canScheduleRelance =>
-      statut.value == "ok" || statut.value == "rappeler_plus_tard";
-
+  // ================= INIT =================
   @override
   void onInit() {
     super.onInit();
-    ever(userNom, (value) {
-    for (var p in projects) {
-      p.createdBy = value;
-    }
-    projects.refresh();
-  });
 
-    if (produits.isEmpty) {
-      produits.add(
-        CommercialProductInput(
-          produit: "PROBAR",
-          qte: 1,
-        ),
-      );
-    }
-  }
+    final auth = Get.find<AuthService>();
+    final savedUser = auth.getUserName();
 
-  void addProduitRow() {
+    userNom.value = (savedUser != null && savedUser.isNotEmpty)
+        ? savedUser
+        : "unknown";
+
+    // init produit
     produits.add(
       CommercialProductInput(
         produit: "PROBAR",
         qte: 1,
       ),
     );
+
+    // init project
+    projects.add(
+      CommercialProjectInput(
+        createdBy: userNom.value,
+      ),
+    );
+
+    // sync projects avec user
+    ever(userNom, (value) {
+      for (var p in projects) {
+        p.createdBy = value;
+      }
+      projects.refresh();
+    });
+  }
+
+  // ================= PRODUITS =================
+  void addProduitRow() {
+    produits.add(
+      CommercialProductInput(produit: "PROBAR", qte: 1),
+    );
     produits.refresh();
   }
 
   void removeProduitRow(int index) {
-    if (index >= 0 && index < produits.length) {
-      produits.removeAt(index);
-    }
+    produits.removeAt(index);
 
     if (produits.isEmpty) {
-      produits.add(
-        CommercialProductInput(
-          produit: "PROBAR",
-          qte: 1,
-        ),
-      );
+      produits.add(CommercialProductInput(produit: "PROBAR", qte: 1));
     }
 
     produits.refresh();
   }
 
-  Future<void> pickRelanceDate(BuildContext context) async {
-    final now = DateTime.now();
-
-    DateTime initialDate = now;
-    if (dateRelanceCtrl.text.trim().isNotEmpty) {
-      final parsed = DateTime.tryParse(dateRelanceCtrl.text.trim());
-      if (parsed != null) initialDate = parsed;
-    }
-
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 5),
+  // ================= PROJECTS =================
+  void addProjectRow() {
+    projects.add(
+      CommercialProjectInput(createdBy: userNom.value),
     );
-
-    if (picked != null) {
-      dateRelanceCtrl.text =
-          "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-    }
+    projects.refresh();
   }
 
-  Future<void> pickRelanceTime(BuildContext context) async {
-    TimeOfDay initialTime = TimeOfDay.now();
+  void removeProjectRow(int index) {
+    projects.removeAt(index);
 
-    if (heureRelanceCtrl.text.trim().isNotEmpty) {
-      final parts = heureRelanceCtrl.text.trim().split(":");
-      if (parts.length == 2) {
-        final h = int.tryParse(parts[0]);
-        final m = int.tryParse(parts[1]);
-        if (h != null && m != null) {
-          initialTime = TimeOfDay(hour: h, minute: m);
-        }
-      }
+    if (projects.isEmpty) {
+      projects.add(CommercialProjectInput(createdBy: userNom.value));
     }
 
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: initialTime,
-    );
-
-    if (picked != null) {
-      final hh = picked.hour.toString().padLeft(2, '0');
-      final mm = picked.minute.toString().padLeft(2, '0');
-      heureRelanceCtrl.text = "$hh:$mm";
-    }
+    projects.refresh();
   }
 
+  // ================= RELANCE =================
+  bool get canScheduleRelance =>
+      statut.value == "ok" || statut.value == "rappeler_plus_tard";
+
+  // ================= SUBMIT =================
   Future<bool> submit() async {
     final nom = nomCtrl.text.trim();
     final prenom = prenomCtrl.text.trim();
@@ -156,14 +121,12 @@ void removeProjectRow(int index) {
       return false;
     }
 
-    final cleanedProduits = produits
-        .map(
-          (p) => CommercialProductInput(
-            produit: p.produit.trim().isEmpty ? "PROBAR" : p.produit.trim(),
-            qte: p.qte <= 0 ? 1 : p.qte,
-          ),
-        )
-        .toList();
+    final cleanedProduits = produits.map((p) {
+      return CommercialProductInput(
+        produit: p.produit.trim().isEmpty ? "PROBAR" : p.produit.trim(),
+        qte: p.qte <= 0 ? 1 : p.qte,
+      );
+    }).toList();
 
     CommercialRelanceInput? relance;
 
@@ -203,12 +166,13 @@ void removeProjectRow(int index) {
       return true;
     } catch (e) {
       debugPrint("CREATE_CONTACT_ERROR: $e");
-      rethrow;
+      return false;
     } finally {
       loading.value = false;
     }
   }
 
+  // ================= RESET =================
   void resetForm() {
     typeClient.value = "Tuteur";
     statut.value = "user_injoignable";
@@ -228,15 +192,13 @@ void removeProjectRow(int index) {
     heureRelanceCtrl.clear();
 
     produits.clear();
-    produits.add(
-      CommercialProductInput(
-        produit: "PROBAR",
-        qte: 1,
-      ),
-    );
-    produits.refresh();
+    produits.add(CommercialProductInput(produit: "PROBAR", qte: 1));
+
+    projects.clear();
+    projects.add(CommercialProjectInput(createdBy: userNom.value));
   }
 
+  // ================= DISPOSE =================
   @override
   void onClose() {
     nomSocieteCtrl.dispose();

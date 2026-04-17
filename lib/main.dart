@@ -21,7 +21,8 @@ Future<void> main() async {
 
   // ✅ Restore session BEFORE runApp (keep logged in up to 7 days)
   await AuthService().restoreSession();
-
+   // 🔥 AJOUT OBLIGATOIRE
+  Get.put(AuthService());
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,

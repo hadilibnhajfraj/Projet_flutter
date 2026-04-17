@@ -94,7 +94,7 @@ class CommercialContact {
   final List<CommercialContactRelance> relances;
   final DateTime? createdAt;
   final String? userNom;
-
+final String? userNomCustom; 
   CommercialContact({
     required this.id,
     required this.typeClient,
@@ -116,7 +116,8 @@ class CommercialContact {
     required this.produits,
     required this.relances,
     this.createdAt,
-    this.userNom
+    this.userNom,
+        this.userNomCustom,
   });
 
   factory CommercialContact.fromJson(Map<String, dynamic> json) {
@@ -166,6 +167,7 @@ class CommercialContact {
           ? DateTime.tryParse(json['createdAt'].toString())
           : null,
       userNom: json['user_nom']?.toString(),
+      userNomCustom: json['userNomCustom']?.toString(),
     );
   }
 

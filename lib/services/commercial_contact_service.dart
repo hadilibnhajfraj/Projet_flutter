@@ -87,4 +87,20 @@ Future<List<CommercialContact>> fetchMyContacts({
       throw Exception(body['message']?.toString() ?? 'Delete failed');
     }
   }
+  Future<List<String>> getUserNames(String token) async {
+  final response = await http.get(
+    Uri.parse('$baseUrl/user-names/list'),
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    },
+  );
+
+  if (response.statusCode == 200) {
+    final data = jsonDecode(response.body);
+    return List<String>.from(data);
+  } else {
+    throw Exception('Failed to load user names');
+  }
+}
 }

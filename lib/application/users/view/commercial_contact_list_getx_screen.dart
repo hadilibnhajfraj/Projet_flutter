@@ -19,6 +19,20 @@ class CommercialContactListGetxScreen extends StatefulWidget {
 
 class _CommercialContactListGetxScreenState
     extends State<CommercialContactListGetxScreen> {
+      List<String> users = [];
+      Future<void> _loadUsers() async {
+  try {
+    final list = await _service.getUserNames(widget.token);
+
+    if (mounted) {
+      setState(() {
+        users = list;
+      });
+    }
+  } catch (e) {
+    debugPrint("LOAD USERS ERROR: $e");
+  }
+}
   final CommercialContactService _service = CommercialContactService();
   final TextEditingController _searchController = TextEditingController();
 
@@ -40,6 +54,7 @@ class _CommercialContactListGetxScreenState
   @override
   void initState() {
     super.initState();
+    _loadUsers();
     _loadContacts();
   }
 List<CommercialContact> get paginatedContacts {
@@ -1381,7 +1396,7 @@ OutlinedButton.icon(
             const SizedBox(height: 4),
 
             Text(
-              "👤 Created by: ${contact.userNom ?? '-'}",
+              "👤 Created by: ${contact.userNom ?? contact.userNomCustom ?? '-'}",
               style: const TextStyle(
                 fontSize: 11,
                 color: Colors.grey,
@@ -1615,11 +1630,12 @@ Widget _buildSearchBar() {
               child: DropdownButtonFormField<String>(
                 value: selectedUser,
                 hint: const Text("Filter by User"),
-                items: const [
-                  DropdownMenuItem(value: "najeh", child: Text("Najeh")),
-                  DropdownMenuItem(value: "moumen", child: Text("Moumen")),
-                  DropdownMenuItem(value: "mayssa", child: Text("Mayssa")),
-                ],
+             items: users.map((u) {
+  return DropdownMenuItem(
+    value: u,
+    child: Text(u),
+  );
+}).toList(),
                 onChanged: (v) {
                   setState(() {
                     selectedUser = v;
