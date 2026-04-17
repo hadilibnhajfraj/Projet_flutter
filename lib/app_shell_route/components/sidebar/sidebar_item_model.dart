@@ -136,9 +136,56 @@ List<GroupedMenuModel> buildGroupedMenus({
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.clientsProfileScreen,
           ),
+          SidebarItemModel(
+            name: 'Projects',
+            iconPath: formsIcon,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: MyRoute.projectFormScreen,
+          ),
           
         ],
       ),
+      GroupedMenuModel(
+      name: 'Application',
+      menus: [
+        SidebarItemModel(
+          name: 'users & projects management',
+          iconPath: usersIcon,
+          sidebarItemType: SidebarItemType.submenu,
+          navigationPath: '/users',
+          submenus: [
+            SidebarSubmenuModel(
+              name: "Project Management",
+              navigationPath: 'project-list',
+            ),
+            SidebarSubmenuModel(
+              name: "Project List",
+              navigationPath: 'user_project',
+            ),
+             SidebarSubmenuModel(
+              name: "Applicateur List",
+              navigationPath: 'applicateur',
+            ),
+             SidebarSubmenuModel(
+              name: "Revendeur List",
+              navigationPath: 'revendeur',
+            ),
+              if (isAdmin)
+              SidebarSubmenuModel(
+                name: "Client",
+                navigationPath: 'client',
+              ),
+               if (isAdmin)
+              SidebarSubmenuModel(
+                name: "Dashboard Commercial",
+                navigationPath: 'dashboard-commercial',
+              ),
+
+              
+          ],
+        ),
+      ],
+    ),
     ];
   }
 
