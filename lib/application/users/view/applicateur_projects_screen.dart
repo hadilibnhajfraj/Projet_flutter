@@ -25,7 +25,7 @@ class _ApplicateurProjectsScreenState
   static const Color kBorder = Color(0xFFE5EAF2);
 
   final UserProjectService service =
-      UserProjectService(baseUrl: 'http://localhost:4000');
+      UserProjectService(baseUrl: 'https://api.crmprobar.com');
 
   List<UserProjectModel> items = [];
   bool loading = false;

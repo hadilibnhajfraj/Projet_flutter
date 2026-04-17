@@ -10,7 +10,7 @@ class ApiClient {
 
     final baseUrl = envUrl.isNotEmpty
         ? envUrl
-        : (kIsWeb ? 'http://localhost:4000' : 'http://localhost:4000');
+        : (kIsWeb ? 'https://api.crmprobar.com' : 'https://api.crmprobar.com');
 
     _box = GetStorage();
 

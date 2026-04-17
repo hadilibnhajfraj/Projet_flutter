@@ -19,7 +19,7 @@ class _CustomFormScreenState extends State<CustomFormScreen> {
   if (query.length < 3) return;
 
   try {
-    final uri = Uri.parse("http://localhost:4000/utils/geocode")
+    final uri = Uri.parse("https://api.crmprobar.com/utils/geocode")
         .replace(queryParameters: {"q": query});
 
     final res = await http.get(uri);
