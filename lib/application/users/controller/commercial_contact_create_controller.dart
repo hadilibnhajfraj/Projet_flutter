@@ -19,6 +19,7 @@ class CommercialContactCreateController extends GetxController {
 
   final nbAppelsCtrl = TextEditingController(text: "0");
   final sujetDiscussionCtrl = TextEditingController();
+  final emailCtrl = TextEditingController();
 
   var pipelineStage = "Prospect".obs;
 
@@ -116,7 +117,7 @@ class CommercialContactCreateController extends GetxController {
     final nom = nomCtrl.text.trim();
     final prenom = prenomCtrl.text.trim();
     final tel = telephoneCtrl.text.trim();
-
+ 
     if (nom.isEmpty || prenom.isEmpty || tel.isEmpty) {
       return false;
     }
@@ -141,7 +142,7 @@ class CommercialContactCreateController extends GetxController {
         sujetDiscussion: sujetDiscussionCtrl.text.trim(),
       );
     }
-
+    final email = emailCtrl.text.trim();
     final dto = CommercialContactCreateDto(
       typeClient: typeClient.value,
       statut: statut.value,
@@ -157,6 +158,8 @@ class CommercialContactCreateController extends GetxController {
       projects: projects,
       relance: relance,
       userNom: userNom.value,
+       // 🔥 AJOUT ICI
+  email: email.isEmpty ? null : email,
     );
 
     loading.value = true;

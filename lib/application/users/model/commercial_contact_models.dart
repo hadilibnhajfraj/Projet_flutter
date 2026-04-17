@@ -80,6 +80,7 @@ class CommercialContactCreateDto {
   String message;
   int nbAppels;
   String sujetDiscussion;
+  String? email;
 
   List<CommercialProductInput> produits;
   List<CommercialProjectInput> projects;
@@ -98,6 +99,7 @@ class CommercialContactCreateDto {
     this.prenom = "",
     this.localisation = "",
     this.telephone = "",
+     this.email = "",
     this.message = "",
     this.nbAppels = 0,
     this.sujetDiscussion = "",
@@ -119,6 +121,7 @@ class CommercialContactCreateDto {
       "prenom": prenom.trim(),
       "localisation": localisation.trim().isEmpty ? null : localisation.trim(),
       "telephone": telephone.trim(),
+      "email": email?.trim(),
       "message": message.trim().isEmpty ? null : message.trim(),
       "nbAppels": nbAppels,
       "sujetDiscussion":

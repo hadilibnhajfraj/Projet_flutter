@@ -470,7 +470,13 @@ Row(
           ),
 
           const SizedBox(height: 14),
-
+           _tf(
+  "Email",
+  "example@email.com",
+  c.emailCtrl,
+  keyboardType: TextInputType.emailAddress,
+  icon: Icons.email_outlined,
+),
           _tf(
             "Location",
             "Example: Tunis, Sousse...",
