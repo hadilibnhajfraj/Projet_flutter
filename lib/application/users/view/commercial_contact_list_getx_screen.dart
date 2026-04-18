@@ -50,13 +50,81 @@ class _CommercialContactListGetxScreenState
   static const Color kBg = Color(0xFFF8FAFC);
   static const Color kText = Color(0xFF101828);
   static const Color kMuted = Color(0xFF667085);
-
+ int get totalPages {
+  if (_contacts.isEmpty) return 1;
+  return (_contacts.length / rowsPerPage).ceil();
+}
   @override
   void initState() {
     super.initState();
     _loadUsers();
     _loadContacts();
   }
+  Widget _buildPagination() {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        /// 🔢 ROWS PER PAGE
+        Row(
+          children: [
+            const Text("Rows per page: "),
+            const SizedBox(width: 8),
+            DropdownButton<int>(
+              value: rowsPerPage,
+              items: [5, 10, 20, 50].map((e) {
+                return DropdownMenuItem(
+                  value: e,
+                  child: Text("$e"),
+                );
+              }).toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    rowsPerPage = value;
+                    currentPage = 1;
+                  });
+                }
+              },
+            ),
+          ],
+        ),
+
+        /// 📄 PAGE INFO + BUTTONS
+        Row(
+          children: [
+            Text("Page $currentPage / $totalPages"),
+
+            const SizedBox(width: 12),
+
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios),
+              onPressed: currentPage > 1
+                  ? () {
+                      setState(() {
+                        currentPage--;
+                      });
+                    }
+                  : null,
+            ),
+
+            IconButton(
+              icon: const Icon(Icons.arrow_forward_ios),
+              onPressed: currentPage < totalPages
+                  ? () {
+                      setState(() {
+                        currentPage++;
+                      });
+                    }
+                  : null,
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
 List<CommercialContact> get paginatedContacts {
   final start = (currentPage - 1) * rowsPerPage;
   final end = start + rowsPerPage;
@@ -1544,9 +1612,12 @@ OutlinedButton.icon(
               ),
             ),
           ),
+              /// 🔥 AJOUT ICI (TRÈS IMPORTANT)
+            _buildPagination(),
         ],
       ),
     );
+
   }
 
 Widget _buildSearchBar() {
