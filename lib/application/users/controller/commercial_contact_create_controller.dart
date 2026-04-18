@@ -117,10 +117,11 @@ class CommercialContactCreateController extends GetxController {
     final nom = nomCtrl.text.trim();
     final prenom = prenomCtrl.text.trim();
     final tel = telephoneCtrl.text.trim();
- 
-    if (nom.isEmpty || prenom.isEmpty || tel.isEmpty) {
-      return false;
-    }
+    final email = emailCtrl.text.trim();
+    if (nom.isEmpty && prenom.isEmpty && tel.isEmpty && emailCtrl.text.trim().isEmpty) {
+  Get.snackbar("Erreur", "Remplis au moins Nom, Téléphone ou Email");
+  return false;
+}
 
     final cleanedProduits = produits.map((p) {
       return CommercialProductInput(
@@ -142,7 +143,7 @@ class CommercialContactCreateController extends GetxController {
         sujetDiscussion: sujetDiscussionCtrl.text.trim(),
       );
     }
-    final email = emailCtrl.text.trim();
+
     final dto = CommercialContactCreateDto(
       typeClient: typeClient.value,
       statut: statut.value,

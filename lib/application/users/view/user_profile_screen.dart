@@ -87,7 +87,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       // ✅ IMAGE BACKEND
       if (avatarUrl != null && avatarUrl.isNotEmpty) {
         return Image.network(
-          "https://api.crmprobar.com$avatarUrl",
+          "http://localhost:4000$avatarUrl",
           width: 60,
           height: 60,
           fit: BoxFit.cover,
