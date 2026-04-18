@@ -60,6 +60,40 @@ class _CommercialContactListGetxScreenState
     _loadUsers();
     _loadContacts();
   }
+  Future<String?> _showUserDialog() async {
+  String? selected;
+
+  return await showDialog<String>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text("Select User"),
+        content: DropdownButtonFormField<String>(
+          items: users.map((u) {
+            return DropdownMenuItem(
+              value: u,
+              child: Text(u),
+            );
+          }).toList(),
+          onChanged: (v) {
+            selected = v;
+          },
+          decoration: _inputDecoration("User"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, selected),
+            child: const Text("Save"),
+          ),
+        ],
+      );
+    },
+  );
+}
   Widget _buildPagination() {
   return Padding(
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -571,132 +605,179 @@ Future<void> _loadContacts({
       }
     }
   }
+Future<void> _showRelanceDialog(CommercialContact contact) async {
+  String? selectedUser = contact.userNom;
 
-  Future<void> _showRelanceDialog(CommercialContact contact) async {
-    final dateCtrl = TextEditingController(
-      text: contact.relances.isNotEmpty
-          ? (contact.relances.first.dateRelance ?? "")
-          : "",
+  final dateCtrl = TextEditingController(
+    text: contact.relances.isNotEmpty
+        ? (contact.relances.first.dateRelance ?? "")
+        : "",
+  );
+
+  final heureCtrl = TextEditingController(
+    text: contact.relances.isNotEmpty
+        ? (contact.relances.first.heureRelance ?? "")
+        : "",
+  );
+
+  final commentaireCtrl = TextEditingController(
+    text: contact.relances.isNotEmpty
+        ? (contact.relances.first.commentaire ?? "")
+        : "",
+  );
+
+  Future<void> pickDate(BuildContext dialogContext) async {
+    final picked = await showDatePicker(
+      context: dialogContext,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
     );
-    final heureCtrl = TextEditingController(
-      text: contact.relances.isNotEmpty
-          ? (contact.relances.first.heureRelance ?? "")
-          : "",
-    );
-    final commentaireCtrl = TextEditingController(
-      text: contact.relances.isNotEmpty
-          ? (contact.relances.first.commentaire ?? "")
-          : "",
-    );
-
-    Future<void> pickDate(BuildContext dialogContext) async {
-      final picked = await showDatePicker(
-        context: dialogContext,
-        initialDate: DateTime.now(),
-        firstDate: DateTime(2020),
-        lastDate: DateTime(2100),
-      );
-      if (picked != null) {
-        dateCtrl.text =
-            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-      }
-    }
-
-    Future<void> pickTime(BuildContext dialogContext) async {
-      final picked = await showTimePicker(
-        context: dialogContext,
-        initialTime: TimeOfDay.now(),
-      );
-      if (picked != null) {
-        final hh = picked.hour.toString().padLeft(2, '0');
-        final mm = picked.minute.toString().padLeft(2, '0');
-        heureCtrl.text = "$hh:$mm";
-      }
-    }
-
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Text("Follow-up - ${contact.fullName}"),
-          content: SizedBox(
-            width: 520,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: dateCtrl,
-                  readOnly: true,
-                  decoration: _inputDecoration("Follow-up date"),
-                  onTap: () => pickDate(dialogContext),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: heureCtrl,
-                  readOnly: true,
-                  decoration: _inputDecoration("Follow-up time"),
-                  onTap: () => pickTime(dialogContext),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: commentaireCtrl,
-                  maxLines: 3,
-                  decoration: _inputDecoration("Comment"),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text("Cancel"),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: kPrimary,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () async {
-                try {
-                  final payload = {
-                    "dateRelance": dateCtrl.text.trim(),
-                    "heureRelance": heureCtrl.text.trim().isEmpty
-                        ? null
-                        : heureCtrl.text.trim(),
-                    "commentaire": commentaireCtrl.text.trim().isEmpty
-                        ? null
-                        : commentaireCtrl.text.trim(),
-                    if (contact.statut != "ok" &&
-                        contact.statut != "rappeler_plus_tard")
-                      "statut": "rappeler_plus_tard",
-                  };
-
-                  await _updateContact(id: contact.id, data: payload);
-
-                  if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop(true);
-                  }
-                } catch (e) {
-                  if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop(false);
-                  }
-                  _showError(e.toString());
-                }
-              },
-              child: const Text("Save"),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (saved == true) {
-      _showSuccess("Follow-up saved successfully");
+    if (picked != null) {
+      dateCtrl.text =
+          "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
     }
   }
+
+  Future<void> pickTime(BuildContext dialogContext) async {
+    final picked = await showTimePicker(
+      context: dialogContext,
+      initialTime: TimeOfDay.now(),
+    );
+    if (picked != null) {
+      final hh = picked.hour.toString().padLeft(2, '0');
+      final mm = picked.minute.toString().padLeft(2, '0');
+      heureCtrl.text = "$hh:$mm";
+    }
+  }
+
+  final saved = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            title: Text("Follow-up - ${contact.fullName}"),
+            content: SizedBox(
+              width: 520,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  
+                  /// 🔥 USER SELECT
+                  Row(
+                    children: [
+                      const Icon(Icons.person, color: kPrimary),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(selectedUser ?? "Unknown"),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        onPressed: () async {
+                          final newUser = await _showUserDialog();
+
+                          if (newUser != null) {
+                            setDialogState(() {
+                              selectedUser = newUser;
+                            });
+                          }
+                        },
+                      )
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  TextField(
+                    controller: dateCtrl,
+                    readOnly: true,
+                    decoration: _inputDecoration("Follow-up date"),
+                    onTap: () => pickDate(dialogContext),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  TextField(
+                    controller: heureCtrl,
+                    readOnly: true,
+                    decoration: _inputDecoration("Follow-up time"),
+                    onTap: () => pickTime(dialogContext),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  TextField(
+                    controller: commentaireCtrl,
+                    maxLines: 3,
+                    decoration: _inputDecoration("Comment"),
+                  ),
+                ],
+              ),
+            ),
+
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text("Cancel"),
+              ),
+
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kPrimary,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  try {
+                    final payload = {
+                      "dateRelance": dateCtrl.text.trim(),
+                      "heureRelance": heureCtrl.text.trim().isEmpty
+                          ? null
+                          : heureCtrl.text.trim(),
+                      "commentaire": commentaireCtrl.text.trim().isEmpty
+                          ? null
+                          : commentaireCtrl.text.trim(),
+
+                      /// 🔥 USER
+                      "user_nom": selectedUser,
+                     
+
+                      if (contact.statut != "ok" &&
+                          contact.statut != "rappeler_plus_tard")
+                        "statut": "rappeler_plus_tard",
+                    };
+
+                    await _updateContact(
+                      id: contact.id,
+                      data: payload,
+                    );
+
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop(true);
+                    }
+                  } catch (e) {
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop(false);
+                    }
+                    _showError(e.toString());
+                  }
+                },
+                child: const Text("Save"),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+
+  if (saved == true) {
+    _showSuccess("Follow-up saved successfully");
+  }
+}
 
   Future<void> _showEditDialog(CommercialContact contact) async {
     final nomSocieteCtrl = TextEditingController(text: contact.nomSociete ?? "");
@@ -715,7 +796,7 @@ Future<void> _loadContacts({
       : "",
       
 );
-
+final emailCtrl = TextEditingController(text: contact.email ?? "");
 DateTime? dateAppel = contact.dateAppel;
 
 String selectedPipeline =
@@ -824,6 +905,44 @@ final projects = (contact.projects.isEmpty
                         spacing: 12,
                         runSpacing: 12,
                         children: [
+                                                /// 🔥 USER SECTION (AJOUT ICI)
+Container(
+  padding: const EdgeInsets.all(12),
+  decoration: BoxDecoration(
+    color: const Color(0xFFF8FAFC),
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(color: const Color(0xFFE4E7EC)),
+  ),
+  child: Row(
+    children: [
+      const Icon(Icons.person, color: kPrimary),
+      const SizedBox(width: 10),
+
+      Expanded(
+        child: Text(
+          contact.userNom ?? "Unknown",
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+
+      IconButton(
+        icon: const Icon(Icons.edit, size: 18),
+        onPressed: () async {
+          final newUser = await _showUserDialog();
+
+          if (newUser != null) {
+            await _updateContact(
+              id: contact.id,
+              data: {"userNom": newUser},
+            );
+          }
+        },
+      )
+    ],
+  ),
+),
                           SizedBox(
                             width: 260,
                             child: TextField(
@@ -859,6 +978,13 @@ final projects = (contact.projects.isEmpty
                               decoration: _inputDecoration("Location"),
                             ),
                           ),
+                          SizedBox(
+  width: 280,
+  child: TextField(
+    controller: emailCtrl,
+    decoration: _inputDecoration("Email"),
+  ),
+),
                         ],
                       ),
                       const SizedBox(height: 14),
@@ -1007,6 +1133,9 @@ Row(
                           fontSize: 16,
                         ),
                       ),
+
+
+const SizedBox(height: 18),
                       const SizedBox(height: 10),
                       Column(
                         children: List.generate(produits.length, (index) {
@@ -1245,6 +1374,9 @@ OutlinedButton.icon(
                                       : messageCtrl.text.trim(),
                                   "nbAppels":
                                       int.tryParse(nbAppelsCtrl.text.trim()) ?? 0,
+                                      "email": emailCtrl.text.trim().isEmpty
+    ? null
+    : emailCtrl.text.trim(),
                                   "sujetDiscussion":
                                       sujetDiscussionCtrl.text.trim().isEmpty
                                           ? null
@@ -1322,10 +1454,10 @@ OutlinedButton.icon(
         );
       },
     );
-
-    if (saved == true) {
-      _showSuccess("Contact updated successfully");
-    }
+if (saved == true) {
+  await _loadContacts(); // 🔥 refresh complet
+  _showSuccess("Contact updated successfully");
+}
   }
 
   Widget _buildTable() {
