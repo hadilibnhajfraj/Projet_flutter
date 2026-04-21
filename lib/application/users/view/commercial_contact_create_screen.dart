@@ -466,6 +466,14 @@ Row(
                   icon: Icons.phone_outlined,
                 ),
               ),
+         SizedBox(
+  width: 250,
+  child: _tf(
+    "Matricule Fiscale",
+    "Ex: 1234567AAM000",
+    c.matriculeFiscaleCtrl,
+  ),
+),
             ],
           ),
 

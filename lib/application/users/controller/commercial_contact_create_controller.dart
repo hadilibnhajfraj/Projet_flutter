@@ -20,6 +20,7 @@ class CommercialContactCreateController extends GetxController {
   final nbAppelsCtrl = TextEditingController(text: "0");
   final sujetDiscussionCtrl = TextEditingController();
   final emailCtrl = TextEditingController();
+  final matriculeFiscaleCtrl = TextEditingController();
 
   var pipelineStage = "Prospect".obs;
 
@@ -117,6 +118,7 @@ class CommercialContactCreateController extends GetxController {
     final nom = nomCtrl.text.trim();
     final prenom = prenomCtrl.text.trim();
     final tel = telephoneCtrl.text.trim();
+    final matricule = matriculeFiscaleCtrl.text.trim();
     final email = emailCtrl.text.trim();
     if (nom.isEmpty && prenom.isEmpty && tel.isEmpty && emailCtrl.text.trim().isEmpty) {
   Get.snackbar("Erreur", "Remplis au moins Nom, Téléphone ou Email");
@@ -154,6 +156,7 @@ class CommercialContactCreateController extends GetxController {
       telephone: telephoneCtrl.text,
       message: messageCtrl.text,
       nbAppels: int.tryParse(nbAppelsCtrl.text.trim()) ?? 0,
+      matriculeFiscale: matricule.isEmpty ? null : matricule,
       sujetDiscussion: sujetDiscussionCtrl.text.trim(),
       produits: cleanedProduits,
       projects: projects,

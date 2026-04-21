@@ -797,6 +797,8 @@ Future<void> _showRelanceDialog(CommercialContact contact) async {
       
 );
 final emailCtrl = TextEditingController(text: contact.email ?? "");
+final matriculeFiscaleCtrl =
+    TextEditingController(text: contact.matriculeFiscale ?? "");
 DateTime? dateAppel = contact.dateAppel;
 
 String selectedPipeline =
@@ -983,6 +985,13 @@ Container(
   child: TextField(
     controller: emailCtrl,
     decoration: _inputDecoration("Email"),
+  ),
+),
+SizedBox(
+  width: 280,
+  child: TextField(
+    controller: matriculeFiscaleCtrl,
+    decoration: _inputDecoration("Matricule Fiscale"),
   ),
 ),
                         ],
@@ -1381,6 +1390,9 @@ OutlinedButton.icon(
                                       sujetDiscussionCtrl.text.trim().isEmpty
                                           ? null
                                           : sujetDiscussionCtrl.text.trim(),
+                                          "matriculeFiscale": matriculeFiscaleCtrl.text.trim().isEmpty
+    ? null
+    : matriculeFiscaleCtrl.text.trim(),
                                   "produits": produits.map((row) {
                                     final produit =
                                         (row["produitCtrl"]

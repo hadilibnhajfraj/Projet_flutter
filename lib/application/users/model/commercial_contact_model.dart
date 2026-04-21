@@ -85,6 +85,7 @@ class CommercialContact {
   final int nbAppels;
   final String? sujetDiscussion;
   final String? email;
+  final String? matriculeFiscale;
   // ✅ NEW FIELDS (IMPORTANT)
   final String pipelineStage;
   final DateTime? dateAppel;
@@ -102,6 +103,7 @@ final String? userNomCustom;
     this.nomSociete,
     required this.nom,
     required this.prenom,
+    this.matriculeFiscale,
     this.localisation,
     required this.telephone,
     this.message,
@@ -136,6 +138,7 @@ final String? userNomCustom;
       localisation: json['localisation']?.toString(),
       telephone: json['telephone']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
+      matriculeFiscale: json['matriculeFiscale']?.toString(),
 
       message: json['message']?.toString(),
       createdBy: json['createdBy']?.toString(),

@@ -73,6 +73,7 @@ class CommercialContactCreateDto {
   String typeClient;
   String statut;
   String nomSociete;
+  String? matriculeFiscale;
   String nom;
   String prenom;
   String localisation;
@@ -98,8 +99,9 @@ class CommercialContactCreateDto {
     this.nom = "",
     this.prenom = "",
     this.localisation = "",
+    this.matriculeFiscale = "",
     this.telephone = "",
-     this.email = "",
+    this.email = "",
     this.message = "",
     this.nbAppels = 0,
     this.sujetDiscussion = "",
@@ -118,6 +120,10 @@ class CommercialContactCreateDto {
       "statut": statut,
       "nomSociete": nomSociete.trim().isEmpty ? null : nomSociete.trim(),
       "nom": nom.trim(),
+      "matriculeFiscale":
+       matriculeFiscale == null || matriculeFiscale!.trim().isEmpty
+        ? null
+        : matriculeFiscale!.trim(),
       "prenom": prenom.trim(),
       "localisation": localisation.trim().isEmpty ? null : localisation.trim(),
       "telephone": telephone.trim(),
