@@ -30,7 +30,7 @@ class UserModel {
   // ✅ image finale affichée
   String get displayImage {
     if (avatarUrl != null && avatarUrl!.isNotEmpty) {
-      return "https://api.crmprobar.com$avatarUrl";
+      return "http://localhost:4000$avatarUrl";
     }
     return imageUrl;
   }

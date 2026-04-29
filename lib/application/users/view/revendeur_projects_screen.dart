@@ -4,7 +4,8 @@ import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dash_master_toolkit/route/my_route.dart';
-
+import 'dart:html' as html;
+import 'package:excel/excel.dart' as excel;
 class RevendeurProjectsScreen extends StatefulWidget {
   const RevendeurProjectsScreen({super.key});
 
@@ -32,7 +33,100 @@ class _RevendeurProjectsScreenState extends State<RevendeurProjectsScreen> {
   final int limit = 10;
 
   final TextEditingController searchCtrl = TextEditingController();
+void _exportExcelFull() {
+  final itemsList = items;
 
+  var excelFile = excel.Excel.createExcel();
+  excel.Sheet sheet = excelFile['Revendeurs'];
+
+  final headers = [
+    'Project Name',
+    'Start Date',
+    'Model',
+
+    // 🔥 REVENDEUR
+    'Comptoir',
+    'Phone Comptoir',
+    'Phone Comptoir 2',
+    'Registre Commerce',
+    'Fonction',
+
+    'Nom Revendeur',
+    'Prénom Revendeur',
+    'Email Revendeur',
+    'Statut Revendeur',
+    'Adresse Revendeur',
+
+    // AUTRES
+    'Created At',
+    'Updated At',
+    'Last Relance',
+  ];
+
+  sheet.appendRow(headers);
+
+  /// HEADER STYLE
+  for (int i = 0; i < headers.length; i++) {
+    sheet
+        .cell(excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+        .cellStyle = excel.CellStyle(
+      bold: true,
+      backgroundColorHex: "#111827",
+      fontColorHex: "#FFFFFF",
+    );
+  }
+
+  int rowIndex = 1;
+
+  for (var p in itemsList) {
+    sheet.appendRow([
+      p["nomProjet"] ?? "",
+      p["dateDemarrage"] ?? "",
+      p["projectModele"] ?? "",
+
+      // 🔥 REVENDEUR
+      p["comptoir"] ?? "",
+      p["telephoneComptoir"] ?? "",
+      p["telephoneComptoir2"] ?? "",
+      p["registreCommerce"] ?? "",
+      p["fonction"] ?? "",
+
+      p["revendeurNom"] ?? "",
+      p["revendeurPrenom"] ?? "",
+      p["revendeurEmail"] ?? "",
+      p["revendeurStatut"] ?? "",
+      p["adresseRevendeur"] ?? "",
+
+      // AUTRES
+      p["createdAt"] ?? "",
+      p["updatedAt"] ?? "",
+      p["lastRelanceAt"] ?? "",
+    ]);
+
+    rowIndex++;
+  }
+
+  /// AUTO WIDTH
+  for (int i = 0; i < headers.length; i++) {
+    sheet.setColWidth(i, 25);
+  }
+
+  final bytes = excelFile.encode();
+  if (bytes == null) return;
+
+  final blob = html.Blob(
+    [bytes],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  );
+
+  final url = html.Url.createObjectUrlFromBlob(blob);
+
+  html.AnchorElement(href: url)
+    ..setAttribute('download', 'revendeur_projects.xlsx')
+    ..click();
+
+  html.Url.revokeObjectUrl(url);
+}
   @override
   void initState() {
     super.initState();
@@ -110,39 +204,52 @@ class _RevendeurProjectsScreenState extends State<RevendeurProjectsScreen> {
             const SizedBox(height: 24),
 
             /// FILTER
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: searchCtrl,
-                    decoration: const InputDecoration(
-                      hintText: "Search...",
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
+           Row(
+  children: [
+    Expanded(
+      child: TextField(
+        controller: searchCtrl,
+        decoration: const InputDecoration(
+          hintText: "Search...",
+          border: OutlineInputBorder(),
+        ),
+      ),
+    ),
+    const SizedBox(width: 10),
 
-                ElevatedButton(
-                  onPressed: () {
-                    page = 1;
-                    loadProjects();
-                  },
-                  child: const Text("Apply"),
-                ),
+    ElevatedButton(
+      onPressed: () {
+        page = 1;
+        loadProjects();
+      },
+      child: const Text("Apply"),
+    ),
 
-                const SizedBox(width: 10),
+    const SizedBox(width: 10),
 
-                OutlinedButton(
-                  onPressed: () {
-                    searchCtrl.clear();
-                    page = 1;
-                    loadProjects();
-                  },
-                  child: const Text("Reset"),
-                ),
-              ],
-            ),
+    OutlinedButton(
+      onPressed: () {
+        searchCtrl.clear();
+        page = 1;
+        loadProjects();
+      },
+      child: const Text("Reset"),
+    ),
+
+    const SizedBox(width: 10),
+
+    /// 🔥 EXPORT BUTTON
+    ElevatedButton.icon(
+      onPressed: items.isEmpty ? null : _exportExcelFull,
+      icon: const Icon(Icons.download),
+      label: const Text("Export Excel"),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+    ),
+  ],
+),
 
             const SizedBox(height: 24),
 
@@ -202,28 +309,49 @@ class _RevendeurProjectsScreenState extends State<RevendeurProjectsScreen> {
                               rows: items.map<DataRow>((p) {
                                 return DataRow(
                                   onSelectChanged: (v) {
-                                    if (v == true) {
-                                      context.go(editUrl(p["id"]));
-                                    }
+                                    if (v == true && p["isArchived"] != true) {
+    context.go(editUrl(p["id"]));
+  }
                                   },
                                   cells: [
 
                                     /// NOM + AVATAR
-                                    DataCell(
-                                      Row(
-                                        children: [
-                                          CircleAvatar(
-                                            backgroundColor: Colors.blue.shade100,
-                                            child: Text(
-                                              (p["nomProjet"] ?? "P")[0]
-                                                  .toUpperCase(),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Text(p["nomProjet"] ?? "-"),
-                                        ],
-                                      ),
-                                    ),
+                                   DataCell(
+  Row(
+    children: [
+      CircleAvatar(
+        backgroundColor: Colors.blue.shade100,
+        child: Text((p["nomProjet"] ?? "P")[0].toUpperCase()),
+      ),
+      const SizedBox(width: 10),
+
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(p["nomProjet"] ?? "-"),
+
+          /// 🔥 ARCHIVED BADGE
+          if (p["isArchived"] == true)
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(.3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                "ARCHIVED",
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
+      ),
+    ],
+  ),
+),
 
                                     DataCell(Text(p["comptoir"] ?? "-")),
                                     DataCell(Text(p["telephoneComptoir"] ?? "-")),
@@ -261,19 +389,23 @@ class _RevendeurProjectsScreenState extends State<RevendeurProjectsScreen> {
                                       Row(
                                         children: [
                                           IconButton(
-                                            icon: const Icon(Icons.timeline),
-                                            onPressed: () {
-                                              context.go(
-                                                "/forms/project-timeline?projectId=${p["id"]}",
-                                              );
-                                            },
-                                          ),
-                                          IconButton(
-                                            icon: const Icon(Icons.edit),
-                                            onPressed: () {
-                                              context.go(editUrl(p["id"]));
-                                            },
-                                          ),
+  icon: const Icon(Icons.timeline),
+  onPressed: p["isArchived"] == true
+      ? null
+      : () {
+          context.go(
+            "/forms/project-timeline?projectId=${p["id"]}",
+          );
+        },
+),
+                                         IconButton(
+  icon: const Icon(Icons.edit),
+  onPressed: p["isArchived"] == true
+      ? null
+      : () {
+          context.go(editUrl(p["id"]));
+        },
+),
                                         ],
                                       ),
                                     ),

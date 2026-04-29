@@ -25,11 +25,13 @@ class UserProjectModel {
   final String? pourcentageReussite;
   final String? validationStatut;
   final String? typeProjet;
+  final String? emailArchitecte;
   final String? surfaceProspectee;
+  final String? emailIngenieur;
 
   final String createdAt;
   final String updatedAt;
-
+  final String? lastRelanceAt;
   /// 🔥 NEW FIELDS
   final String? projectModele;
   final String? comptoir;
@@ -37,6 +39,12 @@ class UserProjectModel {
   final String? dallagiste;
   final String? telephoneDallagiste;
   final String? createdByName;
+    // 🔥 AJOUTER ICI
+  final String? emailDallagiste;
+  final String? serviceTechnique;
+  final String? registreCommerce;
+  final String? montantMarche;
+  final String? pipelineStage;
 
   UserProjectModel({
     required this.id,
@@ -47,12 +55,15 @@ class UserProjectModel {
     required this.telephoneIngenieur,
     required this.architecte,
     required this.telephoneArchitecte,
+    required this.emailIngenieur,
     required this.isArchived,
+    required this.emailArchitecte,
     required this.matriculeFiscale,
     required this.createdByName,
     required this.entreprise,
     required this.promoteur,
     required this.bureauEtude,
+
     required this.bureauControle,
     required this.adresse,
     required this.latitude,
@@ -60,6 +71,12 @@ class UserProjectModel {
     required this.localisationCommentaire,
     required this.statut,
     required this.entrepriseFluide,
+    // 🔥 AJOUT
+    required this.emailDallagiste,
+    required this.serviceTechnique,
+    required this.registreCommerce,
+    required this.montantMarche,
+    required this.pipelineStage,
     required this.entrepriseElectricite,
     required this.pourcentageReussite,
     required this.validationStatut,
@@ -67,7 +84,7 @@ class UserProjectModel {
     required this.surfaceProspectee,
     required this.createdAt,
     required this.updatedAt,
-
+    required this.lastRelanceAt,
     /// 🔥 NEW
     required this.projectModele,
     required this.comptoir,
@@ -86,11 +103,13 @@ class UserProjectModel {
       telephoneIngenieur: (json['telephoneIngenieur'] ?? '').toString(),
 
       architecte: json['architecte']?.toString(),
+      emailArchitecte: json['emailArchitecte']?.toString(),
       telephoneArchitecte: json['telephoneArchitecte']?.toString(),
       matriculeFiscale: json['matriculeFiscale']?.toString(),
       createdByName: json['createdByName']?.toString(),
       entreprise: (json['entreprise'] ?? '').toString(),
       promoteur: json['promoteur']?.toString(),
+      emailIngenieur: json['emailIngenieur']?.toString(),
       bureauEtude: json['bureauEtude']?.toString(),
       bureauControle: (json['bureauControle'] ?? '').toString(),
       adresse: json['adresse']?.toString(),
@@ -99,10 +118,16 @@ class UserProjectModel {
       longitude: (json['longitude'] ?? '').toString(),
       localisationCommentaire: json['localisationCommentaire']?.toString(),
       statut: json['statut']?.toString(),
-
+      lastRelanceAt: json['lastRelanceAt'],
       entrepriseFluide: json['entrepriseFluide']?.toString(),
       entrepriseElectricite: json['entrepriseElectricite']?.toString(),
       pourcentageReussite: json['pourcentageReussite']?.toString(),
+      // 🔥 AJOUT
+    emailDallagiste: json['emailDallagiste'],
+    serviceTechnique: json['serviceTechnique'],
+    registreCommerce: json['registreCommerce'],
+    montantMarche: json['montantMarche']?.toString(),
+    pipelineStage: json['pipelineStage'],
       validationStatut: json['validationStatut']?.toString(),
       typeProjet: json['typeProjet']?.toString(),
       surfaceProspectee: json['surfaceProspectee']?.toString(),

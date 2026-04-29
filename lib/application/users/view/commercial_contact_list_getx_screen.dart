@@ -282,26 +282,26 @@ void _exportContactsExcel() {
           .join(" | ");
 
       sheet.appendRow([
-        c.id,
-        c.fullName,
-        c.prenom,
-        c.nom,
-        c.nomSociete ?? "",
-        c.telephone,
-        c.localisation ?? "",
-        c.typeClient,
-        c.statut,
-        c.pipelineStage,
-        c.nbAppels,
-        c.sujetDiscussion ?? "",
-        c.message ?? "",
-        c.dateAppel?.toIso8601String() ?? "",
-        c.userNom ?? "",
-        produits,
-        projects,
-        relances,
-        c.createdAt?.toIso8601String() ?? "",
-      ]);
+  c.id,
+  c.fullName,
+  c.prenom,
+  c.nom,
+  c.nomSociete ?? "",
+  c.telephone,
+  c.localisation ?? "",
+  c.typeClient,
+  c.statut,
+  c.pipelineStage ?? "",
+  c.nbAppels,
+  c.sujetDiscussion ?? "",
+  c.message ?? "",
+  c.dateAppel?.toIso8601String() ?? "",
+  c.userNom ?? "",
+  produits,
+  projects,
+  relances,
+  c.createdAt?.toIso8601String() ?? "",
+]);
 
       rowIndex++;
     }

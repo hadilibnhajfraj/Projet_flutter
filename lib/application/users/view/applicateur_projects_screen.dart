@@ -6,6 +6,8 @@ import 'package:dash_master_toolkit/services/user_project_service.dart';
 import 'package:dash_master_toolkit/application/users/model/user_project_model.dart';
 import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'dart:html' as html;
+import 'package:excel/excel.dart' as excel;
 class ApplicateurProjectsScreen extends StatefulWidget {
  const ApplicateurProjectsScreen({super.key});
 
@@ -25,7 +27,7 @@ class _ApplicateurProjectsScreenState
   static const Color kBorder = Color(0xFFE5EAF2);
 
   final UserProjectService service =
-      UserProjectService(baseUrl: 'https://api.crmprobar.com');
+      UserProjectService(baseUrl: 'http://localhost:4000');
 
   List<UserProjectModel> items = [];
   bool loading = false;
@@ -36,7 +38,92 @@ class _ApplicateurProjectsScreenState
   final int limit = 10;
 
   final TextEditingController searchCtrl = TextEditingController();
+void _exportExcelFull() {
+  final itemsList = items;
 
+  var excelFile = excel.Excel.createExcel();
+  excel.Sheet sheet = excelFile['Applicateurs'];
+
+  final headers = [
+    'Project Name',
+    'Start Date',
+    'Model',
+
+    // 🔥 APPLICATEUR
+    'Dallagiste',
+    'Téléphone Dallagiste',
+    'Email Dallagiste',
+    'Service Technique',
+    'Matricule Fiscale',
+    'Registre Commerce',
+    'Adresse',
+
+    // AUTRES
+    'Montant Marché',
+    'Statut Validation',
+    'Pipeline',
+    'Created At',
+    'Updated At',
+  ];
+
+  sheet.appendRow(headers);
+
+  /// HEADER STYLE
+  for (int i = 0; i < headers.length; i++) {
+    sheet
+        .cell(excel.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+        .cellStyle = excel.CellStyle(
+      bold: true,
+      backgroundColorHex: "#111827",
+      fontColorHex: "#FFFFFF",
+    );
+  }
+
+  for (var p in itemsList) {
+    sheet.appendRow([
+      p.nomProjet ?? "",
+      p.dateDemarrage ?? "",
+      p.projectModele ?? "",
+
+      // 🔥 APPLICATEUR
+      p.dallagiste ?? "",
+      p.telephoneDallagiste ?? "",
+      p.emailDallagiste ?? "",
+      p.serviceTechnique ?? "",
+      p.matriculeFiscale ?? "",
+      p.registreCommerce ?? "",
+      p.adresse ?? "",
+
+      // AUTRES
+      p.montantMarche ?? "",
+      p.validationStatut ?? "",
+      p.pipelineStage ?? "",
+      p.createdAt ?? "",
+      p.updatedAt ?? "",
+    ]);
+  }
+
+  /// AUTO WIDTH
+  for (int i = 0; i < headers.length; i++) {
+    sheet.setColWidth(i, 25);
+  }
+
+  final bytes = excelFile.encode();
+  if (bytes == null) return;
+
+  final blob = html.Blob(
+    [bytes],
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  );
+
+  final url = html.Url.createObjectUrlFromBlob(blob);
+
+  html.AnchorElement(href: url)
+    ..setAttribute('download', 'applicateur_projects.xlsx')
+    ..click();
+
+  html.Url.revokeObjectUrl(url);
+}
 
  @override
   void initState() {
@@ -150,6 +237,12 @@ class _ApplicateurProjectsScreenState
                   },
                   child: const Text("Reset"),
                 ),
+                 const SizedBox(width: 10),
+                 ElevatedButton.icon(
+  onPressed: items.isEmpty ? null : _exportExcelFull,
+  icon: const Icon(Icons.download),
+  label: const Text("Export Excel"),
+)
               ],
             ),
 
@@ -214,27 +307,45 @@ class _ApplicateurProjectsScreenState
 
                 /// 🔵 NOM + AVATAR
                 DataCell(
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: Colors.blue.shade100,
-                        child: Text(
-                          p.nomProjet.isNotEmpty
-                              ? p.nomProjet[0].toUpperCase()
-                              : "P",
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded( // ✅ évite overflow
-                        child: Text(
-                          p.nomProjet,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+  Row(
+    children: [
+      CircleAvatar(
+        backgroundColor: Colors.blue.shade100,
+        child: Text(
+          p.nomProjet.isNotEmpty
+              ? p.nomProjet[0].toUpperCase()
+              : "P",
+        ),
+      ),
+      const SizedBox(width: 10),
 
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(p.nomProjet),
+
+          /// 🔥 ARCHIVED BADGE
+          if (p.isArchived == true)
+            Container(
+              margin: const EdgeInsets.only(top: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(.3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text(
+                "ARCHIVED",
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
+      ),
+    ],
+  ),
+),
                 /// 👷 DALLAGISTE
                 DataCell(Text(p.dallagiste ?? "-")),
 

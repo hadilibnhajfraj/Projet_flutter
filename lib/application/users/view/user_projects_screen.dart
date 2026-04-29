@@ -37,7 +37,7 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
   static const Color kNeutralText = Color(0xFF6B7280);
 
   final UserProjectService service = UserProjectService(
-    baseUrl: 'https://api.crmprobar.com',
+    baseUrl: 'http://localhost:4000',
   );
 
   final TextEditingController _searchCtrl = TextEditingController();
@@ -390,35 +390,44 @@ void _exportExcelFull() {
   var excelFile = excel.Excel.createExcel();
   excel.Sheet sheet = excelFile['Projects'];
 
-  final headers = [
-    'Project Name',
-    'Start Date',
-    'Created By',
-    'Model',
-    'Engineer',
-    'Phone Engineer',
-    'Comptoir',
-    'Phone Comptoir',
-    'Dallagiste',
-    'Phone Dallagiste',
-    'Architect',
-    'Phone Architect',
-    'Promoter',
-    'Company',
-    'Bureau Controle',
-    'Adresse',
-    'Latitude',
-    'Longitude',
-    'Status',
-    'Validation',
-    'Type Projet',
-    'Surface',          // ✅ NUMBER
-    'Fluide',
-    'Electricité',
-    'Réussite %',       // ✅ NUMBER
-    'Created At',
-    'Updated At',
-  ];
+final headers = [
+  'Project Name',
+  'Start Date',
+  'Created By',
+  'Model',
+
+  'Engineer',
+  'Phone Engineer',
+  'Email Engineer',
+
+  'Architect',
+  'Phone Architect',
+  'Email Architect',
+
+  'Promoter',
+  'Company',
+  'Bureau Etude',
+  'Bureau Controle',
+
+  'Adresse',
+  'Latitude',
+  'Longitude',
+
+  'Status',
+  'Validation',
+
+  'Type Projet',
+
+  'Surface',
+  'Fluide',
+  'Electricité',
+
+  'Réussite %',
+
+  'Created At',
+  'Updated At',
+  'Last Relance',
+];
 
   sheet.appendRow(headers);
 
@@ -509,56 +518,44 @@ void _exportExcelFull() {
       double? success =
           double.tryParse(p.pourcentageReussite ?? "");
 
-      sheet.appendRow([
-        safe(p.nomProjet),
-        safe(p.dateDemarrage),
-        safe(p.createdByName),
-        safe(p.projectModele),
+   sheet.appendRow([
+  safe(p.nomProjet),
+  safe(p.dateDemarrage),
+  safe(p.createdByName),
+  safe(p.projectModele),
 
-        p.projectModele == "project"
-            ? safe(p.ingenieurResponsable)
-            : "-",
+  safe(p.ingenieurResponsable),
+  safe(p.telephoneIngenieur),
+  safe(p.emailIngenieur),
 
-        p.projectModele == "project"
-            ? safe(p.telephoneIngenieur)
-            : "-",
+  safe(p.architecte),
+  safe(p.telephoneArchitecte),
+  safe(p.emailArchitecte),
 
-        p.projectModele == "revendeur"
-            ? safe(p.comptoir)
-            : "-",
+  safe(p.promoteur),
+  safe(p.entreprise),
+  safe(p.bureauEtude),
+  safe(p.bureauControle),
 
-        p.projectModele == "revendeur"
-            ? safe(p.telephoneComptoir)
-            : "-",
+  safe(p.adresse),
+  safe(p.latitude),
+  safe(p.longitude),
 
-        p.projectModele == "applicateur"
-            ? safe(p.dallagiste)
-            : "-",
+  safe(p.statut),
+  safe(p.validationStatut),
 
-        p.projectModele == "applicateur"
-            ? safe(p.telephoneDallagiste)
-            : "-",
+  safe(p.typeProjet),
 
-        safe(p.architecte),
-        safe(p.telephoneArchitecte),
-        safe(p.promoteur),
-        safe(p.entreprise),
-        safe(p.bureauControle),
-        safe(p.adresse),
-        safe(p.latitude),
-        safe(p.longitude),
-        safe(p.statut),
-        safe(p.validationStatut),
-        safe(p.typeProjet),
+  surface ?? "",
+  safe(p.entrepriseFluide),
+  safe(p.entrepriseElectricite),
 
-        surface ?? "",              // ✅ NUMBER
-        safe(p.entrepriseFluide),
-        safe(p.entrepriseElectricite),
-        success ?? "",              // ✅ NUMBER
+  success ?? "",
 
-        safe(p.createdAt),
-        safe(p.updatedAt),
-      ]);
+  safe(p.createdAt),
+  safe(p.updatedAt),
+  safe(p.lastRelanceAt),
+]);
 
       /// 🎨 STATUS
       sheet

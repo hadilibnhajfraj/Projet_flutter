@@ -4,7 +4,7 @@ import 'package:dash_master_toolkit/application/users/model/commercial_action_mo
 import '../providers/api_client.dart';
 class CommercialActionService {
 
-  final String baseUrl = "https://api.crmprobar.com";
+  final String baseUrl = "http://localhost:4000";
 
   Future<List<CommercialAction>> getActions({
     required String token,
