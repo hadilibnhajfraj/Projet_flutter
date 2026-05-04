@@ -43,10 +43,9 @@ class _UserListScreenState extends State<UserListScreen> {
     });
   }
 
-  Future<void> _openUserProjects(UserModel user) async {
-    // ✅ redirect to KPI page with userId in query params
-    context.go("/dashboard/kpi-project?userId=${Uri.encodeComponent(user.id)}");
-  }
+Future<void> _openUserProjects(UserModel user) async {
+  context.go("/users/project-list?userId=${Uri.encodeComponent(user.id)}");
+}
 
   @override
   Widget build(BuildContext context) {
