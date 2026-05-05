@@ -16,93 +16,33 @@ class NotificationIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // ✅ IMPORTANT : ne pas Get.put() ici
     final NotificationController controller =
-    Get.isRegistered<NotificationController>()
-        ? Get.find<NotificationController>()
-        : Get.put(NotificationController(), permanent: true);
-
+        Get.isRegistered<NotificationController>()
+            ? Get.find<NotificationController>()
+            : Get.put(NotificationController(), permanent: true);
 
     return Obx(() {
       final int count = controller.unreadCount.value;
 
-      return PopupMenuButton<int>(
-        offset: const Offset(0, 25),
-        padding: EdgeInsets.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-
-        // ✅ refresh quand on ouvre
-        onOpened: () => controller.fetchNotifications(silent: true),
-
-        itemBuilder: (BuildContext context) {
-          return [
-            PopupMenuItem<int>(
-              enabled: false,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        AppLocalizations.of(context).translate("notifications"),
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: controller.themeController.isDarkMode
-                              ? colorWhite
-                              : colorGrey900,
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      Expanded(
-                        child: InkWell(
-                          onTap: () => controller.markAllRead(),
-                          child: Text(
-                            AppLocalizations.of(context).translate("markAllRead"),
-                            maxLines: 2,
-                            textAlign: TextAlign.end,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: colorPrimary100,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  const DashedDivider(),
-                ],
-              ),
-            ),
-
-            // ✅ notifications list
-            ...controller.listOfNotification.asMap().entries.map((entry) {
-              final index = entry.key;
-              final NotificationData notification = entry.value;
-
-              return PopupMenuItem<int>(
-                value: index,
-                child: InkWell(
-                  onTap: () => controller.markOneRead(notification.id),
-                  child: NotificationListWidget(notification: notification),
-                ),
-              );
-            }),
-
-            PopupMenuItem<int>(
-              enabled: false,
-              child: Text(
-                AppLocalizations.of(context).translate("viewAllNotifications"),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: colorPrimary100,
+      return GestureDetector(
+        onTap: () {
+          showDialog(
+            context: context,
+            builder: (_) => Dialog(
+              child: SizedBox(
+                height: 450,
+                width: 400,
+                child: Column(
+                  children: [
+                    _buildHeader(context, controller, theme),
+                    const Divider(height: 1),
+                    Expanded(child: _buildList(controller, context)),
+                  ],
                 ),
               ),
             ),
-          ];
+          );
         },
-
         child: Stack(
           children: [
             SvgPicture.asset(
@@ -110,7 +50,9 @@ class NotificationIconButton extends StatelessWidget {
               width: 22,
               height: 22,
               colorFilter: ColorFilter.mode(
-                controller.themeController.isDarkMode ? colorWhite : colorGrey900,
+                controller.themeController.isDarkMode
+                    ? colorWhite
+                    : colorGrey900,
                 BlendMode.srcIn,
               ),
             ),
@@ -122,15 +64,18 @@ class NotificationIconButton extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
-  shape: BoxShape.circle,
-  color: colorError100,
-),
-
-                  constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+                    shape: BoxShape.circle,
+                    color: colorError100,
+                  ),
+                  constraints:
+                      const BoxConstraints(minWidth: 14, minHeight: 14),
                   child: Center(
                     child: Text(
                       count > 99 ? "99+" : "$count",
-                      style: const TextStyle(fontSize: 9, color: Colors.white),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -139,5 +84,95 @@ class NotificationIconButton extends StatelessWidget {
         ),
       );
     });
+  }
+
+  // ================= HEADER =================
+  Widget _buildHeader(
+    BuildContext context,
+    NotificationController controller,
+    ThemeData theme,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            AppLocalizations.of(context).translate("notifications"),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          TextButton(
+            onPressed: () => controller.markAllRead(),
+            child: Text(
+              AppLocalizations.of(context).translate("markAllRead"),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= LIST + PAGINATION =================
+  Widget _buildList(
+    NotificationController controller,
+    BuildContext context,
+  ) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: (scrollInfo) {
+        if (scrollInfo.metrics.pixels ==
+            scrollInfo.metrics.maxScrollExtent) {
+          controller.loadMore();
+        }
+        return false;
+      },
+      child: Obx(() {
+        return ListView.builder(
+          itemCount: controller.listOfNotification.length,
+          itemBuilder: (context, index) {
+            final notification = controller.listOfNotification[index];
+
+            return InkWell(
+              onTap: () {
+                controller.markOneRead(notification.id);
+                _showNotificationDetails(context, notification);
+              },
+              child: NotificationListWidget(
+                notification: notification,
+              ),
+            );
+          },
+        );
+      }),
+    );
+  }
+
+  // ================= POPUP DETAIL =================
+  void _showNotificationDetails(
+    BuildContext context,
+    NotificationData notification,
+  ) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(notification.title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Type: ${notification.type}"),
+            const SizedBox(height: 10),
+            Text(notification.message),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Fermer"),
+          ),
+        ],
+      ),
+    );
   }
 }

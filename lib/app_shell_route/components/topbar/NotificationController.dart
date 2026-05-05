@@ -8,7 +8,8 @@ import 'package:dash_master_toolkit/providers/auth_service.dart';
 class NotificationController extends GetxController {
   final themeController = Get.find<ThemeController>();
   final box = GetStorage();
-
+  final RxInt page = 1.obs;
+final RxBool hasMore = true.obs;
   final RxList<NotificationData> listOfNotification = <NotificationData>[].obs;
   final RxInt unreadCount = 0.obs;
 
@@ -27,30 +28,25 @@ void onInit() {
   // 📥 FETCH
   // =========================
 Future<void> fetchNotifications({bool silent = false}) async {
-  print("🚀 fetchNotifications CALLED");
-  print("🔑 TOKEN => $token");
-
-  if (token.isEmpty) {
-    print("❌ TOKEN EMPTY → API NOT CALLED");
-    listOfNotification.clear();
-    unreadCount.value = 0;
-    return;
-  }
-
-  print("✅ TOKEN OK → CALL API");
+  if (token.isEmpty) return;
 
   try {
     if (!silent) isLoading.value = true;
 
-    final res = await NotificationApi.instance.getMyNotifications(token);
+    page.value = 1;
 
-    print("✅ API RESPONSE RECEIVED");
+    final res = await NotificationApi.instance.getMyNotifications(
+      token,
+      page: page.value,
+    );
 
     listOfNotification.assignAll(res.items);
     unreadCount.value = res.unreadCount;
 
+    hasMore.value = res.items.length >= 10;
+
   } catch (e) {
-    print("❌ FETCH NOTIFICATION ERROR: $e");
+    print("❌ ERROR: $e");
   } finally {
     isLoading.value = false;
   }
@@ -125,4 +121,28 @@ Future<void> fetchNotifications({bool silent = false}) async {
       print("❌ DELETE ERROR: $e");
     }
   }
+  Future<void> loadMore() async {
+  if (!hasMore.value || isLoading.value) return;
+
+  try {
+    isLoading.value = true;
+    page.value++;
+
+    final res = await NotificationApi.instance.getMyNotifications(
+      token,
+      page: page.value,
+    );
+
+    if (res.items.isEmpty) {
+      hasMore.value = false;
+    } else {
+      listOfNotification.addAll(res.items);
+    }
+
+  } catch (e) {
+    print("❌ LOAD MORE ERROR: $e");
+  } finally {
+    isLoading.value = false;
+  }
+}
 }

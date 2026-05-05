@@ -14,16 +14,18 @@ class NotificationApi {
   // =========================
   // 📥 GET NOTIFICATIONS
   // =========================
-  Future<NotificationResponse> getMyNotifications(String token) async {
-    final res = await _dio.get(
-  "/notifications",
-  options: Options(headers: {"Authorization": "Bearer $token"}),
-);
+Future<NotificationResponse> getMyNotifications(
+  String token, {
+  int page = 1,
+  int limit = 10,
+}) async {
+  final res = await _dio.get(
+    "/notifications?page=$page&limit=$limit",
+    options: Options(headers: {"Authorization": "Bearer $token"}),
+  );
 
-print("🌐 API CALLED /notifications");
-
-    return NotificationResponse.fromJson(res.data);
-  }
+  return NotificationResponse.fromJson(res.data);
+}
 
   // =========================
   // 🔵 MARK ALL READ
