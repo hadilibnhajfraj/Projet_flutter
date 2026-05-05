@@ -2,13 +2,16 @@ class NotificationData {
   final String id;
   final String title;
   final String message;
-  final bool isRead;
+  bool isRead;
+  final String type; // 🔥 AJOUT
 
   NotificationData({
     required this.id,
     required this.title,
     required this.message,
     required this.isRead,
+    required this.type,
+    
   });
 
   factory NotificationData.fromJson(Map<String, dynamic> json) {
@@ -17,6 +20,7 @@ class NotificationData {
       title: (json["title"] ?? "").toString(),
       message: (json["message"] ?? "").toString(),
       isRead: json["isRead"] == true || json["read"] == true,
+      type: (json["type"] ?? "").toString(), // 🔥 IMPORTANT
     );
   }
 }

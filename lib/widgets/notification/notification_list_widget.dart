@@ -12,7 +12,20 @@ class NotificationListWidget extends StatelessWidget {
   final NotificationData notification;
 
   const NotificationListWidget({super.key, required this.notification});
-
+IconData _getIcon(String type) {
+  switch (type) {
+    case "FOLLOWUP":
+      return Icons.alarm;
+    case "FOLLOWUP_MISSING":
+      return Icons.warning;
+    case "PROJECT_RELANCE":
+      return Icons.work;
+    case "PROJECT_ERROR":
+      return Icons.error;
+    default:
+      return Icons.notifications;
+  }
+}
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -39,10 +52,10 @@ class NotificationListWidget extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  Icons.notifications,
-                  size: 20,
-                  color: themeController.isDarkMode ? colorWhite : colorGrey900,
-                ),
+  _getIcon(notification.type),
+  size: 20,
+  color: themeController.isDarkMode ? colorWhite : colorGrey900,
+),
               ),
 
               const SizedBox(width: 10),

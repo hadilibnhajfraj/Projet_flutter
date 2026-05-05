@@ -3,8 +3,8 @@ import 'package:get_storage/get_storage.dart';
 
 import 'package:dash_master_toolkit/theme/theme_controller.dart';
 import 'package:dash_master_toolkit/services/notification_api.dart';
-import 'package:dash_master_toolkit/app_shell_route/models/notification.dart'; // ✅ le bon
-
+import 'package:dash_master_toolkit/app_shell_route/models/notification.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 class NotificationController extends GetxController {
   final themeController = Get.find<ThemeController>();
   final box = GetStorage();
@@ -12,37 +12,117 @@ class NotificationController extends GetxController {
   final RxList<NotificationData> listOfNotification = <NotificationData>[].obs;
   final RxInt unreadCount = 0.obs;
 
-  // ✅ token stocké localement
-  String get token => (box.read("token") ?? "").toString();
+  final RxBool isLoading = false.obs;
 
-  @override
-  void onInit() {
-    super.onInit();
-    fetchNotifications();
+  String get token => AuthService().accessToken ?? "";
+
+ @override
+void onInit() {
+  super.onInit();
+  print("🔥 NotificationController INIT");
+  fetchNotifications();
+}
+
+  // =========================
+  // 📥 FETCH
+  // =========================
+Future<void> fetchNotifications({bool silent = false}) async {
+  print("🚀 fetchNotifications CALLED");
+  print("🔑 TOKEN => $token");
+
+  if (token.isEmpty) {
+    print("❌ TOKEN EMPTY → API NOT CALLED");
+    listOfNotification.clear();
+    unreadCount.value = 0;
+    return;
   }
 
-  Future<void> fetchNotifications({bool silent = false}) async {
-    if (token.isEmpty) {
-      // pas connecté => pas d'appel API
-      listOfNotification.clear();
-      unreadCount.value = 0;
-      return;
-    }
+  print("✅ TOKEN OK → CALL API");
+
+  try {
+    if (!silent) isLoading.value = true;
 
     final res = await NotificationApi.instance.getMyNotifications(token);
+
+    print("✅ API RESPONSE RECEIVED");
+
     listOfNotification.assignAll(res.items);
     unreadCount.value = res.unreadCount;
-  }
 
+  } catch (e) {
+    print("❌ FETCH NOTIFICATION ERROR: $e");
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+  // =========================
+  // 🔵 MARK ALL READ (OPTIMISÉ)
+  // =========================
   Future<void> markAllRead() async {
     if (token.isEmpty) return;
-    await NotificationApi.instance.markAllRead(token);
-    await fetchNotifications(silent: true);
+
+    try {
+      await NotificationApi.instance.markAllRead(token);
+
+      // 🔥 update local (sans refetch)
+      for (var n in listOfNotification) {
+        n.isRead = true; // ⚠️ nécessite modèle modifiable
+      }
+
+      unreadCount.value = 0;
+
+      listOfNotification.refresh();
+
+    } catch (e) {
+      print("❌ MARK ALL ERROR: $e");
+    }
   }
 
+  // =========================
+  // 🔵 MARK ONE READ (OPTIMISÉ)
+  // =========================
   Future<void> markOneRead(String id) async {
     if (token.isEmpty) return;
-    await NotificationApi.instance.markRead(token, id);
-    await fetchNotifications(silent: true);
+
+    try {
+      await NotificationApi.instance.markRead(token, id);
+
+      // 🔥 update local
+      final index =
+          listOfNotification.indexWhere((n) => n.id == id);
+
+      if (index != -1 && !listOfNotification[index].isRead) {
+        listOfNotification[index].isRead = true;
+
+        unreadCount.value =
+            (unreadCount.value > 0) ? unreadCount.value - 1 : 0;
+
+        listOfNotification.refresh();
+      }
+
+    } catch (e) {
+      print("❌ MARK ONE ERROR: $e");
+    }
+  }
+
+  // =========================
+  // 🗑 DELETE
+  // =========================
+  Future<void> deleteNotification(String id) async {
+    if (token.isEmpty) return;
+
+    try {
+      await NotificationApi.instance.deleteNotification(token, id);
+
+      listOfNotification.removeWhere((n) => n.id == id);
+
+      // recalcul unread
+      unreadCount.value =
+          listOfNotification.where((n) => !n.isRead).length;
+
+    } catch (e) {
+      print("❌ DELETE ERROR: $e");
+    }
   }
 }
