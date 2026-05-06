@@ -22,7 +22,28 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
     if (v is num) return v.toDouble();
     return double.tryParse(v.toString()) ?? fallback;
   }
-
+Widget _kpiBox(String title, int value, Color color) {
+  return Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      children: [
+        Text(
+          "$value",
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(title),
+      ],
+    ),
+  );
+}
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -50,6 +71,9 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
                 _commonCard(7, _buildVisitorChart(theme)),
                 _commonCard(5, _buildTopProductsWidget(theme)),
                 _commonCard(7, _buildCountryMapSalesWidget()),
+               // _commonCard(7, _buildCombinedPieChart(theme)),
+//_commonCard(5, _buildCombinedBarChart(theme)),
+_commonCard(12, _buildKpiOverview(theme)),
               ],
             ),
           ),
@@ -61,10 +85,10 @@ class _SalesDashboardScreenState extends State<SalesDashboardScreen> {
   // ================== Today KPI ==================
 Widget _buildTodaySaleWidget(ThemeData theme) {
   return Obx(() {
-    final total = controller.totalProjects;
-    final validated = controller.validatedProjects;
-    final nonValidated = controller.nonValidatedProjects;
-    final pct = controller.validatedPercentage;
+    final total = controller.totalProjects.value;
+    final validated = controller.validatedProjects.value;
+    final nonValidated = controller.nonValidatedProjects.value;
+    final pct = controller.validatedPercentage.value;
 
     if (controller.isLoadingKpi.value) {
       return const Center(child: CircularProgressIndicator());
@@ -72,8 +96,10 @@ Widget _buildTodaySaleWidget(ThemeData theme) {
 
     if (controller.kpiError.value.isNotEmpty) {
       return Center(
-        child: Text(controller.kpiError.value,
-            style: const TextStyle(color: Colors.red)),
+        child: Text(
+          controller.kpiError.value,
+          style: const TextStyle(color: Colors.red),
+        ),
       );
     }
 
@@ -259,7 +285,7 @@ Widget _buildVisitorChart(ThemeData theme) {
       );
     }
 
-    final rows = controller.projectStatusData;
+    final rows = controller.projectsByStatus;
 
     if (rows.isEmpty) {
       return const Center(child: Text("No status data"));
@@ -308,9 +334,8 @@ Widget _buildVisitorChart(ThemeData theme) {
                   ),
                   sections: List.generate(rows.length, (index) {
                     final d = rows[index];
-                    final value = _toDouble(d["projectCount"]);
-                    final percent =
-                        total == 0 ? 0 : (value / total) * 100;
+                    final value = _toDouble(d["count"]);
+                    final percent = total.value == 0 ? 0 : (value / total.value) * 100;
 
                     final isTouched = index == touchedIndex;
 
@@ -363,7 +388,7 @@ Widget _buildVisitorChart(ThemeData theme) {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              "${rows[touchedIndex]["statut"]} : ${rows[touchedIndex]["projectCount"]} projects",
+              "${rows[touchedIndex]["validationStatut"]} : ${rows[touchedIndex]["count"]} projects",
               style: const TextStyle(color: Colors.white),
             ),
           ),
@@ -388,7 +413,7 @@ Widget _buildVisitorChart(ThemeData theme) {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  "${d["statut"]} (${d["projectCount"]})",
+                  "${d["validationStatut"]} (${d["count"]})",
                   style: theme.textTheme.bodySmall,
                 ),
               ],
@@ -399,7 +424,190 @@ Widget _buildVisitorChart(ThemeData theme) {
     );
   });
 }
+Widget _buildCombinedPieChart(ThemeData theme) {
+  return Obx(() {
+    final data = controller.combinedStatusData;
 
+    if (data.isEmpty) {
+      return const Center(child: Text("No data"));
+    }
+
+    final colors = [
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.red,
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Projects vs Contacts",
+            style: theme.textTheme.titleLarge),
+
+        const SizedBox(height: 20),
+
+        SizedBox(
+          height: 300,
+          child: PieChart(
+            PieChartData(
+              sections: data.asMap().entries.map((entry) {
+                final index = entry.key;
+                final d = entry.value;
+
+                final total =
+                    d["projects"] + d["contacts"];
+
+                return PieChartSectionData(
+                  color: colors[index % colors.length],
+                  value: total.toDouble(),
+                  title: d["status"],
+                  radius: 90,
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        /// 🔥 LEGEND DETAIL
+        ...data.map((d) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Text("${d["status"]} : "),
+                Text(
+                  "Projects ${d["projects"]} | Contacts ${d["contacts"]}",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  });
+}
+Widget _buildCombinedBarChart(ThemeData theme) {
+  return Obx(() {
+    final data = controller.contactsByStatus;
+
+    if (data.isEmpty) {
+      return const Center(child: Text("No data"));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Projects vs Contacts (Bar)",
+            style: theme.textTheme.titleLarge),
+
+        const SizedBox(height: 20),
+
+        SizedBox(
+          height: 300,
+          child: BarChart(
+            BarChartData(
+              barGroups: data.asMap().entries.map((entry) {
+                final index = entry.key;
+                final d = entry.value;
+
+                return BarChartGroupData(
+                  x: index,
+                  barRods: [
+                    /// 🔵 PROJECTS
+                    BarChartRodData(
+                      toY: (d["projects"]).toDouble(),
+                      color: Colors.blue,
+                      width: 8,
+                    ),
+
+                    /// 🟠 CONTACTS
+                    BarChartRodData(
+                      toY: (d["contacts"]).toDouble(),
+                      color: Colors.orange,
+                      width: 8,
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        /// LABELS
+        Wrap(
+          spacing: 12,
+          children: data.map((d) {
+            return Chip(label: Text(d["status"]));
+          }).toList(),
+        ),
+      ],
+    );
+  });
+}
+Widget _buildKpiOverview(ThemeData theme) {
+  return Obx(() {
+    if (controller.isLoadingKpi.value) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final projects = controller.projectsByStatus;
+    final contacts = controller.contactsByStatus;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("KPI Overview", style: theme.textTheme.titleLarge),
+
+        const SizedBox(height: 20),
+
+        /// 🔥 TOTALS
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _kpiBox("Projects", controller.totalProjects.value, Colors.blue),
+            _kpiBox("Contacts", controller.totalContacts.value, Colors.orange),
+            _kpiBox("Global", controller.totalGlobal.value, Colors.green),
+          ],
+        ),
+
+        const SizedBox(height: 20),
+
+        /// 🔥 PROJECT STATUS
+        Text("Projects by Status", style: theme.textTheme.titleMedium),
+        const SizedBox(height: 10),
+
+        ...projects.map((p) {
+          return ListTile(
+            leading: const Icon(Icons.work),
+            title: Text(p["validationStatut"]),
+            trailing: Text(p["count"].toString()),
+          );
+        }),
+
+        const SizedBox(height: 20),
+
+        /// 🔥 CONTACT STATUS
+        Text("Contacts by Status", style: theme.textTheme.titleMedium),
+        const SizedBox(height: 10),
+
+        ...contacts.map((c) {
+          return ListTile(
+            leading: const Icon(Icons.contact_page),
+            title: Text(c["statut"]),
+            trailing: Text(c["count"].toString()),
+          );
+        }),
+      ],
+    );
+  });
+}
   // ================== Top Products / Surface table ==================
 Widget _buildTopProductsWidget(ThemeData theme) {
   return Obx(() {
