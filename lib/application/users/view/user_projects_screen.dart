@@ -37,7 +37,7 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
   static const Color kNeutralText = Color(0xFF6B7280);
 
   final UserProjectService service = UserProjectService(
-    baseUrl: 'http://localhost:4000',
+    baseUrl: 'https://api.crmprobar.com',
   );
 
   final TextEditingController _searchCtrl = TextEditingController();

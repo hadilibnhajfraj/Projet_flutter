@@ -9,7 +9,7 @@ class CommercialContactApi {
 
   final Dio _dio = Dio(
     BaseOptions(
-      baseUrl: "http://localhost:4000",
+      baseUrl: "https://api.crmprobar.com",
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 20),
     ),

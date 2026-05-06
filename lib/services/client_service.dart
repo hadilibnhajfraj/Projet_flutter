@@ -4,7 +4,7 @@ import 'package:dash_master_toolkit/application/users/model/client_model.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 class ClientService {
-  static const String baseUrl = 'http://localhost:4000/api/clients';
+  static const String baseUrl = 'https://api.crmprobar.com/api/clients';
 
   Future<String?> getRole() async {
     final role = AuthService().userRole;

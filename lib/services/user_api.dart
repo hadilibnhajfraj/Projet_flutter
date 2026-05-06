@@ -4,7 +4,7 @@ import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 class UserApi {
 
-  static const String baseUrl = 'http://localhost:4000/projects';
+  static const String baseUrl = 'https://api.crmprobar.com/projects';
 
 
   /// ROLE UTILISATEUR
