@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/services/kpi_service.dart';
 import 'package:dash_master_toolkit/dashboard/academic/model/kpi_model.dart';
 
@@ -13,7 +14,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final service = KPIService(baseUrl: "https://api.crmprobar.com");
+  final service = KPIService(baseUrl: ApiConfig.baseUrl);
 
   KPIModel? data;
   bool loading = true;

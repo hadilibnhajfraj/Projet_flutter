@@ -4,11 +4,18 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
 import '../../services/address_service.dart';
+import '../../services/architect_api.dart';
+import '../../services/company_api.dart';
+import '../../services/engineer_api.dart';
 import '../../providers/api_client.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:convert'; // jsonDecode + utf8
 import 'package:http/http.dart' as http; // http.get
 import 'package:get_storage/get_storage.dart';
+import '../model/architect_model.dart';
+import '../model/company_model.dart';
+import '../model/engineer_model.dart';
+
 class ProjectFormController extends GetxController {
   
   final formKey = GlobalKey<FormState>();
@@ -28,6 +35,8 @@ final RxnString selectedAction = RxnString();
   final dateDemarrage = TextEditingController();
   final statut = TextEditingController();
   final typeAdresseChantier = TextEditingController();
+  final dateVisite = TextEditingController();
+  final Rxn<DateTime> selectedDateVisite = Rxn<DateTime>();
 
 
 final comptoir = TextEditingController();
@@ -40,9 +49,14 @@ final telephoneDallagiste = TextEditingController();
 final emailIngenieur = TextEditingController();
 final emailArchitecte = TextEditingController();
 
-final dateVisite = TextEditingController();
-final Rxn<DateTime> selectedDateVisite = Rxn<DateTime>();
-  // optional in UI
+  final RxList<EngineerModel> engineers = <EngineerModel>[].obs;
+  final RxList<ArchitectModel> architects = <ArchitectModel>[].obs;
+  final RxList<CompanyModel> companies = <CompanyModel>[].obs;
+
+  final selectedEngineerId = RxnString();
+  final selectedArchitectId = RxnString();
+  final selectedCompanyId = RxnString();
+
   final architecte = TextEditingController();
   final telephoneArchitecte = TextEditingController();
 
@@ -91,6 +105,7 @@ final montantMarche = TextEditingController();
   void onInit() {
     super.onInit();
     localisationAdresse.addListener(_onAddressChanged);
+    loadReferenceData().then((_) => syncReferenceSelections());
     // 🔥 AUTO LOAD USER
   final savedUser = box.read("user_name");
   if (savedUser != null) {
@@ -120,6 +135,10 @@ void resetForm() {
   statut.clear();
   typeAdresseChantier.clear();
   montantMarche.clear();
+
+  selectedEngineerId.value = null;
+  selectedArchitectId.value = null;
+  selectedCompanyId.value = null;
 
   ingenieurResponsable.clear();
   telephoneIngenieur.clear();
@@ -175,6 +194,116 @@ revendeurStatut.text = "prospect";
 
   update();
 }
+
+  Future<void> loadReferenceData() async {
+    try {
+      final results = await Future.wait([
+        EngineerApi.instance.getAllEngineers(),
+        ArchitectApi.instance.getAllArchitects(),
+        CompanyApi.instance.getAllCompanies(),
+      ]);
+
+      engineers.assignAll(results[0] as List<EngineerModel>);
+      architects.assignAll(results[1] as List<ArchitectModel>);
+      companies.assignAll(results[2] as List<CompanyModel>);
+
+      syncReferenceSelections();
+    } catch (e) {
+      print('Reference data load failed: $e');
+    }
+  }
+
+  void syncReferenceSelections() {
+    final engineerName = ingenieurResponsable.text.trim();
+    final architectName = architecte.text.trim();
+    final companyName = entreprise.text.trim();
+
+    selectedEngineerId.value = _findEngineerIdByName(engineerName) ??
+        (engineerName.isEmpty ? null : 'other');
+    selectedArchitectId.value = _findArchitectIdByName(architectName) ??
+        (architectName.isEmpty ? null : 'other');
+    selectedCompanyId.value = _findCompanyIdByName(companyName) ??
+        (companyName.isEmpty ? null : 'other');
+  }
+
+  String? _findEngineerIdByName(String name) {
+    if (name.isEmpty) return null;
+    final matches = engineers
+        .where((engineer) => engineer.name.toLowerCase() == name.toLowerCase())
+        .toList();
+    return matches.isNotEmpty ? matches.first.id : null;
+  }
+
+  String? _findArchitectIdByName(String name) {
+    if (name.isEmpty) return null;
+    final matches = architects
+        .where((architect) => architect.name.toLowerCase() == name.toLowerCase())
+        .toList();
+    return matches.isNotEmpty ? matches.first.id : null;
+  }
+
+  String? _findCompanyIdByName(String name) {
+    if (name.isEmpty) return null;
+    final matches = companies
+        .where((company) => company.name.toLowerCase() == name.toLowerCase())
+        .toList();
+    return matches.isNotEmpty ? matches.first.id : null;
+  }
+
+  void setSelectedEngineer(String? id) {
+    selectedEngineerId.value = id;
+    if (id == null) {
+      ingenieurResponsable.clear();
+      return;
+    }
+    if (id == 'other') {
+      if (ingenieurResponsable.text.trim().isEmpty) {
+        ingenieurResponsable.clear();
+      }
+      return;
+    }
+    final found = engineers.where((engineer) => engineer.id == id).toList();
+    if (found.isNotEmpty) {
+      ingenieurResponsable.text = found.first.name;
+    }
+  }
+
+  void setSelectedArchitect(String? id) {
+    selectedArchitectId.value = id;
+    if (id == null) {
+      architecte.clear();
+      return;
+    }
+    if (id == 'other') {
+      if (architecte.text.trim().isEmpty) {
+        architecte.clear();
+      }
+      return;
+    }
+    final found = architects.where((architect) => architect.id == id).toList();
+    if (found.isNotEmpty) {
+      architecte.text = found.first.name;
+    }
+  }
+
+  void setSelectedCompany(String? id) {
+    selectedCompanyId.value = id;
+    if (id == null) {
+      entreprise.clear();
+      return;
+    }
+    if (id == 'other') {
+      if (entreprise.text.trim().isEmpty) {
+        entreprise.clear();
+      }
+      return;
+    }
+    final found = companies.where((company) => company.id == id).toList();
+    if (found.isNotEmpty) {
+      entreprise.text = found.first.name;
+    }
+  }
+
 String? emailValidator(String? v, String label) {
   final value = (v ?? "").trim();
 
@@ -307,6 +436,8 @@ serviceTechnique.text = (j['serviceTechnique'] ?? '').toString();
 
   final sp = _toDouble(j['surfaceProspectee']);
   surfaceProspectee.text = sp == null ? '' : sp.toString();
+
+  syncReferenceSelections();
 
   // =========================
   // DATE DEMARRAGE

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/application/users/model/project_stats_model.dart';
 import 'package:dash_master_toolkit/application/users/model/project_stats_row_model.dart';
 import 'package:dash_master_toolkit/services/project_stats_service.dart';
@@ -27,7 +28,7 @@ class _AccueilProjectStatsTableScreenState
   late TabController _tabController;
 
   final service = ProjectStatsService(
-    baseUrl: 'https://api.crmprobar.com',
+    baseUrl: ApiConfig.baseUrl,
   );
 
   static const Color kPrimary = Color(0xFF1F6FEB);

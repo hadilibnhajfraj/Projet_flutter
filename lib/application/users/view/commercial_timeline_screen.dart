@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 
 import '../model/commercial_action_model.dart';
 import 'package:dash_master_toolkit/services/commercial_action_service.dart';
@@ -237,7 +238,7 @@ Widget build(BuildContext context) {
                     child: InkWell(
                       onTap: () async {
                         final url = Uri.parse(
-                          "https://api.crmprobar.com${action.fileUrl}",
+                          "${ApiConfig.baseUrl}${action.fileUrl}",
                         );
 
                         if (!await launchUrl(url)) {

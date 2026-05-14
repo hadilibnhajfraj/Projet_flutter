@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'dart:io' show Platform;
 
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
@@ -15,11 +16,7 @@ class EcommerceDashboardController extends GetxController {
   FocusNode f1 = FocusNode();
 
   // ✅ baseUrl
-  String get baseUrl {
-    if (kIsWeb) return "https://api.crmprobar.com";
-    if (Platform.isAndroid) return "https://api.crmprobar.com";
-    return "https://api.crmprobar.com";
-  }
+  String get baseUrl => ApiConfig.baseUrl;
 
   // ✅ role admin/superadmin
   bool get isAdminRole {

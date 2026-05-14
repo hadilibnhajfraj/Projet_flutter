@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/providers/api_client.dart';
 import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
@@ -27,7 +28,7 @@ class _ApplicateurProjectsScreenState
   static const Color kBorder = Color(0xFFE5EAF2);
 
   final UserProjectService service =
-      UserProjectService(baseUrl: 'https://api.crmprobar.com');
+      UserProjectService(baseUrl: ApiConfig.baseUrl);
 
   List<UserProjectModel> items = [];
   bool loading = false;

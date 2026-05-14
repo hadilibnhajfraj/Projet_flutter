@@ -3,14 +3,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 
 class ApiClient {
   ApiClient._internal() {
     final envUrl = const String.fromEnvironment('API_BASE_URL', defaultValue: '');
 
-    final baseUrl = envUrl.isNotEmpty
-        ? envUrl
-        : (kIsWeb ? 'https://api.crmprobar.com' : 'https://api.crmprobar.com');
+    final baseUrl = envUrl.isNotEmpty ? envUrl : ApiConfig.baseUrl;
 
     _box = GetStorage();
 

@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:http/http.dart' as http;
 
 class AddressSuggestion {
@@ -15,15 +15,7 @@ class AddressSuggestion {
 }
 
 class AddressService {
-  static const String _apiBaseWeb = "https://api.crmprobar.com";
-  static const String _apiBaseAndroidEmu = "https://api.crmprobar.com";
-  static const String _apiBaseOther = "https://api.crmprobar.com";
-
-  static String get apiBase {
-    if (kIsWeb) return _apiBaseWeb;
-    if (defaultTargetPlatform == TargetPlatform.android) return _apiBaseAndroidEmu;
-    return _apiBaseOther;
-  }
+  static String get apiBase => ApiConfig.baseUrl;
 
   static Future<List<AddressSuggestion>> search(String query) async {
     final q = query.trim();

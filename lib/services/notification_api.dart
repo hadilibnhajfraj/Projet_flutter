@@ -1,12 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:dash_master_toolkit/app_shell_route/models/notification.dart';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 
 class NotificationApi {
   NotificationApi._();
   static final instance = NotificationApi._();
 
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: "https://api.crmprobar.com", // 🔥 remplace par ton IP
+    baseUrl: ApiConfig.baseUrl,
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));

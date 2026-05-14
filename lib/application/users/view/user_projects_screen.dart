@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/application/users/model/user_project_model.dart';
 import 'package:dash_master_toolkit/services/user_project_service.dart';
 import 'package:http/http.dart' as http;
@@ -37,7 +38,7 @@ class _UserProjectsScreenState extends State<UserProjectsScreen> {
   static const Color kNeutralText = Color(0xFF6B7280);
 
   final UserProjectService service = UserProjectService(
-    baseUrl: 'https://api.crmprobar.com',
+    baseUrl: ApiConfig.baseUrl,
   );
 
   final TextEditingController _searchCtrl = TextEditingController();

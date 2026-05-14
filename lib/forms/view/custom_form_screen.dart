@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/forms/form_imports.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'package:http/http.dart' as http;
@@ -19,7 +20,7 @@ class _CustomFormScreenState extends State<CustomFormScreen> {
   if (query.length < 3) return;
 
   try {
-    final uri = Uri.parse("https://api.crmprobar.com/utils/geocode")
+    final uri = Uri.parse("${ApiConfig.baseUrl}/utils/geocode")
         .replace(queryParameters: {"q": query});
 
     final res = await http.get(uri);

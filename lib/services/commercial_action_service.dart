@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dash_master_toolkit/application/users/model/commercial_action_model.dart';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import '../providers/api_client.dart';
 class CommercialActionService {
 
-  final String baseUrl = "https://api.crmprobar.com";
+  final String baseUrl = ApiConfig.baseUrl;
 
   Future<List<CommercialAction>> getActions({
     required String token,

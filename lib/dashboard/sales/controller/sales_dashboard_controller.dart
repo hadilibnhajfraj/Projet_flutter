@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;
 import 'package:get/get.dart';
@@ -12,11 +13,7 @@ class SalesDashboardController extends GetxController {
   final topProductData = <ProductData>[].obs;
 
   // ================== BASE URL ==================
-  String get baseUrl {
-    if (kIsWeb) return "https://api.crmprobar.com";
-    if (Platform.isAndroid) return "https://api.crmprobar.com"; // Android emulator
-    return "https://api.crmprobar.com"; // Windows / iOS / macOS
-  }
+  String get baseUrl => ApiConfig.baseUrl;
 
   // ================== STATE ==================
   //final isLoadingKpi = false.obs;

@@ -276,21 +276,55 @@ const SizedBox(height: 16),
                       /// 🔥 DYNAMIC FIELDS BASED ON MODELE
 
 if (c.projectModele.value == "project") ...[
-  _twoCols(
-    isMobile: isMobile,
-    left: _field(
-      theme: theme,
-      title: "Responsible Engineer",
-      controller: c.ingenieurResponsable,
-      validator: null,
+  Padding(
+    padding: const EdgeInsets.only(bottom: 16, top: 5),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _requiredTitle(theme, "Engineer", required: false),
+        const SizedBox(height: 6),
+        Obx(
+          () => DropdownButtonFormField<String?>(
+            value: c.selectedEngineerId.value,
+            decoration: const InputDecoration(
+              labelText: "Engineer",
+              border: OutlineInputBorder(),
+            ),
+            hint: const Text("Select engineer"),
+            items: [
+              const DropdownMenuItem(value: null, child: Text("None")),
+              ...c.engineers.map(
+                (engineer) => DropdownMenuItem(
+                  value: engineer.id,
+                  child: Text(engineer.name),
+                ),
+              ),
+              const DropdownMenuItem(value: 'other', child: Text("Other")),
+            ],
+            onChanged: (value) {
+              c.setSelectedEngineer(value);
+            },
+          ),
+        ),
+        Obx(
+          () => c.selectedEngineerId.value == 'other'
+              ? _field(
+                  theme: theme,
+                  title: "Other Engineer (optional)",
+                  controller: c.ingenieurResponsable,
+                  validator: null,
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
     ),
-    right: _field(
-      theme: theme,
-      title: "Engineer Phone",
-      controller: c.telephoneIngenieur,
-      validator: null,
-      keyboardType: TextInputType.phone,
-    ),
+  ),
+  _field(
+    theme: theme,
+    title: "Engineer Phone",
+    controller: c.telephoneIngenieur,
+    validator: null,
+    keyboardType: TextInputType.phone,
   ),
 ],
 
@@ -480,21 +514,55 @@ if (c.isApplicateur) ...[
 ],
 
                      if (c.isProject) ...[
-  _twoCols(
-    isMobile: isMobile,
-    left: _field(
-      theme: theme,
-      title: "Architect (optional)",
-      controller: c.architecte,
-      validator: null,
+  Padding(
+    padding: const EdgeInsets.only(bottom: 16, top: 5),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _requiredTitle(theme, "Architect", required: false),
+        const SizedBox(height: 6),
+        Obx(
+          () => DropdownButtonFormField<String?>(
+            value: c.selectedArchitectId.value,
+            decoration: const InputDecoration(
+              labelText: "Architect",
+              border: OutlineInputBorder(),
+            ),
+            hint: const Text("Select architect"),
+            items: [
+              const DropdownMenuItem(value: null, child: Text("None")),
+              ...c.architects.map(
+                (architect) => DropdownMenuItem(
+                  value: architect.id,
+                  child: Text(architect.name),
+                ),
+              ),
+              const DropdownMenuItem(value: 'other', child: Text("Other")),
+            ],
+            onChanged: (value) {
+              c.setSelectedArchitect(value);
+            },
+          ),
+        ),
+        Obx(
+          () => c.selectedArchitectId.value == 'other'
+              ? _field(
+                  theme: theme,
+                  title: "Other Architect (optional)",
+                  controller: c.architecte,
+                  validator: null,
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
     ),
-    right: _field(
-      theme: theme,
-      title: "Architect Phone (optional)",
-      controller: c.telephoneArchitecte,
-      validator: null,
-      keyboardType: TextInputType.phone,
-    ),
+  ),
+  _field(
+    theme: theme,
+    title: "Architect Phone (optional)",
+    controller: c.telephoneArchitecte,
+    validator: null,
+    keyboardType: TextInputType.phone,
   ),
 ],
                       Padding(
@@ -530,11 +598,48 @@ if (c.isApplicateur) ...[
 ),
 
                     if (c.isProject) ...[
-  _field(
-    theme: theme,
-    title: "Company",
-    controller: c.entreprise,
-    validator: null,
+  Padding(
+    padding: const EdgeInsets.only(bottom: 16, top: 5),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _requiredTitle(theme, "Company", required: false),
+        const SizedBox(height: 6),
+        Obx(
+          () => DropdownButtonFormField<String?>(
+            value: c.selectedCompanyId.value,
+            decoration: const InputDecoration(
+              labelText: "Company",
+              border: OutlineInputBorder(),
+            ),
+            hint: const Text("Select company"),
+            items: [
+              const DropdownMenuItem(value: null, child: Text("None")),
+              ...c.companies.map(
+                (company) => DropdownMenuItem(
+                  value: company.id,
+                  child: Text(company.name),
+                ),
+              ),
+              const DropdownMenuItem(value: 'other', child: Text("Other")),
+            ],
+            onChanged: (value) {
+              c.setSelectedCompany(value);
+            },
+          ),
+        ),
+        Obx(
+          () => c.selectedCompanyId.value == 'other'
+              ? _field(
+                  theme: theme,
+                  title: "Other Company (optional)",
+                  controller: c.entreprise,
+                  validator: null,
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    ),
   ),
 ],
 

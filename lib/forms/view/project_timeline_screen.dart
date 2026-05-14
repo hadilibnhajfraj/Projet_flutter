@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../controller/project_timeline_controller.dart';
 import '../../providers/api_client.dart';
+import '../../core/config/api_config.dart';
 import 'add_project_action_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:go_router/go_router.dart';
@@ -240,7 +241,7 @@ if (action.fileUrl != null)
 
   if (action.fileUrl == null) return;
 
-  final url = "https://api.crmprobar.com${action.fileUrl}";
+  final url = "${ApiConfig.baseUrl}${action.fileUrl}";
 
   try {
 

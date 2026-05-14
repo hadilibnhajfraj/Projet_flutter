@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'dart:io';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/application/users/users_imports.dart';
 import 'package:flutter/foundation.dart'; // IMPORTANT
 // Si SvgPicture n'est pas déjà importé via users_imports.dart, ajoute :
@@ -87,7 +88,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       // ✅ IMAGE BACKEND
       if (avatarUrl != null && avatarUrl.isNotEmpty) {
         return Image.network(
-          "https://api.crmprobar.com$avatarUrl",
+          "${ApiConfig.baseUrl}$avatarUrl",
           width: 60,
           height: 60,
           fit: BoxFit.cover,

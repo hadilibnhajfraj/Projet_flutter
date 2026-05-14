@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 class UserApi {
 
-  static const String baseUrl = 'https://api.crmprobar.com/projects';
+  static const String baseUrl = '${ApiConfig.baseUrl}/projects';
 
 
   /// ROLE UTILISATEUR

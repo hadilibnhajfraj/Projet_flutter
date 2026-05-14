@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:get/get.dart'; // 🔥 IMPORTANT
 import 'package:dash_master_toolkit/application/users/model/commercial_contact_models.dart';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 class CommercialContactApi {
@@ -9,7 +10,7 @@ class CommercialContactApi {
 
   final Dio _dio = Dio(
     BaseOptions(
-      baseUrl: "https://api.crmprobar.com",
+      baseUrl: ApiConfig.baseUrl,
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 20),
     ),

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 
 class ApiClient {
   ApiClient._internal() {
@@ -40,13 +41,10 @@ class ApiClient {
   static final ApiClient instance = ApiClient._internal();
 
   // ✅ IMPORTANT :
-  // - Flutter Web => https://api.crmprobar.com
-  // - Android Emulator => http://localhost:4000
-  // - Device réel => IP de ton PC (ex: api.crmprobar.com)
-  static String get baseUrl {
-    if (kIsWeb) return 'https://api.crmprobar.com';
-    return 'https://api.crmprobar.com';
-  }
+  // - Uses centralized ApiConfig for baseUrl
+  // - Automatically handles localhost (io), emulator mapping, and web
+
+  static String get baseUrl => ApiConfig.baseUrl;
 
   late final Dio dio;
   final GetStorage _box = GetStorage();

@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:dash_master_toolkit/core/config/api_config.dart';
 import '../application/users/model/commercial_contact_model.dart';
 
 class CommercialContactService {
-  static const String baseUrl = 'https://api.crmprobar.com/commercial-contacts';
+  static String get baseUrl => '${ApiConfig.baseUrl}/commercial-contacts';
 
 Future<List<CommercialContact>> fetchMyContacts({
   required String token,
