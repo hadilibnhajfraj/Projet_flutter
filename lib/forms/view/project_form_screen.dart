@@ -1,21 +1,23 @@
+import 'dart:async';
+import 'dart:typed_data';
 import 'package:dash_master_toolkit/application/users/controller/user_grid_controller.dart';
 import 'package:dash_master_toolkit/application/users/model/project_grid_data.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/theme/theme_controller.dart';
 import 'package:dash_master_toolkit/constant/app_color.dart';
 import 'package:dash_master_toolkit/widgets/common_app_widget.dart';
+import 'package:dash_master_toolkit/widgets/map_picker_widget.dart';
 
-import '../../pages/google_map/location_picker_screen.dart';
 import '../controller/project_form_controller.dart';
 import '../../providers/api_client.dart';
 import 'package:dash_master_toolkit/forms/view/project_timeline_screen.dart';
 // template imports
 import 'package:dash_master_toolkit/forms/form_imports.dart';
-import 'package:dash_master_toolkit/pages/google_map/map_imports.dart';
 
 // IMPORTANT: sections (WITHOUT scaffold)
 import 'package:dash_master_toolkit/forms/view/devis_form_section.dart';
@@ -25,6 +27,7 @@ import 'package:dio/dio.dart' as dio;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/services/location_service.dart';
 class ProjectFormScreen extends StatefulWidget {
   const ProjectFormScreen({super.key});
 
@@ -82,6 +85,13 @@ String? _getValidAction() {
   // Block Purchase Order until Quotation is valid
   bool _devisIsValid = false;
 
+  // Address field search state
+  Timer? _addrDebounce;
+  List<NominatimLocation> _addrSuggestions = [];
+  bool _addrSearching = false;
+  bool _showAddrSuggestions = false;
+  String? _addrSearchError;
+
   @override
   void initState() {
     super.initState();
@@ -97,6 +107,7 @@ String? _getValidAction() {
 
   @override
   void dispose() {
+    _addrDebounce?.cancel();
     if (Get.isRegistered<ProjectFormController>()) {
       Get.delete<ProjectFormController>();
     }
@@ -166,6 +177,145 @@ Future<void> _refreshCardColors() async {
 
   if (mounted) setState(() {});
 }
+  // ── Address field search ──────────────────────────────────────────────────
+
+  void _onLocationFieldChanged(String value) {
+    _addrDebounce?.cancel();
+    final query = value.trim();
+    if (query.length < 3) {
+      if (mounted) {
+        setState(() {
+          _addrSuggestions = [];
+          _showAddrSuggestions = false;
+          _addrSearchError = null;
+        });
+      }
+      return;
+    }
+    _addrDebounce = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) _searchAddressSuggestions(query);
+    });
+  }
+
+  Future<void> _searchAddressSuggestions(String query) async {
+    if (!mounted) return;
+    setState(() {
+      _addrSearching = true;
+      _addrSearchError = null;
+      _showAddrSuggestions = true;
+    });
+    try {
+      final results = await LocationService.searchPlaces(query);
+      if (!mounted) return;
+      setState(() {
+        _addrSuggestions = results;
+        _addrSearchError =
+            results.isEmpty ? 'No results found in Tunisia' : null;
+        _addrSearching = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _addrSuggestions = [];
+        _addrSearchError = 'Search failed. Try again.';
+        _addrSearching = false;
+      });
+    }
+  }
+
+  void _selectAddrSuggestion(NominatimLocation result) {
+    if (!mounted) return;
+    setState(() {
+      _showAddrSuggestions = false;
+      _addrSuggestions = [];
+      _addrSearchError = null;
+    });
+    c.setLocation(
+      lat: result.latitude,
+      lng: result.longitude,
+      address: result.displayName,
+      forceAddressUpdate: true,
+    );
+  }
+
+  Widget _buildAddrSuggestionsDropdown(ThemeData theme) {
+    final isDark = themeController.isDarkMode;
+    final bg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+
+    Widget content;
+    if (_addrSearching) {
+      content = const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    } else if (_addrSearchError != null) {
+      content = Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(Icons.info_outline,
+                size: 16,
+                color: isDark ? Colors.white54 : Colors.black45),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _addrSearchError!,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: isDark ? Colors.white54 : Colors.black54),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (_addrSuggestions.isEmpty) {
+      return const SizedBox.shrink();
+    } else {
+      content = ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 200),
+        child: ListView.separated(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          itemCount: _addrSuggestions.length,
+          separatorBuilder: (_, __) => Divider(
+              height: 1,
+              color: isDark ? Colors.grey[700] : Colors.grey[200]),
+          itemBuilder: (_, i) {
+            final r = _addrSuggestions[i];
+            return ListTile(
+              dense: true,
+              leading: const Icon(Icons.location_on, size: 18),
+              title: Text(
+                r.displayName,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium,
+              ),
+              onTap: () => _selectAddrSuggestion(r),
+            );
+          },
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+            color: isDark ? Colors.grey[700]! : Colors.grey[300]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: content,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1009,168 +1159,197 @@ ElevatedButton(
   }
 
   // ----------------- LOCATION -----------------
-Widget _locationBlock(ThemeData theme) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _requiredTitle(theme, "Location", required: true),
-      const SizedBox(height: 6),
+  Widget _locationBlock(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _requiredTitle(theme, "Location", required: true),
+        const SizedBox(height: 12),
 
-      Row(
-        children: [
-          Expanded(
-            child: TextFormField(
-              controller: c.localisationAdresse,
-              validator: (v) {
-                final hasAddress = v != null && v.trim().isNotEmpty;
-                final hasCoords =
-                    c.latitude.value != null && c.longitude.value != null;
-
-                if (!hasAddress && !hasCoords) {
-                  return "Location is required";
-                }
-                return null;
-              },
-              keyboardType: TextInputType.text,
-              decoration: inputDecoration(
-                context,
-                hintText: "Enter address (ex: Ariana) or paste map link",
-              ),
-            ),
+        // Free-text address field — no OS autocorrect or autofill
+        TextFormField(
+          controller: c.localisationAdresse,
+          autocorrect: false,
+          enableSuggestions: false,
+          autofillHints: const [],
+          textCapitalization: TextCapitalization.none,
+          keyboardType: TextInputType.text,
+          smartDashesType: SmartDashesType.disabled,
+          smartQuotesType: SmartQuotesType.disabled,
+          onChanged: _onLocationFieldChanged,
+          validator: (v) {
+            final hasAddress = v != null && v.trim().isNotEmpty;
+            final hasCoords =
+                c.latitude.value != null && c.longitude.value != null;
+            if (!hasAddress && !hasCoords) return "Location is required";
+            return null;
+          },
+          decoration: inputDecoration(
+            context,
+            hintText: "Type address manually, or use the map below",
           ),
-          const SizedBox(width: 10),
-          CommonButton(
-            borderRadius: 10,
-            width: 170,
-            onPressed: _pickLocation,
-            text: "Pick on map",
-          ),
-        ],
-      ),
+        ),
+        if (_showAddrSuggestions) _buildAddrSuggestionsDropdown(theme),
 
-      const SizedBox(height: 10),
+        const SizedBox(height: 16),
 
-      Obx(() {
-        final lat = c.latitude.value;
-        final lng = c.longitude.value;
+        // Inline interactive map — coordinates only update when user picks
+        Obx(() {
+          final lat = c.latitude.value;
+          final lng = c.longitude.value;
+          // null → map shows Tunisia center with no marker (nothing pre-selected)
+          final initialLocation =
+              (lat != null && lng != null) ? LatLng(lat, lng) : null;
 
-        final hasLoc = lat != null && lng != null;
+          return MapPickerWidget(
+            initialLocation: initialLocation,
+            initialAddress: c.localisationAdresse.text.trim().isEmpty
+                ? null
+                : c.localisationAdresse.text.trim(),
+            onLocationSelected: (location, address) {
+              debugPrint(
+                '📍 Map → lat=${location.latitude}, '
+                'lng=${location.longitude}, address=$address',
+              );
+              // Coordinates always update.
+              // Address field: only auto-fill when the user hasn't typed
+              // anything yet — never overwrite a manually typed value.
+              final fieldIsEmpty = c.localisationAdresse.text.trim().isEmpty;
+              c.setLocation(
+                lat: location.latitude,
+                lng: location.longitude,
+                address: fieldIsEmpty ? address : null,
+                forceAddressUpdate: false,
+              );
+            },
+            height: 380,
+            showSearchBar: true,
+            showCurrentLocationButton: true,
+            showFullscreenButton: true,
+          );
+        }),
 
-        final url = hasLoc
-            ? "https://www.google.com/maps?q=$lat,$lng"
-            : "";
+        const SizedBox(height: 12),
 
-        /// 🔥 DETECTION TYPE (important)
-        final isApprox =
-            c.localisationAdresse.text.toLowerCase().contains("(approx)");
-        final isManual =
-            c.localisationAdresse.text.toLowerCase().contains("(manual)");
+        // Coordinate status — hidden until a location is actually selected
+        Obx(() {
+          final lat = c.latitude.value;
+          final lng = c.longitude.value;
+          final hasLoc = lat != null && lng != null;
 
-        Color statusColor;
-        String statusText;
-
-        if (hasLoc && !isApprox && !isManual) {
-          statusColor = Colors.green;
-          statusText = "✔️ Adresse validée";
-        } else if (hasLoc && isApprox) {
-          statusColor = Colors.orange;
-          statusText = "⚠️ Adresse approximative";
-        } else if (hasLoc && isManual) {
-          statusColor = Colors.blue;
-          statusText = "📍 Position manuelle";
-        } else {
-          statusColor = Colors.red;
-          statusText = "❌ Adresse non reconnue";
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            /// 🔥 STATUS
-            Text(
-              statusText,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: statusColor,
-                fontWeight: FontWeight.bold,
+          if (!hasLoc) {
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
               ),
-            ),
-
-            const SizedBox(height: 6),
-
-            /// 📍 COORDONNÉES
-            Text(
-              hasLoc
-                  ? "Lat: ${lat!.toStringAsFixed(7)}, Lng: ${lng!.toStringAsFixed(7)}"
-                  : "👉 Cliquez sur 'Pick on map' si adresse inconnue",
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: hasLoc ? colorPrimary100 : colorGrey700,
-                fontWeight: FontWeight.w600,
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline,
+                      color: Colors.orange, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Tap the map, use GPS, or search to select a location",
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.orange[700],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+            );
+          }
+
+          final url = "https://www.google.com/maps?q=$lat,$lng";
+
+          return Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
             ),
-
-            /// 🔗 GOOGLE MAP LINK
-            if (hasLoc) ...[
-              const SizedBox(height: 6),
-
-              InkWell(
-                onTap: () async {
-                  final uri = Uri.parse(url);
-                  await launchUrl(uri);
-                },
-                child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    const Icon(Icons.link, size: 16, color: Colors.blue),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        url,
-                        style: const TextStyle(
-                          color: Colors.blue,
-                          decoration: TextDecoration.underline,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                    const Icon(Icons.check_circle,
+                        color: Colors.green, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      "Location Selected",
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: Colors.green[700],
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ],
-        );
-      }),
-    ],
-  );
-}
+                const SizedBox(height: 6),
+                Text(
+                  "Lat: ${lat!.toStringAsFixed(6)}, Lng: ${lng!.toStringAsFixed(6)}",
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: Colors.green[700]),
+                ),
+                const SizedBox(height: 4),
+                InkWell(
+                  onTap: () async => launchUrl(Uri.parse(url)),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.link, size: 16, color: Colors.blue),
+                      SizedBox(width: 4),
+                      Text(
+                        "View on Google Maps",
+                        style: TextStyle(
+                          color: Colors.blue,
+                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
 
-  Future<void> _pickLocation() async {
-    final currentLat = c.latitude.value;
-    final currentLng = c.longitude.value;
-
-    final result = await Navigator.of(context).push<LocationPickerResult>(
-      MaterialPageRoute(
-        builder: (_) => LocationPickerScreen(
-          initialPosition: (currentLat != null && currentLng != null)
-              ? LatLng(currentLat, currentLng)
-              : null,
-          initialAddress: c.localisationAdresse.text.trim().isEmpty
-              ? null
-              : c.localisationAdresse.text.trim(),
-        ),
-      ),
+        // Location error
+        Obx(() {
+          if (c.locationError.value.isEmpty) return const SizedBox.shrink();
+          return Container(
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    c.locationError.value,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: Colors.red[700]),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
     );
-
-    if (result == null) return;
-
-    c.setLocation(lat: result.lat, lng: result.lng, address: result.address);
-
-    if (result.comment.isNotEmpty) {
-      c.locationComments.add({
-        "comment": result.comment,
-        "createdAt": DateTime.now().toIso8601String(),
-      });
-    }
   }
+
   DateTime? parseDate(String? input) {
   if (input == null || input.isEmpty) return null;
 

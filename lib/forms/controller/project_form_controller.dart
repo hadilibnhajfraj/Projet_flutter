@@ -3,14 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
-import '../../services/address_service.dart';
 import '../../services/architect_api.dart';
 import '../../services/company_api.dart';
 import '../../services/engineer_api.dart';
 import '../../providers/api_client.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'dart:convert'; // jsonDecode + utf8
-import 'package:http/http.dart' as http; // http.get
 import 'package:get_storage/get_storage.dart';
 import '../model/architect_model.dart';
 import '../model/company_model.dart';
@@ -94,6 +91,7 @@ final montantMarche = TextEditingController();
   // ---------------- Location ----------------
   final RxnDouble latitude = RxnDouble();
   final RxnDouble longitude = RxnDouble();
+  final RxString locationError = ''.obs;
 
   final RxList<Map<String, dynamic>> locationComments = <Map<String, dynamic>>[].obs;
   final Rxn<DateTime> selectedDateDemarrage = Rxn<DateTime>();
@@ -181,6 +179,7 @@ void resetForm() {
 
   latitude.value = null;
   longitude.value = null;
+  locationError.value = '';
 
   selectedAction.value = null;
 
@@ -660,20 +659,18 @@ Future<void> pickDateVisite(BuildContext context) async {
   if (q == _lastAuto) return;
 
   _debounce?.cancel();
-  _debounce = Timer(const Duration(milliseconds: 400), () async {
-    // ✅ 1) Si c’est un lien Google Maps, on extrait direct lat/lng
+  _debounce = Timer(const Duration(milliseconds: 600), () {
+    // Only handle Google Maps URLs — extract lat/lng without touching the address text.
+    // Regular typed addresses are left as-is; coordinates come only from
+    // explicit map interactions (tap, GPS, search result).
     if (_looksLikeMapsUrl(q)) {
       final ll = _extractLatLngFromGoogleMaps(q);
       if (ll != null) {
         _lastAuto = q;
-        setLocation(lat: ll.latitude, lng: ll.longitude, address: q); // on garde le lien dans le champ
-        return;
+        // Don’t pass address= so the user’s typed text is never overwritten
+        setLocation(lat: ll.latitude, lng: ll.longitude);
       }
-      // si lien court => fallback vers autoGeocode
     }
-
-    // ✅ 2) Sinon auto geocode normal
-    await _autoGeocode(q);
   });
 }
 
@@ -684,54 +681,6 @@ bool _looksLikeMapsUrl(String s) {
       x.contains("goo.gl/maps");
 }
 
-Future<void> _autoGeocode(String query) async {
-  try {
-    final uri = Uri.parse("${AddressService.apiBase}/utils/geocode")
-        .replace(queryParameters: {"q": query});
-
-    final res = await http.get(uri);
-
-    if (res.statusCode != 200) return;
-
-    final List data = jsonDecode(res.body);
-
-    if (data.isEmpty) return;
-
-    final best = data.first;
-
-    final lat = best["lat"];
-    final lng = best["lon"];
-    final address = best["displayName"];
-
-    // ✅ CAS 1 : adresse trouvée
-    if (lat != null && lng != null) {
-      setLocation(
-        lat: lat,
-        lng: lng,
-        address: address,
-      );
-      return;
-    }
-
-    // ⚠️ CAS 2 : adresse inconnue → RESET coords
-    latitude.value = null;
-    longitude.value = null;
-
-    // 🔥 SAFE SNACKBAR
-    final ctx = Get.context;
-    if (ctx != null) {
-      ScaffoldMessenger.of(ctx).showSnackBar(
-        const SnackBar(
-          content: Text("Adresse non reconnue, veuillez choisir sur la carte"),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
-
-  } catch (e) {
-    print("AUTO GEOCODE ERROR: $e");
-  }
-}
 
   // =========================
   // VALIDATORS (EN)
@@ -774,13 +723,14 @@ Future<void> _autoGeocode(String query) async {
 
   bool get hasLocation => latitude.value != null && longitude.value != null;
 
-  void setLocation({required double lat, required double lng, String? address}) {
+  void setLocation({required double lat, required double lng, String? address, bool forceAddressUpdate = false}) {
     latitude.value = lat;
     longitude.value = lng;
+    locationError.value = '';
 
     if (address != null && address.trim().isNotEmpty) {
       final newText = address.trim();
-      if (localisationAdresse.text.trim() != newText) {
+      if (forceAddressUpdate || localisationAdresse.text.trim() != newText) {
         localisationAdresse.text = newText;
       }
     }
