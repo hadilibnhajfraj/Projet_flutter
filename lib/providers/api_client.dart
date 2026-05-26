@@ -18,8 +18,12 @@ class ApiClient {
         baseUrl: baseUrl,
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 15),
+        // Do NOT set Content-Type here. Dio sets it automatically:
+        //   • Map/List  → application/json
+        //   • FormData  → multipart/form-data; boundary=<uuid>
+        // A global Content-Type: application/json overrides the multipart
+        // boundary and causes Multer / Express to reject FormData with 400.
         headers: const {
-          'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
       ),
@@ -34,8 +38,14 @@ class ApiClient {
             options.headers['Authorization'] = 'Bearer $token';
           }
 
+          // Belt-and-suspenders: if FormData slipped through with a stale
+          // Content-Type header, remove it so Dio can set the correct
+          // multipart/form-data value with the boundary.
+          if (options.data is FormData) {
+            options.headers.remove('Content-Type');
+          }
+
           // ✅ IMPORTANT (Web) pour cookies refresh si backend envoie Set-Cookie
-          // (Dio web supporte ça via extra/Options)
           if (kIsWeb) {
             options.extra['withCredentials'] = true;
           }

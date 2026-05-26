@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dash_master_toolkit/providers/language_provider.dart';
 import 'package:dash_master_toolkit/route/my_route.dart';
@@ -17,6 +18,10 @@ import 'theme/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Prevent google_fonts from fetching fonts at runtime on Flutter Web —
+  // runtime fetching triggers an AssetManifest.json lookup that fails on web.
+  // All Inter text uses the bundled InterTight font via tInter() instead.
+  GoogleFonts.config.allowRuntimeFetching = false;
   await GetStorage.init();
 
   // ✅ Restore session BEFORE runApp (keep logged in up to 7 days)

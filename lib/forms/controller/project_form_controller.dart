@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -14,9 +15,26 @@ import '../model/company_model.dart';
 import '../model/engineer_model.dart';
 
 class ProjectFormController extends GetxController {
-  
+
   final formKey = GlobalKey<FormState>();
-var projectModele = "project".obs;
+  var projectModele = "project".obs;
+
+  // ── File upload (used by ActionSection, read by submit logic) ──────────────
+  final Rxn<Uint8List> fileBytes = Rxn<Uint8List>();
+  final RxnString fileName = RxnString();
+
+  // ── Devis validity (set by DevisFormSection callback) ─────────────────────
+  final RxBool devisIsValid = false.obs;
+
+  void setFile(Uint8List bytes, String name) {
+    fileBytes.value = bytes;
+    fileName.value = name;
+  }
+
+  void clearFile() {
+    fileBytes.value = null;
+    fileName.value = null;
+  }
 
 /// 🔥 AJOUT ICI
 bool get isProject => projectModele.value == "project";
@@ -187,9 +205,12 @@ void resetForm() {
   selectedDateDemarrage.value = null;
   selectedDateVisite.value = null;
   revendeurNom.clear();
-revendeurPrenom.clear();
-revendeurEmail.clear();
-revendeurStatut.text = "prospect";
+  revendeurPrenom.clear();
+  revendeurEmail.clear();
+  revendeurStatut.text = "prospect";
+
+  clearFile();
+  devisIsValid.value = false;
 
   update();
 }
