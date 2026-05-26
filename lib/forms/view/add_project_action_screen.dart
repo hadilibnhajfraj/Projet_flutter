@@ -4,6 +4,7 @@
 // Uses the CRM design system (pipeline_theme.dart / crm_widgets.dart).
 // All date validation is done client-side BEFORE the API call.
 
+import 'package:dio/dio.dart' as dio;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -95,9 +96,9 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
 
   // ── Validation + submit ───────────────────────────────────────────────────
   Future<void> _submit() async {
+    // Hard gate: ignore every tap after the first until the request settles.
     if (_submitting) return;
 
-    // Frontend validation — catches bad input before any network call.
     if (_relance == null) {
       _snack('Please select a follow-up date', error: false);
       return;
@@ -113,16 +114,23 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
         projectId: widget.projectId,
         type: _type,
         commentaire: _commentaire.text.trim(),
-        // Send ISO-8601 with time component — backend datetime comparison is
-        // unambiguous: tomorrow at midnight local time is always > now.
+        // Full ISO-8601 — backend datetime comparison is unambiguous.
         dateRelance: _relance!.toIso8601String(),
         file: _selectedFile,
       );
       if (!mounted) return;
       Navigator.pop(context, true);
+    } on dio.DioException catch (e) {
+      if (!mounted) return;
+      // 409 Conflict = the backend detected a duplicate action.
+      if (e.response?.statusCode == 409) {
+        _snack('This action already exists', error: true);
+      } else {
+        _snack(_parseDioError(e), error: true);
+      }
     } on Exception catch (e) {
       if (!mounted) return;
-      _snack(_parseError(e), error: true);
+      _snack(e.toString(), error: true);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -130,19 +138,28 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   void _snack(String msg, {required bool error}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg, style: tInter(fontSize: 13, color: Colors.white)),
-      backgroundColor: error ? kCrmDanger : kCrmPrimary,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-    ));
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(SnackBar(
+        content: Text(msg, style: tInter(fontSize: 13, color: Colors.white)),
+        backgroundColor: error ? kCrmDanger : kCrmSuccess,
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
   }
 
-  String _parseError(Object e) {
+  // Extracts the backend `message` field from a DioException response body.
+  String _parseDioError(dio.DioException e) {
+    final data = e.response?.data;
+    if (data is Map) {
+      final msg = data['message'];
+      if (msg is String && msg.isNotEmpty) return msg;
+    }
+    // Fallback: scan the raw string for a JSON "message" key.
     final s = e.toString();
-    // Try to surface the backend "message" from a DioException string.
     final match = RegExp(r'"message"\s*:\s*"([^"]+)"').firstMatch(s);
-    return match?.group(1) ?? s;
+    return match?.group(1) ?? 'An error occurred (${e.response?.statusCode})';
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -150,7 +167,12 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
   Widget build(BuildContext context) {
     final tomorrow = DateTime.now().add(const Duration(days: 1));
 
-    return Scaffold(
+    // canPop: false while a request is in-flight — blocks the hardware back
+    // button and the swipe-to-dismiss gesture so the user cannot navigate
+    // away and accidentally trigger a second submission on return.
+    return PopScope(
+      canPop: !_submitting,
+      child: Scaffold(
       backgroundColor: kCrmBg,
       appBar: AppBar(
         backgroundColor: kCrmSurface,
@@ -158,7 +180,9 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.close_rounded, color: kCrmTextSub),
-          onPressed: () => Navigator.pop(context, false),
+          // Disabled while submitting — matches PopScope behaviour.
+          onPressed:
+              _submitting ? null : () => Navigator.pop(context, false),
         ),
         title: Text('Add CRM Action',
             style: tInter(
@@ -204,7 +228,7 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
                       ]),
                     ))
                 .toList(),
-            onChanged: (v) => setState(() => _type = v!),
+            onChanged: _submitting ? null : (v) => setState(() => _type = v!),
           ),
 
           const SizedBox(height: 20),
@@ -215,6 +239,7 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
           TextFormField(
             controller: _commentaire,
             maxLines: 3,
+            enabled: !_submitting,
             style: tInter(fontSize: 13, color: kCrmText),
             decoration: _inputDec('Add a note…'),
           ),
@@ -225,7 +250,7 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
           _Label('Follow-up Date', required: true),
           const SizedBox(height: 6),
           InkWell(
-            onTap: _pickDate,
+            onTap: _submitting ? null : _pickDate,
             borderRadius: BorderRadius.circular(10),
             child: Container(
               padding:
@@ -276,7 +301,7 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
           _Label('Attachment (optional)'),
           const SizedBox(height: 6),
           OutlinedButton.icon(
-            onPressed: _pickFile,
+            onPressed: _submitting ? null : _pickFile,
             icon: const Icon(Icons.attach_file_rounded, size: 16),
             label: Text(
               _fileName ?? 'Choose file (PDF, image…)',
@@ -310,28 +335,41 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
           // ── Submit ──────────────────────────────────────────────────────
           SizedBox(
             width: double.infinity,
-            child: _submitting
-                ? const Center(
-                    child: CircularProgressIndicator(color: kCrmPrimary))
-                : FilledButton.icon(
-                    onPressed: _submit,
-                    icon: const Icon(Icons.send_rounded, size: 16),
-                    label: Text('Save Action',
-                        style: tInter(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white)),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: kCrmPrimary,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
+            child: FilledButton.icon(
+              // null disables the button while the request is in-flight.
+              onPressed: _submitting ? null : _submit,
+              icon: _submitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.send_rounded,
+                      size: 16, color: Colors.white),
+              label: Text(
+                _submitting ? 'Saving…' : 'Save Action',
+                style: tInter(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: kCrmPrimary,
+                // Keeps the button visible (dimmed) instead of invisible.
+                disabledBackgroundColor: kCrmPrimary.withValues(alpha: 0.65),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
           ),
         ]),
       ),
-    );
+    ),   // Scaffold
+    );   // PopScope
   }
 
   // ── Shared decoration ─────────────────────────────────────────────────────

@@ -32,6 +32,9 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
   // One controller per screen instance — deleted in dispose.
   late final ProjectTimelineController _ctrl;
 
+  // Prevents rapid FAB taps from opening multiple Add-Action screens.
+  bool _openingAddAction = false;
+
   @override
   void initState() {
     super.initState();
@@ -51,24 +54,36 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   Future<void> _openAddAction() async {
-    // Suggest the next logical stage based on the latest action.
-    String suggested = 'Visite';
-    if (_ctrl.actions.isNotEmpty) {
-      suggested = _nextAction(_ctrl.actions.first.typeAction) ??
-          _ctrl.actions.first.typeAction;
-    }
+    // Idempotency gate — a second tap while the route transition is in-flight
+    // is silently dropped.  The flag is cleared in the finally block so it
+    // resets whether the user saves, cancels, or swipes back.
+    if (_openingAddAction) return;
+    setState(() => _openingAddAction = true);
 
-    final result = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AddProjectActionScreen(
-          projectId: widget.projectId,
-          initialType: suggested,
+    try {
+      String suggested = 'Visite';
+      if (_ctrl.actions.isNotEmpty) {
+        suggested = _nextAction(_ctrl.actions.first.typeAction) ??
+            _ctrl.actions.first.typeAction;
+      }
+
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AddProjectActionScreen(
+            projectId: widget.projectId,
+            initialType: suggested,
+          ),
         ),
-      ),
-    );
+      );
 
-    if (result == true) await _ctrl.loadActions(widget.projectId);
+      // Only one reload regardless of how quickly the user tapped.
+      if (result == true && mounted) {
+        await _ctrl.loadActions(widget.projectId);
+      }
+    } finally {
+      if (mounted) setState(() => _openingAddAction = false);
+    }
   }
 
   // ── Delete ─────────────────────────────────────────────────────────────────
@@ -221,12 +236,24 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openAddAction,
+        // null disables the button and greys it out automatically.
+        onPressed: _openingAddAction ? null : _openAddAction,
         backgroundColor: kCrmPrimary,
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: Text('Add Action',
-            style: tInter(
-                color: Colors.white, fontWeight: FontWeight.w600)),
+        disabledElevation: 0,
+        icon: _openingAddAction
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.add_rounded, color: Colors.white),
+        label: Text(
+          _openingAddAction ? 'Opening…' : 'Add Action',
+          style: tInter(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
       ),
       body: Obx(() {
         if (_ctrl.loading.value) {
