@@ -88,6 +88,14 @@ class PipelineService {
     );
   }
 
+  /// Post an internal note on a project.
+  Future<void> addNote(String projectId, String content) async {
+    await ApiClient.instance.dio.post(
+      '/projects/$projectId/actions',
+      data: {'typeAction': 'Note', 'commentaire': content},
+    );
+  }
+
   // ── Stages ─────────────────────────────────────────────────────────────────
   Future<List<Map<String, dynamic>>> fetchStages() async {
     try {
