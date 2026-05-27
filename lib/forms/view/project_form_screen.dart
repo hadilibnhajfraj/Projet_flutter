@@ -35,6 +35,7 @@ import 'package:dash_master_toolkit/theme/theme_controller.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 
 import '../controller/project_form_controller.dart';
+import '../providers/pipeline_provider.dart';
 import '../../providers/api_client.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 
@@ -170,8 +171,13 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
   // ── Submit ─────────────────────────────────────────────────────────────────
   DateTime? _parseDate(String? input) {
     if (input == null || input.isEmpty) return null;
+    // Try yyyy-MM-dd first (new display format, same as Visit Date)
     try {
-      return DateFormat('dd/MM/yyyy').parse(input);
+      return DateFormat('yyyy-MM-dd').parseStrict(input);
+    } catch (_) {}
+    // Fallback: legacy dd/MM/yyyy stored in older projects
+    try {
+      return DateFormat('dd/MM/yyyy').parseStrict(input);
     } catch (_) {
       return null;
     }
@@ -203,17 +209,13 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
 
     setState(() => _submitting = true);
 
-    final parsed = _parseDate(c.dateDemarrage.text);
     final currentUser = Get.find<AuthService>().getUserName();
 
     final payload = {
       'nomProjet'             : clean(c.nomProjet.text),
       'projectModele'         : c.projectModele.value,
-      'dateDemarrage'         : c.isProject && parsed != null
-          ? '${parsed.year.toString().padLeft(4, '0')}-'
-              '${parsed.month.toString().padLeft(2, '0')}-'
-              '${parsed.day.toString().padLeft(2, '0')}'
-          : null,
+      // Send dateDemarrage for ALL types (project, revendeur, applicateur)
+      'dateDemarrage'         : clean(c.dateDemarrage.text),
       'statut'                : c.isProject ? clean(c.statut.text) : null,
       'typeAdresseChantier'   : c.isProject ? clean(c.typeAdresseChantier.text) : null,
       'adresse'               : (c.isProject || c.isApplicateur)
@@ -323,6 +325,11 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       if (_projectId == null) {
         setState(() => _projectId = project.id);
         await c.loadProject(project.id);
+        // Reload pipeline board from server so the new project appears with
+        // the correct owner (from backend response, not a null local placeholder).
+        if (Get.isRegistered<PipelineProvider>()) {
+          Get.find<PipelineProvider>().load(silent: true);
+        }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Project created successfully')));

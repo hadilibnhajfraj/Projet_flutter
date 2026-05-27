@@ -341,8 +341,7 @@ void onProjectModeleChanged(String mode) {
   projectModele.value = mode;
 
   if (mode == "revendeur") {
-    // 🔥 RESET UNIQUEMENT CHANTIER
-    dateDemarrage.clear();
+    // Reset chantier-specific fields only — keep dateDemarrage for all types
     typeAdresseChantier.clear();
     localisationAdresse.clear();
 
@@ -419,28 +418,41 @@ longitude.value = j["location"]?["lng"];
 revendeurPrenom.text = (j['revendeurPrenom'] ?? '').toString();
 revendeurEmail.text = (j['revendeurEmail'] ?? '').toString();
 revendeurStatut.text = (j['revendeurStatut'] ?? 'prospect').toString();
-// ── START DATE ── resolve from either API field name, display as dd/MM/yyyy ──
-final rawStart = (j['startDate'] ?? j['dateDemarrage'] ?? '').toString().trim();
+// ── START DATE ── resolve from any API field name, display as yyyy-MM-dd ──────
+print('PROJECT DATA = $j');
+debugPrint('START DATE raw → startDate:${j['startDate']} | dateDemarrage:${j['dateDemarrage']} | start_date:${j['start_date']}');
 {
+  final rawStart = (
+    j['startDate'] ??
+    j['dateDemarrage'] ??
+    j['start_date'] ??
+    j['date_demarrage'] ??
+    j['dateDebut'] ??
+    ''
+  ).toString().trim();
+
   DateTime? parsedStart;
   if (rawStart.isNotEmpty) {
     try {
-      parsedStart = DateTime.parse(rawStart);         // ISO 8601
+      parsedStart = DateTime.parse(rawStart);             // ISO 8601 / yyyy-MM-dd
     } catch (_) {
       try {
         parsedStart = DateFormat('dd/MM/yyyy').parseStrict(rawStart);
       } catch (_) {}
     }
   }
+
   if (parsedStart != null) {
     selectedDateDemarrage.value = parsedStart;
-    dateDemarrage.text = DateFormat('dd/MM/yyyy').format(parsedStart);
+    dateDemarrage.text = DateFormat('yyyy-MM-dd').format(parsedStart);
     debugPrint('START DATE resolved = ${dateDemarrage.text}');
   } else {
     selectedDateDemarrage.value = null;
     dateDemarrage.text = '';
-    debugPrint('START DATE = empty (startDate=${j['startDate']}, dateDemarrage=${j['dateDemarrage']})');
+    debugPrint('START DATE = empty — none of the known fields found in API response');
   }
+  // Notify GetBuilder(id: 'dateDemarrage') explicitly so it rebuilds with the new text
+  update(['dateDemarrage']);
 }
 commentaireCtrl.text =
     j["localisationCommentaire"] ??
@@ -635,13 +647,15 @@ Future<void> pickDateVisite(BuildContext context) async {
   DateTime initialDate = selectedDateDemarrage.value ?? now;
 
   final txt = dateDemarrage.text.trim();
-
   if (txt.isNotEmpty) {
     try {
-      // ✅ CORRECT FORMAT (dd/MM/yyyy)
-      initialDate = DateFormat('dd/MM/yyyy').parseStrict(txt);
+      initialDate = DateFormat('yyyy-MM-dd').parseStrict(txt);
     } catch (_) {
-      initialDate = now;
+      try {
+        initialDate = DateFormat('dd/MM/yyyy').parseStrict(txt);
+      } catch (_) {
+        initialDate = now;
+      }
     }
   }
 
@@ -671,16 +685,12 @@ Future<void> pickDateVisite(BuildContext context) async {
 
  void setDateDemarrage(DateTime d) {
   selectedDateDemarrage.value = d;
-
-  // ✅ FORMAT UI (CORRIGÉ)
-  final formatted = DateFormat('dd/MM/yyyy').format(d);
-
+  final formatted = DateFormat('yyyy-MM-dd').format(d);
   dateDemarrage.value = dateDemarrage.value.copyWith(
     text: formatted,
     selection: TextSelection.collapsed(offset: formatted.length),
     composing: TextRange.empty,
   );
-
   update(['dateDemarrage']);
 }
 

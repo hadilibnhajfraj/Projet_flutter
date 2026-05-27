@@ -58,7 +58,8 @@ class PipelineProvider extends GetxController {
   void onInit() {
     super.onInit();
     _initGrouped();
-    // myOnly = true → board opens with the current user's projects.
+    // Default to 'project' type — never mix Projects, Revendeurs, Applicateurs.
+    filterModele.value = 'project';
     load();
   }
 
@@ -359,21 +360,20 @@ class PipelineProvider extends GetxController {
     load(silent: true);
   }
 
-  /// Resets ALL filters and reloads ALL projects from the server.
+  /// Resets search/stage filters but keeps modele='project' (never show all mixed).
   void clearFilters() {
     _searchDebounce?.cancel();
     search.value       = '';
     filterStage.value  = null;
-    filterModele.value = null;
+    filterModele.value = 'project';
     myOnly.value       = false;
-    debugPrint('[Pipeline] clearFilters → myOnly=false, filterModele=null, reload all');
+    debugPrint('[Pipeline] clearFilters → myOnly=false, filterModele=project, reload');
     load(silent: true);
   }
 
   bool get hasActiveFilters =>
       search.value.isNotEmpty ||
       filterStage.value != null ||
-      filterModele.value != null ||
       myOnly.value;
 
   // ── KPI ────────────────────────────────────────────────────────────────────
