@@ -78,6 +78,36 @@ class ProjectTimelineController extends GetxController {
   final loading = false.obs;
   final error = RxnString();
 
+  /// Loads all actions across every project — admin-only mode.
+  Future<void> loadAllActions() async {
+    loading.value = true;
+    error.value = null;
+    try {
+      final res = await ApiClient.instance.dio.get('/projects/actions');
+      final raw = res.data;
+      final List dataList;
+      if (raw is Map && raw.containsKey('data')) {
+        final d = raw['data'];
+        dataList = d is List ? d : [];
+      } else if (raw is List) {
+        dataList = raw;
+      } else {
+        dataList = [];
+      }
+      actions.value = dataList
+          .map((e) => ProjectActionModel.fromJson(
+              Map<String, dynamic>.from(e as Map)))
+          .toList();
+      actions.sort((a, b) =>
+          _parseDate(b.dateAction).compareTo(_parseDate(a.dateAction)));
+    } catch (e) {
+      error.value = e.toString();
+      actions.clear();
+    } finally {
+      loading.value = false;
+    }
+  }
+
   Future<void> loadActions(String projectId) async {
     loading.value = true;
     error.value = null;

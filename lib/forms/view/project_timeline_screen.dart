@@ -15,6 +15,7 @@ import 'package:dio/dio.dart' as dio;
 import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/providers/api_client.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 import '../controller/project_timeline_controller.dart';
 import 'add_project_action_screen.dart';
@@ -35,13 +36,32 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
   // Prevents rapid FAB taps from opening multiple Add-Action screens.
   bool _openingAddAction = false;
 
+  late final bool _isAdmin;
+
+  /// Admin-only toggle: show all project timelines vs. only this project.
+  bool _allTimelinesMode = false;
+
   @override
   void initState() {
     super.initState();
+    _isAdmin = AuthService().isAdmin;
     _ctrl = Get.isRegistered<ProjectTimelineController>()
         ? Get.find<ProjectTimelineController>()
         : Get.put(ProjectTimelineController());
     _ctrl.loadActions(widget.projectId);
+  }
+
+  void _reload() {
+    if (_allTimelinesMode) {
+      _ctrl.loadAllActions();
+    } else {
+      _ctrl.loadActions(widget.projectId);
+    }
+  }
+
+  void _toggleAllTimelines() {
+    setState(() => _allTimelinesMode = !_allTimelinesMode);
+    _reload();
   }
 
   @override
@@ -79,7 +99,7 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
 
       // Only one reload regardless of how quickly the user tapped.
       if (result == true && mounted) {
-        await _ctrl.loadActions(widget.projectId);
+        _reload();
       }
     } finally {
       if (mounted) setState(() => _openingAddAction = false);
@@ -113,7 +133,7 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
 
     try {
       await ApiClient.instance.dio.delete('/projects/actions/$actionId');
-      await _ctrl.loadActions(widget.projectId);
+      _reload();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -187,7 +207,7 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
           'message': msgCtrl.text.trim(),
         },
       );
-      await _ctrl.loadActions(widget.projectId);
+      _reload();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -209,10 +229,30 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
           onPressed: () =>
               context.canPop() ? context.pop() : context.go('/pipeline'),
         ),
-        title: Text('CRM Timeline',
-            style: tInter(
-                fontSize: 16, fontWeight: FontWeight.w700, color: kCrmText)),
+        title: Text(
+          _allTimelinesMode ? 'All Timelines' : 'CRM Timeline',
+          style: tInter(
+              fontSize: 16, fontWeight: FontWeight.w700, color: kCrmText),
+        ),
         actions: [
+          if (_isAdmin)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Tooltip(
+                message: _allTimelinesMode
+                    ? 'Show this project only'
+                    : 'Show all projects (Admin)',
+                child: IconButton(
+                  icon: Icon(
+                    _allTimelinesMode
+                        ? Icons.person_rounded
+                        : Icons.group_rounded,
+                    color: _allTimelinesMode ? kCrmPrimary : kCrmTextSub,
+                  ),
+                  onPressed: _toggleAllTimelines,
+                ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: OutlinedButton.icon(
@@ -235,26 +275,28 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
           child: Container(height: 1, color: kCrmBorder),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        // null disables the button and greys it out automatically.
-        onPressed: _openingAddAction ? null : _openAddAction,
-        backgroundColor: kCrmPrimary,
-        disabledElevation: 0,
-        icon: _openingAddAction
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: Colors.white,
-                ),
-              )
-            : const Icon(Icons.add_rounded, color: Colors.white),
-        label: Text(
-          _openingAddAction ? 'Opening…' : 'Add Action',
-          style: tInter(color: Colors.white, fontWeight: FontWeight.w600),
-        ),
-      ),
+      floatingActionButton: _allTimelinesMode
+          ? null
+          : FloatingActionButton.extended(
+              // null disables the button and greys it out automatically.
+              onPressed: _openingAddAction ? null : _openAddAction,
+              backgroundColor: kCrmPrimary,
+              disabledElevation: 0,
+              icon: _openingAddAction
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.add_rounded, color: Colors.white),
+              label: Text(
+                _openingAddAction ? 'Opening…' : 'Add Action',
+                style: tInter(color: Colors.white, fontWeight: FontWeight.w600),
+              ),
+            ),
       body: Obx(() {
         if (_ctrl.loading.value) {
           return const Center(
@@ -264,7 +306,7 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
         if (_ctrl.error.value != null) {
           return _ErrorState(
             message: _ctrl.error.value!,
-            onRetry: () => _ctrl.loadActions(widget.projectId),
+            onRetry: _reload,
           );
         }
 
@@ -296,7 +338,7 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
       builder: (_) => _EditActionDialog(action: action),
     );
     if (saved == true) {
-      await _ctrl.loadActions(widget.projectId);
+      _reload();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Action updated successfully',

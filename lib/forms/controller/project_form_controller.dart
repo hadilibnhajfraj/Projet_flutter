@@ -386,7 +386,16 @@ void onProjectModeleChanged(String mode) {
  Future<void> loadProject(String id) async {
 
   final res = await ApiClient.instance.dio.get('/projects/$id');
-  final j = Map<String, dynamic>.from(res.data);
+  // Unwrap API envelope: bare object OR {success:true, data:{...}}
+  final raw = res.data;
+  final Map<String, dynamic> j;
+  if (raw is Map && raw.containsKey('data') && raw['data'] is Map) {
+    j = Map<String, dynamic>.from(raw['data'] as Map);
+  } else if (raw is Map) {
+    j = Map<String, dynamic>.from(raw);
+  } else {
+    j = {};
+  }
 
   // =========================
   // BASIC INFO

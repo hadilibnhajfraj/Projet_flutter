@@ -84,10 +84,26 @@ class _ProjectPipelineScreenState extends State<ProjectPipelineScreen>
             onAddProject: () => context.go('/forms/project'),
             onRefresh: () => _provider.load(),
           ),
+          // 2-px progress bar during non-first reloads — board stays visible.
+          Obx(() => _provider.refreshing.value
+              ? LinearProgressIndicator(
+                  color: kCrmPrimary,
+                  backgroundColor: kCrmPrimary.withOpacity(0.12),
+                  minHeight: 2,
+                )
+              : const SizedBox.shrink()),
           Expanded(
             child: Obx(() {
               if (_provider.loading.value) {
                 return const _PipelineShimmer();
+              }
+              // Error state — only when board is completely empty.
+              if (_provider.errorMessage.value != null &&
+                  _provider.grouped.values.every((l) => l.isEmpty)) {
+                return _PipelineErrorState(
+                  message: _provider.errorMessage.value!,
+                  onRetry: () => _provider.load(),
+                );
               }
               return FadeTransition(
                 opacity: _fadeAnim,
@@ -531,38 +547,53 @@ class _PipelineShimmerState extends State<_PipelineShimmer>
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.all(20),
-      child: AnimatedBuilder(
-        animation: _anim,
-        builder: (_, __) => Opacity(
-          opacity: _anim.value,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: List.generate(
-              5,
-              (ci) => Container(
-                width: 300,
-                margin: const EdgeInsets.only(right: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _shimmerBox(56, 14),
-                    const SizedBox(height: 12),
-                    ...List.generate(
-                        3 + ci % 2,
-                        (_) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _shimmerBox(140, 16),
-                            )),
-                  ],
+    // LayoutBuilder gives us the real available height so shimmer cards
+    // are sized to fit exactly — no BOTTOM OVERFLOW regardless of screen size.
+    return LayoutBuilder(
+      builder: (_, constraints) {
+        // Budget for card content after vertical padding (20 top + 20 bottom),
+        // stage-header placeholder (56 px) and the gap below it (12 px).
+        // 3 cards are shown; between adjacent cards there is a 10-px spacer.
+        // Formula: available = 56 + 12 + 3*cardH + 2*10  → cardH = (avail-88)/3
+        final avail  = constraints.maxHeight - 40; // subtract padding
+        final cardH  = ((avail - 88) / 3).clamp(60.0, 160.0);
+        final colH   = (88 + 3 * cardH).clamp(0.0, avail);
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.all(20),
+          child: AnimatedBuilder(
+            animation: _anim,
+            builder: (_, __) => Opacity(
+              opacity: _anim.value,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: List.generate(
+                  5,
+                  (_) => SizedBox(
+                    width: 300,
+                    height: colH,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Stage header placeholder
+                        _shimmerBox(56, 14),
+                        const SizedBox(height: 12),
+                        // 3 card placeholders — exactly fills colH
+                        _shimmerBox(cardH, 16),
+                        const SizedBox(height: 10),
+                        _shimmerBox(cardH, 16),
+                        const SizedBox(height: 10),
+                        _shimmerBox(cardH, 16),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -580,4 +611,66 @@ class _PipelineShimmerState extends State<_PipelineShimmer>
           borderRadius: BorderRadius.circular(r),
         ),
       );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ERROR STATE
+// ══════════════════════════════════════════════════════════════════════════════
+class _PipelineErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _PipelineErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: kCrmDanger.withOpacity(0.07),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.cloud_off_rounded,
+                  size: 44, color: kCrmDanger),
+            ),
+            const SizedBox(height: 20),
+            Text('Failed to load pipeline',
+                style: tInter(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: kCrmText)),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: tInter(fontSize: 13, color: kCrmTextSub),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: Text('Retry',
+                  style: tInter(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white)),
+              style: FilledButton.styleFrom(
+                backgroundColor: kCrmPrimary,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -1,23 +1,37 @@
 // lib/forms/providers/pipeline_provider.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:dash_master_toolkit/services/pipeline_service.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
+import 'package:dash_master_toolkit/forms/model/project_pipeline_model.dart';
 
 class PipelineProvider extends GetxController {
   static PipelineProvider get to => Get.find<PipelineProvider>();
 
   final _service = PipelineService.instance;
-  final _box     = GetStorage();
+  // ignore: unused_field
+  final _box = GetStorage();
 
   // ── Observables ────────────────────────────────────────────────────────────
-  final RxBool    loading     = true.obs;
-  /// true = show only current user's projects (server + client filtered)
-  /// false = show ALL projects (no filter)
-  final RxBool    myOnly      = false.obs;
-  final RxString  search      = ''.obs;
+  /// Full-screen shimmer — only true during the very first load.
+  final RxBool loading = true.obs;
+
+  /// Subtle top progress bar during subsequent reloads — board stays visible.
+  final RxBool refreshing = false.obs;
+
+  /// Auto-selected on first open: show only the current user's projects.
+  final RxBool myOnly = true.obs;
+
+  /// Debounced search term (actual filtered value — not the raw keystroke).
+  final RxString search = ''.obs;
+
   final RxnString filterStage = RxnString();
+
+  /// Non-null when a load attempt failed and the board is still empty.
+  final RxnString errorMessage = RxnString();
 
   final RxList<PipelineStage> stages =
       <PipelineStage>[...kDefaultPipelineStages].obs;
@@ -31,12 +45,24 @@ class PipelineProvider extends GetxController {
   final RxInt lost   = 0.obs;
   final RxInt active = 0.obs;
 
+  // ── Internal ───────────────────────────────────────────────────────────────
+  // Full shimmer is shown only once — on the very first load after creation.
+  bool _isFirstLoad = true;
+  Timer? _searchDebounce;
+
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   @override
   void onInit() {
     super.onInit();
     _initGrouped();
-    load(); // myOnly=false → fetches ALL projects
+    // myOnly = true → board opens with the current user's projects.
+    load();
+  }
+
+  @override
+  void onClose() {
+    _searchDebounce?.cancel();
+    super.onClose();
   }
 
   void _initGrouped() {
@@ -44,13 +70,12 @@ class PipelineProvider extends GetxController {
   }
 
   // ── Filtered view ──────────────────────────────────────────────────────────
-  /// Search and stage-dropdown filters are always client-side.
-  /// Mine filter is handled server-side (re-fetch) + client-side guard.
+  /// Search + stage-dropdown are always client-side (instant, no extra API call).
+  /// myOnly is server-side and triggers a re-fetch.
   Map<String, List<Map<String, dynamic>>> get filtered {
     final q  = search.value.toLowerCase().trim();
     final sf = filterStage.value;
 
-    // No active client-side filters → return raw grouped data
     if (q.isEmpty && sf == null) return Map.from(grouped);
 
     final result = <String, List<Map<String, dynamic>>>{};
@@ -72,10 +97,24 @@ class PipelineProvider extends GetxController {
   }
 
   // ── Load ───────────────────────────────────────────────────────────────────
+  /// [silent] = true skips the refreshing indicator (used internally after
+  /// optimistic drag-drop updates where the board is already in sync).
   Future<void> load({bool silent = false}) async {
-    if (!silent) loading.value = true;
+    errorMessage.value = null;
+
+    if (_isFirstLoad && !silent) {
+      // Very first open → show full skeleton shimmer.
+      loading.value   = true;
+      refreshing.value = false;
+    } else if (!silent) {
+      // Explicit refresh button tap → show subtle progress bar.
+      refreshing.value = true;
+    } else {
+      // Filter / toggle changes → subtle bar.
+      refreshing.value = true;
+    }
+
     try {
-      // Service handles mine=false (all) vs mine=true (user's only)
       final projects = await _service.fetchKanban(mine: myOnly.value);
 
       final stageIds = stages.map((s) => s.id).toList();
@@ -83,7 +122,7 @@ class PipelineProvider extends GetxController {
         for (final id in stageIds) id: [],
       };
 
-      // Fetch actions in parallel — don't block the board on slow endpoints
+      // All action fetches fire concurrently via Future.wait.
       final enriched = await Future.wait(
         projects.map((raw) => _enrichProject(Map<String, dynamic>.from(raw))),
       );
@@ -98,39 +137,66 @@ class PipelineProvider extends GetxController {
       _recalcKpi();
     } catch (e) {
       debugPrint('PipelineProvider.load error: $e');
+      // Only surface the error message when the board is still empty.
+      if (grouped.values.every((l) => l.isEmpty)) {
+        errorMessage.value = 'Failed to load pipeline. Tap refresh to retry.';
+      }
     } finally {
-      loading.value = false;
+      loading.value    = false;
+      refreshing.value = false;
+      _isFirstLoad     = false;
     }
   }
 
-  // ── Stage resolver (statut field + lastAction.typeAction) ─────────────────
-  /// Priority: lastAction.typeAction → project.statut → first stage
+  // ── Stage resolver ─────────────────────────────────────────────────────────
+  /// Priority (highest → lowest):
+  ///   1. computedStage already stamped (e.g. from a grouped kanban response)
+  ///   2. currentAction / action / pipelineStage flat fields
+  ///   3. lastAction.typeAction (most recent action enriched later)
+  ///   4. statut
+  ///   5. first stage
   String _resolveStageId(Map<String, dynamic> project, List<String> validIds) {
-    // 1. Last non-relance action type (most up-to-date)
+    String _try(String? raw) {
+      if (raw == null || raw.isEmpty) return '';
+      if (validIds.contains(raw)) return raw;
+      final n = normalizeStage(raw);
+      return validIds.contains(n) ? n : '';
+    }
+
+    // 1. Already stamped (e.g. from kanban grouped response)
+    final stamped = _try(project['computedStage']?.toString());
+    if (stamped.isNotEmpty) return stamped;
+
+    // 2. Flat CRM action fields
+    for (final key in ['currentAction', 'action', 'pipelineStage', 'currentStage']) {
+      final v = _try(project[key]?.toString());
+      if (v.isNotEmpty) return v;
+    }
+
+    // 3. Last action type
     final lastType =
         (project['lastAction'] as Map?)?['typeAction']?.toString() ?? '';
-    if (lastType.isNotEmpty) {
-      final fromAction = normalizeStage(lastType);
-      if (validIds.contains(fromAction)) return fromAction;
-    }
+    final fromAction = _try(lastType);
+    if (fromAction.isNotEmpty) return fromAction;
 
-    // 2. Project's statut field
-    final statut = (project['statut'] ?? '').toString().trim();
-    if (statut.isNotEmpty) {
-      // Direct match first
-      if (validIds.contains(statut)) return statut;
-      final fromStatut = normalizeStage(statut);
-      if (validIds.contains(fromStatut)) return fromStatut;
-    }
+    // 4. Statut fallback
+    final fromStatut = _try((project['statut'] ?? '').toString().trim());
+    if (fromStatut.isNotEmpty) return fromStatut;
 
-    // 3. Default to first stage
     return validIds.isNotEmpty ? validIds.first : kDefaultPipelineStages.first.id;
   }
 
   // ── Enrich project with its actions ───────────────────────────────────────
   Future<Map<String, dynamic>> _enrichProject(
       Map<String, dynamic> project) async {
-    final id = (project['id'] ?? '').toString();
+    // ── Normalize field names immediately ─────────────────────────────────────
+    // ProjectPipelineModel resolves nomProjet + owner from any API variant
+    // and writes canonical keys back into [project] so the card can read
+    // p['nomProjet'] and p['ownerName'] unconditionally.
+    ProjectPipelineModel.fromJson(project).normalizeIntoMap(project);
+
+    // MongoDB may return _id instead of id — check both.
+    final id = (project['id'] ?? project['_id'] ?? '').toString();
     if (id.isEmpty) {
       project['lastAction'] = null;
       project['allActions'] = <Map<String, dynamic>>[];
@@ -147,14 +213,14 @@ class PipelineProvider extends GetxController {
     return project;
   }
 
-  // ── Move project between stages ────────────────────────────────────────────
+  // ── Move project between stages (optimistic) ───────────────────────────────
   Future<bool> moveProject(
       Map<String, dynamic> project, String newStageId) async {
     final oldStageId =
         (project['computedStage'] as String?) ?? stages.first.id;
     if (oldStageId == newStageId) return false;
 
-    // Optimistic update
+    // Optimistic update — board reacts instantly.
     grouped[oldStageId]?.removeWhere((p) => p['id'] == project['id']);
     project['computedStage'] = newStageId;
     (grouped[newStageId] ??= []).add(project);
@@ -166,7 +232,7 @@ class PipelineProvider extends GetxController {
           projectId: project['id'].toString(), newStage: newStageId);
       return true;
     } catch (_) {
-      // Rollback
+      // Rollback on failure.
       grouped[newStageId]?.removeWhere((p) => p['id'] == project['id']);
       project['computedStage'] = oldStageId;
       (grouped[oldStageId] ??= []).add(project);
@@ -222,7 +288,8 @@ class PipelineProvider extends GetxController {
     grouped.refresh();
     try {
       await _service.updateStage(stageId,
-          color: '#${color.value.toRadixString(16).substring(2).toUpperCase()}');
+          color:
+              '#${color.value.toRadixString(16).substring(2).toUpperCase()}');
     } catch (_) {}
   }
 
@@ -237,7 +304,9 @@ class PipelineProvider extends GetxController {
 
     if (stages.isNotEmpty && displaced.isNotEmpty) {
       final firstId = stages.first.id;
-      for (final p in displaced) p['computedStage'] = firstId;
+      for (final p in displaced) {
+        p['computedStage'] = firstId;
+      }
       (grouped[firstId] ??= []).addAll(displaced);
     }
     _recalcKpi();
@@ -248,22 +317,36 @@ class PipelineProvider extends GetxController {
   }
 
   // ── Filter helpers ─────────────────────────────────────────────────────────
-  /// Toggle "My Projects": re-fetches from server with mine param.
+  /// Toggle "My Projects": re-fetches from server.
   void toggleMyOnly() {
     myOnly.toggle();
+    debugPrint('[Pipeline] MY PROJECTS = ${myOnly.value}');
     load(silent: true);
   }
 
-  void setSearch(String q) => search.value = q;
+  /// Debounced search — 350 ms after the last keystroke.
+  /// Clearing immediately resets the board (no delay on empty).
+  void setSearch(String q) {
+    _searchDebounce?.cancel();
+    if (q.isEmpty) {
+      search.value = '';
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      search.value = q;
+    });
+  }
+
   void setFilterStage(String? s) => filterStage.value = s;
 
+  /// Resets ALL filters and reloads ALL projects from the server.
   void clearFilters() {
-    search.value = '';
+    _searchDebounce?.cancel();
+    search.value      = '';
     filterStage.value = null;
-    if (myOnly.value) {
-      myOnly.value = false;
-      load(silent: true);
-    }
+    myOnly.value      = false;
+    debugPrint('[Pipeline] clearFilters → myOnly=false, reload all');
+    load(silent: true);
   }
 
   bool get hasActiveFilters =>

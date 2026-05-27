@@ -8,6 +8,54 @@ import 'package:intl/intl.dart';
 import '../providers/pipeline_provider.dart';
 import 'pipeline_theme.dart';
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Safe project ID: MongoDB may return `_id` instead of `id`.
+String _projectId(Map<String, dynamic> p) =>
+    (p['id'] ?? p['_id'] ?? '').toString();
+
+// ── Board helpers ─────────────────────────────────────────────────────────────
+// These read the canonical keys that ProjectPipelineModel.normalizeIntoMap()
+// writes at load time. Each has a safe inline fallback in case normalization
+// hasn't run (e.g. during an optimistic drag-drop update).
+
+String _cardNom(Map<String, dynamic> p) {
+  // normalizeIntoMap writes 'nomProjet'; fall through all raw variants too.
+  for (final k in ['nomProjet', 'name', 'title', 'projectName']) {
+    final v = p[k]?.toString().trim() ?? '';
+    if (v.isNotEmpty) return v;
+  }
+  return 'Sans nom';
+}
+
+String _cardOwner(Map<String, dynamic> p) {
+  final name = p['ownerName']?.toString().trim() ?? '';
+  if (name.isNotEmpty) return name;
+  // Inline fallback if normalizeIntoMap hasn't run yet.
+  final userNom = p['user_nom']?.toString().trim() ?? '';
+  if (userNom.isNotEmpty) return userNom;
+  final email = p['ownerEmail']?.toString().trim() ?? '';
+  if (email.isNotEmpty) return email;
+  return '';
+}
+
+String _cardOwnerEmail(Map<String, dynamic> p) =>
+    p['ownerEmail']?.toString().trim() ?? '';
+
+String _cardOwnerAvatar(Map<String, dynamic> p) =>
+    p['ownerAvatar']?.toString().trim() ?? '';
+
+/// Current CRM action stage label for the badge.
+String _cardCurrentAction(Map<String, dynamic> p) {
+  final a = p['currentAction']?.toString().trim() ?? '';
+  if (a.isNotEmpty) return a;
+  final s = p['computedStage']?.toString().trim() ?? '';
+  return s;
+}
+
+// Keep the public name for backward compatibility (used in _DetailSheet).
+String resolveProjectOwner(Map<String, dynamic> p) => _cardOwner(p);
+
 // ══════════════════════════════════════════════════════════════════════════════
 // BOARD — horizontal kanban layout
 // ══════════════════════════════════════════════════════════════════════════════
@@ -645,22 +693,14 @@ class _ProjectCardState extends State<_ProjectCard> {
     final color      = widget.stageColor;
     final stage      = (p['computedStage'] ?? 'Visite') as String;
     final stageLabel = kCrmStageLabels[stage] ?? stage;
-    final nom        = (p['nomProjet']  ?? 'Untitled').toString();
+    final nom        = _cardNom(p);
     final cie        = (p['entreprise'] ?? '').toString();
 
-    // Owner — mirror ProjectGridData._resolveOwnerName field priority
-    final _userNom       = (p['user_nom']        ?? '').toString().trim();
-    final _userNomCustom = (p['user_nom_custom']  ?? '').toString().trim();
-    final _ownerEmail    = (p['ownerName']        ?? '').toString().trim(); // API "ownerName" = email
-    final ownerName = _userNom.isNotEmpty
-        ? (_userNomCustom.isNotEmpty ? '$_userNom ($_userNomCustom)' : _userNom)
-        : _userNomCustom.isNotEmpty
-            ? _userNomCustom
-            : _ownerEmail.isNotEmpty
-                ? _ownerEmail
-                : (p['createdBy'] ?? '').toString().trim();
-    final ownerEmail  = _ownerEmail;
-    final ownerAvatar = (p['ownerAvatar'] ?? p['ownerImage'] ?? '').toString();
+    // Owner — values are guaranteed by normalizeIntoMap() at load time.
+    final ownerName   = _cardOwner(p);
+    final ownerEmail  = _cardOwnerEmail(p);
+    final ownerAvatar = _cardOwnerAvatar(p);
+    final actionBadge = _cardCurrentAction(p);
 
     // Success rate
     final pctRaw = p['pourcentageReussite'];
@@ -752,11 +792,12 @@ class _ProjectCardState extends State<_ProjectCard> {
                                 'Delete', color: kCrmDanger),
                           ],
                           onSelected: (v) {
+                            final pid = _projectId(p);
                             if (v == 'edit') {
-                              context.go('/forms/project?id=${p["id"]}');
+                              context.go('/forms/project?id=$pid');
                             } else if (v == 'timeline') {
                               context.go(
-                                  '/forms/project-timeline?projectId=${p["id"]}');
+                                  '/forms/project-timeline?projectId=$pid');
                             }
                           },
                         ),
@@ -791,11 +832,13 @@ class _ProjectCardState extends State<_ProjectCard> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(kActionIcon(stage),
+                          Icon(kActionIcon(actionBadge.isNotEmpty ? actionBadge : stage),
                               size: 9, color: color),
                           const SizedBox(width: 4),
                           Text(
-                            stageLabel,
+                            actionBadge.isNotEmpty
+                                ? (kCrmStageLabels[actionBadge] ?? actionBadge)
+                                : stageLabel,
                             style: tInter(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
@@ -909,18 +952,22 @@ class _ProjectCardState extends State<_ProjectCard> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                ownerName.isEmpty
-                                    ? 'Unassigned'
-                                    : ownerName,
+                                ownerName.isNotEmpty
+                                    ? ownerName
+                                    : ownerEmail.isNotEmpty
+                                        ? ownerEmail
+                                        : 'Utilisateur',
                                 style: tInter(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
-                                    color: ownerName.isEmpty
-                                        ? kCrmTextSub
-                                        : kCrmText),
+                                    color: (ownerName.isNotEmpty || ownerEmail.isNotEmpty)
+                                        ? kCrmText
+                                        : kCrmTextSub),
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              if (ownerEmail.isNotEmpty)
+                              // Show email as secondary line only when we have
+                              // a full name to show in the primary line.
+                              if (ownerName.isNotEmpty && ownerEmail.isNotEmpty)
                                 Text(
                                   ownerEmail,
                                   style: tInter(
@@ -1161,22 +1208,11 @@ class _DetailSheet extends StatelessWidget {
     final stage      = (p['computedStage'] ?? 'Visite') as String;
     final color      = kCrmStageColors[stage] ?? kCrmPrimary;
     final stageIcon  = kCrmStageIcons[stage] ?? Icons.folder_rounded;
-    final nom        = (p['nomProjet']  ?? 'Untitled').toString();
+    final nom        = _cardNom(p);
     final cie        = (p['entreprise'] ?? '').toString();
-    // Owner — same field priority as ProjectGridData._resolveOwnerName
-    final _sheetUserNom       = (p['user_nom']       ?? '').toString().trim();
-    final _sheetUserNomCustom = (p['user_nom_custom'] ?? '').toString().trim();
-    final _sheetEmail         = (p['ownerName']       ?? '').toString().trim();
-    final ownerName = _sheetUserNom.isNotEmpty
-        ? (_sheetUserNomCustom.isNotEmpty
-            ? '$_sheetUserNom ($_sheetUserNomCustom)'
-            : _sheetUserNom)
-        : _sheetUserNomCustom.isNotEmpty
-            ? _sheetUserNomCustom
-            : _sheetEmail.isNotEmpty
-                ? _sheetEmail
-                : (p['createdBy'] ?? '').toString().trim();
-    final ownerAvatar= (p['ownerAvatar'] ?? '').toString();
+    // Owner — values guaranteed by normalizeIntoMap() at load time.
+    final ownerName   = _cardOwner(p);
+    final ownerAvatar = _cardOwnerAvatar(p);
 
     final pctRaw = p['pourcentageReussite'];
     final pct    = pctRaw is num
@@ -1247,12 +1283,23 @@ class _DetailSheet extends StatelessWidget {
               ),
               TextButton.icon(
                 onPressed: () {
+                  final pid = _projectId(p);
                   Navigator.pop(context);
-                  context.go('/forms/project?id=${p["id"]}');
+                  context.go('/forms/project-timeline?projectId=$pid');
+                },
+                icon: const Icon(Icons.timeline_rounded, size: 13),
+                label: Text('Timeline', style: tInter(fontSize: 13)),
+                style: TextButton.styleFrom(
+                    foregroundColor: kCrmPrimary),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  final pid = _projectId(p);
+                  Navigator.pop(context);
+                  context.go('/forms/project?id=$pid');
                 },
                 icon: const Icon(Icons.edit_rounded, size: 13),
-                label: Text('Edit',
-                    style: tInter(fontSize: 13)),
+                label: Text('Edit', style: tInter(fontSize: 13)),
                 style: TextButton.styleFrom(
                     foregroundColor: kCrmPrimary),
               ),
@@ -1283,12 +1330,28 @@ class _DetailSheet extends StatelessWidget {
             else
               _fallbackAvatar(ownerName, color),
             const SizedBox(width: 8),
-            Text(
-              ownerName.isEmpty ? 'Unassigned' : ownerName,
-              style: tInter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: ownerName.isEmpty ? kCrmTextSub : kCrmText),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  ownerName.isNotEmpty
+                      ? ownerName
+                      : _cardOwnerEmail(p).isNotEmpty
+                          ? _cardOwnerEmail(p)
+                          : 'Utilisateur',
+                  style: tInter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: (ownerName.isNotEmpty || _cardOwnerEmail(p).isNotEmpty)
+                          ? kCrmText
+                          : kCrmTextSub),
+                ),
+                if (ownerName.isNotEmpty && _cardOwnerEmail(p).isNotEmpty)
+                  Text(
+                    _cardOwnerEmail(p),
+                    style: tInter(fontSize: 10, color: kCrmTextSub),
+                  ),
+              ],
             ),
           ]),
         ),
