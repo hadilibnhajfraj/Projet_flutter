@@ -30,6 +30,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
 
   final controller = Get.put(UserGridController());
 String? selectedStatusFilter;
+String? selectedModele;
 String? selectedUser;
 List<String> users = [];
   UserProjectsResponse? _response;
@@ -234,20 +235,15 @@ String _getModelColorHex(String? model) {
 }
 String _getStatusColorHex(String? status) {
   switch (status) {
-    case "Identification":
-      return "#DBEAFE";
-    case "Préparation":
-      return "#E0F2FE";
-    case "Proposition technique":
-      return "#FEF3C7";
-    case "Proposition commerciale":
-      return "#E9D5FF";
-    case "Négociation":
-      return "#FECACA";
-    case "Livraison":
-      return "#DCFCE7";
-    default:
-      return "#F3F4F6";
+    case "Gagné":       case "Actif":        case "Fidélisation": return "#DCFCE7";
+    case "Perdu":       case "Raté":                              return "#FEE2E2";
+    case "Prospect":                                              return "#DBEAFE";
+    case "Offre":       case "Négociation":                       return "#FEF3C7";
+    case "Identification":                                        return "#EDE9FE";
+    case "Contacté":    case "Visite":                            return "#E0F2FE";
+    case "Plan technique": case "Devis envoyé":                   return "#F3E8FF";
+    case "Echantillonnage":                                       return "#CCFBF1";
+    default:                                                      return "#F3F4F6";
   }
 }
 
@@ -265,9 +261,11 @@ void initState() {
   int rowsPerPage = 5;
 // ── All statuses merged (used by filter dropdown) ──────────────────────────
 final List<String> ALL_STATUSES = [
-  'Identification', 'Prospect', 'Contacté', 'Site Visit',
-  'Plan technique', 'Echantillonnage', 'Quote Sent',
-  'Négociation', 'Won', 'Lost', 'Loyalty',
+  // project
+  'Identification', 'Prospect', 'Contacté', 'Visite',
+  'Plan technique', 'Echantillonnage', 'Devis envoyé',
+  'Négociation', 'Gagné', 'Perdu', 'Fidélisation',
+  // revendeur
   'Offre', 'Actif', 'Raté',
 ];
 
@@ -278,43 +276,29 @@ List<String> getStatuses(String model) {
       return ['Prospect', 'Offre', 'Actif', 'Raté'];
     case 'applicateur':
       return [];
-    default:
+    default: // project
       return [
-        'Identification', 'Prospect', 'Contacté', 'Site Visit',
-        'Plan technique', 'Echantillonnage', 'Quote Sent',
-        'Négociation', 'Won', 'Lost', 'Loyalty',
+        'Identification', 'Prospect', 'Contacté', 'Visite',
+        'Plan technique', 'Echantillonnage', 'Devis envoyé',
+        'Négociation', 'Gagné', 'Perdu', 'Fidélisation',
       ];
   }
 }
 
 Color getStatusColor(String status) {
   switch (status) {
-    case 'Won':     case 'Actif':   case 'Livraison': return const Color(0xFF22C55E);
-    case 'Lost':    case 'Raté':                      return const Color(0xFFEF4444);
-    case 'Prospect':                                  return const Color(0xFF3B82F6);
-    case 'Offre':   case 'Négociation': case 'Negotiation': return const Color(0xFFF59E0B);
-    case 'Identification':                            return const Color(0xFF6366F1);
-    case 'Plan technique': case 'Quote Sent':         return const Color(0xFF8B5CF6);
-    case 'Loyalty': case 'Fidélisation':              return const Color(0xFF14B8A6);
-    default:                                          return const Color(0xFF6B7280);
+    case 'Gagné':       case 'Actif':       case 'Fidélisation': return const Color(0xFF22C55E);
+    case 'Perdu':       case 'Raté':                             return const Color(0xFFEF4444);
+    case 'Prospect':                                             return const Color(0xFF3B82F6);
+    case 'Offre':       case 'Négociation':                      return const Color(0xFFF59E0B);
+    case 'Identification':                                       return const Color(0xFF6366F1);
+    case 'Contacté':    case 'Visite':                           return const Color(0xFF0EA5E9);
+    case 'Plan technique': case 'Devis envoyé':                  return const Color(0xFF8B5CF6);
+    case 'Echantillonnage':                                      return const Color(0xFF14B8A6);
+    default:                                                     return const Color(0xFF6B7280);
   }
 }
 
-Future<void> updateStatus(String projectId, String newStatus) async {
-  try {
-    await ApiClient.instance.dio.put(
-      "/projects/$projectId",
-      data: {
-        "statut": newStatus,
-      },
-    );
-
-    controller.loadProjects(); // refresh
-
-  } catch (e) {
-    print("❌ STATUS UPDATE ERROR: $e");
-  }
-}
   // ── Action button helper ─────────────────────────────────────────────────
   static const _kBg   = Color(0xFFF6F8FC);
   static const _kCard = Colors.white;
@@ -366,6 +350,19 @@ Future<void> updateStatus(String projectId, String newStatus) async {
             Expanded(flex: 4, child: _searchField()),
             const SizedBox(width: 10),
             Expanded(flex: 2, child: _filterDropdown<String>(
+              hint: 'Tous les modèles',
+              value: selectedModele,
+              items: [null, 'project', 'revendeur', 'applicateur'],
+              labelOf: (v) => switch (v) {
+                'project'     => 'Project',
+                'revendeur'   => 'Revendeur',
+                'applicateur' => 'Applicateur',
+                _             => 'Tous les modèles',
+              },
+              onChanged: (v) => setState(() { selectedModele = v; currentPage = 1; }),
+            )),
+            const SizedBox(width: 10),
+            Expanded(flex: 2, child: _filterDropdown<String>(
               hint: 'All statuses',
               value: selectedStatusFilter,
               items: [null, ...ALL_STATUSES],
@@ -387,6 +384,9 @@ Future<void> updateStatus(String projectId, String newStatus) async {
         Expanded(
           child: Obx(() {
             var list = controller.filtered.toList();
+            if (selectedModele != null) {
+              list = list.where((p) => p.projectModele == selectedModele).toList();
+            }
             if (selectedStatusFilter != null) {
               list = list.where((p) =>
                 p.statut.toLowerCase().trim() ==
@@ -417,14 +417,36 @@ Future<void> updateStatus(String projectId, String newStatus) async {
                   borderRadius: BorderRadius.circular(20),
                   child: Column(children: [
 
-                    _tableHeader(),
-
-                    Expanded(child: paginated.isEmpty
-                        ? _emptyState()
-                        : ListView.builder(
-                            itemCount: paginated.length,
-                            itemBuilder: (_, i) => _row(paginated[i]),
-                          )),
+                    // Header + rows scroll horizontally together;
+                    // rows still scroll vertically inside.
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (ctx, constraints) {
+                          final tableWidth = constraints.maxWidth < 900
+                              ? 900.0
+                              : constraints.maxWidth;
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: SizedBox(
+                              width: tableWidth,
+                              height: constraints.maxHeight,
+                              child: Column(children: [
+                                _tableHeader(),
+                                Expanded(
+                                  child: paginated.isEmpty
+                                      ? _emptyState()
+                                      : ListView.builder(
+                                          itemCount: paginated.length,
+                                          itemBuilder: (_, i) =>
+                                              _row(paginated[i]),
+                                        ),
+                                ),
+                              ]),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
 
                     _paginationFooter(list.length, safePage, totalPages),
 
@@ -722,24 +744,29 @@ Future<void> updateStatus(String projectId, String newStatus) async {
                   : _statusDropdown(p, statuses, safeStatut, isArchived)),
 
           // ── ACTIVITY ───────────────────────────────────────────────────
-          Expanded(flex: 14, child: Row(mainAxisSize: MainAxisSize.min, children: [
-            _activityBadge('📅', p.taskCount,   const Color(0xFF6366F1)),
-            const SizedBox(width: 6),
-            _activityBadge('💬', p.commentCount, const Color(0xFF3B82F6)),
-          ])),
+          Expanded(flex: 14, child: Wrap(
+            spacing: 5,
+            runSpacing: 4,
+            children: [
+              _activityBadge('📅', p.taskCount,   const Color(0xFF6366F1)),
+              _activityBadge('💬', p.commentCount, const Color(0xFF3B82F6)),
+            ],
+          )),
 
           // ── ACTIONS ────────────────────────────────────────────────────
-          Expanded(flex: 14, child: Row(mainAxisSize: MainAxisSize.min, children: [
-            _circleBtn(Icons.timeline_rounded, const Color(0xFF6366F1),
-                'Timeline', () => context.go('/forms/project-timeline?projectId=${p.id}')),
-            if (!isArchived) ...[
-              const SizedBox(width: 6),
-              _circleBtn(Icons.edit_rounded, const Color(0xFF3B82F6),
-                  'Edit', () => context.go(_editUrl(p.id))),
-              const SizedBox(width: 4),
-              _moreBtn(p),
+          Expanded(flex: 14, child: Wrap(
+            spacing: 4,
+            runSpacing: 4,
+            children: [
+              _circleBtn(Icons.timeline_rounded, const Color(0xFF6366F1),
+                  'Timeline', () => context.go('/forms/project-timeline?projectId=${p.id}')),
+              if (!isArchived) ...[
+                _circleBtn(Icons.edit_rounded, const Color(0xFF3B82F6),
+                    'Edit', () => context.go(_editUrl(p.id))),
+                _moreBtn(p),
+              ],
             ],
-          ])),
+          )),
 
         ]),
       ),
@@ -783,12 +810,19 @@ Future<void> updateStatus(String projectId, String newStatus) async {
           }).toList(),
           onChanged: isArchived ? null : (value) async {
             if (value == null) return;
-            final idx = controller.projects.indexWhere((x) => x.id == p.id);
-            if (idx != -1) {
-              controller.projects[idx] =
-                  controller.projects[idx].copyWith(statut: value);
-              controller.forceRefresh();
-            }
+
+            final modele = p.projectModele.toLowerCase().trim();
+            debugPrint('MODELE = $modele');
+            debugPrint('STATUT = $value');
+
+            // Optimistic update — sync BOTH projects + filtered so Obx sees the change
+            final updated = p.copyWith(statut: value);
+            final pi = controller.projects.indexWhere((x) => x.id == p.id);
+            if (pi != -1) controller.projects[pi] = updated;
+            final fi = controller.filtered.indexWhere((x) => x.id == p.id);
+            if (fi != -1) controller.filtered[fi] = updated;
+            controller.forceRefresh();
+
             try {
               await ApiClient.instance.dio
                   .put('/projects/${p.id}', data: {'statut': value});
@@ -798,7 +832,7 @@ Future<void> updateStatus(String projectId, String newStatus) async {
                     const Icon(Icons.check_circle_rounded,
                         color: Colors.white, size: 16),
                     const SizedBox(width: 8),
-                    Text('Status → $value'),
+                    Text('Statut → $value'),
                   ]),
                   backgroundColor: const Color(0xFF10B981),
                   duration: const Duration(seconds: 2),
@@ -808,14 +842,16 @@ Future<void> updateStatus(String projectId, String newStatus) async {
                 ));
               }
             } catch (e) {
+              debugPrint('STATUS UPDATE ERROR: $e');
+              // Rollback both lists
               final ri = controller.projects.indexWhere((x) => x.id == p.id);
-              if (ri != -1) {
-                controller.projects[ri] = p;
-                controller.forceRefresh();
-              }
+              if (ri != -1) controller.projects[ri] = p;
+              final rfi = controller.filtered.indexWhere((x) => x.id == p.id);
+              if (rfi != -1) controller.filtered[rfi] = p;
+              controller.forceRefresh();
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('Failed to update status'),
+                  content: Text('Échec de la mise à jour du statut'),
                   backgroundColor: Color(0xFFEF4444),
                   behavior: SnackBarBehavior.floating,
                 ));
@@ -857,15 +893,15 @@ Future<void> updateStatus(String projectId, String newStatus) async {
 
   // ── Activity badge ────────────────────────────────────────────────────────
   Widget _activityBadge(String emoji, int count, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
     decoration: BoxDecoration(
       color: color.withOpacity(0.07),
       borderRadius: BorderRadius.circular(20),
       border: Border.all(color: color.withOpacity(0.18)),
     ),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Text(emoji, style: const TextStyle(fontSize: 11)),
-      const SizedBox(width: 4),
+      Text(emoji, style: const TextStyle(fontSize: 10)),
+      const SizedBox(width: 3),
       Text('$count',
           style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
     ]),
