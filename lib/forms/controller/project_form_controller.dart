@@ -560,15 +560,40 @@ if (dv.isNotEmpty) {
   // NEXT ACTION
   // =========================
 
-  final next = (
-    j['nextAction'] ??
-    j['firstAction'] ??
-    j['typeAction'] ??
-    ''
-  ).toString();
+  dynamic rawNext = j['nextAction'] ??
+      j['firstAction'] ??
+      j['typeAction'] ??
+      j['action'] ??
+      '';
 
-  selectedAction.value =
-      next.isEmpty ? null : next;
+  String next;
+  if (rawNext is Map) {
+    // API returns action as object {id, name}
+    next = (rawNext['name'] ?? rawNext['typeAction'] ?? '').toString().trim();
+  } else {
+    next = rawNext.toString().trim();
+  }
+
+  // Fallback: pick typeAction from latest action in actions array
+  if (next.isEmpty) {
+    final acts = j['actions'];
+    if (acts is List && acts.isNotEmpty) {
+      final last = acts.last;
+      if (last is Map) {
+        next = (last['typeAction'] ?? last['type'] ?? last['name'] ?? '')
+            .toString()
+            .trim();
+      }
+    }
+  }
+
+  debugPrint('NEXT ACTION = ${j['nextAction']}');
+  debugPrint('NEXT ACTION ID = ${j['nextActionId']}');
+  debugPrint('NEXT ACTION firstAction = ${j['firstAction']}');
+  debugPrint('NEXT ACTION typeAction = ${j['typeAction']}');
+  debugPrint('NEXT ACTION resolved = $next');
+
+  selectedAction.value = next.isEmpty ? null : next;
 
 
 /// 🔥 AUTO ADAPT nomProjet pour revendeur

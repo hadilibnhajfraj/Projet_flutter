@@ -40,11 +40,41 @@ class ActionSection extends StatelessWidget {
     'Commande perdue' : 'Lost',
   };
 
+  // Aliases: API values that map to a canonical _actionLabels key
+  static const _aliases = <String, String>{
+    'Visite chantier'  : 'Visite',
+    'Site Visit'       : 'Visite',
+    'Technical Plan'   : 'Plan technique',
+    'Sampling'         : 'Echantillonnage',
+    'Quote Sent'       : 'Devis envoyé',
+    'Devis envoye'     : 'Devis envoyé',
+    'Devis Envoyé'     : 'Devis envoyé',
+    'Negotiation'      : 'Negociation',
+    'Follow-up'        : 'Relance',
+    'Won'              : 'Commande gagnée',
+    'Gagnée'           : 'Commande gagnée',
+    'Gagnee'           : 'Commande gagnée',
+    'Lost'             : 'Commande perdue',
+    'Perdue'           : 'Commande perdue',
+  };
+
   String? _validAction() {
-    final v = c.selectedAction.value;
-    if (v == null) return null;
+    final v = c.selectedAction.value?.trim();
+    if (v == null || v.isEmpty) return null;
+
+    // 1) Exact match
     if (_actionLabels.containsKey(v)) return v;
-    if (v == 'Visite chantier') return 'Visite';
+
+    // 2) Alias lookup
+    if (_aliases.containsKey(v)) return _aliases[v];
+
+    // 3) Case-insensitive lookup
+    final lower = v.toLowerCase();
+    for (final key in _actionLabels.keys) {
+      if (key.toLowerCase() == lower) return key;
+    }
+
+    debugPrint('NEXT ACTION not matched in labels: "$v"');
     return null;
   }
 
