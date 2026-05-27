@@ -528,32 +528,30 @@ serviceTechnique.text = (j['serviceTechnique'] ?? '').toString();
 // =========================
 
 final dv = (
+  j['visitDate'] ??
   j['dateVisite'] ??
   j['date_visite'] ??
   j['dateAction'] ??
   ''
-).toString();
+).toString().trim();
+
+debugPrint('VISIT DATE raw = ${j['visitDate'] ?? j['dateVisite'] ?? j['date_visite'] ?? j['dateAction']}');
 
 if (dv.isNotEmpty) {
-
   try {
-
     final parsed = DateTime.parse(dv);
-
     selectedDateVisite.value = parsed;
-
     dateVisite.text = DateFormat('yyyy-MM-dd').format(parsed);
-
+    debugPrint('VISIT DATE resolved = ${dateVisite.text}');
   } catch (_) {
-
-    dateVisite.text = dv;
-
+    dateVisite.text = dv.split('T').first;
+    selectedDateVisite.value = DateTime.tryParse(dateVisite.text);
+    debugPrint('VISIT DATE fallback = ${dateVisite.text}');
   }
-
 } else {
-
-  dateVisite.text = "";
-
+  dateVisite.text = '';
+  selectedDateVisite.value = null;
+  debugPrint('VISIT DATE = empty (not found in API response)');
 }
 
   // =========================

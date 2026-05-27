@@ -255,6 +255,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       'montantMarche'         : clean(c.montantMarche.text),
       'validationStatut'      : clean(c.validationStatut.text) ?? 'Non validé',
       'dateVisite'            : clean(c.dateVisite.text),
+      'visitDate'             : clean(c.dateVisite.text),
       'firstAction'           : c.selectedAction.value,
       'localisationCommentaire': clean(c.commentaireCtrl.text),
       'commentaireAction'     : clean(c.commentaireCtrl.text),
