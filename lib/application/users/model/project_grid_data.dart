@@ -84,6 +84,29 @@ static String _safeUser(dynamic v) {
     return int.tryParse(v.toString()) ?? 0;
   }
 
+  ProjectGridData copyWith({String? statut}) {
+    return ProjectGridData(
+      id:                   id,
+      nomProjet:            nomProjet,
+      entreprise:           entreprise,
+      statut:               statut ?? this.statut,
+      adresse:              adresse,
+      dateDemarrage:        dateDemarrage,
+      permission:           permission,
+      commentCount:         commentCount,
+      taskCount:            taskCount,
+      surfaceProspectee:    surfaceProspectee,
+      pourcentageReussite:  pourcentageReussite,
+      ingenieurResponsable: ingenieurResponsable,
+      architecte:           architecte,
+      validationStatut:     validationStatut,
+      ownerName:            ownerName,
+      hasDevis:             hasDevis,
+      hasBonCommande:       hasBonCommande,
+      isArchived:           isArchived,
+    );
+  }
+
   factory ProjectGridData.fromJson(Map<String, dynamic> json) {
     final devisCount = _toInt(json["devisCount"]);
     final bcCount = _toInt(json["bonCommandeCount"]);

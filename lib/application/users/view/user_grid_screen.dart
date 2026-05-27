@@ -598,16 +598,15 @@ if (selectedUser != null) {
     );
   }
 
-  /// HEADER TABLE
+  /// HEADER TABLE — Project | Start | Status | Activity | Actions
   Widget _tableHeader() {
-    return Row(
-      children: const [
-        Expanded(flex: 3, child: Text("Project", style: TextStyle(fontWeight: FontWeight.bold))),
-        Expanded(flex: 2, child: Text("Company")),
-        Expanded(flex: 2, child: Text("Start")),
-        Expanded(flex: 2, child: Text("Status")),
-        Expanded(flex: 2, child: Text("Activity")),
-        Expanded(flex: 2, child: Text("Actions")),
+    return const Row(
+      children: [
+        Expanded(flex: 3, child: Text("Project",  style: TextStyle(fontWeight: FontWeight.bold))),
+        Expanded(flex: 2, child: Text("Start",    style: TextStyle(fontWeight: FontWeight.bold))),
+        Expanded(flex: 2, child: Text("Status",   style: TextStyle(fontWeight: FontWeight.bold))),
+        Expanded(flex: 2, child: Text("Activity", style: TextStyle(fontWeight: FontWeight.bold))),
+        Expanded(flex: 2, child: Text("Actions",  style: TextStyle(fontWeight: FontWeight.bold))),
       ],
     );
   }
@@ -635,13 +634,8 @@ Widget _row(ProjectGridData p) {
 
   return InkWell(
     onTap: () {
-      if (isArchived) return; // ❌ bloc si archivé
-
-      if (p.canEdit) {
-        context.go(_editUrl(p.id));
-      } else {
-        _goToComment(context, p);
-      }
+      if (isArchived) return;
+      context.go(_editUrl(p.id));
     },
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
@@ -726,15 +720,6 @@ Widget _row(ProjectGridData p) {
             ),
           ),
 
-          /// COMPANY
-          Expanded(
-            flex: 2,
-            child: Text(
-              p.entreprise,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-
           /// DATE
           Expanded(
             flex: 2,
@@ -760,35 +745,61 @@ Widget _row(ProjectGridData p) {
                 value: safeValue,
                 isExpanded: true,
                 underline: const SizedBox(),
-
-                style: TextStyle(
-                  color: (p.canEdit && !isArchived) ? Colors.black : Colors.grey,
-                ),
-
-                iconEnabledColor:
-                    (p.canEdit && !isArchived) ? Colors.black : Colors.grey,
-
+                style: const TextStyle(color: Colors.black),
+                iconEnabledColor: Colors.black,
                 items: STATUS_LIST.map((status) {
                   return DropdownMenuItem<String>(
                     value: status["value"],
                     child: Text(status["label"]!),
                   );
                 }).toList(),
-
-                onChanged: (p.canEdit && !isArchived)
-                    ? (value) async {
+                // Always enabled — never gate on canEdit (which may be
+                // temporarily wrong after an incomplete PUT response).
+                onChanged: isArchived
+                    ? null
+                    : (value) async {
                         if (value == null) return;
 
-                        await ApiClient.instance.dio.put(
-                          "/projects/${p.id}",
-                          data: {
-                            "statut": value,
-                          },
-                        );
+                        // Optimistic local update — instant UI feedback,
+                        // no full loadProjects() reload needed.
+                        final idx = controller.projects
+                            .indexWhere((x) => x.id == p.id);
+                        if (idx != -1) {
+                          controller.projects[idx] =
+                              controller.projects[idx].copyWith(statut: value);
+                          controller.forceRefresh();
+                        }
 
-                        controller.loadProjects();
-                      }
-                    : null,
+                        try {
+                          await ApiClient.instance.dio.put(
+                            '/projects/${p.id}',
+                            data: {'statut': value},
+                          );
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Status updated'),
+                                  duration: Duration(seconds: 2)),
+                            );
+                          }
+                        } catch (e) {
+                          debugPrint('STATUS UPDATE ERROR: $e');
+                          // Rollback optimistic update on failure.
+                          final rollbackIdx = controller.projects
+                              .indexWhere((x) => x.id == p.id);
+                          if (rollbackIdx != -1) {
+                            controller.projects[rollbackIdx] = p;
+                            controller.forceRefresh();
+                          }
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Error updating status'),
+                                  backgroundColor: Colors.red),
+                            );
+                          }
+                        }
+                      },
               ),
             ),
           ),
@@ -818,7 +829,7 @@ Widget _row(ProjectGridData p) {
                   },
                 ),
 
-                if (p.canEdit && !isArchived)
+                if (!isArchived)
                   IconButton(
                     icon: const Icon(Icons.edit, color: Colors.blue),
                     onPressed: () => context.go(_editUrl(p.id)),
