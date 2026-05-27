@@ -21,6 +21,7 @@
 //   • File upload state (fileBytes, fileName) lives in the controller as Rxn
 //     so ActionSection can render reactively and the submit logic reads it.
 
+import 'dart:convert';
 import 'package:dash_master_toolkit/application/users/controller/user_grid_controller.dart';
 import 'package:dash_master_toolkit/application/users/model/project_grid_data.dart';
 import 'package:flutter/material.dart';
@@ -252,19 +253,29 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       'serviceTechnique'      : c.isApplicateur ? clean(c.serviceTechnique.text) : null,
       'matriculeFiscale'      : c.isApplicateur ? clean(c.matriculeFiscale.text) : null,
       // Global
-      'montantMarche'         : clean(c.montantMarche.text),
-      'validationStatut'      : clean(c.validationStatut.text) ?? 'Non validé',
-      'dateVisite'            : clean(c.dateVisite.text),
-      'visitDate'             : clean(c.dateVisite.text),
-      'firstAction'           : c.selectedAction.value,
+      'montantMarche'          : clean(c.montantMarche.text),
+      'validationStatut'       : clean(c.validationStatut.text) ?? 'Non validé',
+      'visitDate'              : clean(c.dateVisite.text),
       'localisationCommentaire': clean(c.commentaireCtrl.text),
-      'commentaireAction'     : clean(c.commentaireCtrl.text),
-      'user_nom'              : currentUser,
+      'user_nom'               : currentUser,
     };
+
+    // ── CREATE-only fields (cause duplicate-action constraint on UPDATE) ──────
+    // firstAction / dateVisite / commentaireAction must NOT be sent on PUT.
+    if (_projectId == null) {
+      payload['dateVisite']       = clean(c.dateVisite.text);
+      payload['firstAction']      = c.selectedAction.value;
+      payload['commentaireAction']= clean(c.commentaireCtrl.text);
+    } else {
+      // Verify no action fields leak into the UPDATE body
+      debugPrint('[UPDATE] PUT /projects/$_projectId payload = '
+          '${jsonEncode(payload)}');
+    }
 
     try {
       dynamic data;
       if (_projectId == null) {
+        // ── CREATE ────────────────────────────────────────────────────────────
         final res =
             await ApiClient.instance.dio.post('/projects', data: payload);
         data = res.data;
@@ -290,29 +301,12 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
               '/projects/$projectId/actions', data: fd);
         }
       } else {
+        // ── UPDATE ────────────────────────────────────────────────────────────
+        // Only PUT the project document. No new action is created here —
+        // that avoids duplicate_key_value on project_actions_unique_idx.
         final res = await ApiClient.instance.dio
             .put('/projects/$_projectId', data: payload);
         data = res.data;
-        if (c.selectedAction.value != null) {
-          final actionType = c.selectedAction.value!;
-          final fd = dio.FormData();
-          fd.fields.addAll([
-            MapEntry('typeAction',        actionType),
-            MapEntry('typeAction_legacy', actionType),
-            MapEntry('firstAction',       actionType),
-            MapEntry('commentaire',       c.commentaireCtrl.text.trim()),
-            MapEntry('dateAction',        DateTime.now().toIso8601String()),
-          ]);
-          if (c.fileBytes.value != null) {
-            fd.files.add(MapEntry(
-              'file',
-              dio.MultipartFile.fromBytes(
-                  c.fileBytes.value!, filename: c.fileName.value ?? 'file'),
-            ));
-          }
-          await ApiClient.instance.dio.post(
-              '/projects/$_projectId/actions', data: fd);
-        }
       }
 
       final map      = Map<String, dynamic>.from(data as Map);
