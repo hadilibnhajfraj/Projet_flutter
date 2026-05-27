@@ -263,36 +263,40 @@ void initState() {
 }
   int currentPage = 1;
   int rowsPerPage = 5;
-final List<Map<String, String>> STATUS_LIST = [
-  {"label": "Identification", "value": "Identification"},
-  {"label": "Technical Proposal", "value": "Proposition technique"},
-  {"label": "Commercial Proposal", "value": "Proposition commerciale"},
-  {"label": "Negotiation", "value": "Négociation"},
-  {"label": "Delivery", "value": "Livraison"},
-  {"label": "Loyalty", "value": "Fidélisation"},
+// ── All statuses merged (used by filter dropdown) ──────────────────────────
+final List<String> ALL_STATUSES = [
+  'Identification', 'Prospect', 'Contacté', 'Site Visit',
+  'Plan technique', 'Echantillonnage', 'Quote Sent',
+  'Négociation', 'Won', 'Lost', 'Loyalty',
+  'Offre', 'Actif', 'Raté',
 ];
+
+// ── Statuses per model ──────────────────────────────────────────────────────
+List<String> getStatuses(String model) {
+  switch (model) {
+    case 'revendeur':
+      return ['Prospect', 'Offre', 'Actif', 'Raté'];
+    case 'applicateur':
+      return [];
+    default:
+      return [
+        'Identification', 'Prospect', 'Contacté', 'Site Visit',
+        'Plan technique', 'Echantillonnage', 'Quote Sent',
+        'Négociation', 'Won', 'Lost', 'Loyalty',
+      ];
+  }
+}
+
 Color getStatusColor(String status) {
   switch (status) {
-    case "Identification":
-      return Colors.blue;
-
-    case "Proposition technique":
-      return Colors.orange;
-
-    case "Proposition commerciale":
-      return Colors.purple;
-
-    case "Négociation":
-      return Colors.red;
-
-    case "Livraison":
-      return Colors.green;
-
-    case "Fidélisation":
-      return Colors.teal;
-
-    default:
-      return Colors.grey;
+    case 'Won':     case 'Actif':   case 'Livraison': return const Color(0xFF22C55E);
+    case 'Lost':    case 'Raté':                      return const Color(0xFFEF4444);
+    case 'Prospect':                                  return const Color(0xFF3B82F6);
+    case 'Offre':   case 'Négociation': case 'Negotiation': return const Color(0xFFF59E0B);
+    case 'Identification':                            return const Color(0xFF6366F1);
+    case 'Plan technique': case 'Quote Sent':         return const Color(0xFF8B5CF6);
+    case 'Loyalty': case 'Fidélisation':              return const Color(0xFF14B8A6);
+    default:                                          return const Color(0xFF6B7280);
   }
 }
 
@@ -311,587 +315,712 @@ Future<void> updateStatus(String projectId, String newStatus) async {
     print("❌ STATUS UPDATE ERROR: $e");
   }
 }
+  // ── Action button helper ─────────────────────────────────────────────────
+  static const _kBg   = Color(0xFFF6F8FC);
+  static const _kCard = Colors.white;
+
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F9),
+      backgroundColor: _kBg,
+      body: Column(children: [
 
-      body: Column(
-        children: [
-
-          /// HEADER
-          Container(
-  width: double.infinity,
-  padding: const EdgeInsets.all(20),
-  color: Colors.white,
-
-  child: Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: [
-
-      /// TITLE
-      const Text(
-        "Projects Table",
-        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-      ),
-
-      /// BUTTONS
-      Wrap(
-        spacing: 8,
-  runSpacing: 8, // ✅ IMPORTANT
-        children: [
-
-          /// 🔵 PIPELINE
-          ElevatedButton.icon(
-            onPressed: () {
-              context.go("/forms/pipeline");
-            },
-            icon: const Icon(Icons.view_kanban),
-            label: const Text("Pipeline"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
+        // ── TOP BAR ───────────────────────────────────────────────────────
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
+          decoration: const BoxDecoration(
+            color: _kCard,
+            border: Border(bottom: BorderSide(color: Color(0xFFEEF2F7), width: 1)),
           ),
-
-          const SizedBox(width: 10),
-
-          /// 🟢 ADD PROJECT
-          ElevatedButton.icon(
-            onPressed: () {
-              context.go(MyRoute.projectFormScreen);
-            },
-            icon: const Icon(Icons.add),
-            label: const Text("Add Project"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-          ),
- ElevatedButton.icon(
-                        onPressed: _exportExcelFull,
-                        icon: const Icon(Icons.download_rounded),
-                        label: const Text('Export CSV'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF111827),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
-        ],
-      )
-    ],
-  ),
-),
-
-          /// SEARCH
-         Padding(
-  padding: const EdgeInsets.all(15),
-  child: Row(
-    children: [
-
-      /// 🔍 SEARCH
-      Expanded(
-        flex: 3,
-        child: TextField(
-          controller: controller.searchController,
-          onChanged: controller.searchProject,
-          decoration: InputDecoration(
-            hintText: "Search...",
-            prefixIcon: const Icon(Icons.search),
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Projects',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A), letterSpacing: -0.5)),
+                const SizedBox(height: 2),
+                Obx(() => Text(
+                  '${controller.filtered.length} records',
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                )),
+              ]),
+              Wrap(spacing: 10, runSpacing: 8, children: [
+                _topBtn(Icons.view_kanban_rounded, 'Pipeline',
+                    const Color(0xFF6366F1), () => context.go('/forms/pipeline')),
+                _topBtn(Icons.add_rounded, 'New Project',
+                    const Color(0xFF10B981), () => context.go(MyRoute.projectFormScreen)),
+                _topBtn(Icons.download_rounded, 'Export',
+                    const Color(0xFF0F172A), _exportExcelFull),
+              ]),
+            ],
           ),
         ),
-      ),
 
-      const SizedBox(width: 10),
-
-      /// 🔥 STATUS FILTER
-      Expanded(
-        flex: 2,
-        child: DropdownButtonFormField<String>(
-          value: selectedStatusFilter,
-          decoration: InputDecoration(
-            hintText: "Filter status",
-            filled: true,
-            fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: BorderSide.none,
-            ),
-          ),
-          items: [
-            const DropdownMenuItem(
-              value: null,
-              child: Text("All"),
-            ),
-            ...STATUS_LIST.map((s) => DropdownMenuItem(
-                  value: s["value"],
-                  child: Text(s["label"]!),
-                ))
-          ],
-          onChanged: (value) {
-            setState(() {
-              selectedStatusFilter = value;
-            });
-          },
+        // ── FILTER BAR ────────────────────────────────────────────────────
+        Container(
+          color: _kCard,
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 14),
+          child: Row(children: [
+            Expanded(flex: 4, child: _searchField()),
+            const SizedBox(width: 10),
+            Expanded(flex: 2, child: _filterDropdown<String>(
+              hint: 'All statuses',
+              value: selectedStatusFilter,
+              items: [null, ...ALL_STATUSES],
+              labelOf: (v) => v ?? 'All statuses',
+              onChanged: (v) => setState(() { selectedStatusFilter = v; currentPage = 1; }),
+            )),
+            const SizedBox(width: 10),
+            Expanded(flex: 2, child: _filterDropdown<String>(
+              hint: 'All users',
+              value: selectedUser,
+              items: [null, ...users],
+              labelOf: (v) => v ?? 'All users',
+              onChanged: (v) => setState(() { selectedUser = v; currentPage = 1; }),
+            )),
+          ]),
         ),
-      ),
-      Expanded(
-  flex: 2,
-  child: DropdownButtonFormField<String>(
-    value: selectedUser,
-    decoration: InputDecoration(
-      hintText: "Filter user",
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10),
-        borderSide: BorderSide.none,
-      ),
-    ),
-    items: [
-      const DropdownMenuItem(
-        value: "ALL",
-        child: Text("All Users"),
-      ),
-      ...users.map((u) => DropdownMenuItem(
-            value: u,
-            child: Text(u),
-          ))
-    ],
-    onChanged: (value) {
-      setState(() {
-        selectedUser = value == "ALL" ? null : value;
-        currentPage = 1;
-      });
-    },
-  ),
-),
-    ],
-  ),
-),
 
-          /// TABLE
-          Expanded(
-            child: Obx(() {
+        // ── TABLE ─────────────────────────────────────────────────────────
+        Expanded(
+          child: Obx(() {
+            var list = controller.filtered.toList();
+            if (selectedStatusFilter != null) {
+              list = list.where((p) =>
+                p.statut.toLowerCase().trim() ==
+                selectedStatusFilter!.toLowerCase().trim()).toList();
+            }
+            if (selectedUser != null) {
+              list = list.where((p) => p.ownerName == selectedUser).toList();
+            }
+            final totalPages = (list.isEmpty ? 1 :
+                (list.length / rowsPerPage).ceil());
+            final safePage   = currentPage.clamp(1, totalPages);
+            final start      = (safePage - 1) * rowsPerPage;
+            final paginated  = list.sublist(
+                start, (start + rowsPerPage).clamp(0, list.length));
 
-    final all = controller.filtered;
-
-List<ProjectGridData> list = all;
-
-/// 🔥 FILTER STATUS
-if (selectedStatusFilter != null) {
-  list = list.where((p) {
-    final statut = (p.statut ?? "").toLowerCase().trim();
-    final filter = selectedStatusFilter!.toLowerCase().trim();
-    return statut == filter;
-  }).toList();
-}
-
-/// 🔥 FILTER USER
-if (selectedUser != null) {
-  list = list.where((p) {
-    return p.ownerName == selectedUser;
-  }).toList();
-}
-              /// PAGINATION
-              final start = (currentPage - 1) * rowsPerPage;
-              final end = start + rowsPerPage;
-
-              final paginated = list.sublist(
-                start,
-                end > list.length ? list.length : end,
-              );
-
-              return Container(
-                width: double.infinity,
-                margin: const EdgeInsets.symmetric(horizontal: 15),
-                padding: const EdgeInsets.all(15),
-
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+              child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  color: _kCard,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.05),
+                        blurRadius: 24, offset: const Offset(0, 8)),
+                  ],
                 ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Column(children: [
 
-                child: Column(
-                  children: [
-
-                    /// HEADER TABLE
                     _tableHeader(),
 
-                    const Divider(),
+                    Expanded(child: paginated.isEmpty
+                        ? _emptyState()
+                        : ListView.builder(
+                            itemCount: paginated.length,
+                            itemBuilder: (_, i) => _row(paginated[i]),
+                          )),
 
-                    /// ROWS
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: paginated.length,
-                        itemBuilder: (_, i) {
-                          return _row(paginated[i]);
-                        },
-                      ),
-                    ),
+                    _paginationFooter(list.length, safePage, totalPages),
 
-                    /// PAGINATION FOOTER
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
+                  ]),
+                ),
+              ),
+            );
+          }),
+        ),
+      ]),
+    );
+  }
 
-                        DropdownButton<int>(
-                          value: rowsPerPage,
-                          items: [5, 10, 20]
-                              .map((e) => DropdownMenuItem(
-                                    value: e,
-                                    child: Text("$e"),
-                                  ))
-                              .toList(),
-                          onChanged: (v) {
-                            setState(() {
-                              rowsPerPage = v!;
-                              currentPage = 1;
-                            });
-                          },
-                        ),
+  // ── Top bar button ────────────────────────────────────────────────────────
+  Widget _topBtn(IconData icon, String label, Color color, VoidCallback onTap) =>
+      Material(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(icon, size: 15, color: Colors.white),
+              const SizedBox(width: 7),
+              Text(label, style: const TextStyle(fontSize: 13,
+                  fontWeight: FontWeight.w600, color: Colors.white)),
+            ]),
+          ),
+        ),
+      );
 
-                        Text("Page $currentPage"),
+  // ── Search field ─────────────────────────────────────────────────────────
+  Widget _searchField() => TextField(
+    controller: controller.searchController,
+    onChanged: controller.searchProject,
+    style: const TextStyle(fontSize: 13),
+    decoration: InputDecoration(
+      hintText: 'Search projects…',
+      hintStyle: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13),
+      prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+      filled: true,
+      fillColor: const Color(0xFFF8FAFC),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5)),
+    ),
+  );
 
-                        Row(
-                          children: [
+  // ── Generic filter dropdown ───────────────────────────────────────────────
+  Widget _filterDropdown<T>({
+    required String hint,
+    required T? value,
+    required List<T?> items,
+    required String Function(T?) labelOf,
+    required void Function(T?) onChanged,
+  }) =>
+      DropdownButtonFormField<T>(
+        value: value,
+        isExpanded: true,
+        style: const TextStyle(fontSize: 13, color: Color(0xFF0F172A)),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 13),
+          filled: true,
+          fillColor: const Color(0xFFF8FAFC),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFF6366F1), width: 1.5)),
+        ),
+        items: items.map((v) => DropdownMenuItem<T>(
+          value: v,
+          child: Text(labelOf(v),
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13)),
+        )).toList(),
+        onChanged: onChanged,
+      );
 
-                            IconButton(
-                              icon: const Icon(Icons.chevron_left),
-                              onPressed: currentPage > 1
-                                  ? () => setState(() => currentPage--)
-                                  : null,
-                            ),
-
-                            IconButton(
-                              icon: const Icon(Icons.chevron_right),
-                              onPressed: () {
-                                if ((currentPage * rowsPerPage) < list.length) {
-                                  setState(() => currentPage++);
-                                }
-                              },
-                            ),
-
-                          ],
-                        ),
-                      ],
-                    )
-
-                  ],
+  // ── Pagination footer ─────────────────────────────────────────────────────
+  Widget _paginationFooter(int total, int page, int totalPages) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: Color(0xFFF1F5F9))),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('$total result${total == 1 ? '' : 's'}',
+              style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+          Row(children: [
+            _pageBtn(Icons.chevron_left_rounded, page > 1,
+                () => setState(() => currentPage = page - 1)),
+            const SizedBox(width: 4),
+            ...List.generate(totalPages.clamp(0, 7), (i) {
+              final n = i + 1;
+              final active = n == page;
+              return GestureDetector(
+                onTap: () => setState(() => currentPage = n),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  width: 30, height: 30,
+                  decoration: BoxDecoration(
+                    color: active ? const Color(0xFF6366F1) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(child: Text('$n',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+                          color: active ? Colors.white : const Color(0xFF64748B)))),
                 ),
               );
             }),
-          )
+            const SizedBox(width: 4),
+            _pageBtn(Icons.chevron_right_rounded, page < totalPages,
+                () => setState(() => currentPage = page + 1)),
+          ]),
+          DropdownButton<int>(
+            value: rowsPerPage,
+            underline: const SizedBox(),
+            style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            items: [5, 10, 20, 50].map((n) =>
+                DropdownMenuItem(value: n, child: Text('$n / page'))).toList(),
+            onChanged: (v) => setState(() { rowsPerPage = v!; currentPage = 1; }),
+          ),
         ],
       ),
     );
   }
 
-  /// HEADER TABLE — Project | Start | Status | Activity | Actions
+  Widget _pageBtn(IconData icon, bool enabled, VoidCallback onTap) =>
+      InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 30, height: 30,
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 16,
+              color: enabled ? const Color(0xFF64748B) : const Color(0xFFCBD5E1)),
+        ),
+      );
+
+  // ── Empty state ───────────────────────────────────────────────────────────
+  Widget _emptyState() => const Center(child: Padding(
+    padding: EdgeInsets.all(48),
+    child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Icon(Icons.inbox_rounded, size: 48, color: Color(0xFFCBD5E1)),
+      SizedBox(height: 12),
+      Text('No projects found',
+          style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8),
+              fontWeight: FontWeight.w500)),
+    ]),
+  ));
+
+  // ── Table header ─────────────────────────────────────────────────────────
   Widget _tableHeader() {
-    return const Row(
-      children: [
-        Expanded(flex: 3, child: Text("Project",  style: TextStyle(fontWeight: FontWeight.bold))),
-        Expanded(flex: 2, child: Text("Start",    style: TextStyle(fontWeight: FontWeight.bold))),
-        Expanded(flex: 2, child: Text("Status",   style: TextStyle(fontWeight: FontWeight.bold))),
-        Expanded(flex: 2, child: Text("Activity", style: TextStyle(fontWeight: FontWeight.bold))),
-        Expanded(flex: 2, child: Text("Actions",  style: TextStyle(fontWeight: FontWeight.bold))),
-      ],
+    const style = TextStyle(
+      fontSize: 10,
+      fontWeight: FontWeight.w700,
+      color: Color(0xFF94A3B8),
+      letterSpacing: 1.2,
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8FAFC),
+        border: Border(bottom: BorderSide(color: Color(0xFFEEF2F7), width: 1.5)),
+      ),
+      child: const Row(children: [
+        Expanded(flex: 28, child: Text('PROJECT',  style: style)),
+        Expanded(flex: 13, child: Text('MODÈLE',   style: style)),
+        Expanded(flex: 12, child: Text('START',    style: style)),
+        Expanded(flex: 19, child: Text('STATUT',   style: style)),
+        Expanded(flex: 14, child: Text('ACTIVITY', style: style)),
+        Expanded(flex: 14, child: Text('ACTIONS',  style: style)),
+      ]),
     );
   }
 
-  /// ROW
-Widget _row(ProjectGridData p) {
-  bool isArchived = p.isArchived == true;
-
-  Color? bg;
-
-  if (p.hasBonCommande) {
-    bg = Colors.green.withOpacity(0.08);
-  } else if (p.hasDevis) {
-    bg = Colors.red.withOpacity(0.08);
+  // ── Model badge ──────────────────────────────────────────────────────────
+  Widget _modelBadge(String model) {
+    final (Color color, String label) = switch (model) {
+      'revendeur'   => (const Color(0xFFF59E0B), 'Revendeur'),
+      'applicateur' => (const Color(0xFF10B981), 'Applicateur'),
+      _             => (const Color(0xFF6366F1), 'Project'),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: color.withOpacity(0.22), width: 1),
+      ),
+      child: Text(label,
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color,
+              letterSpacing: 0.2)),
+    );
   }
 
-  // 🔥 override couleur si archivé
-  final rowColor = isArchived
-      ? Colors.grey.withOpacity(0.15)
-      : bg;
+  // ── Row ───────────────────────────────────────────────────────────────────
+  Widget _row(ProjectGridData p) {
+    final isArchived = p.isArchived;
+    final statuses   = getStatuses(p.projectModele);
+    final safeStatut = statuses.contains(p.statut)
+        ? p.statut
+        : (statuses.isNotEmpty ? statuses.first : '');
 
-  String safeValue = STATUS_LIST.any((s) => s["value"] == p.statut)
-      ? p.statut
-      : "Identification";
+    return _HoverRow(
+      onTap: isArchived ? null : () => context.go(_editUrl(p.id)),
+      archived: isArchived,
+      hasDevis: p.hasDevis,
+      hasBonCommande: p.hasBonCommande,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
 
-  return InkWell(
-    onTap: () {
-      if (isArchived) return;
-      context.go(_editUrl(p.id));
-    },
-    child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          // ── PROJECT ────────────────────────────────────────────────────
+          Expanded(flex: 28, child: Row(children: [
+            _avatar(p.nomProjet, p.projectModele),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(children: [
+                  Expanded(child: Text(
+                    p.nomProjet,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: isArchived
+                          ? const Color(0xFF94A3B8)
+                          : const Color(0xFF0F172A),
+                      decoration: isArchived ? TextDecoration.lineThrough : null,
+                      letterSpacing: -0.2,
+                    ),
+                  )),
+                  if (isArchived) _archiveBadge(),
+                ]),
+                const SizedBox(height: 3),
+                Text(
+                  p.ownerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8),
+                      fontWeight: FontWeight.w500),
+                ),
+              ],
+            )),
+          ])),
+
+          // ── MODÈLE ─────────────────────────────────────────────────────
+          Expanded(flex: 13, child: _modelBadge(p.projectModele)),
+
+          // ── START DATE ─────────────────────────────────────────────────
+          Expanded(flex: 12, child: Row(children: [
+            if (p.dateDemarrage.isNotEmpty) ...[
+              const Icon(Icons.calendar_today_rounded,
+                  size: 11, color: Color(0xFFCBD5E1)),
+              const SizedBox(width: 5),
+            ],
+            Expanded(child: Text(
+              p.dateDemarrage.isEmpty ? '—' : p.dateDemarrage,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF475569),
+                  fontWeight: FontWeight.w500),
+            )),
+          ])),
+
+          // ── STATUT ─────────────────────────────────────────────────────
+          Expanded(flex: 19,
+              child: p.projectModele == 'applicateur'
+                  ? const Text('—',
+                      style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13))
+                  : _statusDropdown(p, statuses, safeStatut, isArchived)),
+
+          // ── ACTIVITY ───────────────────────────────────────────────────
+          Expanded(flex: 14, child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _activityBadge('📅', p.taskCount,   const Color(0xFF6366F1)),
+            const SizedBox(width: 6),
+            _activityBadge('💬', p.commentCount, const Color(0xFF3B82F6)),
+          ])),
+
+          // ── ACTIONS ────────────────────────────────────────────────────
+          Expanded(flex: 14, child: Row(mainAxisSize: MainAxisSize.min, children: [
+            _circleBtn(Icons.timeline_rounded, const Color(0xFF6366F1),
+                'Timeline', () => context.go('/forms/project-timeline?projectId=${p.id}')),
+            if (!isArchived) ...[
+              const SizedBox(width: 6),
+              _circleBtn(Icons.edit_rounded, const Color(0xFF3B82F6),
+                  'Edit', () => context.go(_editUrl(p.id))),
+              const SizedBox(width: 4),
+              _moreBtn(p),
+            ],
+          ])),
+
+        ]),
+      ),
+    );
+  }
+
+  // ── Status dropdown ───────────────────────────────────────────────────────
+  Widget _statusDropdown(
+      ProjectGridData p, List<String> statuses, String safeStatut, bool isArchived) {
+    final color = getStatusColor(safeStatut);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
-        color: rowColor,
-        border: Border(
-          bottom: BorderSide(color: Colors.grey.shade300),
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: color.withOpacity(0.22), width: 1),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: safeStatut.isEmpty ? null : safeStatut,
+          isExpanded: true,
+          isDense: true,
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color),
+          iconEnabledColor: color.withOpacity(0.7),
+          iconSize: 16,
+          dropdownColor: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          elevation: 8,
+          items: statuses.map((s) {
+            final c = getStatusColor(s);
+            return DropdownMenuItem<String>(
+              value: s,
+              child: Row(children: [
+                Container(width: 7, height: 7,
+                    decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+                const SizedBox(width: 9),
+                Text(s, style: TextStyle(fontSize: 12, color: c,
+                    fontWeight: FontWeight.w600)),
+              ]),
+            );
+          }).toList(),
+          onChanged: isArchived ? null : (value) async {
+            if (value == null) return;
+            final idx = controller.projects.indexWhere((x) => x.id == p.id);
+            if (idx != -1) {
+              controller.projects[idx] =
+                  controller.projects[idx].copyWith(statut: value);
+              controller.forceRefresh();
+            }
+            try {
+              await ApiClient.instance.dio
+                  .put('/projects/${p.id}', data: {'statut': value});
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Row(children: [
+                    const Icon(Icons.check_circle_rounded,
+                        color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Text('Status → $value'),
+                  ]),
+                  backgroundColor: const Color(0xFF10B981),
+                  duration: const Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ));
+              }
+            } catch (e) {
+              final ri = controller.projects.indexWhere((x) => x.id == p.id);
+              if (ri != -1) {
+                controller.projects[ri] = p;
+                controller.forceRefresh();
+              }
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Failed to update status'),
+                  backgroundColor: Color(0xFFEF4444),
+                  behavior: SnackBarBehavior.floating,
+                ));
+              }
+            }
+          },
         ),
       ),
-      child: Row(
-        children: [
+    );
+  }
 
-          /// PROJECT
-          Expanded(
-            flex: 3,
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.blue.shade100,
-                  child: Text(
-                    p.nomProjet.isNotEmpty ? p.nomProjet[0] : "P",
-                  ),
-                ),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-
-                      /// 🔥 NOM + BADGE ARCHIVE
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              p.nomProjet,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                decoration: isArchived
-                                    ? TextDecoration.lineThrough
-                                    : null,
-                              ),
-                            ),
-                          ),
-
-                          if (isArchived)
-                            Container(
-                              margin: const EdgeInsets.only(left: 6),
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.grey,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                "ARCHIVED",
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-
-                      Text(
-  "👤 ${p.ownerName}",
-  maxLines: 1,
-  overflow: TextOverflow.ellipsis,
-  style: const TextStyle(
-    fontSize: 11,
-    color: Colors.grey,
-  ),
-),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          /// DATE
-          Expanded(
-            flex: 2,
-            child: Text(
-              p.dateDemarrage,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-
-          /// STATUS
-          Expanded(
-            flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: (p.hasBonCommande
-                        ? Colors.green
-                        : (p.hasDevis ? Colors.red : getStatusColor(p.statut)))
-                    .withOpacity(.15),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: DropdownButton<String>(
-                value: safeValue,
-                isExpanded: true,
-                underline: const SizedBox(),
-                style: const TextStyle(color: Colors.black),
-                iconEnabledColor: Colors.black,
-                items: STATUS_LIST.map((status) {
-                  return DropdownMenuItem<String>(
-                    value: status["value"],
-                    child: Text(status["label"]!),
-                  );
-                }).toList(),
-                // Always enabled — never gate on canEdit (which may be
-                // temporarily wrong after an incomplete PUT response).
-                onChanged: isArchived
-                    ? null
-                    : (value) async {
-                        if (value == null) return;
-
-                        // Optimistic local update — instant UI feedback,
-                        // no full loadProjects() reload needed.
-                        final idx = controller.projects
-                            .indexWhere((x) => x.id == p.id);
-                        if (idx != -1) {
-                          controller.projects[idx] =
-                              controller.projects[idx].copyWith(statut: value);
-                          controller.forceRefresh();
-                        }
-
-                        try {
-                          await ApiClient.instance.dio.put(
-                            '/projects/${p.id}',
-                            data: {'statut': value},
-                          );
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('Status updated'),
-                                  duration: Duration(seconds: 2)),
-                            );
-                          }
-                        } catch (e) {
-                          debugPrint('STATUS UPDATE ERROR: $e');
-                          // Rollback optimistic update on failure.
-                          final rollbackIdx = controller.projects
-                              .indexWhere((x) => x.id == p.id);
-                          if (rollbackIdx != -1) {
-                            controller.projects[rollbackIdx] = p;
-                            controller.forceRefresh();
-                          }
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content: Text('Error updating status'),
-                                  backgroundColor: Colors.red),
-                            );
-                          }
-                        }
-                      },
-              ),
-            ),
-          ),
-
-          /// ACTIVITY
-          Expanded(
-            flex: 2,
-            child: Row(
-              children: [
-                _iconBadge(Icons.event, p.taskCount),
-                const SizedBox(width: 6),
-                _iconBadge(Icons.comment, p.commentCount),
-              ],
-            ),
-          ),
-
-          /// ACTIONS
-          Expanded(
-            flex: 2,
-            child: Row(
-              children: [
-
-                IconButton(
-                  icon: const Icon(Icons.timeline),
-                  onPressed: () {
-                    context.go("/forms/project-timeline?projectId=${p.id}");
-                  },
-                ),
-
-                if (!isArchived)
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: Colors.blue),
-                    onPressed: () => context.go(_editUrl(p.id)),
-                  ),
-
-                if (!isArchived)
-                  PopupMenuButton(
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(
-                        value: "delete",
-                        child: Text("Delete"),
-                      ),
-                    ],
-                    onSelected: (v) {
-                      if (v == "delete") {
-                        controller.deleteProject(p.id);
-                      }
-                    },
-                  ),
-              ],
-            ),
-          ),
+  // ── Gradient avatar ───────────────────────────────────────────────────────
+  Widget _avatar(String name, String model) {
+    final (Color c1, Color c2) = switch (model) {
+      'revendeur'   => (const Color(0xFFF59E0B), const Color(0xFFEF7C0A)),
+      'applicateur' => (const Color(0xFF10B981), const Color(0xFF059669)),
+      _             => (const Color(0xFF6366F1), const Color(0xFF4F46E5)),
+    };
+    return Container(
+      width: 40, height: 40,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+            colors: [c1, c2],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(color: c2.withOpacity(0.35),
+              blurRadius: 8, offset: const Offset(0, 3)),
         ],
       ),
+      child: Center(child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : 'P',
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800,
+            color: Colors.white),
+      )),
+    );
+  }
+
+  // ── Activity badge ────────────────────────────────────────────────────────
+  Widget _activityBadge(String emoji, int count, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.07),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: color.withOpacity(0.18)),
     ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Text(emoji, style: const TextStyle(fontSize: 11)),
+      const SizedBox(width: 4),
+      Text('$count',
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+    ]),
   );
+
+  // ── Circular action button ────────────────────────────────────────────────
+  Widget _circleBtn(
+      IconData icon, Color color, String tooltip, VoidCallback onTap) =>
+      Tooltip(
+        message: tooltip,
+        child: _CircleActionButton(icon: icon, color: color, onTap: onTap),
+      );
+
+  // ── More (⋯) menu ─────────────────────────────────────────────────────────
+  Widget _moreBtn(ProjectGridData p) => PopupMenuButton<String>(
+    tooltip: 'More',
+    offset: const Offset(0, 36),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    elevation: 8,
+    icon: Container(
+      width: 30, height: 30,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Icon(Icons.more_horiz_rounded,
+          size: 15, color: Color(0xFF64748B)),
+    ),
+    itemBuilder: (_) => [
+      PopupMenuItem(
+        value: 'delete',
+        child: Row(children: const [
+          Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFEF4444)),
+          SizedBox(width: 8),
+          Text('Delete', style: TextStyle(color: Color(0xFFEF4444),
+              fontWeight: FontWeight.w600, fontSize: 13)),
+        ]),
+      ),
+    ],
+    onSelected: (v) { if (v == 'delete') controller.deleteProject(p.id); },
+  );
+
+  Widget _archiveBadge() => Container(
+    margin: const EdgeInsets.only(left: 6),
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    decoration: BoxDecoration(
+      color: const Color(0xFF94A3B8),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: const Text('ARCHIVED',
+        style: TextStyle(fontSize: 9, color: Colors.white,
+            fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+  );
+  String _editUrl(String id) => Uri(
+    path: MyRoute.projectFormScreen,
+    queryParameters: {'id': id},
+  ).toString();
+
+  Future<void> _goToComment(BuildContext context, ProjectGridData p) async {
+    await Navigator.push(context,
+        MaterialPageRoute(builder: (_) => ProjectCommentScreen(
+          projectId: p.id, projectName: p.nomProjet)));
+    controller.loadProjects();
+  }
 }
 
-  /// ICON BADGE
-  Widget _iconBadge(IconData icon, int count) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 14),
-          const SizedBox(width: 4),
-          Text("$count"),
-        ],
-      ),
-    );
-  }
-String _editUrl(String id) {
-    return Uri(
-      path: MyRoute.projectFormScreen,
-      queryParameters: {'id': id},
-    ).toString();
-  }
-  Future<void> _goToComment(BuildContext context, ProjectGridData p) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ProjectCommentScreen(
-          projectId: p.id,
-          projectName: p.nomProjet,
+// ── Hover-aware row wrapper ───────────────────────────────────────────────────
+class _HoverRow extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final bool archived;
+  final bool hasDevis;
+  final bool hasBonCommande;
+
+  const _HoverRow({
+    required this.child,
+    required this.onTap,
+    required this.archived,
+    required this.hasDevis,
+    required this.hasBonCommande,
+  });
+
+  @override
+  State<_HoverRow> createState() => _HoverRowState();
+}
+
+class _HoverRowState extends State<_HoverRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    Color base;
+    if (widget.archived) {
+      base = const Color(0xFFF3F4F6);
+    } else if (widget.hasBonCommande) {
+      base = const Color(0xFFF0FDF4);
+    } else if (widget.hasDevis) {
+      base = const Color(0xFFFFF7F7);
+    } else {
+      base = Colors.white;
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit:  (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          color: _hovered && !widget.archived
+              ? const Color(0xFFF0F4FF)
+              : base,
+          child: Column(children: [
+            widget.child,
+            const Divider(height: 1, color: Color(0xFFF3F4F6)),
+          ]),
         ),
       ),
     );
+  }
+}
 
-    controller.loadProjects();
+class _CircleActionButton extends StatefulWidget {
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _CircleActionButton({required this.icon, required this.color, required this.onTap});
+
+  @override
+  State<_CircleActionButton> createState() => _CircleActionButtonState();
+}
+
+class _CircleActionButtonState extends State<_CircleActionButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit:  (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: _hovered
+                ? widget.color.withOpacity(0.12)
+                : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(widget.icon, size: 14, color: widget.color),
+        ),
+      ),
+    );
   }
 }

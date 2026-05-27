@@ -20,6 +20,7 @@ class ProjectGridData {
   final bool isArchived;
   final bool hasDevis;
   final bool hasBonCommande;
+  final String projectModele;
 
   ProjectGridData({
     required this.id,
@@ -40,6 +41,7 @@ class ProjectGridData {
     required this.ownerName,
     required this.hasDevis,
     required this.hasBonCommande,
+    this.projectModele = 'project',
   });
 
   bool get canEdit => permission == "owner" || permission == "editor";
@@ -84,7 +86,7 @@ static String _safeUser(dynamic v) {
     return int.tryParse(v.toString()) ?? 0;
   }
 
-  ProjectGridData copyWith({String? statut}) {
+  ProjectGridData copyWith({String? statut, String? projectModele}) {
     return ProjectGridData(
       id:                   id,
       nomProjet:            nomProjet,
@@ -104,6 +106,7 @@ static String _safeUser(dynamic v) {
       hasDevis:             hasDevis,
       hasBonCommande:       hasBonCommande,
       isArchived:           isArchived,
+      projectModele:        projectModele ?? this.projectModele,
     );
   }
 
@@ -128,9 +131,9 @@ static String _safeUser(dynamic v) {
       ingenieurResponsable: (json["ingenieurResponsable"] ?? "").toString(),
       architecte: (json["architecte"] ?? "").toString(),
       validationStatut: (json["validationStatut"] ?? "").toString(),
-      ownerName: _resolveOwnerName(json),
-
-      hasDevis: devisCount > 0,
+      ownerName:     _resolveOwnerName(json),
+      projectModele: (json['projectModele'] ?? 'project').toString(),
+      hasDevis:      devisCount > 0,
       hasBonCommande: bcCount > 0,
     );
   }

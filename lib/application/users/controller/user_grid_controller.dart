@@ -142,6 +142,7 @@ class UserGridController extends GetxController {
       hasDevis:             fresh.hasDevis,
       hasBonCommande:       fresh.hasBonCommande,
       isArchived:           fresh.isArchived,
+      projectModele:        fresh.projectModele,
     );
   }
 
