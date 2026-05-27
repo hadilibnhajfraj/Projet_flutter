@@ -336,29 +336,37 @@ class PipelineBoard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final data   = provider.filtered;
-      final stages = provider.stages;
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...stages.map((stage) => _StageColumn(
-                  stage: stage,
-                  projects: data[stage.id] ?? [],
-                  onMove: onMove,
-                  provider: provider,
-                )),
-            Align(
-              alignment: Alignment.topCenter,
-              child: _AddStageButton(provider: provider),
+    return LayoutBuilder(
+      builder: (_, constraints) => Obx(() {
+        final data   = provider.filtered;
+        final stages = provider.stages;
+        // Subtract top+bottom padding (20+24=44) so the Row's explicit height
+        // is tight — this makes _StageColumn's Expanded work correctly.
+        final boardH = (constraints.maxHeight - 44).clamp(200.0, double.infinity);
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: SizedBox(
+            height: boardH,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...stages.map((stage) => _StageColumn(
+                      stage: stage,
+                      projects: data[stage.id] ?? [],
+                      onMove: onMove,
+                      provider: provider,
+                    )),
+                Align(
+                  alignment: Alignment.topCenter,
+                  child: _AddStageButton(provider: provider),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
-    });
+          ),
+        );
+      }),
+    );
   }
 }
 
@@ -480,7 +488,6 @@ class _StageColumnState extends State<_StageColumn> {
                 onLeave: (_) => setState(() => _dragOver = false),
                 builder: (ctx, _, __) => AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  constraints: const BoxConstraints(minHeight: 400),
                   decoration: BoxDecoration(
                     color: _dragOver
                         ? color.withOpacity(0.04)
@@ -947,6 +954,11 @@ class _ProjectCardState extends State<_ProjectCard> {
     final ownerName   = _cardOwner(p);
     final ownerEmail  = _cardOwnerEmail(p);
     final ownerAvatar = _cardOwnerAvatar(p);
+    final isArchived  = p['isArchived'] == true ||
+        p['isArchived']?.toString() == 'true';
+    final archiveReason = (p['archiveReason'] ??
+        p['raisonArchivage'] ?? p['raison'] ?? '').toString().trim();
+    final archivedAt = (p['archivedAt'] ?? p['dateArchive'] ?? '').toString().trim();
 
     final priority    = _parsePriority(
         p['priority'] ?? p['priorite'] ?? p['urgence']);
@@ -980,8 +992,11 @@ class _ProjectCardState extends State<_ProjectCard> {
         priority != _Priority.none ? _priorityColor(priority) : color;
 
     return GestureDetector(
-      onTap: () => _showDetail(context, p),
+      onTap: () => isArchived
+          ? _showArchiveDetail(context, p, archiveReason, archivedAt)
+          : _showDetail(context, p),
       child: MouseRegion(
+        cursor: SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
         onExit:  (_) => setState(() => _hovered = false),
         child: AnimatedContainer(
@@ -989,7 +1004,8 @@ class _ProjectCardState extends State<_ProjectCard> {
           margin: const EdgeInsets.only(bottom: 10),
           constraints: const BoxConstraints(minHeight: 160),
           decoration: BoxDecoration(
-            color: kCrmSurface,
+            // Archived cards get a grey-tinted background
+            color: isArchived ? const Color(0xFFF3F4F6) : kCrmSurface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: _hovered ? accentColor.withOpacity(0.25) : kCrmBorder,
@@ -1120,8 +1136,36 @@ class _ProjectCardState extends State<_ProjectCard> {
                       avatarUrl: ownerAvatar,
                       fallbackColor: color,
                     ),
+                    // ── Archived badge ────────────────────────────────────
+                    if (isArchived) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.archive_rounded,
+                              size: 11, color: Colors.grey.shade600),
+                          const SizedBox(width: 5),
+                          Text('ARCHIVÉ',
+                              style: tInter(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade700,
+                                  letterSpacing: 0.5)),
+                        ]),
+                      ),
+                    ],
+                    // ── Archive reason ────────────────────────────────────
+                    if (isArchived && archiveReason.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      _ArchiveReasonBox(reason: archiveReason),
+                    ],
                     // ── Last action ───────────────────────────────────────
-                    if (lastAction != null) ...[
+                    if (!isArchived && lastAction != null) ...[
                       const SizedBox(height: 10),
                       _LastActionBox(
                         type: lastType,
@@ -1130,7 +1174,7 @@ class _ProjectCardState extends State<_ProjectCard> {
                       ),
                     ],
                     // ── Relance strip ─────────────────────────────────────
-                    if (rStatus != _RelanceStatus.none) ...[
+                    if (!isArchived && rStatus != _RelanceStatus.none) ...[
                       const SizedBox(height: 8),
                       _RelanceStrip(
                           status: rStatus,
@@ -1208,6 +1252,125 @@ class _ProjectCardState extends State<_ProjectCard> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _OdooDetailSheet(project: p),
+    );
+  }
+
+  void _showArchiveDetail(BuildContext context, Map<String, dynamic> p,
+      String reason, String archivedAt) {
+    final nom = _cardNom(p);
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.archive_rounded,
+                size: 18, color: Colors.grey.shade600),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(nom,
+                style: tInter(
+                    fontSize: 15, fontWeight: FontWeight.w700, color: kCrmText),
+                overflow: TextOverflow.ellipsis),
+          ),
+        ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text('Projet archivé',
+                  style: tInter(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey.shade600)),
+            ),
+            const SizedBox(height: 16),
+            _archiveDetailRow(
+                Icons.info_outline_rounded,
+                'Raison',
+                reason.isNotEmpty ? reason : 'Non définie',
+                Colors.red.shade700,
+                Colors.red.shade50),
+            if (archivedAt.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _archiveDetailRow(
+                  Icons.calendar_today_rounded,
+                  'Date archive',
+                  archivedAt,
+                  kCrmTextSub,
+                  kCrmBg),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Fermer', style: tInter(color: kCrmTextSub)),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: kCrmPrimary,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8))),
+            icon: const Icon(Icons.open_in_new_rounded,
+                size: 14, color: Colors.white),
+            onPressed: () {
+              Navigator.pop(context);
+              context.go('/forms/project?id=${_projectId(p)}');
+            },
+            label: Text('Voir projet',
+                style: tInter(
+                    color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _archiveDetailRow(IconData icon, String label, String value,
+      Color textColor, Color bgColor) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 15, color: textColor),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label,
+                  style: tInter(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: kCrmTextSub)),
+              const SizedBox(height: 2),
+              Text(value,
+                  style: tInter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: textColor)),
+            ],
+          ),
+        ),
+      ]),
     );
   }
 }
@@ -2322,6 +2485,44 @@ class _DropIndicator extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: color)),
         ]),
+      ),
+    );
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ARCHIVE REASON BOX
+// ══════════════════════════════════════════════════════════════════════════════
+class _ArchiveReasonBox extends StatelessWidget {
+  final String reason;
+  const _ArchiveReasonBox({required this.reason});
+
+  @override
+  Widget build(BuildContext context) {
+    if (reason.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.red.shade100),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, color: Colors.red.shade400, size: 14),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              reason,
+              style: tInter(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: Colors.red.shade700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -171,22 +171,22 @@ class _PipelineHeader extends StatelessWidget {
                       color: Colors.white, size: 20),
                 ),
                 const SizedBox(width: 14),
-                Obx(() => Column(
+                Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('CRM Pipeline',
+                        Text('CRM Sales Pipeline',
                             style: tInter(
-                                fontSize: 20,
+                                fontSize: 22,
                                 fontWeight: FontWeight.w800,
-                                color: kCrmText)),
+                                color: kCrmText,
+                                letterSpacing: -0.4)),
+                        const SizedBox(height: 2),
                         Text(
-                          '${provider.total.value} projects · '
-                          '${provider.stages.length} stages',
-                          style: tInter(
-                              fontSize: 12, color: kCrmTextSub),
+                          'Gestion intelligente des projets et relances',
+                          style: tInter(fontSize: 12, color: kCrmTextSub),
                         ),
                       ],
-                    )),
+                    ),
                 const Spacer(),
                 _iconBtn(Icons.refresh_rounded, onRefresh, 'Refresh'),
                 const SizedBox(width: 8),
@@ -219,6 +219,10 @@ class _PipelineHeader extends StatelessWidget {
                           '${provider.convRate.toStringAsFixed(1)}%',
                           Icons.trending_up_rounded,
                           kCrmWarning),
+                      _kpiTile('Archivés',
+                          provider.archived.value.toString(),
+                          Icons.archive_rounded,
+                          const Color(0xFF6B7280)),
                     ],
                   )),
             ),
@@ -226,16 +230,22 @@ class _PipelineHeader extends StatelessWidget {
           // ── Model tabs (Project / Revendeur / Applicateur) ─────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-            child: Obx(() => Row(
-                  children: [
-                    _modelTab(provider, null,          'All',         Icons.grid_view_rounded),
-                    const SizedBox(width: 6),
-                    _modelTab(provider, 'project',     'Project',     Icons.business_center_rounded),
-                    const SizedBox(width: 6),
-                    _modelTab(provider, 'revendeur',   'Revendeur',   Icons.store_rounded),
-                    const SizedBox(width: 6),
-                    _modelTab(provider, 'applicateur', 'Applicateur', Icons.construction_rounded),
-                  ],
+            child: Obx(() => SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _modelTab(provider, null,          'All',         Icons.grid_view_rounded),
+                      const SizedBox(width: 6),
+                      _modelTab(provider, 'project',     'Project',     Icons.business_center_rounded),
+                      const SizedBox(width: 6),
+                      _modelTab(provider, 'revendeur',   'Revendeur',   Icons.store_rounded),
+                      const SizedBox(width: 6),
+                      _modelTab(provider, 'applicateur', 'Applicateur', Icons.construction_rounded),
+                      const SizedBox(width: 6),
+                      _modelTab(provider, '__archive__', 'Archivés',    Icons.archive_rounded,
+                          archiveTab: true),
+                    ],
+                  ),
                 )),
           ),
           // ── Search + filters ───────────────────────────────────────────────
@@ -477,22 +487,41 @@ class _PipelineHeader extends StatelessWidget {
   }
 
   Widget _modelTab(PipelineProvider provider, String? modele, String label,
-      IconData icon) {
-    final selected = provider.filterModele.value == modele;
+      IconData icon, {bool archiveTab = false}) {
+    final archiveColor = const Color(0xFF6B7280);
+    final activeColor  = archiveTab ? archiveColor : kCrmPrimary;
+
+    // Archive tab is "selected" when filterStage is 'archive-stage'
+    final bool selected = archiveTab
+        ? provider.filterStage.value == 'archive-stage'
+        : provider.filterModele.value == modele;
+
     return GestureDetector(
-      onTap: () => provider.setFilterModele(modele),
+      onTap: () {
+        if (archiveTab) {
+          // Toggle: show only the archive column
+          if (provider.filterStage.value == 'archive-stage') {
+            provider.setFilterStage(null);
+          } else {
+            provider.setFilterStage('archive-stage');
+          }
+        } else {
+          provider.setFilterModele(modele);
+          provider.setFilterStage(null); // clear archive filter
+        }
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: selected ? kCrmPrimary : kCrmBg,
+          color: selected ? activeColor : kCrmBg,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: selected ? kCrmPrimary : kCrmBorder,
+              color: selected ? activeColor : kCrmBorder,
               width: selected ? 1.5 : 1),
           boxShadow: selected
               ? [BoxShadow(
-                  color: kCrmPrimary.withOpacity(0.25),
+                  color: activeColor.withOpacity(0.25),
                   blurRadius: 6,
                   offset: const Offset(0, 2))]
               : null,
@@ -500,13 +529,13 @@ class _PipelineHeader extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon,
               size: 13,
-              color: selected ? Colors.white : kCrmTextSub),
+              color: selected ? Colors.white : (archiveTab ? archiveColor : kCrmTextSub)),
           const SizedBox(width: 5),
           Text(label,
               style: tInter(
                   fontSize: 12,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color: selected ? Colors.white : kCrmTextSub)),
+                  color: selected ? Colors.white : (archiveTab ? archiveColor : kCrmTextSub))),
         ]),
       ),
     );

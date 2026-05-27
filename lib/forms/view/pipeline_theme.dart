@@ -119,6 +119,13 @@ final List<PipelineStage> kDefaultPipelineStages = [
       color: Color(0xFFEF4444),
       icon: Icons.cancel_rounded,
       order: 6),
+  const PipelineStage(
+      id: 'archive-stage',
+      label: 'Archivés',
+      color: Color(0xFF6B7280),
+      icon: Icons.archive_rounded,
+      order: 7,
+      isSystem: true),
 ];
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -142,6 +149,7 @@ const Map<String, Color> kCrmStageColors = {
   'Negociation'     : Color(0xFFF97316),
   'Commande gagnée' : Color(0xFF10B981),
   'Commande perdue' : Color(0xFFEF4444),
+  'archive-stage'   : Color(0xFF6B7280),
 };
 
 const Map<String, String> kCrmStageLabels = {
@@ -152,6 +160,7 @@ const Map<String, String> kCrmStageLabels = {
   'Negociation'     : 'Negotiation',
   'Commande gagnée' : 'Won',
   'Commande perdue' : 'Lost',
+  'archive-stage'   : 'Archivés',
 };
 
 const Map<String, IconData> kCrmStageIcons = {
@@ -162,6 +171,7 @@ const Map<String, IconData> kCrmStageIcons = {
   'Negociation'     : Icons.handshake_rounded,
   'Commande gagnée' : Icons.emoji_events_rounded,
   'Commande perdue' : Icons.cancel_rounded,
+  'archive-stage'   : Icons.archive_rounded,
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

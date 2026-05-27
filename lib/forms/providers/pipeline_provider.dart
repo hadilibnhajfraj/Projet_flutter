@@ -43,10 +43,11 @@ class PipelineProvider extends GetxController {
       <String, List<Map<String, dynamic>>>{}.obs;
 
   // KPI counters
-  final RxInt total  = 0.obs;
-  final RxInt won    = 0.obs;
-  final RxInt lost   = 0.obs;
-  final RxInt active = 0.obs;
+  final RxInt total    = 0.obs;
+  final RxInt won      = 0.obs;
+  final RxInt lost     = 0.obs;
+  final RxInt active   = 0.obs;
+  final RxInt archived = 0.obs;
 
   // ── Internal ───────────────────────────────────────────────────────────────
   // Full shimmer is shown only once — on the very first load after creation.
@@ -90,10 +91,12 @@ class PipelineProvider extends GetxController {
         continue;
       }
       result[s.id] = (grouped[s.id] ?? []).where((p) {
-        // Client-side modele guard (server already filtered, this is a safety net)
-        if (fm != null) {
-          final modele = (p['projectModele'] ?? '').toString().toLowerCase();
-          if (modele != fm.toLowerCase()) return false;
+        // Archive column bypasses model filter — show all archived regardless of type.
+        if (s.id != 'archive-stage') {
+          if (fm != null) {
+            final modele = (p['projectModele'] ?? '').toString().toLowerCase();
+            if (modele != fm.toLowerCase()) return false;
+          }
         }
         // Search filter
         if (q.isNotEmpty) {
@@ -141,8 +144,15 @@ class PipelineProvider extends GetxController {
         projects.map((raw) => _enrichProject(Map<String, dynamic>.from(raw))),
       );
 
+      final nonArchiveIds = stageIds.where((id) => id != 'archive-stage').toList();
+
       for (final project in enriched) {
-        final stageId = _resolveStageId(project, stageIds);
+        // Archived projects always land in the archive column, regardless of statut.
+        final isArch = project['isArchived'] == true ||
+            project['isArchived']?.toString() == 'true';
+        final stageId = isArch && stageIds.contains('archive-stage')
+            ? 'archive-stage'
+            : _resolveStageId(project, nonArchiveIds);
         project['computedStage'] = stageId;
         (map[stageId] ?? map[stageIds.first])!.add(project);
       }
@@ -379,10 +389,11 @@ class PipelineProvider extends GetxController {
   // ── KPI ────────────────────────────────────────────────────────────────────
   void _recalcKpi() {
     final all = grouped.values.expand((l) => l).toList();
-    total.value  = all.length;
-    won.value    = (grouped['Commande gagnée'] ?? []).length;
-    lost.value   = (grouped['Commande perdue'] ?? []).length;
-    active.value = total.value - won.value - lost.value;
+    archived.value = (grouped['archive-stage'] ?? []).length;
+    total.value    = all.length - archived.value;
+    won.value      = (grouped['Commande gagnée'] ?? []).length;
+    lost.value     = (grouped['Commande perdue'] ?? []).length;
+    active.value   = total.value - won.value - lost.value;
   }
 
   double get convRate =>
