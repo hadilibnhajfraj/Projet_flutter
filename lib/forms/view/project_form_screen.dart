@@ -323,14 +323,21 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
           ? Get.find<UserGridController>()
           : Get.put(UserGridController(), permanent: true);
 
-      // For UPDATE: if the backend response omits owner fields, preserve the
-      // existing owner from the local list so upsertProject never replaces
-      // a known owner with "Unknown" while refreshProjectById is still pending.
+      // For UPDATE: PUT responses often omit owner + permission fields.
+      // Preserve them from the local copy so the UI never shows "Unknown"
+      // or loses edit controls while refreshProjectById is still pending.
       if (_projectId != null) {
         final old = gridCtrl.projects.firstWhereOrNull((x) => x.id == _projectId);
-        if (old != null && old.ownerName.isNotEmpty && old.ownerName != 'Unknown') {
-          projectMap['user_nom']  ??= old.ownerName;
-          projectMap['ownerName'] ??= old.ownerName;
+        if (old != null) {
+          if (old.ownerName.isNotEmpty && old.ownerName != 'Unknown') {
+            projectMap['user_nom']  ??= old.ownerName;
+            projectMap['ownerName'] ??= old.ownerName;
+          }
+          // 'viewer' is the fromJson default when 'permission' is absent.
+          // Restore the real permission so canEdit stays correct.
+          if (old.permission.isNotEmpty && old.permission != 'viewer') {
+            projectMap['permission'] ??= old.permission;
+          }
         }
       }
 

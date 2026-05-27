@@ -97,42 +97,51 @@ class UserGridController extends GetxController {
       projects.insert(0, p);
     } else {
       final old = projects[idx];
-      // Never replace a known owner with "Unknown" — backend PUT responses
-      // sometimes omit owner fields; preserve the existing value until
-      // a full server refresh (refreshProjectById) fills it in correctly.
-      if ((p.ownerName.isEmpty || p.ownerName == 'Unknown') &&
-          old.ownerName.isNotEmpty &&
-          old.ownerName != 'Unknown') {
-        projects[idx] = _withOwner(p, old.ownerName);
-      } else {
-        projects[idx] = p;
-      }
+      // PUT responses often omit owner + permission.
+      // fromJson defaults permission to 'viewer' when absent → canEdit=false.
+      // Preserve old values so the UI never flickers while refreshProjectById
+      // is pending.
+      final ownerLost = (p.ownerName.isEmpty || p.ownerName == 'Unknown') &&
+          old.ownerName.isNotEmpty && old.ownerName != 'Unknown';
+      final permLost  = p.permission == 'viewer' &&
+          old.permission.isNotEmpty && old.permission != 'viewer';
+
+      projects[idx] = (ownerLost || permLost)
+          ? _mergeFromOld(p, old)
+          : p;
     }
 
     searchProject(searchController.text);
   }
 
-  /// Returns a copy of [p] with [ownerName] replaced.
-  ProjectGridData _withOwner(ProjectGridData p, String ownerName) {
+  /// Returns [fresh] with owner + permission restored from [old] when the
+  /// backend PUT response omitted those fields.
+  ProjectGridData _mergeFromOld(ProjectGridData fresh, ProjectGridData old) {
     return ProjectGridData(
-      id:                   p.id,
-      nomProjet:            p.nomProjet,
-      entreprise:           p.entreprise,
-      statut:               p.statut,
-      adresse:              p.adresse,
-      dateDemarrage:        p.dateDemarrage,
-      permission:           p.permission,
-      commentCount:         p.commentCount,
-      taskCount:            p.taskCount,
-      surfaceProspectee:    p.surfaceProspectee,
-      pourcentageReussite:  p.pourcentageReussite,
-      ingenieurResponsable: p.ingenieurResponsable,
-      architecte:           p.architecte,
-      validationStatut:     p.validationStatut,
-      ownerName:            ownerName,
-      hasDevis:             p.hasDevis,
-      hasBonCommande:       p.hasBonCommande,
-      isArchived:           p.isArchived,
+      id:                   fresh.id,
+      nomProjet:            fresh.nomProjet,
+      entreprise:           fresh.entreprise,
+      statut:               fresh.statut,
+      adresse:              fresh.adresse,
+      dateDemarrage:        fresh.dateDemarrage,
+      permission: (fresh.permission == 'viewer' &&
+              old.permission.isNotEmpty && old.permission != 'viewer')
+          ? old.permission
+          : fresh.permission,
+      commentCount:         fresh.commentCount,
+      taskCount:            fresh.taskCount,
+      surfaceProspectee:    fresh.surfaceProspectee,
+      pourcentageReussite:  fresh.pourcentageReussite,
+      ingenieurResponsable: fresh.ingenieurResponsable,
+      architecte:           fresh.architecte,
+      validationStatut:     fresh.validationStatut,
+      ownerName: (fresh.ownerName.isEmpty || fresh.ownerName == 'Unknown') &&
+              old.ownerName.isNotEmpty
+          ? old.ownerName
+          : fresh.ownerName,
+      hasDevis:             fresh.hasDevis,
+      hasBonCommande:       fresh.hasBonCommande,
+      isArchived:           fresh.isArchived,
     );
   }
 
