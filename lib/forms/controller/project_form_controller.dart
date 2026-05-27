@@ -402,7 +402,6 @@ void onProjectModeleChanged(String mode) {
   // =========================
 
   nomProjet.text = (j['nomProjet'] ?? '').toString();
-  dateDemarrage.text = (j['dateDemarrage'] ?? '').toString();
   statut.text = (j['statut'] ?? '').toString();
   typeAdresseChantier.text = (j['typeAdresseChantier'] ?? '').toString();
   montantMarche.text = (j['montantMarche'] ?? '').toString();
@@ -420,7 +419,29 @@ longitude.value = j["location"]?["lng"];
 revendeurPrenom.text = (j['revendeurPrenom'] ?? '').toString();
 revendeurEmail.text = (j['revendeurEmail'] ?? '').toString();
 revendeurStatut.text = (j['revendeurStatut'] ?? 'prospect').toString();
-dateDemarrage.text = formatDate(j["startDate"]);
+// ── START DATE ── resolve from either API field name, display as dd/MM/yyyy ──
+final rawStart = (j['startDate'] ?? j['dateDemarrage'] ?? '').toString().trim();
+{
+  DateTime? parsedStart;
+  if (rawStart.isNotEmpty) {
+    try {
+      parsedStart = DateTime.parse(rawStart);         // ISO 8601
+    } catch (_) {
+      try {
+        parsedStart = DateFormat('dd/MM/yyyy').parseStrict(rawStart);
+      } catch (_) {}
+    }
+  }
+  if (parsedStart != null) {
+    selectedDateDemarrage.value = parsedStart;
+    dateDemarrage.text = DateFormat('dd/MM/yyyy').format(parsedStart);
+    debugPrint('START DATE resolved = ${dateDemarrage.text}');
+  } else {
+    selectedDateDemarrage.value = null;
+    dateDemarrage.text = '';
+    debugPrint('START DATE = empty (startDate=${j['startDate']}, dateDemarrage=${j['dateDemarrage']})');
+  }
+}
 commentaireCtrl.text =
     j["localisationCommentaire"] ??
     j["commentaireAction"] ??
@@ -467,19 +488,6 @@ serviceTechnique.text = (j['serviceTechnique'] ?? '').toString();
   surfaceProspectee.text = sp == null ? '' : sp.toString();
 
   syncReferenceSelections();
-
-  // =========================
-  // DATE DEMARRAGE
-  // =========================
-
-  final dt = dateDemarrage.text.trim();
-
-  if (dt.isNotEmpty) {
-    try {
-      selectedDateDemarrage.value =
-          DateFormat('yyyy-MM-dd').parseStrict(dt);
-    } catch (_) {}
-  }
 
   // =========================
   // LOCATION

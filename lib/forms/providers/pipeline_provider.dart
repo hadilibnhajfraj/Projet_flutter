@@ -30,6 +30,9 @@ class PipelineProvider extends GetxController {
 
   final RxnString filterStage = RxnString();
 
+  /// Active project-model tab: null = All | 'project' | 'revendeur' | 'applicateur'
+  final RxnString filterModele = RxnString();
+
   /// Non-null when a load attempt failed and the board is still empty.
   final RxnString errorMessage = RxnString();
 
@@ -70,13 +73,14 @@ class PipelineProvider extends GetxController {
   }
 
   // ── Filtered view ──────────────────────────────────────────────────────────
-  /// Search + stage-dropdown are always client-side (instant, no extra API call).
-  /// myOnly is server-side and triggers a re-fetch.
+  /// Search + stage + modele are client-side (instant).
+  /// myOnly and filterModele also trigger a server re-fetch via load().
   Map<String, List<Map<String, dynamic>>> get filtered {
-    final q  = search.value.toLowerCase().trim();
-    final sf = filterStage.value;
+    final q   = search.value.toLowerCase().trim();
+    final sf  = filterStage.value;
+    final fm  = filterModele.value;
 
-    if (q.isEmpty && sf == null) return Map.from(grouped);
+    if (q.isEmpty && sf == null && fm == null) return Map.from(grouped);
 
     final result = <String, List<Map<String, dynamic>>>{};
     for (final s in stages) {
@@ -85,6 +89,12 @@ class PipelineProvider extends GetxController {
         continue;
       }
       result[s.id] = (grouped[s.id] ?? []).where((p) {
+        // Client-side modele guard (server already filtered, this is a safety net)
+        if (fm != null) {
+          final modele = (p['projectModele'] ?? '').toString().toLowerCase();
+          if (modele != fm.toLowerCase()) return false;
+        }
+        // Search filter
         if (q.isNotEmpty) {
           final nom = (p['nomProjet']  ?? '').toString().toLowerCase();
           final cie = (p['entreprise'] ?? '').toString().toLowerCase();
@@ -115,7 +125,10 @@ class PipelineProvider extends GetxController {
     }
 
     try {
-      final projects = await _service.fetchKanban(mine: myOnly.value);
+      final projects = await _service.fetchKanban(
+        mine: myOnly.value,
+        projectModele: filterModele.value,
+      );
 
       final stageIds = stages.map((s) => s.id).toList();
       final map = <String, List<Map<String, dynamic>>>{
@@ -339,19 +352,28 @@ class PipelineProvider extends GetxController {
 
   void setFilterStage(String? s) => filterStage.value = s;
 
+  /// Switch project-model tab and reload from server.
+  void setFilterModele(String? modele) {
+    filterModele.value = modele;
+    debugPrint('[Pipeline] filterModele = $modele');
+    load(silent: true);
+  }
+
   /// Resets ALL filters and reloads ALL projects from the server.
   void clearFilters() {
     _searchDebounce?.cancel();
-    search.value      = '';
-    filterStage.value = null;
-    myOnly.value      = false;
-    debugPrint('[Pipeline] clearFilters → myOnly=false, reload all');
+    search.value       = '';
+    filterStage.value  = null;
+    filterModele.value = null;
+    myOnly.value       = false;
+    debugPrint('[Pipeline] clearFilters → myOnly=false, filterModele=null, reload all');
     load(silent: true);
   }
 
   bool get hasActiveFilters =>
       search.value.isNotEmpty ||
       filterStage.value != null ||
+      filterModele.value != null ||
       myOnly.value;
 
   // ── KPI ────────────────────────────────────────────────────────────────────

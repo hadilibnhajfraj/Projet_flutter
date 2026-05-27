@@ -223,9 +223,24 @@ class _PipelineHeader extends StatelessWidget {
                   )),
             ),
           ),
+          // ── Model tabs (Project / Revendeur / Applicateur) ─────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+            child: Obx(() => Row(
+                  children: [
+                    _modelTab(provider, null,          'All',         Icons.grid_view_rounded),
+                    const SizedBox(width: 6),
+                    _modelTab(provider, 'project',     'Project',     Icons.business_center_rounded),
+                    const SizedBox(width: 6),
+                    _modelTab(provider, 'revendeur',   'Revendeur',   Icons.store_rounded),
+                    const SizedBox(width: 6),
+                    _modelTab(provider, 'applicateur', 'Applicateur', Icons.construction_rounded),
+                  ],
+                )),
+          ),
           // ── Search + filters ───────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
+            padding: const EdgeInsets.fromLTRB(24, 10, 24, 16),
             child: Wrap(
               spacing: 10,
               runSpacing: 8,
@@ -457,6 +472,42 @@ class _PipelineHeader extends StatelessWidget {
           ],
           onChanged: onChange,
         ),
+      ),
+    );
+  }
+
+  Widget _modelTab(PipelineProvider provider, String? modele, String label,
+      IconData icon) {
+    final selected = provider.filterModele.value == modele;
+    return GestureDetector(
+      onTap: () => provider.setFilterModele(modele),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? kCrmPrimary : kCrmBg,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: selected ? kCrmPrimary : kCrmBorder,
+              width: selected ? 1.5 : 1),
+          boxShadow: selected
+              ? [BoxShadow(
+                  color: kCrmPrimary.withOpacity(0.25),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2))]
+              : null,
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon,
+              size: 13,
+              color: selected ? Colors.white : kCrmTextSub),
+          const SizedBox(width: 5),
+          Text(label,
+              style: tInter(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? Colors.white : kCrmTextSub)),
+        ]),
       ),
     );
   }

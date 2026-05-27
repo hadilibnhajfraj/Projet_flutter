@@ -6,61 +6,47 @@ class PipelineService {
   static final PipelineService instance = PipelineService._();
   PipelineService._();
 
-  // ── Kanban ─────────────────────────────────────────────────────────────────
-  /// mine=false → ALL projects (tries /projects, then /pipeline/kanban)
-  /// mine=true  → current user's projects only
-  Future<List<Map<String, dynamic>>> fetchKanban({bool mine = false}) async {
-    return mine ? _fetchMine() : _fetchAll();
+  // ── Public API ─────────────────────────────────────────────────────────────
+  /// [mine] = true  → current user's projects only (calls /projects/my-projects first)
+  /// [mine] = false → all projects
+  /// [projectModele] — optional: 'project' | 'revendeur' | 'applicateur'
+  Future<List<Map<String, dynamic>>> fetchKanban({
+    bool mine = false,
+    String? projectModele,
+  }) async {
+    return mine
+        ? fetchMyProjects(projectModele: projectModele)
+        : _fetchAll(projectModele: projectModele);
   }
 
-  Future<List<Map<String, dynamic>>> _fetchAll() async {
-    // Try explicit "all projects" endpoints in priority order
-    for (final cfg in [
-      _E('/projects',           {'limit': '1000'}),
-      _E('/pipeline/kanban',    {}),
-      _E('/projects/all',       {'limit': '1000'}),
-    ]) {
-      try {
-        final res = await ApiClient.instance.dio
-            .get(cfg.path, queryParameters: cfg.params);
-        final items = _parseItems(res.data);
-        if (items.isNotEmpty) return items;
-      } catch (_) {
-        continue;
-      }
-    }
-    return [];
-  }
+  /// Dedicated "my projects" fetch — always calls /projects/my-projects first.
+  /// Never passes 'my-projects' as a dynamic :id segment.
+  Future<List<Map<String, dynamic>>> fetchMyProjects({
+    String? projectModele,
+  }) async {
+    final params = <String, String>{'limit': '1000'};
+    if (projectModele != null) params['projectModele'] = projectModele;
 
-  Future<List<Map<String, dynamic>>> _fetchMine() async {
-    for (final cfg in [
-      _E('/pipeline/projects',   {'myProjects': 'true'}),
-      _E('/projects',            {'myProjects': 'true', 'limit': '1000'}),
-      _E('/pipeline/kanban',     {'myProjects': 'true', 'mine': 'true'}),
-      _E('/projects/myprojects', {'limit': '1000'}),
-    ]) {
-      try {
-        debugPrint('[Pipeline] _fetchMine → GET ${cfg.path} ${cfg.params}');
-        final res = await ApiClient.instance.dio
-            .get(cfg.path, queryParameters: cfg.params);
-        final items = _parseItems(res.data);
-        debugPrint('[Pipeline] _fetchMine ← ${items.length} projects');
-        if (items.isNotEmpty) return items;
-      } catch (e) {
-        debugPrint('[Pipeline] _fetchMine endpoint ${cfg.path} failed: $e');
-        continue;
-      }
+    debugPrint('[Pipeline] fetchMyProjects → GET /projects/my-projects $params');
+    try {
+      final res = await ApiClient.instance.dio.get(
+        '/projects/my-projects',
+        queryParameters: params,
+      );
+      final items = _parseItems(res.data);
+      debugPrint('[Pipeline] fetchMyProjects ← ${items.length} projects');
+      if (items.isNotEmpty) return items;
+    } catch (e) {
+      debugPrint('[Pipeline] /projects/my-projects failed ($e) — trying fallbacks');
     }
-    return [];
+    return _fetchMine(projectModele: projectModele);
   }
 
   // ── Actions ────────────────────────────────────────────────────────────────
-  /// Newest-first; relance/rappel excluded.
   Future<List<Map<String, dynamic>>> fetchProjectActions(
       String projectId) async {
     final res =
         await ApiClient.instance.dio.get('/projects/$projectId/actions');
-    // Unwrap envelope: bare list  OR  {data: [...]}  OR  {success:true, data:[...]}
     final raw = _unwrapList(res.data);
     final actions = _toList(raw)
       ..sort((a, b) {
@@ -76,7 +62,6 @@ class PipelineService {
         .toList();
   }
 
-  /// Post a stage-change action.
   Future<void> moveProject({
     required String projectId,
     required String newStage,
@@ -88,7 +73,6 @@ class PipelineService {
     );
   }
 
-  /// Post an internal note on a project.
   Future<void> addNote(String projectId, String content) async {
     await ApiClient.instance.dio.post(
       '/projects/$projectId/actions',
@@ -128,27 +112,61 @@ class PipelineService {
     await ApiClient.instance.dio.delete('/pipeline/stages/$id');
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Private fetch helpers ──────────────────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> _fetchAll({String? projectModele}) async {
+    for (final path in ['/projects', '/pipeline/kanban', '/projects/all']) {
+      try {
+        final params = <String, String>{'limit': '1000'};
+        if (projectModele != null) params['projectModele'] = projectModele;
+        final res = await ApiClient.instance.dio
+            .get(path, queryParameters: params);
+        final items = _parseItems(res.data);
+        if (items.isNotEmpty) return items;
+      } catch (_) {
+        continue;
+      }
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchMine({String? projectModele}) async {
+    final endpoints = [
+      ('/pipeline/projects',  {'myProjects': 'true'}),
+      ('/projects',           {'myProjects': 'true', 'limit': '1000'}),
+      ('/pipeline/kanban',    {'myProjects': 'true', 'mine': 'true'}),
+      ('/projects/myprojects',{'limit': '1000'}),
+    ];
+    for (final (path, base) in endpoints) {
+      try {
+        final params = Map<String, String>.from(base);
+        if (projectModele != null) params['projectModele'] = projectModele;
+        debugPrint('[Pipeline] _fetchMine → GET $path $params');
+        final res = await ApiClient.instance.dio
+            .get(path, queryParameters: params);
+        final items = _parseItems(res.data);
+        debugPrint('[Pipeline] _fetchMine ← ${items.length} projects');
+        if (items.isNotEmpty) return items;
+      } catch (e) {
+        debugPrint('[Pipeline] _fetchMine $path failed: $e');
+        continue;
+      }
+    }
+    return [];
+  }
+
+  // ── Parse helpers ──────────────────────────────────────────────────────────
 
   static const _kListKeys = [
     'items', 'data', 'projects', 'results', 'cards', 'docs',
   ];
-
-  // Keys that identify a "stage row" in a grouped kanban response.
   static const _kStageProjectKeys = ['projects', 'cards', 'items', 'docs'];
   static const _kStageLabelKeys   = ['stage', 'name', 'id', 'stageId', 'stageName'];
 
-  /// Extracts a flat project list from ANY API shape:
-  ///   • bare list
-  ///   • {data: [...]}
-  ///   • {data: {projects: [...]}}
-  ///   • stage-grouped: [{stage:"Visite", projects:[...]}, ...]  ← kanban format
   List<Map<String, dynamic>> _parseItems(dynamic data) {
     final raw = _toList(_unwrapList(data));
     if (raw.isEmpty) return raw;
 
-    // Detect stage-grouped format: first item has a stage-label key AND a
-    // nested list under a project key (e.g. {stage:"Visite", projects:[...]}).
     final first = raw.first;
     final hasStageLabel = _kStageLabelKeys.any(first.containsKey);
     final projectKey = _kStageProjectKeys
@@ -157,12 +175,9 @@ class PipelineService {
     if (hasStageLabel && projectKey.isNotEmpty) {
       return _flattenStageGroups(raw, projectKey);
     }
-
     return raw;
   }
 
-  /// Extracts projects from a [{stage, projects:[...]}, ...] structure.
-  /// Stamps each project with the stage id so _resolveStageId can use it.
   List<Map<String, dynamic>> _flattenStageGroups(
       List<Map<String, dynamic>> stages, String projectKey) {
     final result = <Map<String, dynamic>>[];
@@ -173,7 +188,6 @@ class PipelineService {
       for (final raw in list) {
         if (raw is! Map) continue;
         final p = Map<String, dynamic>.from(raw);
-        // Stamp computedStage only if the project doesn't already have one.
         p.putIfAbsent('computedStage', () => stageId);
         result.add(p);
       }
@@ -192,7 +206,6 @@ class PipelineService {
     return '';
   }
 
-  /// Extracts a raw List from an envelope (does NOT flatten stage groups).
   List _unwrapList(dynamic data) {
     if (data is List) return data;
     if (data is Map) {
@@ -214,11 +227,4 @@ class PipelineService {
       .whereType<Map>()
       .map((e) => Map<String, dynamic>.from(e))
       .toList();
-}
-
-// Simple endpoint config struct
-class _E {
-  final String path;
-  final Map<String, String> params;
-  const _E(this.path, this.params);
 }
