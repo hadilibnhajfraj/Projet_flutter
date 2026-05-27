@@ -32,6 +32,7 @@ class _UserGridScreenState extends State<UserGridScreen> {
 String? selectedStatusFilter;
 String? selectedModele;
 String? selectedUser;
+String? editableProjectId;   // id of the row currently unlocked for editing
 List<String> users = [];
   UserProjectsResponse? _response;
 Future<void> loadUsers() async {
@@ -667,24 +668,33 @@ Color getStatusColor(String status) {
 
   // ── Row ───────────────────────────────────────────────────────────────────
   Widget _row(ProjectGridData p) {
-    final isArchived = p.isArchived;
-    final statuses   = getStatuses(p.projectModele);
-    final safeStatut = statuses.contains(p.statut)
+    final isArchived    = p.isArchived;
+    final statuses      = getStatuses(p.projectModele);
+    final safeStatut    = statuses.contains(p.statut)
         ? p.statut
         : (statuses.isNotEmpty ? statuses.first : '');
 
-    return _HoverRow(
-      onTap: isArchived ? null : () => context.go(_editUrl(p.id)),
+    // Selection state
+    final bool isSelected   = editableProjectId == p.id;
+    final bool hasSelection = editableProjectId != null;
+
+    // Status dropdown is disabled when archived OR when another row is selected
+    final bool statusDisabled = isArchived || (hasSelection && !isSelected);
+
+    Widget row = _HoverRow(
+      // Row-tap navigates to form only when no selection is active
+      onTap: (isArchived || hasSelection) ? null : () => context.go(_editUrl(p.id)),
       archived: isArchived,
       hasDevis: p.hasDevis,
       hasBonCommande: p.hasBonCommande,
+      isSelected: isSelected,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
         child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
 
-          // ── PROJECT ────────────────────────────────────────────────────
+          // ── PROJECT ──────────────────────────────────────────────────────
           Expanded(flex: 28, child: Row(children: [
-            _avatar(p.nomProjet, p.projectModele),
+            _avatar(p.nomProjet, isArchived ? 'archived' : p.projectModele),
             const SizedBox(width: 12),
             Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -719,10 +729,10 @@ Color getStatusColor(String status) {
             )),
           ])),
 
-          // ── MODÈLE ─────────────────────────────────────────────────────
+          // ── MODÈLE ───────────────────────────────────────────────────────
           Expanded(flex: 13, child: _modelBadge(p.projectModele)),
 
-          // ── START DATE ─────────────────────────────────────────────────
+          // ── START DATE ───────────────────────────────────────────────────
           Expanded(flex: 12, child: Row(children: [
             if (p.dateDemarrage.isNotEmpty) ...[
               const Icon(Icons.calendar_today_rounded,
@@ -736,14 +746,14 @@ Color getStatusColor(String status) {
             )),
           ])),
 
-          // ── STATUT ─────────────────────────────────────────────────────
+          // ── STATUT ───────────────────────────────────────────────────────
           Expanded(flex: 19,
               child: p.projectModele == 'applicateur'
                   ? const Text('—',
                       style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13))
-                  : _statusDropdown(p, statuses, safeStatut, isArchived)),
+                  : _statusDropdown(p, statuses, safeStatut, statusDisabled)),
 
-          // ── ACTIVITY ───────────────────────────────────────────────────
+          // ── ACTIVITY ─────────────────────────────────────────────────────
           Expanded(flex: 14, child: Wrap(
             spacing: 5,
             runSpacing: 4,
@@ -753,7 +763,7 @@ Color getStatusColor(String status) {
             ],
           )),
 
-          // ── ACTIONS ────────────────────────────────────────────────────
+          // ── ACTIONS ──────────────────────────────────────────────────────
           Expanded(flex: 14, child: Wrap(
             spacing: 4,
             runSpacing: 4,
@@ -761,8 +771,19 @@ Color getStatusColor(String status) {
               _circleBtn(Icons.timeline_rounded, const Color(0xFF6366F1),
                   'Timeline', () => context.go('/forms/project-timeline?projectId=${p.id}')),
               if (!isArchived) ...[
-                _circleBtn(Icons.edit_rounded, const Color(0xFF3B82F6),
-                    'Edit', () => context.go(_editUrl(p.id))),
+                // Edit/Done toggle: selects this row or deselects it
+                _circleBtn(
+                  isSelected
+                      ? Icons.check_circle_rounded
+                      : Icons.edit_rounded,
+                  isSelected
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFF3B82F6),
+                  isSelected ? 'Terminer' : 'Modifier',
+                  () => setState(() {
+                    editableProjectId = isSelected ? null : p.id;
+                  }),
+                ),
                 _moreBtn(p),
               ],
             ],
@@ -771,6 +792,16 @@ Color getStatusColor(String status) {
         ]),
       ),
     );
+
+    // Non-selected rows (while another row is in edit mode): fade + block input
+    if (hasSelection && !isSelected) {
+      return AnimatedOpacity(
+        duration: const Duration(milliseconds: 250),
+        opacity: 0.45,
+        child: IgnorePointer(ignoring: true, child: row),
+      );
+    }
+    return row;
   }
 
   // ── Status dropdown ───────────────────────────────────────────────────────
@@ -868,6 +899,7 @@ Color getStatusColor(String status) {
     final (Color c1, Color c2) = switch (model) {
       'revendeur'   => (const Color(0xFFF59E0B), const Color(0xFFEF7C0A)),
       'applicateur' => (const Color(0xFF10B981), const Color(0xFF059669)),
+      'archived'    => (const Color(0xFF94A3B8), const Color(0xFF64748B)),
       _             => (const Color(0xFF6366F1), const Color(0xFF4F46E5)),
     };
     return Container(
@@ -946,14 +978,14 @@ Color getStatusColor(String status) {
 
   Widget _archiveBadge() => Container(
     margin: const EdgeInsets.only(left: 6),
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
     decoration: BoxDecoration(
-      color: const Color(0xFF94A3B8),
-      borderRadius: BorderRadius.circular(20),
+      color: Colors.grey.shade200,
+      borderRadius: BorderRadius.circular(30),
     ),
-    child: const Text('ARCHIVED',
-        style: TextStyle(fontSize: 9, color: Colors.white,
-            fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+    child: Text('ARCHIVED',
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold,
+            color: Colors.grey.shade700)),
   );
   String _editUrl(String id) => Uri(
     path: MyRoute.projectFormScreen,
@@ -975,6 +1007,7 @@ class _HoverRow extends StatefulWidget {
   final bool archived;
   final bool hasDevis;
   final bool hasBonCommande;
+  final bool isSelected;
 
   const _HoverRow({
     required this.child,
@@ -982,6 +1015,7 @@ class _HoverRow extends StatefulWidget {
     required this.archived,
     required this.hasDevis,
     required this.hasBonCommande,
+    this.isSelected = false,
   });
 
   @override
@@ -993,8 +1027,11 @@ class _HoverRowState extends State<_HoverRow> {
 
   @override
   Widget build(BuildContext context) {
+    // Base background colour per row state
     Color base;
-    if (widget.archived) {
+    if (widget.isSelected) {
+      base = const Color(0xFFEEF2FF); // indigo-50 — selected highlight
+    } else if (widget.archived) {
       base = const Color(0xFFF3F4F6);
     } else if (widget.hasBonCommande) {
       base = const Color(0xFFF0FDF4);
@@ -1004,21 +1041,32 @@ class _HoverRowState extends State<_HoverRow> {
       base = Colors.white;
     }
 
+    // Left accent border for selected row
+    final Widget rowContent = AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      decoration: BoxDecoration(
+        color: _hovered && !widget.archived && !widget.isSelected
+            ? const Color(0xFFF0F4FF)
+            : base,
+        border: widget.isSelected
+            ? const Border(left: BorderSide(color: Color(0xFF6366F1), width: 3))
+            : null,
+      ),
+      child: Column(children: [
+        widget.child,
+        const Divider(height: 1, color: Color(0xFFF3F4F6)),
+      ]),
+    );
+
     return MouseRegion(
+      cursor: widget.onTap != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hovered = true),
       onExit:  (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          color: _hovered && !widget.archived
-              ? const Color(0xFFF0F4FF)
-              : base,
-          child: Column(children: [
-            widget.child,
-            const Divider(height: 1, color: Color(0xFFF3F4F6)),
-          ]),
-        ),
+        child: rowContent,
       ),
     );
   }
