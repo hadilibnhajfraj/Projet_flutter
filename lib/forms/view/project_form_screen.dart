@@ -311,25 +311,45 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         data = res.data;
       }
 
-      final map      = Map<String, dynamic>.from(data as Map);
-      final project  = ProjectGridData.fromJson(map);
+      // Unwrap API envelope {success:true, data:{...}} → use inner object.
+      // Without this, ProjectGridData.fromJson receives the wrapper map and
+      // user_nom / ownerName are missing → owner shows "Unknown".
+      final raw        = data as Map;
+      final projectMap = (raw['data'] is Map)
+          ? Map<String, dynamic>.from(raw['data'] as Map)
+          : Map<String, dynamic>.from(raw);
+
       final gridCtrl = Get.isRegistered<UserGridController>()
           ? Get.find<UserGridController>()
           : Get.put(UserGridController(), permanent: true);
+
+      // For UPDATE: if the backend response omits owner fields, preserve the
+      // existing owner from the local list so upsertProject never replaces
+      // a known owner with "Unknown" while refreshProjectById is still pending.
+      if (_projectId != null) {
+        final old = gridCtrl.projects.firstWhereOrNull((x) => x.id == _projectId);
+        if (old != null && old.ownerName.isNotEmpty && old.ownerName != 'Unknown') {
+          projectMap['user_nom']  ??= old.ownerName;
+          projectMap['ownerName'] ??= old.ownerName;
+        }
+      }
+
+      final project  = ProjectGridData.fromJson(projectMap);
       gridCtrl.upsertProject(project);
       gridCtrl.forceRefresh();
       if (project.id != null && project.id!.isNotEmpty) {
         await gridCtrl.refreshProjectById(project.id!);
       }
 
+      // Reload pipeline board from server so owner is always taken from
+      // the backend response — never from a null local placeholder.
+      if (Get.isRegistered<PipelineProvider>()) {
+        Get.find<PipelineProvider>().load(silent: true);
+      }
+
       if (_projectId == null) {
         setState(() => _projectId = project.id);
         await c.loadProject(project.id);
-        // Reload pipeline board from server so the new project appears with
-        // the correct owner (from backend response, not a null local placeholder).
-        if (Get.isRegistered<PipelineProvider>()) {
-          Get.find<PipelineProvider>().load(silent: true);
-        }
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Project created successfully')));

@@ -91,21 +91,49 @@ class UserGridController extends GetxController {
 
   /// INSERT OR UPDATE PROJECT
   void upsertProject(ProjectGridData p) {
-
     final idx = projects.indexWhere((x) => x.id == p.id);
 
     if (idx == -1) {
-
       projects.insert(0, p);
-
     } else {
-
-      projects[idx] = p;
-
+      final old = projects[idx];
+      // Never replace a known owner with "Unknown" — backend PUT responses
+      // sometimes omit owner fields; preserve the existing value until
+      // a full server refresh (refreshProjectById) fills it in correctly.
+      if ((p.ownerName.isEmpty || p.ownerName == 'Unknown') &&
+          old.ownerName.isNotEmpty &&
+          old.ownerName != 'Unknown') {
+        projects[idx] = _withOwner(p, old.ownerName);
+      } else {
+        projects[idx] = p;
+      }
     }
 
-    /// reapply filter
     searchProject(searchController.text);
+  }
+
+  /// Returns a copy of [p] with [ownerName] replaced.
+  ProjectGridData _withOwner(ProjectGridData p, String ownerName) {
+    return ProjectGridData(
+      id:                   p.id,
+      nomProjet:            p.nomProjet,
+      entreprise:           p.entreprise,
+      statut:               p.statut,
+      adresse:              p.adresse,
+      dateDemarrage:        p.dateDemarrage,
+      permission:           p.permission,
+      commentCount:         p.commentCount,
+      taskCount:            p.taskCount,
+      surfaceProspectee:    p.surfaceProspectee,
+      pourcentageReussite:  p.pourcentageReussite,
+      ingenieurResponsable: p.ingenieurResponsable,
+      architecte:           p.architecte,
+      validationStatut:     p.validationStatut,
+      ownerName:            ownerName,
+      hasDevis:             p.hasDevis,
+      hasBonCommande:       p.hasBonCommande,
+      isArchived:           p.isArchived,
+    );
   }
 
   /// DELETE PROJECT
