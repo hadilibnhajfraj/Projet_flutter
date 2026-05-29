@@ -1258,120 +1258,266 @@ class _ProjectCardState extends State<_ProjectCard> {
   void _showArchiveDetail(BuildContext context, Map<String, dynamic> p,
       String reason, String archivedAt) {
     final nom = _cardNom(p);
+
+    // ── Completeness check ────────────────────────────────────────────────────
+    const fieldDefs = <Map<String, String>>[
+      {'key': 'telephoneIngenieur', 'label': 'Téléphone client manquant'},
+      {'key': 'emailIngenieur',     'label': 'Email client manquant'},
+      {'key': 'architecte',         'label': 'Architecte non renseigné'},
+      {'key': 'montantMarche',      'label': 'Montant marché non renseigné'},
+      {'key': 'bureauEtude',        'label': "Bureau d'étude non renseigné"},
+    ];
+
+    final missing = fieldDefs
+        .where((f) => (p[f['key']] ?? '').toString().trim().isEmpty)
+        .map((f) => f['label']!)
+        .toList();
+
+    final pct = ((fieldDefs.length - missing.length) / fieldDefs.length * 100)
+        .round();
+
+    // ── Format archive date ───────────────────────────────────────────────────
+    String dateLabel = archivedAt;
+    if (archivedAt.isNotEmpty) {
+      try {
+        final dt = DateTime.parse(archivedAt);
+        dateLabel =
+            '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year}';
+      } catch (_) {}
+    }
+
+    // ── Progress bar color ────────────────────────────────────────────────────
+    final barColor = pct >= 80
+        ? const Color(0xFF22C55E)
+        : pct >= 50
+            ? kCrmWarning
+            : kCrmDanger;
+
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (_) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-        title: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(Icons.archive_rounded,
-                size: 18, color: Colors.grey.shade600),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(nom,
-                style: tInter(
-                    fontSize: 15, fontWeight: FontWeight.w700, color: kCrmText),
-                overflow: TextOverflow.ellipsis),
-          ),
-        ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(20),
+        backgroundColor: Colors.white,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Header ───────────────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8F9FA),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(20)),
+                  border:
+                      Border(bottom: BorderSide(color: Colors.grey.shade200)),
+                ),
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.archive_rounded,
+                        size: 20, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(nom,
+                              style: tInter(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: kCrmText),
+                              overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 5),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              'ARCHIVED',
+                              style: tInter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.grey.shade700,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                        ]),
+                  ),
+                ]),
               ),
-              child: Text('Projet archivé',
-                  style: tInter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.grey.shade600)),
-            ),
-            const SizedBox(height: 16),
-            _archiveDetailRow(
-                Icons.info_outline_rounded,
-                'Raison',
-                reason.isNotEmpty ? reason : 'Non définie',
-                Colors.red.shade700,
-                Colors.red.shade50),
-            if (archivedAt.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              _archiveDetailRow(
-                  Icons.calendar_today_rounded,
-                  'Date archive',
-                  archivedAt,
-                  kCrmTextSub,
-                  kCrmBg),
+
+              // ── Body ─────────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Completion rate label
+                      Text('Taux de complétude',
+                          style: tInter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: kCrmTextSub)),
+                      const SizedBox(height: 8),
+                      // Progress bar row
+                      Row(children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: pct / 100,
+                              minHeight: 10,
+                              backgroundColor: Colors.grey.shade200,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(barColor),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text('$pct %',
+                            style: tInter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: kCrmText)),
+                      ]),
+
+                      const SizedBox(height: 20),
+                      Divider(color: Colors.grey.shade200, height: 1),
+                      const SizedBox(height: 16),
+
+                      // Missing fields section
+                      Text('Données manquantes',
+                          style: tInter(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: kCrmTextSub)),
+                      const SizedBox(height: 10),
+                      if (missing.isEmpty)
+                        _archiveAllOkRow()
+                      else
+                        ...missing.map(_archiveMissingRow),
+
+                      // Archive date section
+                      if (dateLabel.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Divider(color: Colors.grey.shade200, height: 1),
+                        const SizedBox(height: 16),
+                        Text("Date d'archivage",
+                            style: tInter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: kCrmTextSub)),
+                        const SizedBox(height: 6),
+                        Row(children: [
+                          Icon(Icons.calendar_today_rounded,
+                              size: 15, color: kCrmTextSub),
+                          const SizedBox(width: 6),
+                          Text(dateLabel,
+                              style: tInter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: kCrmText)),
+                        ]),
+                      ],
+                    ]),
+              ),
+
+              // ── Separator ────────────────────────────────────────────────
+              Divider(height: 1, color: Colors.grey.shade200),
+
+              // ── Action buttons ────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                child: Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        Navigator.pop(context);
+                        await PipelineProvider.to.restoreProject(p);
+                      },
+                      icon: const Icon(Icons.restore_rounded, size: 16),
+                      label: Text('Restaurer',
+                          style: tInter(
+                              fontWeight: FontWeight.w600, fontSize: 13)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: kCrmPrimary,
+                        side:
+                            BorderSide(color: kCrmPrimary.withOpacity(0.4)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        context.go('/forms/project?id=${_projectId(p)}');
+                      },
+                      icon: const Icon(Icons.open_in_new_rounded,
+                          size: 14, color: Colors.white),
+                      label: Text('Voir projet',
+                          style: tInter(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: kCrmPrimary,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
             ],
-          ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Fermer', style: tInter(color: kCrmTextSub)),
-          ),
-          ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: kCrmPrimary,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8))),
-            icon: const Icon(Icons.open_in_new_rounded,
-                size: 14, color: Colors.white),
-            onPressed: () {
-              Navigator.pop(context);
-              context.go('/forms/project?id=${_projectId(p)}');
-            },
-            label: Text('Voir projet',
-                style: tInter(
-                    color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
-          ),
-        ],
       ),
     );
   }
 
-  Widget _archiveDetailRow(IconData icon, String label, String value,
-      Color textColor, Color bgColor) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 15, color: textColor),
+  Widget _archiveMissingRow(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(children: [
+        Icon(Icons.cancel_rounded, size: 16, color: Colors.red.shade400),
         const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: tInter(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: kCrmTextSub)),
-              const SizedBox(height: 2),
-              Text(value,
-                  style: tInter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: textColor)),
-            ],
-          ),
-        ),
+        Text(label,
+            style: tInter(
+                fontSize: 13, color: kCrmText, fontWeight: FontWeight.w500)),
       ]),
     );
+  }
+
+  Widget _archiveAllOkRow() {
+    return Row(children: [
+      Icon(Icons.check_circle_rounded,
+          size: 16, color: Colors.green.shade500),
+      const SizedBox(width: 8),
+      Text(
+        'Toutes les informations sont complètes.',
+        style: tInter(
+            fontSize: 13,
+            color: const Color(0xFF16A34A),
+            fontWeight: FontWeight.w500),
+      ),
+    ]);
   }
 }
 

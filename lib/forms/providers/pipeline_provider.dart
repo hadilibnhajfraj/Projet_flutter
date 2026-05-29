@@ -237,6 +237,22 @@ class PipelineProvider extends GetxController {
     return project;
   }
 
+  // ── Restore archived project ───────────────────────────────────────────────
+  Future<void> restoreProject(Map<String, dynamic> project) async {
+    final pid = (project['id'] ?? project['_id'] ?? '').toString();
+    if (pid.isEmpty) return;
+    final archiveList = grouped['archive-stage'];
+    archiveList?.removeWhere((p) => (p['id'] ?? p['_id']).toString() == pid);
+    _recalcKpi();
+    grouped.refresh();
+    try {
+      await _service.restoreProject(pid);
+    } catch (e) {
+      debugPrint('[Pipeline] restoreProject failed: $e');
+    }
+    await load(silent: true);
+  }
+
   // ── Move project between stages (optimistic) ───────────────────────────────
   Future<bool> moveProject(
       Map<String, dynamic> project, String newStageId) async {

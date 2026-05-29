@@ -73,6 +73,13 @@ class PipelineService {
     );
   }
 
+  Future<void> restoreProject(String projectId) async {
+    await ApiClient.instance.dio.put(
+      '/projects/$projectId',
+      data: {'isArchived': false},
+    );
+  }
+
   Future<void> addNote(String projectId, String content) async {
     await ApiClient.instance.dio.post(
       '/projects/$projectId/actions',
