@@ -536,9 +536,15 @@ class _State extends State<ProjectsExplorerScreen>
   ];
 
   Future<void> _export() async {
-    final now    = DateTime.now();
-    final date   = DateFormat('yyyy_MM_dd').format(now);
-    final tabIdx = _tab.index;
+    // ── Empêcher les clics simultanés ─────────────────────────────────────────
+    if (_exporting) return;
+
+    // ignore: avoid_print
+    print('[EXPORT START]');
+
+    final now        = DateTime.now();
+    final date       = DateFormat('yyyy_MM_dd').format(now);
+    final tabIdx     = _tab.index;
     final filePrefix = [
       'Project_List',
       'Project_List',
@@ -549,114 +555,124 @@ class _State extends State<ProjectsExplorerScreen>
 
     setState(() => _exporting = true);
 
-    // ── Try backend endpoint first ──────────────────────────────────────────
     try {
-      final params = <String, dynamic>{
-        if (_isAdmin && _userIdF?.isNotEmpty == true) 'userId': _userIdF,
-        if (_modeles[tabIdx] != null) 'projectModele': _modeles[tabIdx],
-        if (_searchCtrl.text.trim().isNotEmpty) 'q': _searchCtrl.text.trim(),
-        if (_statusF?.isNotEmpty == true)       'statut': _statusF,
-        if (_validationF?.isNotEmpty == true)   'validationStatut': _validationF,
-        if (_dateFrom != null) 'dateStart': DateFormat('yyyy-MM-dd').format(_dateFrom!),
-        if (_dateTo != null)   'dateEnd':   DateFormat('yyyy-MM-dd').format(_dateTo!),
-      };
+      // ── 1. Essai endpoint backend ─────────────────────────────────────────
+      bool backendOk = false;
+      try {
+        final params = <String, dynamic>{
+          if (_isAdmin && _userIdF?.isNotEmpty == true) 'userId': _userIdF,
+          if (_modeles[tabIdx] != null) 'projectModele': _modeles[tabIdx],
+          if (_searchCtrl.text.trim().isNotEmpty) 'q': _searchCtrl.text.trim(),
+          if (_statusF?.isNotEmpty == true)       'statut': _statusF,
+          if (_validationF?.isNotEmpty == true)   'validationStatut': _validationF,
+          if (_dateFrom != null)
+            'dateStart': DateFormat('yyyy-MM-dd').format(_dateFrom!),
+          if (_dateTo != null)
+            'dateEnd':   DateFormat('yyyy-MM-dd').format(_dateTo!),
+        };
 
-      final res = await ApiClient.instance.dio.get(
-        '/projects/export',
-        queryParameters: params,
-        options: Options(responseType: ResponseType.bytes),
-      );
+        final res = await ApiClient.instance.dio.get(
+          '/projects/export',
+          queryParameters: params,
+          options: Options(responseType: ResponseType.bytes),
+        );
 
-      final bytes = res.data as List<int>;
-      _downloadBytes(bytes, '$fileName.xlsx');
-      if (mounted) _showToast(success: true);
-      return;
-    } catch (e) {
-      debugPrint('[Export] backend failed ($e) — falling back to client-side');
-    }
+        final bytes = res.data as List<int>;
+        _downloadBytes(bytes, '$fileName.xlsx');
+        backendOk = true;
+      } catch (e) {
+        // ignore: avoid_print
+        print('[EXPORT] Backend indisponible: $e — génération côté client');
+      }
 
-    // ── Fallback : client-side generation ────────────────────────────────────
+      // ── 2. Fallback : génération côté client ──────────────────────────────
+      if (!backendOk) {
+        final excelFile = xl.Excel.createExcel();
+        final sheet     = excelFile['Projets'];
 
-    final excelFile = xl.Excel.createExcel();
-    final sheet = excelFile['Projets'];
+        // Row 0 — section labels
+        int colCursor = 0;
+        for (final sec in _kSections) {
+          final (label, darkHex, _, colCount) = sec;
+          final startCol = colCursor;
+          final endCol   = colCursor + colCount - 1;
+          if (colCount > 1) {
+            sheet.merge(
+              xl.CellIndex.indexByColumnRow(columnIndex: startCol, rowIndex: 0),
+              xl.CellIndex.indexByColumnRow(columnIndex: endCol,   rowIndex: 0),
+            );
+          }
+          sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: startCol, rowIndex: 0))
+            ..value     = label
+            ..cellStyle = xl.CellStyle(
+              bold: true, backgroundColorHex: darkHex, fontColorHex: '#FFFFFF',
+            );
+          colCursor += colCount;
+        }
 
-    // ── Row 0 : Section labels (merged, dark background) ─────────────────────
-    int colCursor = 0;
-    for (final sec in _kSections) {
-      final (label, darkHex, _, colCount) = sec;
-      final startCol = colCursor;
-      final endCol   = colCursor + colCount - 1;
+        // Row 1 — column headers
+        final colSection = <int, (String, String, String, int)>{};
+        int cc = 0;
+        for (final sec in _kSections) {
+          for (int i = cc; i < cc + sec.$4; i++) colSection[i] = sec;
+          cc += sec.$4;
+        }
+        for (int col = 0; col < _kCols.length; col++) {
+          final lightHex = colSection[col]?.$3 ?? '#F8FAFC';
+          sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 1))
+            ..value     = _kCols[col]
+            ..cellStyle = xl.CellStyle(
+              bold: true, backgroundColorHex: lightHex, fontColorHex: '#1E293B',
+            );
+        }
 
-      if (colCount > 1) {
-        sheet.merge(
-          xl.CellIndex.indexByColumnRow(columnIndex: startCol, rowIndex: 0),
-          xl.CellIndex.indexByColumnRow(columnIndex: endCol,   rowIndex: 0),
+        // Row 2+ — data
+        final getters = _kGetters;
+        for (int ri = 0; ri < _rows.length; ri++) {
+          final rowIdx = ri + 2;
+          final rowBg  = ri.isEven ? '#FFFFFF' : '#FAFAFA';
+          for (int col = 0; col < getters.length; col++) {
+            sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIdx))
+              ..value     = getters[col](_rows[ri])
+              ..cellStyle = xl.CellStyle(backgroundColorHex: rowBg);
+          }
+        }
+
+        // Column widths
+        final widths = <int, double>{
+          0: 22, 1: 28, 2: 14, 3: 30,
+          4: 26, 5: 30, 6: 16, 7: 16,
+          8: 22, 9: 20,
+        };
+        for (int col = 0; col < _kCols.length; col++) {
+          sheet.setColWidth(col, widths[col] ?? 18);
+        }
+
+        final bytes = excelFile.encode();
+        if (bytes == null) throw Exception('Échec de la génération du fichier Excel');
+        _downloadBytes(bytes, '$fileName.xlsx');
+      }
+
+      // ignore: avoid_print
+      print('[EXPORT SUCCESS]');
+      if (mounted) _showToast(success: true, message: 'Export terminé · $fileName.xlsx');
+
+    } catch (e, stack) {
+      // ignore: avoid_print
+      print('[EXPORT ERROR] $e');
+      // ignore: avoid_print
+      print(stack);
+      if (mounted) {
+        _showToast(
+          success: false,
+          message: 'Erreur export : ${e.toString().split('\n').first}',
         );
       }
-      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: startCol, rowIndex: 0))
-        ..value     = label
-        ..cellStyle = xl.CellStyle(
-          bold:              true,
-          backgroundColorHex: darkHex,
-          fontColorHex:       '#FFFFFF',
-        );
-      colCursor += colCount;
+    } finally {
+      // ignore: avoid_print
+      print('[EXPORT END]');
+      if (mounted) setState(() => _exporting = false);
     }
-
-    // ── Row 1 : Column headers (light section background) ────────────────────
-    // Build a section-index lookup: for each column index → which section
-    final colSection = <int, (String, String, String, int)>{};
-    int cc = 0;
-    for (final sec in _kSections) {
-      for (int i = cc; i < cc + sec.$4; i++) colSection[i] = sec;
-      cc += sec.$4;
-    }
-
-    for (int col = 0; col < _kCols.length; col++) {
-      final sec = colSection[col];
-      final lightHex = sec?.$3 ?? '#F8FAFC';
-      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 1))
-        ..value     = _kCols[col]
-        ..cellStyle = xl.CellStyle(
-          bold:              true,
-          backgroundColorHex: lightHex,
-          fontColorHex:       '#1E293B',
-        );
-    }
-
-    // ── Row 2+ : Data ─────────────────────────────────────────────────────────
-    final getters = _kGetters;
-    for (int ri = 0; ri < _rows.length; ri++) {
-      final row    = _rows[ri];
-      final rowIdx = ri + 2; // offset: row 0 = sections, row 1 = headers
-      // Alternate row background: white or very-light-grey
-      final rowBg  = ri.isEven ? '#FFFFFF' : '#FAFAFA';
-
-      for (int col = 0; col < getters.length; col++) {
-        final val = getters[col](row);
-        sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIdx))
-          ..value     = val
-          ..cellStyle = xl.CellStyle(backgroundColorHex: rowBg);
-      }
-    }
-
-    // ── Column widths ─────────────────────────────────────────────────────────
-    final widths = <int, double>{
-      0: 22, 1: 28, 2: 14, 3: 30,   // UTILISATEUR
-      4: 26, 5: 30, 6: 16, 7: 16,   // PROJET
-      8: 22, 9: 20,                   // Statut/Validation
-    };
-    for (int col = 0; col < _kCols.length; col++) {
-      sheet.setColWidth(col, widths[col] ?? 18);
-    }
-
-    // ── Encode & download ─────────────────────────────────────────────────────
-    final bytes = excelFile.encode();
-    if (bytes != null) {
-      _downloadBytes(bytes, '$fileName.xlsx');
-      if (mounted) _showToast(success: true);
-    }
-    setState(() => _exporting = false);
   }
 
   // ── Download bytes via dart:html ───────────────────────────────────────────
@@ -673,14 +689,18 @@ class _State extends State<ProjectsExplorerScreen>
   }
 
   // ── Toast ──────────────────────────────────────────────────────────────────
-  void _showToast({required bool success}) {
+  void _showToast({required bool success, String? message}) {
     final color   = success ? kCrmSuccess : kCrmDanger;
     final icon    = success
         ? Icons.check_circle_rounded
         : Icons.error_outline_rounded;
-    final message = success
-        ? 'Export Excel généré avec succès'
-        : 'Erreur lors de la génération de l\'export';
+    final text    = message ??
+        (success
+            ? 'Export Excel généré avec succès'
+            : 'Erreur lors de la génération de l\'export');
+
+    // Close any existing snackbar before showing the new one
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -688,7 +708,7 @@ class _State extends State<ProjectsExplorerScreen>
           Icon(icon, color: Colors.white, size: 18),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(message,
+            child: Text(text,
                 style: tInter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
           ),
         ]),
@@ -696,7 +716,7 @@ class _State extends State<ProjectsExplorerScreen>
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        duration: const Duration(seconds: 4),
+        duration: const Duration(seconds: 5),
       ),
     );
   }
@@ -761,14 +781,28 @@ class _State extends State<ProjectsExplorerScreen>
     actions: [
       if (!_loading && _rows.isNotEmpty)
         _exporting
-            ? const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                child: SizedBox(
-                  width: 16, height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: kCrmSuccess),
-                ),
+            // Spinner + label "Export en cours..." — bouton désactivé
+            ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const SizedBox(
+                    width: 14, height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2, color: kCrmSuccess,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('Export en cours...',
+                      style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmSuccess)),
+                ]),
               )
-            : _Pill(icon: Icons.download_rounded, label: 'Export', color: kCrmSuccess, onTap: _export),
+            // Bouton normal — actif uniquement si pas en cours
+            : _Pill(
+                icon: Icons.download_rounded,
+                label: 'Export',
+                color: kCrmSuccess,
+                onTap: _export,
+              ),
       _loading
           ? const Padding(padding: EdgeInsets.all(16),
               child: SizedBox(width: 16, height: 16,
