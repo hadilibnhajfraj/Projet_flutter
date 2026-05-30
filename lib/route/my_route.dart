@@ -62,6 +62,7 @@ import 'package:dash_master_toolkit/forms/view/project_timeline_screen.dart';
 import 'package:dash_master_toolkit/forms/view/project_pipeline_screen.dart';
 import 'package:dash_master_toolkit/forms/view/archive_requests_page.dart';
 import 'package:dash_master_toolkit/forms/view/archive_request_chat_screen.dart';
+import 'package:dash_master_toolkit/forms/view/projects_explorer_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_timeline_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/add_commercial_action_screen.dart';
 
@@ -282,11 +283,8 @@ GoRoute(
               ),
               GoRoute(
   path: 'user_project',
-  pageBuilder: (context, state) => NoTransitionPage(
-    child: UserProjectsScreen(
-      token: AuthService().accessToken ?? '',
-    ),
-  ),
+  pageBuilder: (context, state) =>
+      const NoTransitionPage(child: ProjectsExplorerScreen()),
 ),
 GoRoute(
   path: "applicateur",
