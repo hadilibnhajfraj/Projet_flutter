@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../providers/pipeline_provider.dart';
 import '../../services/pipeline_service.dart';
 import 'pipeline_theme.dart';
+import 'archive_request_dialog.dart';
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PRIORITY SYSTEM
@@ -1163,6 +1164,44 @@ class _ProjectCardState extends State<_ProjectCard> {
                     if (isArchived && archiveReason.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       _ArchiveReasonBox(reason: archiveReason),
+                    ],
+                    // ── Request unarchive button ──────────────────────────
+                    if (isArchived) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () => showArchiveRequestDialog(
+                            context,
+                            projectId:   _projectId(p),
+                            projectName: nom,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 9, vertical: 5),
+                            decoration: BoxDecoration(
+                              color:
+                                  kCrmPrimary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: kCrmPrimary
+                                      .withValues(alpha: 0.22)),
+                            ),
+                            child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.forum_outlined,
+                                      size: 12, color: kCrmPrimary),
+                                  const SizedBox(width: 4),
+                                  Text('Demande',
+                                      style: tInter(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: kCrmPrimary)),
+                                ]),
+                          ),
+                        ),
+                      ),
                     ],
                     // ── Last action ───────────────────────────────────────
                     if (!isArchived && lastAction != null) ...[

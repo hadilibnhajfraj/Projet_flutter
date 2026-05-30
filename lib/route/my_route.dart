@@ -60,6 +60,7 @@ import 'package:dash_master_toolkit/forms/view/devis_upload_screen.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:dash_master_toolkit/forms/view/project_timeline_screen.dart';
 import 'package:dash_master_toolkit/forms/view/project_pipeline_screen.dart';
+import 'package:dash_master_toolkit/forms/view/archive_requests_page.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_timeline_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/add_commercial_action_screen.dart';
 
@@ -127,6 +128,7 @@ static const clientsProfileScreen = '/users/client';
   static const resetPasswordScreen = '/authentication/reset_password';
     static const  applicateurProjectsScreen = "/users/applicateur";
   static const  revendeurProjectsScreen = "/users/revendeur";
+  static const archiveRequestsScreen = '/archive-requests';
   static const initialPath = '/';
   static final rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -486,6 +488,11 @@ GoRoute(
   path: 'pipeline', // ✅ IMPORTANT
   name: 'pipeline',
   builder: (context, state) => const ProjectPipelineScreen(),
+),
+GoRoute(
+  path: 'archive-requests',
+  name: 'archive-requests',
+  builder: (context, state) => const ArchiveRequestsPage(),
 ),
 
             ],

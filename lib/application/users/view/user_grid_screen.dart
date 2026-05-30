@@ -9,6 +9,8 @@ import 'package:dash_master_toolkit/widgets/common_app_widget.dart';
 import 'package:dash_master_toolkit/widgets/common_search_field.dart';
 import 'package:dash_master_toolkit/forms/view/ProjectCommentScreen.dart';
 import 'package:dash_master_toolkit/app_shell_route/components/topbar/NotificationController.dart';
+import 'package:dash_master_toolkit/forms/view/archive_request_dialog.dart';
+import 'package:dash_master_toolkit/providers/archive_request_provider.dart';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -257,6 +259,11 @@ String _getValidationColorHex(String? value) {
 void initState() {
   super.initState();
   loadUsers();
+  // Auto-reload project list when an unarchive request is approved
+  ever(
+    ArchiveRequestProvider.to.lastApprovedAt,
+    (_) => controller.loadProjects(),
+  );
 }
   int currentPage = 1;
   int rowsPerPage = 5;
@@ -716,6 +723,7 @@ Color getStatusColor(String status) {
                     ),
                   )),
                   if (isArchived) _archiveBadge(),
+                  if (isArchived) _pendingBadge(p.id),
                 ]),
                 const SizedBox(height: 3),
                 Text(
@@ -770,7 +778,18 @@ Color getStatusColor(String status) {
             children: [
               _circleBtn(Icons.timeline_rounded, const Color(0xFF6366F1),
                   'Timeline', () => context.go('/forms/project-timeline?projectId=${p.id}')),
-              if (!isArchived) ...[
+              if (isArchived) ...[
+                // Discussion: open archive requests chat page
+                _circleBtn(Icons.forum_outlined, const Color(0xFF8B5CF6),
+                    'Discussion', () => context.go('/forms/archive-requests')),
+                // Unarchive request dialog
+                _circleBtn(Icons.unarchive_outlined, const Color(0xFFF59E0B),
+                    'Demande de désarchivage', () => showArchiveRequestDialog(
+                      context,
+                      projectId:   p.id,
+                      projectName: p.nomProjet,
+                    )),
+              ] else ...[
                 // Edit/Done toggle: selects this row or deselects it
                 _circleBtn(
                   isSelected
@@ -987,6 +1006,32 @@ Color getStatusColor(String status) {
         style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold,
             color: Colors.grey.shade700)),
   );
+
+  Widget _pendingBadge(String projectId) {
+    return Obx(() {
+      final provider = ArchiveRequestProvider.to;
+      final hasPending = provider.requests.any(
+        (r) => r.projectId == projectId && r.status == 'pending',
+      );
+      if (!hasPending) return const SizedBox.shrink();
+      return Container(
+        margin: const EdgeInsets.only(left: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEF4444),
+          borderRadius: BorderRadius.circular(30),
+        ),
+        child: const Text(
+          'EN ATTENTE',
+          style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+              letterSpacing: 0.4),
+        ),
+      );
+    });
+  }
   String _editUrl(String id) => Uri(
     path: MyRoute.projectFormScreen,
     queryParameters: {'id': id},
