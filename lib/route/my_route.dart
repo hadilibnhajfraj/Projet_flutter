@@ -61,6 +61,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:dash_master_toolkit/forms/view/project_timeline_screen.dart';
 import 'package:dash_master_toolkit/forms/view/project_pipeline_screen.dart';
 import 'package:dash_master_toolkit/forms/view/archive_requests_page.dart';
+import 'package:dash_master_toolkit/forms/view/archive_request_chat_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_timeline_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/add_commercial_action_screen.dart';
 
@@ -493,6 +494,16 @@ GoRoute(
   path: 'archive-requests',
   name: 'archive-requests',
   builder: (context, state) => const ArchiveRequestsPage(),
+  routes: [
+    GoRoute(
+      path: 'chat',
+      name: 'archive-request-chat',
+      builder: (context, state) {
+        final id = state.uri.queryParameters['id'] ?? '';
+        return ArchiveRequestChatScreen(requestId: id);
+      },
+    ),
+  ],
 ),
 
             ],

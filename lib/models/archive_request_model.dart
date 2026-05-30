@@ -1,4 +1,5 @@
 // lib/models/archive_request_model.dart
+import 'dart:convert';
 
 class ArchiveRequestMessage {
   final String id;
@@ -68,19 +69,55 @@ class ArchiveRequest {
   });
 
   factory ArchiveRequest.fromJson(Map<String, dynamic> j) {
-    // Nested objects sent by PostgreSQL backend
-    final project = j['project'] is Map ? Map<String, dynamic>.from(j['project'] as Map) : <String, dynamic>{};
-    final user    = j['user']    is Map ? Map<String, dynamic>.from(j['user']    as Map) : <String, dynamic>{};
+    // Nested objects — backend may use 'project' or 'archiveProject'
+    final project = j['project'] is Map
+        ? Map<String, dynamic>.from(j['project'] as Map)
+        : j['archiveProject'] is Map
+            ? Map<String, dynamic>.from(j['archiveProject'] as Map)
+            : <String, dynamic>{};
+
+    // Backend peut envoyer 'requester', 'user', ou des champs plats
+    final requester = j['requester'] is Map
+        ? Map<String, dynamic>.from(j['requester'] as Map)
+        : j['user'] is Map
+            ? Map<String, dynamic>.from(j['user'] as Map)
+            : <String, dynamic>{};
+
+    // ignore: avoid_print
+    print('REQUESTER=${jsonEncode(j['requester'])}');
 
     final rawMsgs = j['messages'] is List ? j['messages'] as List : [];
+
+    final userName = _str(
+      requester['name'] ??
+      requester['firstName'] ??
+      requester['nom'] ??
+      requester['prenom'] ??
+      j['userName'] ??
+      j['requestedByName'],
+      fallback: 'Utilisateur',
+    );
+
+    // ignore: avoid_print
+    print('USER NAME=$userName');
+
+    final userEmail = _str(
+      requester['email'] ??
+      j['userEmail'] ??
+      j['email'],
+    );
 
     return ArchiveRequest(
       id:          _str(j['_id'] ?? j['id']),
       projectId:   _str(j['projectId'] ?? project['id'] ?? project['_id']),
-      projectName: _str(project['nomProjet'] ?? project['name'] ?? j['projectName'] ?? j['nomProjet'], fallback: 'Projet inconnu'),
-      userId:      _str(j['userId'] ?? j['requestedBy'] ?? user['id'] ?? user['_id']),
-      userEmail:   _str(user['email'] ?? j['userEmail'] ?? j['email']),
-      userName:    _str(user['name'] ?? user['nom'] ?? j['userName'] ?? j['requestedByName'], fallback: 'Utilisateur'),
+      projectName: _str(
+        project['nomProjet'] ?? project['name'] ?? project['projectName'] ??
+        j['projectName'] ?? j['nomProjet'],
+        fallback: 'Projet inconnu',
+      ),
+      userId:      _str(requester['id'] ?? requester['_id'] ?? j['userId'] ?? j['requestedBy']),
+      userEmail:   userEmail,
+      userName:    userName,
       subject:     _str(j['subject'] ?? j['objet'], fallback: 'Demande de désarchivage'),
       message:     _str(j['message'] ?? j['reason'] ?? j['raisonDemande']),
       status:      _str(j['status'], fallback: 'pending'),
@@ -93,6 +130,20 @@ class ArchiveRequest {
   }
 
   int get unreadCount => messages.where((m) => !m.isRead).length;
+
+  Map<String, dynamic> toJson() => {
+    'id':          id,
+    'projectId':   projectId,
+    'projectName': projectName,
+    'userId':      userId,
+    'userEmail':   userEmail,
+    'userName':    userName,
+    'subject':     subject,
+    'message':     message,
+    'status':      status,
+    'createdAt':   createdAt.toIso8601String(),
+    'messageCount': messages.length,
+  };
 
   static String _str(dynamic v, {String fallback = ''}) =>
       (v == null || v.toString().trim().isEmpty) ? fallback : v.toString().trim();

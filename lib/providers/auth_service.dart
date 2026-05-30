@@ -30,7 +30,10 @@ String get displayName {
   String? get userEmail => _box.read<String>('userEmail');
   String? get userRole => _box.read<String>('userRole');
   // Ajouter à la fin de AuthService (avant la fin de la classe)
-bool get isAdmin => userRole?.toLowerCase() == 'admin';
+bool get isAdmin {
+    final r = userRole?.toLowerCase();
+    return r == 'admin' || r == 'superadmin';
+  }
 bool get isAgent => userRole?.toLowerCase() == 'agent';
 bool get isClient => userRole?.toLowerCase() == 'client';
   // ---------------- SIGNUP ----------------

@@ -286,7 +286,7 @@ class _RequestCard extends StatelessWidget {
                 color: kCrmPrimary,
                 onTap: () {
                   provider.selectRequest(request.id);
-                  context.go('/forms/archive-requests/chat');
+                  context.push('/forms/archive-requests/chat?id=${request.id}');
                 },
               ),
               if (isPending) ...[
@@ -318,7 +318,7 @@ class _RequestCard extends StatelessWidget {
               color: kCrmPrimary,
               onTap: () {
                 provider.selectRequest(request.id);
-                context.go('/forms/archive-requests/chat');
+                context.push('/forms/archive-requests/chat?id=${request.id}');
               },
             ),
           ),
@@ -329,6 +329,23 @@ class _RequestCard extends StatelessWidget {
   // ── Confirm dialogs ────────────────────────────────────────────────────────
   void _confirmApprove(BuildContext ctx, ArchiveRequest req,
       ArchiveRequestProvider provider) {
+    // ignore: avoid_print
+    print('REQUEST = ${req.toJson()}');
+
+    final id = req.id.trim();
+    if (id.isEmpty) {
+      Get.snackbar(
+        'Erreur',
+        'ID demande introuvable',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 4),
+      );
+      return;
+    }
+
+    // ignore: avoid_print
+    print('APPROVE → id=$id  projectId=${req.projectId}');
+
     Get.dialog(AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text('Approuver la demande',
@@ -345,7 +362,7 @@ class _RequestCard extends StatelessWidget {
         ElevatedButton(
           onPressed: () {
             Get.back();
-            provider.approveRequest(req.id);
+            provider.approveRequest(id);
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF16A34A),
@@ -361,6 +378,23 @@ class _RequestCard extends StatelessWidget {
 
   void _confirmReject(BuildContext ctx, ArchiveRequest req,
       ArchiveRequestProvider provider) {
+    // ignore: avoid_print
+    print('REQUEST = ${req.toJson()}');
+
+    final id = req.id.trim();
+    if (id.isEmpty) {
+      Get.snackbar(
+        'Erreur',
+        'ID demande introuvable',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 4),
+      );
+      return;
+    }
+
+    // ignore: avoid_print
+    print('REJECT → id=$id');
+
     Get.dialog(AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text('Refuser la demande',
@@ -377,7 +411,7 @@ class _RequestCard extends StatelessWidget {
         ElevatedButton(
           onPressed: () {
             Get.back();
-            provider.rejectRequest(req.id);
+            provider.rejectRequest(id);
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFFDC2626),

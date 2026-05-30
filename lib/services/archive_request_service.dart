@@ -115,9 +115,12 @@ class ArchiveRequestService {
   // ── POST /archive-requests/:id/messages ───────────────────────────────────
   Future<ArchiveRequestMessage> addMessage(
       String requestId, String content) async {
+    final body = {'message': content.trim()};
+    // ignore: avoid_print
+    print('MESSAGE SENT = $body');
     final res = await ApiClient.instance.dio.post(
       '/archive-requests/$requestId/messages',
-      data: {'content': content},
+      data: body,
     );
     return ArchiveRequestMessage.fromJson(_unwrap(res.data));
   }
