@@ -261,6 +261,12 @@ GoRoute(
             routes: [
               GoRoute(
                 path: 'user-list',
+                redirect: (context, state) {
+                  final role =
+                      (AuthService().userRole ?? '').toLowerCase();
+                  final ok = role == 'admin' || role == 'superadmin';
+                  return ok ? null : dashboard;
+                },
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: UserListScreen()),
               ),
@@ -493,11 +499,21 @@ GoRoute(
 GoRoute(
   path: 'archive-requests',
   name: 'archive-requests',
+  redirect: (context, state) {
+    final role = (AuthService().userRole ?? '').toLowerCase();
+    final ok = role == 'admin' || role == 'superadmin';
+    return ok ? null : dashboard;
+  },
   builder: (context, state) => const ArchiveRequestsPage(),
   routes: [
     GoRoute(
       path: 'chat',
       name: 'archive-request-chat',
+      redirect: (context, state) {
+        final role = (AuthService().userRole ?? '').toLowerCase();
+        final ok = role == 'admin' || role == 'superadmin';
+        return ok ? null : dashboard;
+      },
       builder: (context, state) {
         final id = state.uri.queryParameters['id'] ?? '';
         return ArchiveRequestChatScreen(requestId: id);

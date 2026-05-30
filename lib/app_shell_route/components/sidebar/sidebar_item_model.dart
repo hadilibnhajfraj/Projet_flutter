@@ -229,28 +229,29 @@ List<GroupedMenuModel> buildGroupedMenus({
       ],
     ),
 
-    GroupedMenuModel(
-      name: 'Users',
-      menus: [
-        _safeSubmenuItem(
-          name: 'Users management',
-          icon: usersIcon,
-          navigationPath: '/users',
-          submenus: [
-            if (isAdmin)
+    // Visible uniquement pour admin / superadmin
+    if (isAdmin) ...[
+      GroupedMenuModel(
+        name: 'Users',
+        menus: [
+          _safeSubmenuItem(
+            name: 'Users management',
+            icon: usersIcon,
+            navigationPath: '/users',
+            submenus: [
               SidebarSubmenuModel(
                 name: "User List",
                 navigationPath: 'user-list',
               ),
-            if (isAdmin)
               SidebarSubmenuModel(
                 name: "Client",
                 navigationPath: 'client',
               ),
-          ],
-        ),
-      ],
-    ),
+            ],
+          ),
+        ],
+      ),
+    ],
 
     GroupedMenuModel(
       name: 'Pages',

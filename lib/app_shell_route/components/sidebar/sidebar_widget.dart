@@ -17,11 +17,6 @@ class SideBarWidget extends StatelessWidget {
   final GlobalKey<ScaffoldState> rootScaffoldKey;
   final bool iconOnly;
 
-  bool _isAdmin() {
-    final role = AuthService().userRole ?? '';
-    return role.toLowerCase() == 'admin';
-  }
-
   @override
   Widget build(BuildContext context) {
     final lang = AppLocalizations.of(context);
@@ -35,6 +30,11 @@ final role = (auth.userRole ?? '').toString().trim().toLowerCase();
 final isAdmin = role == 'admin' || role == 'superadmin';
 final isCommercial = role == 'commercial';
 final isAccueil = role == 'accueil';
+
+// ignore: avoid_print
+print('ROLE = $role');
+// ignore: avoid_print
+print('IS ADMIN = $isAdmin');
 
     final topMenus = buildTopMenus(isAccueil: isAccueil,isCommercial: isCommercial);
     final groupedMenus = buildGroupedMenus(
