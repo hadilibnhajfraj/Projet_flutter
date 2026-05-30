@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:dash_master_toolkit/providers/api_client.dart';
+import 'package:dio/dio.dart' show Options, ResponseType;
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
@@ -22,22 +23,26 @@ const _kHeader   = Color(0xFFF8FAFC);
 // DATA MODEL
 // ──────────────────────────────────────────────────────────────────────────────
 class _Row {
+  // ── Display fields ─────────────────────────────────────────────────────────
   final String id;
   final String name;
   final String type;          // 'project' | 'applicateur' | 'revendeur'
   final String ownerName;
   final String ownerEmail;
+  final String ownerRole;
+  final String ownerId;
   final String createdAt;
   final String status;
   final String validation;
   final bool   isArchived;
-  // Extra fields for export
   final String adresse;
   final String entreprise;
   final String architecte;
   final String ingenieur;
   final double? lat;
   final double? lng;
+  // ── Raw JSON for full export (all business fields) ─────────────────────────
+  final Map<String, dynamic> raw;
 
   _Row({
     required this.id,
@@ -45,10 +50,13 @@ class _Row {
     required this.type,
     required this.ownerName,
     required this.ownerEmail,
+    required this.ownerRole,
+    required this.ownerId,
     required this.createdAt,
     required this.status,
     required this.validation,
     required this.isArchived,
+    required this.raw,
     this.adresse    = '',
     this.entreprise = '',
     this.architecte = '',
@@ -78,6 +86,15 @@ class _Row {
       userMap['email'] ?? reqMap['email'] ??
       j['ownerEmail']  ?? j['userEmail'] ?? j['email'],
     );
+    final ownerRole = _s(
+      userMap['role'] ?? reqMap['role'] ??
+      j['ownerRole']  ?? j['role'],
+    );
+    final ownerId = _s(
+      userMap['_id'] ?? userMap['id'] ??
+      reqMap['_id']  ?? reqMap['id']  ??
+      j['userId']    ?? j['ownerId'],
+    );
 
     return _Row(
       id:          _s(j['_id'] ?? j['id']),
@@ -85,6 +102,8 @@ class _Row {
       type:        type,
       ownerName:   ownerName,
       ownerEmail:  ownerEmail,
+      ownerRole:   ownerRole,
+      ownerId:     ownerId,
       createdAt:   _s(j['dateDemarrage'] ?? j['createdAt'] ?? j['date']),
       status:      _s(j['statut'] ?? j['status']),
       validation:  _s(j['validationStatut'] ?? j['validation']),
@@ -95,6 +114,7 @@ class _Row {
       ingenieur:   _s(j['ingenieurResponsable']),
       lat:         _dbl(j['latitude']  ?? j['lat']),
       lng:         _dbl(j['longitude'] ?? j['lng']),
+      raw:         j,
     );
   }
 
@@ -169,6 +189,27 @@ String _typeLabel(String type) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// USER ENTRY (for admin dropdown)
+// ──────────────────────────────────────────────────────────────────────────────
+class _UserEntry {
+  final String id;
+  final String name;
+  final String email;
+  final String role;
+  _UserEntry({required this.id, required this.name, required this.email, required this.role});
+
+  factory _UserEntry.fromJson(Map<String, dynamic> j) {
+    final id    = (j['_id'] ?? j['id'] ?? '').toString();
+    final email = (j['email'] ?? '').toString();
+    final name  = (j['nom']  ?? j['name'] ?? email.split('@').first).toString();
+    final role  = (j['role'] ?? '').toString();
+    return _UserEntry(id: id, name: name, email: email, role: role);
+  }
+
+  String get display => name.isNotEmpty && name != email ? '$name ($email)' : email;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // SCREEN
 // ──────────────────────────────────────────────────────────────────────────────
 class ProjectsExplorerScreen extends StatefulWidget {
@@ -197,10 +238,17 @@ class _State extends State<ProjectsExplorerScreen>
   int        _total     = 0;
   static const _limit   = 50;
 
+  // ── Users list (admin only, for dropdown) ─────────────────────────────────
+  List<_UserEntry>  _users            = [];
+  bool              _usersLoaded      = false;
+  Map<String, int>  _userProjectCounts = {};  // userId → project count
+  bool              _exporting         = false;
+
   // ── Filters ────────────────────────────────────────────────────────────────
   final _searchCtrl = TextEditingController();
   String?   _statusF;
   String?   _validationF;
+  String?   _userIdF;    // null = tous les utilisateurs (admin seulement)
   DateTime? _dateFrom;
   DateTime? _dateTo;
   bool      _filtersOpen = false;
@@ -219,10 +267,69 @@ class _State extends State<ProjectsExplorerScreen>
     _tab = TabController(length: 4, vsync: this);
     _tab.addListener(() { if (!_tab.indexIsChanging) { _page = 1; _load(); } });
     _load();
+    if (_isAdmin) _loadUsers().then((_) => _loadUserProjectCounts());
   }
 
   @override
   void dispose() { _tab.dispose(); _searchCtrl.dispose(); super.dispose(); }
+
+  // ── Load users list ────────────────────────────────────────────────────────
+  Future<void> _loadUsers() async {
+    if (_usersLoaded) return;
+    try {
+      final res  = await ApiClient.instance.dio.get('/users');
+      final data = res.data;
+      List raw   = [];
+      if (data is List)       raw = data;
+      else if (data is Map)   raw = (data['data'] ?? data['users'] ?? data['items'] ?? []) as List;
+
+      setState(() {
+        _users       = raw.whereType<Map>()
+            .map((e) => _UserEntry.fromJson(Map<String, dynamic>.from(e)))
+            .where((u) => u.id.isNotEmpty)
+            .toList()
+          ..sort((a, b) => a.name.compareTo(b.name));
+        _usersLoaded = true;
+      });
+    } catch (e) {
+      debugPrint('[ProjectList] loadUsers error: $e');
+    }
+  }
+
+  // ── Load project counts per user (background, admin only) ─────────────────
+  Future<void> _loadUserProjectCounts() async {
+    if (!_isAdmin || _users.isEmpty) return;
+    try {
+      // Fetch a large batch of projects to compute per-user counts
+      final res = await ApiClient.instance.dio.get('/projects', queryParameters: {
+        'page': 1, 'limit': 1000,
+      });
+      final data = res.data;
+      List raw = [];
+      if (data is Map) {
+        raw = (data['items'] ?? data['data'] ?? data['results'] ?? data['docs'] ?? []) as List;
+      } else if (data is List) {
+        raw = data;
+      }
+
+      final counts = <String, int>{};
+      for (final item in raw.whereType<Map>()) {
+        final j       = Map<String, dynamic>.from(item);
+        final userMap = j['user'] is Map
+            ? Map<String, dynamic>.from(j['user'] as Map) : <String, dynamic>{};
+        final ownerId = _sf(
+          userMap['_id'] ?? userMap['id'] ??
+          j['userId']    ?? j['ownerId'],
+        );
+        if (ownerId.isNotEmpty) {
+          counts[ownerId] = (counts[ownerId] ?? 0) + 1;
+        }
+      }
+      if (mounted) setState(() => _userProjectCounts = counts);
+    } catch (e) {
+      debugPrint('[ProjectList] loadCounts error: $e');
+    }
+  }
 
   // ── API ────────────────────────────────────────────────────────────────────
   Future<void> _load() async {
@@ -235,6 +342,8 @@ class _State extends State<ProjectsExplorerScreen>
         if (modele != null)                     'projectModele': modele,
         if (_statusF?.isNotEmpty == true)        'statut': _statusF,
         if (_validationF?.isNotEmpty == true)    'validationStatut': _validationF,
+        // userId : uniquement pour admin — le backend ignore ce param pour les users
+        if (_isAdmin && _userIdF?.isNotEmpty == true) 'userId': _userIdF,
         if (_dateFrom != null)
           'dateStart': DateFormat('yyyy-MM-dd').format(_dateFrom!),
         if (_dateTo != null)
@@ -273,78 +382,323 @@ class _State extends State<ProjectsExplorerScreen>
   void _apply() { _page = 1; _load(); }
   void _reset() {
     _searchCtrl.clear();
-    setState(() { _statusF = null; _validationF = null; _dateFrom = null; _dateTo = null; });
+    setState(() {
+      _statusF     = null;
+      _validationF = null;
+      _userIdF     = null;
+      _dateFrom    = null;
+      _dateTo      = null;
+    });
     _tab.animateTo(0);
     _page = 1;
     _load();
   }
 
   // ── Export ─────────────────────────────────────────────────────────────────
-  static const _kHexProjet      = '#EFF6FF';
-  static const _kHexApplicateur = '#F0FDF4';
-  static const _kHexRevendeur   = '#FFF7ED';
+  //
+  // Structure:
+  //   Row 0  → Section label row  (merged, dark bg per section)
+  //   Row 1  → Column header row  (light bg per section)
+  //   Row 2+ → Data rows          (alternating white / very-light-blue)
+  //
+  // Sections & colors:
+  //   Utilisateur → bleu
+  //   Projet      → vert
+  //   Dates       → gris
+  //   Ingénieur   → violet   (also Architecte, Entreprise)
+  //   Revendeur   → orange   (also Commercial)
+  //   Localisation→ gris
+  //   Admin       → gris
+  //   Autres      → gris
+  //   Archivage   → rouge
 
-  void _export() {
-    final role     = (_auth.userRole ?? 'user').toLowerCase();
-    final name     = (_auth.userEmail ?? 'user').split('@').first;
-    final year     = DateTime.now().year;
-    final fileName = _isAdmin
-        ? 'ProjectList_Admin_$year'
-        : 'Mes_Projets_${name}_$year';
+  // (sectionLabel, darkHex, lightHex, colCount)
+  static const _kSections = <(String, String, String, int)>[
+    ('UTILISATEUR',    '#1D4ED8', '#DBEAFE', 4),
+    ('PROJET',         '#166534', '#DCFCE7', 8),
+    ('DATES',          '#334155', '#F1F5F9', 8),
+    ('INGENIEUR',      '#5B21B6', '#EDE9FE', 3),
+    ('ARCHITECTE',     '#5B21B6', '#EDE9FE', 3),
+    ('ENTREPRISE',     '#5B21B6', '#EDE9FE', 6),
+    ('REVENDEUR',      '#C2410C', '#FED7AA', 5),
+    ('LOCALISATION',   '#334155', '#F1F5F9', 5),
+    ('COMMERCIALE',    '#C2410C', '#FED7AA', 3),
+    ('ADMINISTRATIVE', '#334155', '#F1F5F9', 3),
+    ('AUTRES',         '#334155', '#F1F5F9', 6),
+    ('ARCHIVAGE',      '#B91C1C', '#FEE2E2', 2),
+  ];
+
+  // All column headers in section order
+  static const _kCols = <String>[
+    // UTILISATEUR (4)
+    'Nom Utilisateur', 'Email Utilisateur', 'Rôle', 'User ID',
+    // PROJET (8)
+    'Project Name', 'Project ID', 'Type Projet', 'Modèle Projet',
+    'Statut', 'Validation Statut', 'Priorité', 'Pipeline Stage',
+    // DATES (8)
+    'Date Démarrage', 'Date Prospection', 'Date Limite Ingénieur',
+    'Date Création', 'Date Modification', 'Date Archivage',
+    'Dernière Relance', 'Prochaine Relance',
+    // INGENIEUR (3)
+    'Ingénieur Responsable', 'Téléphone Ingénieur', 'Email Ingénieur',
+    // ARCHITECTE (3)
+    'Architecte', 'Téléphone Architecte', 'Email Architecte',
+    // ENTREPRISE (6)
+    'Entreprise', 'Promoteur', 'Bureau Etude', 'Bureau Contrôle',
+    'Entreprise Fluide', 'Entreprise Electricité',
+    // REVENDEUR (5)
+    'Nom Revendeur', 'Prénom Revendeur', 'Email Revendeur',
+    'Statut Revendeur', 'Adresse Revendeur',
+    // LOCALISATION (5)
+    'Adresse Chantier', 'Latitude', 'Longitude',
+    'Commentaire Localisation', 'Type Adresse Chantier',
+    // COMMERCIALE (3)
+    'Montant Marché', 'Surface Prospectée', 'Pourcentage Réussite',
+    // ADMINISTRATIVE (3)
+    'Matricule Fiscale', 'Registre Commerce', 'Fonction',
+    // AUTRES (6)
+    'Comptoir', 'Téléphone Comptoir', 'Téléphone Comptoir 2',
+    'Dallagiste', 'Téléphone Dallagiste', 'Email Dallagiste',
+    // ARCHIVAGE (2)
+    'Archivé', 'Motif Archivage',
+  ];
+
+  // Getters in the same column order as _kCols
+  static List<String Function(_Row)> get _kGetters => [
+    // UTILISATEUR
+    (r) => r.ownerName,
+    (r) => r.ownerEmail,
+    (r) => r.ownerRole,
+    (r) => r.ownerId,
+    // PROJET
+    (r) => r.name,
+    (r) => r.id,
+    (r) => _sf(r.raw['typeProjet']),
+    (r) => _typeLabel(r.type),
+    (r) => r.status,
+    (r) => r.validation,
+    (r) => _sf(r.raw['priorite'] ?? r.raw['priority']),
+    (r) => _sf(r.raw['pipelineStage'] ?? r.raw['statut']),
+    // DATES
+    (r) => _fmtDate(_sf(r.raw['dateDemarrage'])),
+    (r) => _fmtDate(_sf(r.raw['dateProspection'])),
+    (r) => _fmtDate(_sf(r.raw['dateLimiteIngenieur'] ?? r.raw['dateLimite'])),
+    (r) => _fmtDate(_sf(r.raw['createdAt'])),
+    (r) => _fmtDate(_sf(r.raw['updatedAt'])),
+    (r) => _fmtDate(_sf(r.raw['dateArchivage'] ?? r.raw['archivedAt'])),
+    (r) => _fmtDate(_sf(r.raw['derniereRelance'] ?? r.raw['lastRelanceAt'])),
+    (r) => _fmtDate(_sf(r.raw['prochaineRelance'] ?? r.raw['nextRelanceAt'])),
+    // INGENIEUR
+    (r) => _sf(r.raw['ingenieurResponsable']),
+    (r) => _sf(r.raw['telephoneIngenieur'] ?? r.raw['tel_ingenieur']),
+    (r) => _sf(r.raw['emailIngenieur'] ?? r.raw['email_ingenieur']),
+    // ARCHITECTE
+    (r) => _sf(r.raw['architecte']),
+    (r) => _sf(r.raw['telephoneArchitecte']),
+    (r) => _sf(r.raw['emailArchitecte']),
+    // ENTREPRISE
+    (r) => _sf(r.raw['entreprise']),
+    (r) => _sf(r.raw['promoteur']),
+    (r) => _sf(r.raw['bureauEtude'] ?? r.raw['bureau_etude']),
+    (r) => _sf(r.raw['bureauControle'] ?? r.raw['bureau_controle']),
+    (r) => _sf(r.raw['entrepriseFluide']),
+    (r) => _sf(r.raw['entrepriseElectricite'] ?? r.raw['entrepriseElec']),
+    // REVENDEUR
+    (r) => _sf(r.raw['revendeurNom'] ?? r.raw['nom_revendeur']),
+    (r) => _sf(r.raw['revendeurPrenom'] ?? r.raw['prenom_revendeur']),
+    (r) => _sf(r.raw['revendeurEmail'] ?? r.raw['email_revendeur']),
+    (r) => _sf(r.raw['revendeurStatut']),
+    (r) => _sf(r.raw['adresseRevendeur']),
+    // LOCALISATION
+    (r) => _sf(r.raw['adresse'] ?? r.raw['adresseChantier']),
+    (r) => r.lat?.toString() ?? '',
+    (r) => r.lng?.toString() ?? '',
+    (r) => _sf(r.raw['commentaireLocalisation'] ?? r.raw['commentaire']),
+    (r) => _sf(r.raw['typeAdresseChantier'] ?? r.raw['typeAdresse']),
+    // COMMERCIALE
+    (r) => _sf(r.raw['montantMarche'] ?? r.raw['montant_marche']),
+    (r) => _sf(r.raw['surfaceProspectee']),
+    (r) => _sf(r.raw['pourcentageReussite']),
+    // ADMINISTRATIVE
+    (r) => _sf(r.raw['matriculeFiscale']),
+    (r) => _sf(r.raw['registreCommerce']),
+    (r) => _sf(r.raw['fonction']),
+    // AUTRES
+    (r) => _sf(r.raw['comptoir']),
+    (r) => _sf(r.raw['telephoneComptoir']),
+    (r) => _sf(r.raw['telephoneComptoir2']),
+    (r) => _sf(r.raw['dallagiste']),
+    (r) => _sf(r.raw['telephoneDallagiste']),
+    (r) => _sf(r.raw['emailDallagiste']),
+    // ARCHIVAGE
+    (r) => r.isArchived ? 'Oui' : 'Non',
+    (r) => _sf(r.raw['motifArchivage'] ?? r.raw['reasonArchived'] ?? r.raw['raisonArchivage']),
+  ];
+
+  Future<void> _export() async {
+    final now    = DateTime.now();
+    final date   = DateFormat('yyyy_MM_dd').format(now);
+    final tabIdx = _tab.index;
+    final filePrefix = [
+      'Project_List',
+      'Project_List',
+      'Applicateur_List',
+      'Revendeur_List',
+    ][tabIdx];
+    final fileName = '${filePrefix}_$date';
+
+    setState(() => _exporting = true);
+
+    // ── Try backend endpoint first ──────────────────────────────────────────
+    try {
+      final params = <String, dynamic>{
+        if (_isAdmin && _userIdF?.isNotEmpty == true) 'userId': _userIdF,
+        if (_modeles[tabIdx] != null) 'projectModele': _modeles[tabIdx],
+        if (_searchCtrl.text.trim().isNotEmpty) 'q': _searchCtrl.text.trim(),
+        if (_statusF?.isNotEmpty == true)       'statut': _statusF,
+        if (_validationF?.isNotEmpty == true)   'validationStatut': _validationF,
+        if (_dateFrom != null) 'dateStart': DateFormat('yyyy-MM-dd').format(_dateFrom!),
+        if (_dateTo != null)   'dateEnd':   DateFormat('yyyy-MM-dd').format(_dateTo!),
+      };
+
+      final res = await ApiClient.instance.dio.get(
+        '/projects/export',
+        queryParameters: params,
+        options: Options(responseType: ResponseType.bytes),
+      );
+
+      final bytes = res.data as List<int>;
+      _downloadBytes(bytes, '$fileName.xlsx');
+      if (mounted) _showToast(success: true);
+      return;
+    } catch (e) {
+      debugPrint('[Export] backend failed ($e) — falling back to client-side');
+    }
+
+    // ── Fallback : client-side generation ────────────────────────────────────
 
     final excelFile = xl.Excel.createExcel();
-    final s = excelFile['Projets'];
+    final sheet = excelFile['Projets'];
 
-    final headers = [
-      'Nom', 'Type', 'Utilisateur', 'Email',
-      'Date création', 'Statut', 'Validation',
-      'Latitude', 'Longitude', 'Adresse', 'Entreprise', 'Architecte', 'Ingénieur',
-      if (_isAdmin) 'Rôle',
-    ];
+    // ── Row 0 : Section labels (merged, dark background) ─────────────────────
+    int colCursor = 0;
+    for (final sec in _kSections) {
+      final (label, darkHex, _, colCount) = sec;
+      final startCol = colCursor;
+      final endCol   = colCursor + colCount - 1;
 
-    s.appendRow(headers);
-    for (int i = 0; i < headers.length; i++) {
-      s.cell(xl.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
-          .cellStyle = xl.CellStyle(
-        bold: true,
-        backgroundColorHex: '#1E293B',
-        fontColorHex: '#FFFFFF',
-      );
+      if (colCount > 1) {
+        sheet.merge(
+          xl.CellIndex.indexByColumnRow(columnIndex: startCol, rowIndex: 0),
+          xl.CellIndex.indexByColumnRow(columnIndex: endCol,   rowIndex: 0),
+        );
+      }
+      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: startCol, rowIndex: 0))
+        ..value     = label
+        ..cellStyle = xl.CellStyle(
+          bold:              true,
+          backgroundColorHex: darkHex,
+          fontColorHex:       '#FFFFFF',
+        );
+      colCursor += colCount;
     }
 
-    for (final r in _rows) {
-      final bgHex = r.type == 'applicateur'
-          ? _kHexApplicateur
-          : r.type == 'revendeur'
-              ? _kHexRevendeur
-              : _kHexProjet;
-      final row = [
-        r.name, _typeLabel(r.type), r.ownerName, r.ownerEmail,
-        _fmtDate(r.createdAt), r.status, r.validation,
-        r.lat?.toString() ?? '', r.lng?.toString() ?? '',
-        r.adresse, r.entreprise, r.architecte, r.ingenieur,
-        if (_isAdmin) role,
-      ];
-      s.appendRow(row);
-      final rowIdx = _rows.indexOf(r) + 1;
-      for (int i = 0; i < row.length; i++) {
-        s.cell(xl.CellIndex.indexByColumnRow(columnIndex: i, rowIndex: rowIdx))
-            .cellStyle = xl.CellStyle(backgroundColorHex: bgHex);
+    // ── Row 1 : Column headers (light section background) ────────────────────
+    // Build a section-index lookup: for each column index → which section
+    final colSection = <int, (String, String, String, int)>{};
+    int cc = 0;
+    for (final sec in _kSections) {
+      for (int i = cc; i < cc + sec.$4; i++) colSection[i] = sec;
+      cc += sec.$4;
+    }
+
+    for (int col = 0; col < _kCols.length; col++) {
+      final sec = colSection[col];
+      final lightHex = sec?.$3 ?? '#F8FAFC';
+      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 1))
+        ..value     = _kCols[col]
+        ..cellStyle = xl.CellStyle(
+          bold:              true,
+          backgroundColorHex: lightHex,
+          fontColorHex:       '#1E293B',
+        );
+    }
+
+    // ── Row 2+ : Data ─────────────────────────────────────────────────────────
+    final getters = _kGetters;
+    for (int ri = 0; ri < _rows.length; ri++) {
+      final row    = _rows[ri];
+      final rowIdx = ri + 2; // offset: row 0 = sections, row 1 = headers
+      // Alternate row background: white or very-light-grey
+      final rowBg  = ri.isEven ? '#FFFFFF' : '#FAFAFA';
+
+      for (int col = 0; col < getters.length; col++) {
+        final val = getters[col](row);
+        sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowIdx))
+          ..value     = val
+          ..cellStyle = xl.CellStyle(backgroundColorHex: rowBg);
       }
     }
-    for (int i = 0; i < headers.length; i++) s.setColWidth(i, 20);
 
+    // ── Column widths ─────────────────────────────────────────────────────────
+    final widths = <int, double>{
+      0: 22, 1: 28, 2: 14, 3: 30,   // UTILISATEUR
+      4: 26, 5: 30, 6: 16, 7: 16,   // PROJET
+      8: 22, 9: 20,                   // Statut/Validation
+    };
+    for (int col = 0; col < _kCols.length; col++) {
+      sheet.setColWidth(col, widths[col] ?? 18);
+    }
+
+    // ── Encode & download ─────────────────────────────────────────────────────
     final bytes = excelFile.encode();
-    if (bytes == null) return;
+    if (bytes != null) {
+      _downloadBytes(bytes, '$fileName.xlsx');
+      if (mounted) _showToast(success: true);
+    }
+    setState(() => _exporting = false);
+  }
+
+  // ── Download bytes via dart:html ───────────────────────────────────────────
+  void _downloadBytes(List<int> bytes, String name) {
     final blob = html.Blob(
       [bytes],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
     final url = html.Url.createObjectUrlFromBlob(blob);
     html.AnchorElement(href: url)
-      ..setAttribute('download', '$fileName.xlsx')
+      ..setAttribute('download', name)
       ..click();
     html.Url.revokeObjectUrl(url);
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  void _showToast({required bool success}) {
+    final color   = success ? kCrmSuccess : kCrmDanger;
+    final icon    = success
+        ? Icons.check_circle_rounded
+        : Icons.error_outline_rounded;
+    final message = success
+        ? 'Export Excel généré avec succès'
+        : 'Erreur lors de la génération de l\'export';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(children: [
+          Icon(icon, color: Colors.white, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(message,
+                style: tInter(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white)),
+          ),
+        ]),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   // ── BUILD ──────────────────────────────────────────────────────────────────
@@ -406,7 +760,15 @@ class _State extends State<ProjectsExplorerScreen>
     ]),
     actions: [
       if (!_loading && _rows.isNotEmpty)
-        _Pill(icon: Icons.download_rounded, label: 'Export', color: kCrmSuccess, onTap: _export),
+        _exporting
+            ? const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                child: SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: kCrmSuccess),
+                ),
+              )
+            : _Pill(icon: Icons.download_rounded, label: 'Export', color: kCrmSuccess, onTap: _export),
       _loading
           ? const Padding(padding: EdgeInsets.all(16),
               child: SizedBox(width: 16, height: 16,
@@ -451,6 +813,7 @@ class _State extends State<ProjectsExplorerScreen>
     _searchCtrl.text.isNotEmpty,
     _statusF != null,
     _validationF != null,
+    _userIdF != null,
     _dateFrom != null,
     _dateTo != null,
   ].where((v) => v).length;
@@ -509,6 +872,17 @@ class _State extends State<ProjectsExplorerScreen>
                 onChanged: (v) => setState(() => _validationF = v),
               )),
             ]),
+            // Filtre utilisateur — admin uniquement
+            if (_isAdmin) ...[
+              const SizedBox(height: 10),
+              _UserDropdown(
+                users:         _users,
+                loading:       !_usersLoaded && _isAdmin,
+                value:         _userIdF,
+                projectCounts: _userProjectCounts,
+                onChanged:     (id) => setState(() => _userIdF = id),
+              ),
+            ],
             const SizedBox(height: 10),
             Row(children: [
               Expanded(child: _DateBtn(
@@ -959,6 +1333,134 @@ class _Pill extends StatelessWidget {
   );
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// USER DROPDOWN (admin only)
+// ══════════════════════════════════════════════════════════════════════════════
+class _UserDropdown extends StatelessWidget {
+  final List<_UserEntry>  users;
+  final bool              loading;
+  final String?           value;
+  final Map<String, int>  projectCounts;
+  final ValueChanged<String?> onChanged;
+
+  const _UserDropdown({
+    required this.users,
+    required this.loading,
+    required this.value,
+    required this.projectCounts,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: kCrmBg,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _kDivider),
+        ),
+        child: Row(children: [
+          const SizedBox(
+            width: 14, height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2, color: kCrmPrimary),
+          ),
+          const SizedBox(width: 10),
+          Text('Chargement des utilisateurs...',
+              style: tInter(fontSize: 13, color: kCrmTextSub)),
+        ]),
+      );
+    }
+
+    return DropdownButtonFormField<String?>(
+      value: value,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'Utilisateur',
+        labelStyle: tInter(fontSize: 11, color: kCrmTextSub),
+        prefixIcon: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Icon(Icons.person_outline_rounded, size: 18, color: kCrmTextSub),
+        ),
+        filled: true,
+        fillColor: kCrmBg,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kDivider),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: _kDivider),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: kCrmPrimary, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+      style: tInter(fontSize: 13, color: kCrmText),
+      hint: Text('Tous les utilisateurs', style: tInter(fontSize: 13, color: kCrmTextSub)),
+      items: [
+        DropdownMenuItem<String?>(
+          value: null,
+          child: Text('Tous les utilisateurs', style: tInter(fontSize: 13, color: kCrmTextSub)),
+        ),
+        ...users.map((u) {
+          final count = projectCounts[u.id];
+          final color = _avatarColor(u.name);
+          return DropdownMenuItem<String>(
+            value: u.id,
+            child: Row(children: [
+              Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _initials(u.name),
+                  style: tInter(fontSize: 11, fontWeight: FontWeight.w800, color: color),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Expanded(
+                      child: Text(u.name,
+                          style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmText),
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    if (count != null)
+                      Container(
+                        margin: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '$count projet${count != 1 ? 's' : ''}',
+                          style: tInter(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+                        ),
+                      ),
+                  ]),
+                  Text(u.email,
+                      style: tInter(fontSize: 10, color: kCrmTextSub),
+                      overflow: TextOverflow.ellipsis),
+                ]),
+              ),
+            ]),
+          );
+        }),
+      ],
+      onChanged: onChanged,
+    );
+  }
+}
+
 class _SearchField extends StatelessWidget {
   final TextEditingController ctrl;
   const _SearchField({required this.ctrl});
@@ -1081,7 +1583,11 @@ class _PageBtn extends StatelessWidget {
 
 // ── Global helpers ────────────────────────────────────────────────────────────
 String _fmtDate(String v) {
-  if (v.isEmpty) return '—';
+  if (v.isEmpty) return '';
   try { return DateFormat('dd/MM/yyyy').format(DateTime.parse(v)); }
   catch (_) { return v; }
 }
+
+// Safe field read from raw JSON map
+String _sf(dynamic v) =>
+    (v == null || v.toString().trim().isEmpty) ? '' : v.toString().trim();
