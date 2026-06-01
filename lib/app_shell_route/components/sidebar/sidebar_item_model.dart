@@ -1,20 +1,36 @@
 part of 'sidebar_widget.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DESIGN TOKENS (sidebar only)
+// ─────────────────────────────────────────────────────────────────────────────
+const _kPrimary  = Color(0xFF4F46E5);
+const _kPrimaryL = Color(0xFF6366F1);
+const _kHoverBg  = Color(0xFFEEF2FF);
+const _kTextDark = Color(0xFF1E293B);
+const _kTextSub  = Color(0xFF64748B);
+const _kBorderC  = Color(0xFFE2E8F0);
+const _kGroupLbl = Color(0xFF94A3B8);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODELS
+// ─────────────────────────────────────────────────────────────────────────────
 class SidebarItemModel {
-  final String name;
-  final String iconPath;
-  final SidebarItemType sidebarItemType;
+  final String           name;
+  final IconData         icon;            // Flutter IconData (not SVG)
+  final SidebarItemType  sidebarItemType;
   final List<SidebarSubmenuModel>? submenus;
-  final String? navigationPath;
-  final bool isPage;
+  final String?          navigationPath;
+  final bool             isPage;
+  final int?             badge;           // optional count badge
 
   SidebarItemModel({
     required this.name,
-    required this.iconPath,
+    required this.icon,
     this.sidebarItemType = SidebarItemType.tile,
     this.submenus,
     this.navigationPath,
-    this.isPage = false,
+    this.isPage  = false,
+    this.badge,
   }) : assert(
           sidebarItemType != SidebarItemType.submenu ||
               (submenus?.isNotEmpty ?? false),
@@ -22,83 +38,81 @@ class SidebarItemModel {
 }
 
 class SidebarSubmenuModel {
-  final String name;
-  final String? navigationPath;
-  final bool isPage;
+  final String   name;
+  final String?  navigationPath;
+  final bool     isPage;
+  final IconData icon;
+  final int?     badge;
 
   SidebarSubmenuModel({
     required this.name,
     this.navigationPath,
     this.isPage = false,
+    this.icon   = Icons.circle,
+    this.badge,
   });
 }
 
 class GroupedMenuModel {
-  final String name;
+  final String              name;
   final List<SidebarItemModel> menus;
-
-  GroupedMenuModel({
-    required this.name,
-    required this.menus,
-  });
+  GroupedMenuModel({required this.name, required this.menus});
 }
 
 enum SidebarItemType { tile, submenu }
 
-// =======================
-// ✅ TOP MENUS
-// =======================
+// ─────────────────────────────────────────────────────────────────────────────
+// TOP MENUS  (Dashboard with sub-KPI pages)
+// ─────────────────────────────────────────────────────────────────────────────
 List<SidebarItemModel> buildTopMenus({
   required bool isAccueil,
   required bool isCommercial,
 }) {
-  if (isAccueil || isCommercial) {
-    return <SidebarItemModel>[];
-  }
-
-  return <SidebarItemModel>[
+  if (isAccueil || isCommercial) return [];
+  return [
     SidebarItemModel(
-      name: 'Dashboard',
-      iconPath: dashboardIcon,
-      navigationPath: '/dashboard',
-      sidebarItemType: SidebarItemType.submenu,
+      name:             'Dashboard',
+      icon:             Icons.dashboard_outlined,
+      navigationPath:   '/dashboard',
+      sidebarItemType:  SidebarItemType.submenu,
       submenus: [
         SidebarSubmenuModel(
-          name: 'Project Performance Analytics',
+          name:           'Project Performance Analytics',
           navigationPath: 'kpi-project',
+          icon:           Icons.analytics_outlined,
         ),
         SidebarSubmenuModel(
-          name: 'Project Validation & Success KPIs',
+          name:           'Project Validation & Success KPIs',
           navigationPath: 'kpi-projects',
+          icon:           Icons.bar_chart_outlined,
         ),
         SidebarSubmenuModel(
-          name: 'Dashboard KPI',
+          name:           'Dashboard KPI',
           navigationPath: 'kpi',
+          icon:           Icons.speed_outlined,
         ),
       ],
     ),
   ];
 }
 
-// =======================
-// ✅ GROUPED MENUS (role-based)
-// =======================
+// ─────────────────────────────────────────────────────────────────────────────
+// GROUPED MENUS  (role-based)
+// ─────────────────────────────────────────────────────────────────────────────
 List<GroupedMenuModel> buildGroupedMenus({
   required bool isAdmin,
   required bool isCommercial,
   required bool isAccueil,
 }) {
-  // =======================
-  // ACCUEIL
-  // =======================
+  // ── ACCUEIL ─────────────────────────────────────────────────────────────
   if (isAccueil) {
-    return <GroupedMenuModel>[
+    return [
       GroupedMenuModel(
-        name: 'Accueil',
+        name: 'ACCUEIL',
         menus: [
           SidebarItemModel(
-            name: 'Accueil',
-            iconPath: usersIcon,
+            name:           'Accueil',
+            icon:           Icons.home_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.accueilProfileScreen,
           ),
@@ -107,77 +121,77 @@ List<GroupedMenuModel> buildGroupedMenus({
     ];
   }
 
-  // =======================
-  // COMMERCIAL
-  // =======================
+  // ── COMMERCIAL ──────────────────────────────────────────────────────────
   if (isCommercial) {
-    return <GroupedMenuModel>[
+    return [
       GroupedMenuModel(
-        name: 'Commercial',
+        name: 'COMMERCIAL',
         menus: [
           SidebarItemModel(
-            name: 'Commercial List',
-            iconPath: usersIcon,
+            name:           'Commercial List',
+            icon:           Icons.contact_page_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: '/users/commercial-contacts',
           ),
           SidebarItemModel(
-            name: 'Commercial Profile',
-            iconPath: usersIcon,
+            name:           'Commercial Profile',
+            icon:           Icons.person_search_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.commercialProfileScreen,
           ),
           SidebarItemModel(
-            name: 'Client',
-            iconPath: usersIcon,
+            name:           'Client',
+            icon:           Icons.people_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.clientsProfileScreen,
           ),
           SidebarItemModel(
-            name: 'Projects',
-            iconPath: formsIcon,
+            name:           'Projects',
+            icon:           Icons.folder_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.projectFormScreen,
           ),
         ],
       ),
-
-      // =======================
-      // APPLICATION
-      // =======================
       GroupedMenuModel(
-        name: 'Application',
+        name: 'TOOLS',
         menus: [
           _safeSubmenuItem(
-            name: 'users & projects management',
-            icon: usersIcon,
+            name:           'User & Project Management',
+            icon:           Icons.manage_accounts_outlined,
             navigationPath: '/users',
             submenus: [
               SidebarSubmenuModel(
-                name: "Project Management",
+                name:           'Project Management',
                 navigationPath: 'project-list',
+                icon:           Icons.account_tree_outlined,
               ),
               SidebarSubmenuModel(
-                name: "Project List",
+                name:           'Project List',
                 navigationPath: 'user_project',
+                icon:           Icons.list_alt_outlined,
               ),
               SidebarSubmenuModel(
-                name: "Applicateur List",
+                name:           'Applicateur List',
                 navigationPath: 'applicateur',
+                icon:           Icons.brush_outlined,
               ),
               SidebarSubmenuModel(
-                name: "Revendeur List",
+                name:           'Revendeur List',
                 navigationPath: 'revendeur',
+                icon:           Icons.storefront_outlined,
               ),
               if (isAdmin)
                 SidebarSubmenuModel(
-                  name: "Client",
+                  name:           'Client',
                   navigationPath: 'client',
+                  icon:           Icons.person_pin_outlined,
                 ),
               if (isAdmin)
                 SidebarSubmenuModel(
-                  name: "Dashboard Commercial",
+                  name:           'Dashboard Commercial',
                   navigationPath: 'dashboard-commercial',
+                  icon:           Icons.bar_chart_outlined,
                 ),
             ],
           ),
@@ -186,58 +200,55 @@ List<GroupedMenuModel> buildGroupedMenus({
     ];
   }
 
-  // =======================
-  // DEFAULT ROLES
-  // =======================
-  return <GroupedMenuModel>[
+  // ── DEFAULT (admin / user / superadmin) ─────────────────────────────────
+  return [
     GroupedMenuModel(
-      name: 'Projets',
+      name: 'PROJECT MANAGEMENT',
       menus: [
         _safeSubmenuItem(
-          name: 'Projects management',
-          icon: usersIcon,
+          name:           'Projects',
+          icon:           Icons.folder_copy_outlined,
           navigationPath: '/users',
           submenus: [
             SidebarSubmenuModel(
-              name: "Project Management",
+              name:           'Project Management',
               navigationPath: 'project-list',
+              icon:           Icons.account_tree_outlined,
             ),
             SidebarSubmenuModel(
-              name: "Project List",
+              name:           'Project List',
               navigationPath: 'user_project',
+              icon:           Icons.list_alt_outlined,
             ),
             if (isAdmin)
               SidebarSubmenuModel(
-                name: "Commercial List",
+                name:           'Commercial List',
                 navigationPath: 'commercial-contacts',
-              ),
-            if (isCommercial)
-              SidebarSubmenuModel(
-                name: "Commercial List",
-                navigationPath: 'commercial-contacts',
+                icon:           Icons.handshake_outlined,
               ),
           ],
         ),
       ],
     ),
 
-    // Visible uniquement pour admin / superadmin
     if (isAdmin) ...[
       GroupedMenuModel(
-        name: 'Users',
+        name: 'USER MANAGEMENT',
         menus: [
           _safeSubmenuItem(
-            name: 'Users management',
-            icon: usersIcon,
+            name:           'Users',
+            icon:           Icons.people_alt_outlined,
             navigationPath: '/users',
             submenus: [
               SidebarSubmenuModel(
-                name: "User List",
+                name:           'User List',
                 navigationPath: 'user-list',
+                icon:           Icons.person_outlined,
               ),
               SidebarSubmenuModel(
-                name: "Client",
+                name:           'Client',
                 navigationPath: 'client',
+                icon:           Icons.person_pin_outlined,
               ),
             ],
           ),
@@ -246,61 +257,59 @@ List<GroupedMenuModel> buildGroupedMenus({
     ],
 
     GroupedMenuModel(
-      name: 'Pages',
+      name: 'TOOLS',
       menus: [
         SidebarItemModel(
-          name: 'Google Map',
-          iconPath: projectsIcon,
+          name:           'Google Map',
+          icon:           Icons.map_outlined,
           navigationPath: MyRoute.mapScreen,
         ),
         SidebarItemModel(
-          name: 'Calendar',
-          iconPath: calendarIcon,
+          name:           'Calendar',
+          icon:           Icons.calendar_month_outlined,
           navigationPath: MyRoute.calendarScreen,
         ),
       ],
     ),
 
-    GroupedMenuModel(
-      name: 'Projects',
-      menus: [
-        if (!isAdmin)
+    if (!isAdmin)
+      GroupedMenuModel(
+        name: 'MY PROJECTS',
+        menus: [
           SidebarItemModel(
-            name: 'Projects',
-            iconPath: formsIcon,
+            name:           'Projects',
+            icon:           Icons.folder_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.projectFormScreen,
           ),
-      ],
-    ),
+        ],
+      ),
   ];
 }
 
-// =======================
-// ✅ SAFE BUILDER (IMPORTANT FIX)
-// =======================
+// ─────────────────────────────────────────────────────────────────────────────
+// SAFE BUILDER  (prevents assert crash when submenus list is empty)
+// ─────────────────────────────────────────────────────────────────────────────
 SidebarItemModel _safeSubmenuItem({
-  required String name,
-  required String icon,
-  required String navigationPath,
+  required String   name,
+  required IconData icon,
+  required String   navigationPath,
   required List<SidebarSubmenuModel> submenus,
 }) {
-  final cleanSubmenus = submenus.whereType<SidebarSubmenuModel>().toList();
-
-  if (cleanSubmenus.isEmpty) {
+  final clean = submenus.whereType<SidebarSubmenuModel>().toList();
+  if (clean.isEmpty) {
     return SidebarItemModel(
-      name: name,
-      iconPath: icon,
+      name:           name,
+      icon:           icon,
       sidebarItemType: SidebarItemType.tile,
       navigationPath: navigationPath,
     );
   }
-
   return SidebarItemModel(
-    name: name,
-    iconPath: icon,
+    name:           name,
+    icon:           icon,
     sidebarItemType: SidebarItemType.submenu,
     navigationPath: navigationPath,
-    submenus: cleanSubmenus,
+    submenus:       clean,
   );
 }

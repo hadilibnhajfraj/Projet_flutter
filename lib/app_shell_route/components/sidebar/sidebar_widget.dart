@@ -1,12 +1,12 @@
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import '../common_imports.dart';
-
-// ✅ AJOUTE CET IMPORT (sinon AuthService introuvable)
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 part 'sidebar_item_model.dart';
 
-
+// ─────────────────────────────────────────────────────────────────────────────
+// SIDEBAR  (premium SaaS design)
+// ─────────────────────────────────────────────────────────────────────────────
 class SideBarWidget extends StatelessWidget {
   const SideBarWidget({
     super.key,
@@ -19,250 +19,337 @@ class SideBarWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lang = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final themeController = Get.put(ThemeController());
+    final auth    = context.watch<AuthService>();
+    final role    = (auth.userRole ?? '').toString().trim().toLowerCase();
+    final isAdmin = role == 'admin' || role == 'superadmin';
+    final isCommercial = role == 'commercial';
+    final isAccueil    = role == 'accueil';
 
- final auth = context.watch<AuthService>(); // ✅ écoute les changements
-final role = (auth.userRole ?? '').toString().trim().toLowerCase();
-
-// ✅ admin OU superadmin
-final isAdmin = role == 'admin' || role == 'superadmin';
-final isCommercial = role == 'commercial';
-final isAccueil = role == 'accueil';
-
-// ignore: avoid_print
-print('ROLE = $role');
-// ignore: avoid_print
-print('IS ADMIN = $isAdmin');
-
-    final topMenus = buildTopMenus(isAccueil: isAccueil,isCommercial: isCommercial);
+    final topMenus     = buildTopMenus(isAccueil: isAccueil, isCommercial: isCommercial);
     final groupedMenus = buildGroupedMenus(
-  isAdmin: isAdmin,
-  isCommercial: isCommercial,
-  isAccueil: isAccueil,
-);
+      isAdmin:      isAdmin,
+      isCommercial: isCommercial,
+      isAccueil:    isAccueil,
+    );
+
+    final sidebarW = iconOnly
+        ? 80.0
+        : rf.ResponsiveValue<double>(
+            context,
+            defaultValue: 260,
+            conditionalValues: [
+              rf.Condition.largerThan(name: rf.MOBILE, value: 280),
+              rf.Condition.largerThan(name: rf.TABLET, value: 280),
+            ],
+          ).value;
 
     return Drawer(
       clipBehavior: Clip.none,
-      width: iconOnly
-          ? 80
-          : rf.ResponsiveValue<double?>(
-              context,
-              conditionalValues: [
-                rf.Condition.largerThan(
-                  name: BreakpointName.SM.name,
-                  value: 280,
-                ),
-              ],
-            ).value,
-      child: SafeArea(
-        child: rf.ResponsiveRowColumn(
-          layout: rf.ResponsiveRowColumnType.COLUMN,
-          columnCrossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            rf.ResponsiveRowColumnItem(
-              child: Padding(
-                padding: const EdgeInsetsDirectional.only(bottom: 16),
-                child: CompanyHeaderWidget(
-                  showIconOnly: iconOnly,
-                  showBottomBorder: true,
-                  onTap: () {
-                    rootScaffoldKey.currentState?.closeDrawer();
-                    context.go(MyRoute.dashboardSalesAdmin);
-                  },
-                ),
-              ),
-            ),
+      width: sidebarW,
+      child: Container(
+        color: Colors.white,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // ── HEADER ────────────────────────────────────────────────────
+              _SidebarHeader(iconOnly: iconOnly, onTap: () {
+                rootScaffoldKey.currentState?.closeDrawer();
+                context.go(MyRoute.dashboardSalesAdmin);
+              }),
 
-            rf.ResponsiveRowColumnItem(
-              columnFit: FlexFit.tight,
-              child: ScrollConfiguration(
-                behavior: ScrollConfiguration.of(context).copyWith(
-                  scrollbars: false,
-                ),
-                child: SingleChildScrollView(
-                  child: rf.ResponsiveRowColumn(
-                    layout: rf.ResponsiveRowColumnType.COLUMN,
-                    columnCrossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ✅ Top menus
-                      ...topMenus.map((menu) {
-                        final selectedInfo = _isSelected(context, menu);
-                        return rf.ResponsiveRowColumnItem(
-                          child: Padding(
-                            padding: const EdgeInsetsDirectional.only(bottom: 16),
+              // ── MENU LIST ─────────────────────────────────────────────────
+              Expanded(
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Top menus (Dashboard)
+                        ...topMenus.map((menu) {
+                          final sel = _isSelected(context, menu);
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
                             child: SidebarMenuItem(
-                              iconOnly: iconOnly,
-                              menuTile: menu,
-                              groupName: lang.translate(menu.name),
-                              isSelected: selectedInfo.$1,
-                              selectedSubmenu: selectedInfo.$2,
-                              onTap: () => _handleNavigation(context, menu),
-                              onSubmenuTap: (value) => _handleNavigation(
-                                context,
-                                menu,
-                                submenu: value,
-                              ),
+                              iconOnly:       iconOnly,
+                              menuTile:       menu,
+                              groupName:      menu.name,
+                              isSelected:     sel.$1,
+                              selectedSubmenu: sel.$2,
+                              onTap:          () => _handleNavigation(context, menu),
+                              onSubmenuTap:   (v) => _handleNavigation(context, menu, submenu: v),
                             ),
-                          ),
-                        );
-                      }),
+                          );
+                        }),
 
-                      // ✅ Grouped menus
-                      ...groupedMenus.map(
-                        (groupedMenu) => rf.ResponsiveRowColumnItem(
-                          child: Padding(
-                            padding: const EdgeInsetsDirectional.only(bottom: 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (!iconOnly)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    margin: const EdgeInsetsDirectional.only(start: 10, bottom: 16),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(5),
-                                      color: themeController.isDarkMode ? colorDarkG1 : colorPrimary0,
-                                    ),
-                                    child: Text(
-                                      lang.translate(groupedMenu.name),
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                        // Grouped menus
+                        ...groupedMenus.map((group) {
+                          final visibleMenus = group.menus.where((m) => true).toList();
+                          if (visibleMenus.isEmpty) return const SizedBox.shrink();
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Group label
+                              if (!iconOnly)
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(8, 20, 8, 6),
+                                  child: Text(
+                                    group.name,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: _kGroupLbl,
+                                      letterSpacing: 1.2,
                                     ),
                                   ),
+                                )
+                              else
+                                const SizedBox(height: 12),
 
-                                ...groupedMenu.menus.map((menu) {
-                                  final selectedInfo0 = _isSelected(context, menu);
-                                  return Padding(
-                                    padding: const EdgeInsetsDirectional.only(bottom: 16),
-                                    child: SidebarMenuItem(
-                                      iconOnly: iconOnly,
-                                      menuTile: menu,
-                                      groupName: lang.translate(menu.name),
-                                      isSelected: selectedInfo0.$1,
-                                      selectedSubmenu: selectedInfo0.$2,
-                                      onTap: () => _handleNavigation(context, menu),
-                                      onSubmenuTap: (value) => _handleNavigation(
-                                        context,
-                                        menu,
-                                        submenu: value,
-                                      ),
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                              // Menu items
+                              ...visibleMenus.map((menu) {
+                                final sel = _isSelected(context, menu);
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 4),
+                                  child: SidebarMenuItem(
+                                    iconOnly:        iconOnly,
+                                    menuTile:        menu,
+                                    groupName:       menu.name,
+                                    isSelected:      sel.$1,
+                                    selectedSubmenu: sel.$2,
+                                    onTap:           () => _handleNavigation(context, menu),
+                                    onSubmenuTap:    (v) => _handleNavigation(context, menu, submenu: v),
+                                  ),
+                                );
+                              }),
+                            ],
+                          );
+                        }),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+
+              // ── FOOTER ────────────────────────────────────────────────────
+              if (!iconOnly) const _SidebarFooter(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  (bool isSelectedMenu, SidebarSubmenuModel? selectedSubMenu) _isSelected(
-    BuildContext context,
-    SidebarItemModel menu,
-  ) {
-    final isSubmenu = menu.sidebarItemType == SidebarItemType.submenu;
+  // ── Route helpers ──────────────────────────────────────────────────────────
+  (bool, SidebarSubmenuModel?) _isSelected(BuildContext context, SidebarItemModel menu) {
     final currentRoute =
         GoRouter.of(context).routerDelegate.currentConfiguration.fullPath;
-
     final nav = (menu.navigationPath ?? '').toLowerCase().trim();
     final isSelectedMenu = nav.isNotEmpty ? currentRoute.startsWith(nav) : false;
 
-    if (isSubmenu) {
-      final routeSegments = currentRoute
+    if (menu.sidebarItemType == SidebarItemType.submenu) {
+      final segments = currentRoute
           .split('/')
-          .where((segment) => segment.isNotEmpty)
+          .where((s) => s.isNotEmpty)
           .toList();
-
-      if (routeSegments.length > 1) {
-        final selectedSubMenu = menu.submenus?.firstWhereOrNull(
-          (submenu) =>
-              submenu.navigationPath?.split('/').last == routeSegments.last,
+      if (segments.length > 1) {
+        final sub = menu.submenus?.firstWhereOrNull(
+          (s) => s.navigationPath?.split('/').last == segments.last,
         );
-        if (selectedSubMenu != null) {
-          return (true, selectedSubMenu);
-        }
+        if (sub != null) return (true, sub);
       }
     }
-
     return (isSelectedMenu, null);
   }
 
-  void _handleNavigation(
-    BuildContext context,
-    SidebarItemModel menu, {
-    SidebarSubmenuModel? submenu,
-  }) {
+  void _handleNavigation(BuildContext context, SidebarItemModel menu, {SidebarSubmenuModel? submenu}) {
     rootScaffoldKey.currentState?.closeDrawer();
     String? route;
 
     if (menu.sidebarItemType == SidebarItemType.tile) {
       route = menu.navigationPath;
     } else if (menu.sidebarItemType == SidebarItemType.submenu) {
-      final mainRoute = menu.navigationPath;
-      final submenuRoute = submenu?.navigationPath;
-      if (mainRoute != null && submenuRoute != null) {
-        route = '$mainRoute/$submenuRoute';
-      }
+      final main = menu.navigationPath;
+      final sub  = submenu?.navigationPath;
+      if (main != null && sub != null) route = '$main/$sub';
     }
 
     if (route == null || route.isEmpty) {
       ScaffoldMessenger.of(rootScaffoldKey.currentContext!).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).translate("unknownRoute")),
-        ),
+        SnackBar(content: Text(AppLocalizations.of(context).translate('unknownRoute'))),
       );
       return;
     }
-
-    final currentPath =
-        GoRouter.of(context).routerDelegate.currentConfiguration.fullPath;
-    if (currentPath == route) return;
-
+    final current = GoRouter.of(context).routerDelegate.currentConfiguration.fullPath;
+    if (current == route) return;
     context.go(route);
   }
 }
 
-/* ===========================================================
-   ✅ SidebarMenuItem (OBLIGATOIRE sinon erreur “not defined”)
-   =========================================================== */
+// ─────────────────────────────────────────────────────────────────────────────
+// SIDEBAR HEADER
+// ─────────────────────────────────────────────────────────────────────────────
+class _SidebarHeader extends StatelessWidget {
+  const _SidebarHeader({required this.iconOnly, required this.onTap});
+  final bool iconOnly;
+  final VoidCallback onTap;
 
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(horizontal: iconOnly ? 12 : 20, vertical: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: const Border(bottom: BorderSide(color: _kBorderC)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: iconOnly
+              ? Center(
+                  child: Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [_kPrimary, _kPrimaryL],
+                        begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 20),
+                  ),
+                )
+              : Row(children: [
+                  // Logo container
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [_kPrimary, _kPrimaryL],
+                        begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: SvgPicture.asset(
+                      logoIcon,
+                      fit: BoxFit.contain,
+                      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          appName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: _kTextDark,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Project Management Platform',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: _kTextSub,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SIDEBAR FOOTER
+// ─────────────────────────────────────────────────────────────────────────────
+class _SidebarFooter extends StatelessWidget {
+  const _SidebarFooter();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: _kBorderC)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(children: [
+            Container(
+              width: 6, height: 6,
+              decoration: const BoxDecoration(color: Color(0xFF22C55E), shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            const Text(
+              'Version 2.0.0',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _kTextSub),
+            ),
+          ]),
+          const SizedBox(height: 4),
+          const Text(
+            'CBI Tunisia © 2026',
+            style: TextStyle(fontSize: 10, color: _kGroupLbl),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SIDEBAR MENU ITEM
+// ─────────────────────────────────────────────────────────────────────────────
 class SidebarMenuItem extends StatelessWidget {
   const SidebarMenuItem({
     super.key,
-    this.iconOnly = false,
+    this.iconOnly        = false,
     required this.menuTile,
-    this.isSelected = false,
+    this.isSelected      = false,
     this.selectedSubmenu,
     this.onSubmenuTap,
     this.onTap,
     this.groupName,
   });
 
-  final bool iconOnly;
-  final SidebarItemModel menuTile;
-  final bool isSelected;
-  final SidebarSubmenuModel? selectedSubmenu;
-  final void Function(SidebarSubmenuModel? value)? onSubmenuTap;
-  final void Function()? onTap;
-  final String? groupName;
+  final bool                           iconOnly;
+  final SidebarItemModel               menuTile;
+  final bool                           isSelected;
+  final SidebarSubmenuModel?           selectedSubmenu;
+  final void Function(SidebarSubmenuModel?)? onSubmenuTap;
+  final VoidCallback?                  onTap;
+  final String?                        groupName;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final lang = AppLocalizations.of(context);
-    final themeController = Get.put(ThemeController());
 
     if (menuTile.sidebarItemType == SidebarItemType.submenu) {
       if (iconOnly) {
@@ -273,76 +360,46 @@ class SidebarMenuItem extends StatelessWidget {
             offset: const Offset(80 - 16, 0),
             clipBehavior: Clip.antiAlias,
             tooltip: lang.translate(menuTile.name),
-            color: themeController.isDarkMode ? colorDark : colorWhite,
-            itemBuilder: (context) => [
+            color: Colors.white,
+            elevation: 8,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            itemBuilder: (ctx) => [
               if (groupName != null)
                 _CustomIconOnlySubmenu(
                   enabled: false,
-                  child: Container(
-                    margin: const EdgeInsetsDirectional.symmetric(horizontal: 12, vertical: 8),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          lang.translate(groupName!),
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        SvgPicture.asset(
-                          chevronDownIcon,
-                          width: 15,
-                          height: 15,
-                          colorFilter: ColorFilter.mode(
-                            themeController.isDarkMode ? colorWhite : colorGrey900,
-                            BlendMode.srcIn,
-                          ),
-                        ),
-                      ],
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    child: Text(
+                      lang.translate(groupName!),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _kTextDark),
                     ),
                   ),
                 ),
-              ...?menuTile.submenus?.map((submenu) {
-                return _CustomIconOnlySubmenu<SidebarSubmenuModel>(
-                  value: submenu,
-                  child: Padding(
-                    padding: const EdgeInsetsDirectional.symmetric(horizontal: 12),
-                    child: _buildSubmenu(
-                      context,
-                      submenu,
-                      onChanged: (value) {
-                        Navigator.pop(context, value);
-                        onSubmenuTap?.call(value);
-                      },
-                    ),
-                  ),
-                );
-              }),
+              ...?menuTile.submenus?.map((sub) => _CustomIconOnlySubmenu<SidebarSubmenuModel>(
+                value: sub,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: _buildSubmenuTile(context, sub,
+                      onChanged: (v) { Navigator.pop(ctx, v); onSubmenuTap?.call(v); }),
+                ),
+              )),
             ],
-            child: _buildMenu(context, onTap: null),
+            child: _buildTile(context, onTap: null),
           ),
         );
       }
 
       return ExpansionWidget(
-        titleBuilder: (aV, eIV, iE, tF) => _buildMenu(
+        titleBuilder: (aV, eIV, iE, tF) => _buildTile(
           context,
           onTap: () => tF(animated: true),
           isExpanded: iE,
         ),
         initiallyExpanded: isSelected,
         content: Padding(
-          padding: const EdgeInsetsDirectional.only(top: 8, start: 36),
+          padding: const EdgeInsets.only(top: 2, left: 16),
           child: Column(
-            children: [
-              ...?menuTile.submenus?.map(
-                (submenu) => _buildSubmenu(
-                  context,
-                  submenu,
-                  onChanged: onSubmenuTap,
-                ),
-              )
-            ],
+            children: menuTile.submenus!.map((sub) => _buildSubmenuTile(context, sub, onChanged: onSubmenuTap)).toList(),
           ),
         ),
       );
@@ -351,147 +408,168 @@ class SidebarMenuItem extends StatelessWidget {
     if (iconOnly) {
       return Tooltip(
         message: lang.translate(menuTile.name),
-        child: _buildMenu(context, onTap: onTap),
+        child: _buildTile(context, onTap: onTap),
       );
     }
-    return _buildMenu(context, onTap: onTap);
+    return _buildTile(context, onTap: onTap);
   }
 
-  Widget _buildMenu(
+  // ── Main tile ──────────────────────────────────────────────────────────────
+  Widget _buildTile(
     BuildContext context, {
-    required void Function()? onTap,
+    required VoidCallback? onTap,
     bool isExpanded = false,
   }) {
-    final theme = Theme.of(context);
     final lang = AppLocalizations.of(context);
-    const selectedPrimaryColor = Colors.white;
-    final themeController = Get.put(ThemeController());
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        constraints: BoxConstraints.tight(const Size.fromHeight(48)),
-        alignment: AlignmentDirectional.center,
-        decoration: ShapeDecoration(
-          color: isSelected ? colorPrimary100 : null,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(0),
-          ),
-        ),
-        padding: EdgeInsetsDirectional.only(
-          start: iconOnly ? 8 : (isSelected ? 0 : 16),
-          end: 16,
-        ),
-        child: Row(
-          mainAxisAlignment: iconOnly ? MainAxisAlignment.center : MainAxisAlignment.start,
-          children: [
-            if (!iconOnly && isSelected)
-              Container(
-                width: 6,
-                decoration: BoxDecoration(
-  borderRadius: const BorderRadius.only(
-    topRight: Radius.circular(10),
-    bottomRight: Radius.circular(10),
-  ),
-  color: colorPrimary25,
-),
-
-              ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsetsDirectional.only(
-                  start: iconOnly ? 0 : (isSelected ? 16 : 0),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: isSelected
+            ? const LinearGradient(
+                colors: [_kPrimary, _kPrimaryL],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              )
+            : null,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          hoverColor: isSelected ? Colors.transparent : _kHoverBg,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: iconOnly ? 0 : 14),
+            child: Row(
+              mainAxisAlignment: iconOnly ? MainAxisAlignment.center : MainAxisAlignment.start,
+              children: [
+                // Icon
+                Icon(
+                  menuTile.icon,
+                  size: 20,
+                  color: isSelected ? Colors.white : _kTextSub,
                 ),
-                child: Row(
-                  mainAxisAlignment: iconOnly ? MainAxisAlignment.center : MainAxisAlignment.start,
-                  children: [
-                    SvgPicture.asset(
-                      menuTile.iconPath,
-                      height: 20,
-                      width: 20,
-                      colorFilter: ColorFilter.mode(
-                        isSelected ? selectedPrimaryColor : theme.textTheme.bodyLarge!.color!,
-                        BlendMode.srcIn,
+                if (!iconOnly) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      lang.translate(menuTile.name),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color: isSelected ? Colors.white : _kTextDark,
                       ),
                     ),
-                    if (!iconOnly)
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsetsDirectional.only(start: 10),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  lang.translate(menuTile.name),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    color: isSelected ? selectedPrimaryColor : null,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                              if (menuTile.submenus != null)
-                                SvgPicture.asset(
-                                  isExpanded ? chevronDownIcon : chevronRightIcon,
-                                  width: 15,
-                                  height: 15,
-                                  colorFilter: ColorFilter.mode(
-                                    isSelected
-                                        ? selectedPrimaryColor
-                                        : (themeController.isDarkMode ? colorWhite : colorGrey900),
-                                    BlendMode.srcIn,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+                  ),
+                  // Badge
+                  if (menuTile.badge != null)
+                    _Badge(count: menuTile.badge!, selected: isSelected),
+                  // Chevron (submenu)
+                  if (menuTile.submenus != null)
+                    Icon(
+                      isExpanded ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_right_rounded,
+                      size: 18,
+                      color: isSelected ? Colors.white.withOpacity(0.8) : _kGroupLbl,
+                    ),
+                ],
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSubmenu(
+  // ── Submenu tile ───────────────────────────────────────────────────────────
+  Widget _buildSubmenuTile(
     BuildContext context,
-    SidebarSubmenuModel submenu, {
-    void Function(SidebarSubmenuModel? value)? onChanged,
+    SidebarSubmenuModel sub, {
+    void Function(SidebarSubmenuModel?)? onChanged,
   }) {
-    final theme = Theme.of(context);
-    final isSelectedSubmenu = selectedSubmenu == submenu;
-    final lang = AppLocalizations.of(context);
+    final lang    = AppLocalizations.of(context);
+    final isSelSub = selectedSubmenu == sub;
 
-    return Material(
-      color: Colors.transparent,
-      child: ListTile(
-        onTap: () => onChanged?.call(submenu),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(0)),
-        tileColor: isSelectedSubmenu ? colorPrimary25 : null,
-        title: Text(lang.translate(submenu.name)),
-        leading: const Icon(Icons.circle, size: 8),
-        minLeadingWidth: 0,
-        visualDensity: const VisualDensity(horizontal: -4, vertical: -2),
-        titleTextStyle: theme.textTheme.bodyMedium?.copyWith(
-          color: isSelectedSubmenu ? colorPrimary300 : null,
-          fontWeight: FontWeight.w500,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      height: 44,
+      margin: const EdgeInsets.only(bottom: 2),
+      decoration: BoxDecoration(
+        color:         isSelSub ? _kHoverBg : Colors.transparent,
+        borderRadius:  BorderRadius.circular(10),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: () => onChanged?.call(sub),
+          borderRadius: BorderRadius.circular(10),
+          hoverColor: _kHoverBg,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(children: [
+              Icon(
+                sub.icon,
+                size: 16,
+                color: isSelSub ? _kPrimary : _kGroupLbl,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  lang.translate(sub.name),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelSub ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelSub ? _kPrimary : _kTextSub,
+                  ),
+                ),
+              ),
+              if (sub.badge != null) _Badge(count: sub.badge!, selected: false),
+            ]),
+          ),
         ),
-        contentPadding: EdgeInsetsDirectional.only(
-          start: iconOnly ? 8 : 16,
-          end: 8,
-        ),
-        iconColor: isSelectedSubmenu ? colorPrimary300 : null,
       ),
     );
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BADGE WIDGET
+// ─────────────────────────────────────────────────────────────────────────────
+class _Badge extends StatelessWidget {
+  const _Badge({required this.count, required this.selected});
+  final int  count;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(right: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(
+      color: selected ? Colors.white.withOpacity(0.25) : const Color(0xFFEEF2FF),
+      borderRadius: BorderRadius.circular(50),
+    ),
+    child: Text(
+      count > 999 ? '999+' : '$count',
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        color: selected ? Colors.white : _kPrimary,
+      ),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ICON-ONLY POPUP SUBMENU ENTRY
+// ─────────────────────────────────────────────────────────────────────────────
 class _CustomIconOnlySubmenu<T> extends StatefulWidget implements PopupMenuEntry<T> {
   const _CustomIconOnlySubmenu({
     super.key,
@@ -500,9 +578,9 @@ class _CustomIconOnlySubmenu<T> extends StatefulWidget implements PopupMenuEntry
     required this.child,
   });
 
-  final bool enabled;
-  final T? value;
-  final Widget child;
+  final bool    enabled;
+  final T?      value;
+  final Widget  child;
 
   @override
   State<_CustomIconOnlySubmenu> createState() => _CustomIconOnlySubmenuState<T>();
@@ -515,15 +593,12 @@ class _CustomIconOnlySubmenu<T> extends StatefulWidget implements PopupMenuEntry
 }
 
 class _CustomIconOnlySubmenuState<T> extends State<_CustomIconOnlySubmenu<T>> {
-  @protected
   void handleTap() => Navigator.pop<T>(context, widget.value);
 
   @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      hoverColor: Colors.transparent,
-      onTap: widget.enabled ? handleTap : null,
-      child: widget.child,
-    );
-  }
+  Widget build(BuildContext context) => InkWell(
+    hoverColor: _kHoverBg,
+    onTap: widget.enabled ? handleTap : null,
+    child: widget.child,
+  );
 }
