@@ -28,13 +28,15 @@ class UserGridController extends GetxController {
   }
 
   /// LOAD PROJECTS
-  Future<void> loadProjects() async {
+  Future<void> loadProjects({String? userId}) async {
 
     loading.value = true;
 
     try {
 
-      final list = await ProjectApi.instance.getProjects();
+      final list = await ProjectApi.instance.getProjects(userId: userId);
+
+      print('TABLE COUNT = ${list.length}');
 
       projects.assignAll(list);
       filtered.assignAll(list);

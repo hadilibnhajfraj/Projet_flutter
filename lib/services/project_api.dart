@@ -11,16 +11,40 @@ class ProjectApi {
 
   Dio get dio => ApiClient.instance.dio;
 
-  Future<List<ProjectGridData>> getProjects() async {
-    final res = await dio.get('/projects');
+  Future<List<ProjectGridData>> getProjects({String? userId}) async {
+    final queryParams = <String, dynamic>{'page': 1, 'limit': 1000};
+    if (userId != null && userId.isNotEmpty) {
+      queryParams['userId'] = userId;
+      print('USER FILTER = $userId');
+    }
+
+    final res = await dio.get('/projects', queryParameters: queryParams);
     final data = res.data;
 
-    if (data is List) {
-      return data
-          .map((e) => ProjectGridData.fromJson(Map<String, dynamic>.from(e)))
-          .toList();
+    print('STATUS = ${res.statusCode}');
+
+    List raw = [];
+    if (data is Map) {
+      raw = (data['items'] ?? data['data'] ?? data['results'] ?? data['docs'] ?? []) as List;
+      final stats = data['stats'];
+      if (stats is Map) {
+        print('STATS = totalProjects=${stats['totalProjects']}, active=${stats['activeProjects']}, archived=${stats['archivedProjects']}');
+      }
+    } else if (data is List) {
+      raw = data;
+    } else {
+      print('UNEXPECTED RESPONSE TYPE: ${data.runtimeType}');
     }
-    return [];
+
+    print('API COUNT = ${raw.length}');
+
+    final result = raw
+        .map((e) => ProjectGridData.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+
+    print('STATE COUNT = ${result.length}');
+
+    return result;
   }
 Future<ProjectGridData> getProjectById(String id) async {
   final res = await dio.get('/projects/$id');
