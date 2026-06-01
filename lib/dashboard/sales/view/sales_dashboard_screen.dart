@@ -4,6 +4,7 @@ import 'package:dash_master_toolkit/dashboard/sales/sales_imports.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'package:syncfusion_flutter_maps/maps.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:dash_master_toolkit/core/theme/app_text_styles.dart';
 
 class SalesDashboardScreen extends StatefulWidget {
   const SalesDashboardScreen({super.key});
@@ -32,14 +33,11 @@ Widget _kpiBox(String title, int value, Color color) {
     child: Column(
       children: [
         Text(
-          "$value",
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: color,
-          ),
+          '$value',
+          style: AppTextStyles.metric.copyWith(color: color, fontSize: 28),
         ),
-        Text(title),
+        const SizedBox(height: 4),
+        Text(title, style: AppTextStyles.bodyMuted),
       ],
     ),
   );

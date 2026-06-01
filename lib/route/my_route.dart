@@ -195,7 +195,7 @@ static const clientsProfileScreen = '/users/client';
         pageBuilder: (context, state, child) =>
             NoTransitionPage(child: AppShell(child: child)),
         routes: [
-          // Dashboard
+          // Dashboard — all sub-routes → DashboardScreen (nouveau BI professionnel)
           GoRoute(
             path: dashboard,
             redirect: (context, state) {
@@ -203,35 +203,35 @@ static const clientsProfileScreen = '/users/client';
               return null;
             },
             routes: [
+              // Tous les sous-menus dashboard rendent DashboardScreen
               GoRoute(
                 path: academicAdmin,
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: AcademicDashboardScreen()),
+                pageBuilder: (context, state) {
+                  final token = AuthService().accessToken ?? '';
+                  return NoTransitionPage(child: DashboardScreen(token: token));
+                },
               ),
               GoRoute(
-                path: salesAdmin,
-                pageBuilder: (context, state) =>
-                    NoTransitionPage(child: SalesDashboardScreen()),
+                path: salesAdmin,      // /dashboard/kpi-projects — route principale
+                pageBuilder: (context, state) {
+                  final token = AuthService().accessToken ?? '';
+                  return NoTransitionPage(child: DashboardScreen(token: token));
+                },
               ),
               GoRoute(
                 path: financeAdmin,
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: FinanceDashboardScreen()),
+                pageBuilder: (context, state) {
+                  final token = AuthService().accessToken ?? '';
+                  return NoTransitionPage(child: DashboardScreen(token: token));
+                },
               ),
               GoRoute(
                 path: ecommerceAdmin,
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: EcommerceDashboardScreen()),
+                pageBuilder: (context, state) {
+                  final token = AuthService().accessToken ?? '';
+                  return NoTransitionPage(child: DashboardScreen(token: token));
+                },
               ),
-GoRoute(
-  path: '/kpi',
-  builder: (context, state) {
-
-    final token = AuthService().accessToken;
-
-    return DashboardScreen(token: token!); // ⚠️ force
-  },
-),
             ],
           ),
 

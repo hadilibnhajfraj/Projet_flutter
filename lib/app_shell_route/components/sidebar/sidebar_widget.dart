@@ -1,6 +1,7 @@
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import '../common_imports.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/core/theme/app_text_styles.dart';
 
 part 'sidebar_item_model.dart';
 
@@ -54,7 +55,7 @@ class SideBarWidget extends StatelessWidget {
               // ── HEADER ────────────────────────────────────────────────────
               _SidebarHeader(iconOnly: iconOnly, onTap: () {
                 rootScaffoldKey.currentState?.closeDrawer();
-                context.go(MyRoute.dashboardSalesAdmin);
+                context.go(MyRoute.dashboardSalesAdmin); // /dashboard/kpi-projects
               }),
 
               // ── MENU LIST ─────────────────────────────────────────────────
@@ -97,12 +98,7 @@ class SideBarWidget extends StatelessWidget {
                                   padding: const EdgeInsets.fromLTRB(8, 20, 8, 6),
                                   child: Text(
                                     group.name,
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color: _kGroupLbl,
-                                      letterSpacing: 1.2,
-                                    ),
+                                    style: AppTextStyles.sidebarGroupLabel,
                                   ),
                                 )
                               else

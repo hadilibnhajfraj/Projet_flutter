@@ -67,7 +67,7 @@ class NavigationBreadcrumbWidget extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: GestureDetector(
-                    onTap: () => context.go(MyRoute.dashboardAcademicAdmin),
+                    onTap: () => context.go(MyRoute.dashboardSalesAdmin), // /dashboard/kpi-projects
                     child: MouseRegion(
                       cursor: SystemMouseCursors.click,
                       child: SvgPicture.asset(

@@ -62,7 +62,7 @@ class GroupedMenuModel {
 enum SidebarItemType { tile, submenu }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TOP MENUS  (Dashboard with sub-KPI pages)
+// TOP MENUS  (single Dashboard tile → /kpi = DashboardScreen)
 // ─────────────────────────────────────────────────────────────────────────────
 List<SidebarItemModel> buildTopMenus({
   required bool isAccueil,
@@ -71,27 +71,10 @@ List<SidebarItemModel> buildTopMenus({
   if (isAccueil || isCommercial) return [];
   return [
     SidebarItemModel(
-      name:             'Dashboard',
-      icon:             Icons.dashboard_outlined,
-      navigationPath:   '/dashboard',
-      sidebarItemType:  SidebarItemType.submenu,
-      submenus: [
-        SidebarSubmenuModel(
-          name:           'Project Performance Analytics',
-          navigationPath: 'kpi-project',
-          icon:           Icons.analytics_outlined,
-        ),
-        SidebarSubmenuModel(
-          name:           'Project Validation & Success KPIs',
-          navigationPath: 'kpi-projects',
-          icon:           Icons.bar_chart_outlined,
-        ),
-        SidebarSubmenuModel(
-          name:           'Dashboard KPI',
-          navigationPath: 'kpi',
-          icon:           Icons.speed_outlined,
-        ),
-      ],
+      name:            'Dashboard',
+      icon:            Icons.dashboard_outlined,
+      navigationPath:  '/dashboard/kpi-projects', // route valide → DashboardScreen
+      sidebarItemType: SidebarItemType.tile,
     ),
   ];
 }
