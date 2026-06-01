@@ -28,9 +28,13 @@ void onInit() {
   // 📥 FETCH
   // =========================
 Future<void> fetchNotifications({bool silent = false}) async {
-  if (token.isEmpty) return;
+  if (token.isEmpty) {
+    print("⚠️ NOTIF: token vide → fetch annulé");
+    return;
+  }
 
   try {
+    print("IS LOADING = ${isLoading.value} (avant fetch)");
     if (!silent) isLoading.value = true;
 
     page.value = 1;
@@ -42,13 +46,17 @@ Future<void> fetchNotifications({bool silent = false}) async {
 
     listOfNotification.assignAll(res.items);
     unreadCount.value = res.unreadCount;
-
     hasMore.value = res.items.length >= 10;
 
-  } catch (e) {
-    print("❌ ERROR: $e");
+    print("NOTIFICATION COUNT STATE = ${listOfNotification.length}");
+    print("IS LOADING = ${isLoading.value} (après assignAll, avant finally)");
+
+  } catch (e, s) {
+    print("NOTIFICATION ERROR = $e");
+    print(s);
   } finally {
     isLoading.value = false;
+    print("IS LOADING = ${isLoading.value}");
   }
 }
 

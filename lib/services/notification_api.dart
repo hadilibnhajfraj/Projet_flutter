@@ -25,7 +25,18 @@ Future<NotificationResponse> getMyNotifications(
     options: Options(headers: {"Authorization": "Bearer $token"}),
   );
 
-  return NotificationResponse.fromJson(res.data);
+  print("NOTIFICATION STATUS = ${res.statusCode}");
+  print("NOTIFICATION BODY = ${res.data}");
+
+  final response = NotificationResponse.fromJson(
+    res.data is Map<String, dynamic>
+        ? res.data as Map<String, dynamic>
+        : <String, dynamic>{},
+  );
+
+  print("NOTIFICATION COUNT API = ${response.items.length}");
+
+  return response;
 }
 
   // =========================
