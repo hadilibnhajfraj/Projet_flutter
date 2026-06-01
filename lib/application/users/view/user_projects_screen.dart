@@ -871,24 +871,167 @@ DropdownButtonFormField<String>(
     });
   },
 ),
-                      if (userRole == "superadmin") 
-  DropdownButtonFormField<String>(
-    value: selectedUser,
-    hint: const Text("Created By"),
-    items: users.map<DropdownMenuItem<String>>((u) {
-      return DropdownMenuItem<String>(
-        value: u['id'].toString(),
-        child: Text(u['email'] ?? ''),
-      );
-    }).toList(),
-    onChanged: (value) {
-      setState(() {
-        selectedUser = value;
-      });
-
-      _page = 1;
-      _loadProjects();
-    },
+                      if (userRole == "superadmin")
+  SizedBox(
+    width: 300,
+    child: DropdownButtonFormField<String>(
+      value: selectedUser,
+      isExpanded: true,
+      itemHeight: null,
+      hint: const Text("Created By"),
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        constraints: const BoxConstraints(minHeight: 72),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: kBorder),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: kBorder),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: kPrimary, width: 1.4),
+        ),
+      ),
+      selectedItemBuilder: (context) => users.map<Widget>((u) {
+        final name = (u['name'] ?? u['firstName'] ?? '').toString().trim();
+        final email = (u['email'] ?? '').toString();
+        final initial = email.isNotEmpty ? email[0].toUpperCase() : '?';
+        final isSelected = u['id'].toString() == selectedUser;
+        final count = isSelected ? (_response?.total ?? 0) : null;
+        return Row(
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: const Color(0xFFDBEAFE),
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  color: Color(0xFF1D4ED8),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (name.isNotEmpty)
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: kTextDark,
+                      ),
+                    ),
+                  Text(
+                    email,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: kTextMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (count != null)
+              Container(
+                margin: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDBEAFE),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$count projets',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF1D4ED8),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        );
+      }).toList(),
+      items: users.map<DropdownMenuItem<String>>((u) {
+        final name = (u['name'] ?? u['firstName'] ?? '').toString().trim();
+        final email = (u['email'] ?? '').toString();
+        final initial = email.isNotEmpty ? email[0].toUpperCase() : '?';
+        return DropdownMenuItem<String>(
+          value: u['id'].toString(),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: const Color(0xFFDBEAFE),
+                  child: Text(
+                    initial,
+                    style: const TextStyle(
+                      color: Color(0xFF1D4ED8),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (name.isNotEmpty)
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: kTextDark,
+                          ),
+                        ),
+                      Text(
+                        email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: kTextMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+      onChanged: (value) {
+        setState(() {
+          selectedUser = value;
+          _page = 1;
+        });
+        _loadProjects();
+      },
+    ),
   ),
                     ],
                   ),

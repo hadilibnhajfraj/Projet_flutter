@@ -253,13 +253,10 @@ class _State extends State<ProjectsExplorerScreen>
   DateTime? _dateTo;
   bool      _filtersOpen = false;
 
-  // ── KPI ────────────────────────────────────────────────────────────────────
-  int get _kActifs   => _rows.where((r) => !r.isArchived).length;
-  int get _kArchived => _rows.where((r) =>  r.isArchived).length;
-  int get _kPending  => _rows.where((r) {
-    final v = r.validation.toLowerCase();
-    return v.contains('attente') || v.isEmpty;
-  }).length;
+  // ── KPI — alimentés depuis la réponse filtrée dans _load() ───────────────
+  int _kActifs   = 0;
+  int _kArchived = 0;
+  int _kPending  = 0;
 
   @override
   void initState() {
@@ -350,6 +347,15 @@ class _State extends State<ProjectsExplorerScreen>
           'dateEnd':   DateFormat('yyyy-MM-dd').format(_dateTo!),
       };
 
+      if (_isAdmin && _userIdF?.isNotEmpty == true) {
+        final u = _users.where((u) => u.id == _userIdF).firstOrNull;
+        debugPrint('=== USER FILTER ===');
+        debugPrint(_userIdF);
+        debugPrint(u?.name ?? '');
+      }
+      debugPrint('REQUEST URL');
+      debugPrint(params.toString());
+
       // Admin gets all projects; user gets their own
       final endpoint = _isAdmin ? '/projects' : '/projects/my-projects';
 
@@ -366,11 +372,20 @@ class _State extends State<ProjectsExplorerScreen>
         raw = data; total = raw.length;
       }
 
+      final filteredRows = raw.whereType<Map>()
+          .map((e) => _Row.fromJson(Map<String, dynamic>.from(e))).toList();
+
       setState(() {
-        _rows      = raw.whereType<Map>()
-            .map((e) => _Row.fromJson(Map<String, dynamic>.from(e))).toList();
+        _rows       = filteredRows;
         _total      = total;
         _totalPages = totalPages;
+        // KPIs calculés depuis la réponse filtrée (pas depuis un cache global)
+        _kActifs    = filteredRows.where((r) => !r.isArchived).length;
+        _kArchived  = filteredRows.where((r) =>  r.isArchived).length;
+        _kPending   = filteredRows.where((r) {
+          final v = r.validation.toLowerCase();
+          return v.contains('attente') || v.isEmpty;
+        }).length;
       });
     } catch (e) {
       debugPrint('[ProjectList] $e');
@@ -379,7 +394,14 @@ class _State extends State<ProjectsExplorerScreen>
     }
   }
 
-  void _apply() { _page = 1; _load(); }
+  void _apply() {
+    debugPrint('=== APPLY FILTERS ===');
+    debugPrint('FILTER USER: $_userIdF');
+    debugPrint('FILTER STATUS: $_statusF');
+    debugPrint('FILTER VALIDATION: $_validationF');
+    _page = 1;
+    _load();
+  }
   void _reset() {
     _searchCtrl.clear();
     setState(() {
@@ -542,16 +564,28 @@ class _State extends State<ProjectsExplorerScreen>
     // ignore: avoid_print
     print('[EXPORT START]');
 
-    final now        = DateTime.now();
-    final date       = DateFormat('yyyy_MM_dd').format(now);
-    final tabIdx     = _tab.index;
+    final now    = DateTime.now();
+    final date   = DateFormat('yyyy_MM_dd').format(now);
+    final tabIdx = _tab.index;
     final filePrefix = [
       'Project_List',
       'Project_List',
       'Applicateur_List',
       'Revendeur_List',
     ][tabIdx];
-    final fileName = '${filePrefix}_$date';
+
+    String fileName;
+    if (_isAdmin && _userIdF != null && _userIdF!.isNotEmpty) {
+      final u = _users.where((u) => u.id == _userIdF).firstOrNull;
+      if (u != null) {
+        final userLabel = u.name.toUpperCase().replaceAll(' ', '.');
+        fileName = '${userLabel}_${_total}_PROJETS';
+      } else {
+        fileName = '${filePrefix}_$date';
+      }
+    } else {
+      fileName = '${filePrefix}_$date';
+    }
 
     setState(() => _exporting = true);
 
@@ -771,12 +805,22 @@ class _State extends State<ProjectsExplorerScreen>
         child: Icon(Icons.list_alt_rounded, size: 20, color: kCrmPrimary),
       ),
       const SizedBox(width: 12),
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Project List',
-            style: tInter(fontSize: 16, fontWeight: FontWeight.w700, color: kCrmText)),
-        Text(_isAdmin ? 'Vue administrateur · tous les utilisateurs' : 'Mes projets · applicateurs · revendeurs',
-            style: tInter(fontSize: 11, color: kCrmTextSub)),
-      ]),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Project List',
+              style: tInter(fontSize: 16, fontWeight: FontWeight.w700, color: kCrmText),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+          Text(
+            _isAdmin ? 'Vue administrateur · tous les utilisateurs' : 'Mes projets · applicateurs · revendeurs',
+            style: tInter(fontSize: 11, color: kCrmTextSub),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     ]),
     actions: [
       if (!_loading && _rows.isNotEmpty)
@@ -914,7 +958,11 @@ class _State extends State<ProjectsExplorerScreen>
                 loading:       !_usersLoaded && _isAdmin,
                 value:         _userIdF,
                 projectCounts: _userProjectCounts,
-                onChanged:     (id) => setState(() => _userIdF = id),
+                onChanged: (id) {
+                  setState(() => _userIdF = id);
+                  _page = 1;
+                  _load();
+                },
               ),
             ],
             const SizedBox(height: 10),
@@ -1178,25 +1226,33 @@ class _AvatarNameCell extends StatelessWidget {
         child: Text(ini, style: tInter(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
       ),
       const SizedBox(width: 10),
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(
-          width: 160,
-          child: Text(name.isEmpty ? '—' : name,
+      Flexible(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              name.isEmpty ? '—' : name,
               style: tInter(fontSize: 12, fontWeight: FontWeight.w700, color: kCrmText),
-              overflow: TextOverflow.ellipsis),
-        ),
-        if (archived)
-          Container(
-            margin: const EdgeInsets.only(top: 3),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(
-              color: kCrmTextSub.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            child: Text('Archivé',
-                style: tInter(fontSize: 9, fontWeight: FontWeight.w700, color: kCrmTextSub)),
-          ),
-      ]),
+            if (archived)
+              Container(
+                margin: const EdgeInsets.only(top: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: kCrmTextSub.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text('Archivé',
+                    style: tInter(fontSize: 9, fontWeight: FontWeight.w700, color: kCrmTextSub),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ),
+          ],
+        ),
+      ),
     ]);
   }
 }
@@ -1329,10 +1385,20 @@ class _Kpi extends StatelessWidget {
           child: Icon(icon, size: 17, color: color),
         ),
         const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('$value', style: tInter(fontSize: 20, fontWeight: FontWeight.w900, color: kCrmText)),
-          Text(label, style: tInter(fontSize: 11, color: kCrmTextSub), overflow: TextOverflow.ellipsis),
-        ])),
+        Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('$value',
+                style: tInter(fontSize: 20, fontWeight: FontWeight.w900, color: kCrmText),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+            Text(label,
+                style: tInter(fontSize: 11, color: kCrmTextSub),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+          ],
+        )),
       ]),
     ),
   );
@@ -1407,18 +1473,105 @@ class _UserDropdown extends StatelessWidget {
       );
     }
 
+    final allItems = <DropdownMenuItem<String?>>[
+      DropdownMenuItem<String?>(
+        value: null,
+        child: Text('Tous les utilisateurs',
+            style: tInter(fontSize: 13, color: kCrmTextSub)),
+      ),
+      ...users.map((u) {
+        final count = projectCounts[u.id];
+        final color = _avatarColor(u.name);
+
+        // ignore: avoid_print
+        print('[USER FILTER BUILD]');
+        // ignore: avoid_print
+        print(u.name);
+        // ignore: avoid_print
+        print(u.email);
+        // ignore: avoid_print
+        print(count);
+
+        return DropdownMenuItem<String?>(
+          value: u.id,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(children: [
+              Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _initials(u.name),
+                  style: tInter(fontSize: 11, fontWeight: FontWeight.w800, color: color),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(
+                        child: Text(
+                          u.name,
+                          style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmText),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (count != null)
+                        Container(
+                          margin: const EdgeInsets.only(left: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '$count projet${count != 1 ? 's' : ''}',
+                            style: tInter(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ]),
+                    const SizedBox(height: 2),
+                    Text(
+                      u.email,
+                      style: tInter(fontSize: 10, color: kCrmTextSub),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+        );
+      }),
+    ];
+
     return DropdownButtonFormField<String?>(
       value: value,
       isExpanded: true,
+      itemHeight: null,
       decoration: InputDecoration(
-        labelText: 'Utilisateur',
-        labelStyle: tInter(fontSize: 11, color: kCrmTextSub),
+        // labelText supprimé intentionnellement : avec OutlineInputBorder,
+        // le label inline occupe ~24px quand value==null, réduisant la zone
+        // de contenu à exactement 24px → overflow garanti sur Column(name+email).
         prefixIcon: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Icon(Icons.person_outline_rounded, size: 18, color: kCrmTextSub),
         ),
         filled: true,
         fillColor: kCrmBg,
+        constraints: const BoxConstraints(minHeight: 80),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: _kDivider),
@@ -1431,65 +1584,95 @@ class _UserDropdown extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: kCrmPrimary, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       ),
       style: tInter(fontSize: 13, color: kCrmText),
-      hint: Text('Tous les utilisateurs', style: tInter(fontSize: 13, color: kCrmTextSub)),
-      items: [
-        DropdownMenuItem<String?>(
-          value: null,
-          child: Text('Tous les utilisateurs', style: tInter(fontSize: 13, color: kCrmTextSub)),
+      hint: Row(children: [
+        const SizedBox(width: 4),
+        Text('Tous les utilisateurs', style: tInter(fontSize: 13, color: kCrmTextSub)),
+      ]),
+      selectedItemBuilder: (context) => [
+        // null → "Tous les utilisateurs"
+        SizedBox(
+          height: 56,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Tous les utilisateurs',
+                style: tInter(fontSize: 13, color: kCrmTextSub)),
+          ),
         ),
+        // one entry per user — SizedBox(height:56) force la hauteur intrinsèque
+        // de l'IndexedStack à 56px → contenu dispo = 80-24=56px → Column(34px) ✓
         ...users.map((u) {
           final count = projectCounts[u.id];
           final color = _avatarColor(u.name);
-          return DropdownMenuItem<String>(
-            value: u.id,
-            child: Row(children: [
-              Container(
-                width: 28, height: 28,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(7),
+          final isSelected = u.id == value;
+
+          debugPrint('OVERFLOW FIXED');
+          debugPrint(u.name);
+          debugPrint(u.email);
+
+          return SizedBox(
+            height: 56,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 32, height: 32,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    _initials(u.name),
+                    style: tInter(fontSize: 11, fontWeight: FontWeight.w800, color: color),
+                  ),
                 ),
-                alignment: Alignment.center,
-                child: Text(
-                  _initials(u.name),
-                  style: tInter(fontSize: 11, fontWeight: FontWeight.w800, color: color),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(
-                      child: Text(u.name,
-                          style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmText),
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                    if (count != null)
-                      Container(
-                        margin: const EdgeInsets.only(left: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '$count projet${count != 1 ? 's' : ''}',
-                          style: tInter(fontSize: 9, fontWeight: FontWeight.w700, color: color),
-                        ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        u.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmText),
                       ),
-                  ]),
-                  Text(u.email,
-                      style: tInter(fontSize: 10, color: kCrmTextSub),
-                      overflow: TextOverflow.ellipsis),
-                ]),
-              ),
-            ]),
+                      const SizedBox(height: 2),
+                      Text(
+                        u.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tInter(fontSize: 10, color: kCrmTextSub),
+                      ),
+                    ],
+                  ),
+                ),
+                if (count != null && isSelected)
+                  Container(
+                    margin: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$count projets',
+                      style: tInter(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+            ),
           );
         }),
       ],
+      items: allItems,
       onChanged: onChanged,
     );
   }
