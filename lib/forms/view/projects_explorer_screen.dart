@@ -1482,20 +1482,10 @@ class _UserDropdown extends StatelessWidget {
       ...users.map((u) {
         final count = projectCounts[u.id];
         final color = _avatarColor(u.name);
-
-        // ignore: avoid_print
-        print('[USER FILTER BUILD]');
-        // ignore: avoid_print
-        print(u.name);
-        // ignore: avoid_print
-        print(u.email);
-        // ignore: avoid_print
-        print(count);
-
         return DropdownMenuItem<String?>(
           value: u.id,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: Row(children: [
               Container(
                 width: 32, height: 32,
@@ -1511,46 +1501,28 @@ class _UserDropdown extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(children: [
-                      Expanded(
-                        child: Text(
-                          u.name,
-                          style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmText),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (count != null)
-                        Container(
-                          margin: const EdgeInsets.only(left: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '$count projet${count != 1 ? 's' : ''}',
-                            style: tInter(fontSize: 9, fontWeight: FontWeight.w700, color: color),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ]),
-                    const SizedBox(height: 2),
-                    Text(
-                      u.email,
-                      style: tInter(fontSize: 10, color: kCrmTextSub),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                child: Text(
+                  u.name,
+                  style: tInter(fontSize: 13, fontWeight: FontWeight.w600, color: kCrmText),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (count != null)
+                Container(
+                  margin: const EdgeInsets.only(left: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$count projet${count != 1 ? 's' : ''}',
+                    style: tInter(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
             ]),
           ),
         );
@@ -1571,7 +1543,7 @@ class _UserDropdown extends StatelessWidget {
         ),
         filled: true,
         fillColor: kCrmBg,
-        constraints: const BoxConstraints(minHeight: 80),
+        constraints: const BoxConstraints(minHeight: 52),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: _kDivider),
@@ -1593,82 +1565,55 @@ class _UserDropdown extends StatelessWidget {
       ]),
       selectedItemBuilder: (context) => [
         // null → "Tous les utilisateurs"
-        SizedBox(
-          height: 56,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text('Tous les utilisateurs',
-                style: tInter(fontSize: 13, color: kCrmTextSub)),
-          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text('Tous les utilisateurs',
+              style: tInter(fontSize: 13, color: kCrmTextSub)),
         ),
-        // one entry per user — SizedBox(height:56) force la hauteur intrinsèque
-        // de l'IndexedStack à 56px → contenu dispo = 80-24=56px → Column(34px) ✓
         ...users.map((u) {
           final count = projectCounts[u.id];
           final color = _avatarColor(u.name);
           final isSelected = u.id == value;
-
-          debugPrint('OVERFLOW FIXED');
-          debugPrint(u.name);
-          debugPrint(u.email);
-
-          return SizedBox(
-            height: 56,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 30, height: 30,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _initials(u.name),
+                  style: tInter(fontSize: 11, fontWeight: FontWeight.w800, color: color),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  u.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: tInter(fontSize: 14, fontWeight: FontWeight.w600, color: kCrmText),
+                ),
+              ),
+              if (count != null && isSelected)
                 Container(
-                  width: 32, height: 32,
+                  margin: const EdgeInsets.only(left: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  alignment: Alignment.center,
                   child: Text(
-                    _initials(u.name),
-                    style: tInter(fontSize: 11, fontWeight: FontWeight.w800, color: color),
+                    '$count projets',
+                    style: tInter(fontSize: 10, fontWeight: FontWeight.w700, color: color),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        u.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmText),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        u.email,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: tInter(fontSize: 10, color: kCrmTextSub),
-                      ),
-                    ],
-                  ),
-                ),
-                if (count != null && isSelected)
-                  Container(
-                    margin: const EdgeInsets.only(left: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '$count projets',
-                      style: tInter(fontSize: 9, fontWeight: FontWeight.w700, color: color),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-            ),
+            ],
           );
         }),
       ],
