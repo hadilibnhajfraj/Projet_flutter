@@ -43,6 +43,7 @@ import 'package:dash_master_toolkit/pages/google_map/google_map_screen.dart';
 import 'package:dash_master_toolkit/pages/privacy_term_condition/view/privacy_screen.dart';
 import 'package:dash_master_toolkit/pages/privacy_term_condition/view/terms_condition_screen.dart';
 import 'package:dash_master_toolkit/pages/projects/view/projects_screen.dart';
+import 'package:dash_master_toolkit/pages/projects/view/missing_fields_projects_screen.dart';
 
 import 'package:dash_master_toolkit/tables/view/basic_table_screen.dart';
 import 'package:dash_master_toolkit/tables/view/drag_and_drop_table_screen.dart';
@@ -355,6 +356,16 @@ GoRoute(
             path: projectsScreen,
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: ProjectsScreen()),
+          ),
+          GoRoute(
+            path: '/projects-list',
+            pageBuilder: (context, state) {
+              final field = state.uri.queryParameters['field'] ?? '';
+              final label = state.uri.queryParameters['label'] ?? '';
+              return NoTransitionPage(
+                child: MissingFieldsProjectsScreen(field: field, label: label),
+              );
+            },
           ),
           
           GoRoute(

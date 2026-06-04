@@ -4,12 +4,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/providers/api_client.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dash_master_toolkit/core/theme/app_text_styles.dart';
+import 'package:dash_master_toolkit/dashboard/academic/widgets/crm_relance_card.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -89,9 +91,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _currentUserId = '';
 
   // ── Raw API data ─────────────────────────────────────────────────────────
-  Map<String, dynamic> _kpiRaw   = {};
-  List<dynamic>        _projects = [];
-  bool                 _loading  = true;
+  Map<String, dynamic> _kpiRaw    = {};
+  List<dynamic>        _projects  = [];
+  List<dynamic>        _followups = [];
+  bool                 _loading   = true;
   DateTime?            _lastUpdate;
 
   @override
@@ -107,32 +110,105 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ── Load — branché par rôle ───────────────────────────────────────────────
   Future<void> _loadAll() async {
     setState(() => _loading = true);
+    List<dynamic> rawProjects = [];
+    List<dynamic> rawFollowups = [];
+
+    // ── DIAGNOSTIC LOGS ──────────────────────────────────────────────────────
+    print("=== [DASHBOARD DIAG] ========================================");
+    print("USER_ID       : '$_currentUserId'");
+    print("IS_ADMIN      : $_isAdmin");
+    print("WIDGET_TOKEN  : '${widget.token.isEmpty ? 'VIDE !!!' : widget.token.substring(0, widget.token.length.clamp(0, 30))}...'");
+    print("GETSTORE_TOKEN: '${ApiClient.instance.getAccessToken()?.substring(0, (ApiClient.instance.getAccessToken()?.length ?? 0).clamp(0, 30)) ?? 'NULL !!!'}...'");
+    print("=============================================================");
+
     try {
-      // 1. KPI summary — admin gets all, user gets only their own
+      // ── 1. KPI summary ──────────────────────────────────────────────────
       final kpiUri = Uri.parse('${ApiConfig.baseUrl}/projects/dashboard/kpi').replace(
         queryParameters: (!_isAdmin && _currentUserId.isNotEmpty) ? {'userId': _currentUserId} : null,
       );
+      print("REQUEST_URL   KPI : $kpiUri");
+
       final kpiRes = await http.get(kpiUri,
           headers: {'Authorization': 'Bearer ${widget.token}', 'Content-Type': 'application/json'});
+
+      print("RESPONSE      KPI status=${kpiRes.statusCode}");
+      print("RESPONSE      KPI body=${kpiRes.body}");
+
       if (kpiRes.statusCode == 200) {
         _kpiRaw = Map<String, dynamic>.from(jsonDecode(kpiRes.body));
+        print("PARSED_DATA   KPI keys=${_kpiRaw.keys.toList()}");
+        print("PARSED_DATA   KPI userStats=${_kpiRaw['userStats']}");
+        print("PARSED_DATA   KPI statutStats=${_kpiRaw['statutStats']}");
+        print("PARSED_DATA   KPI totalProjects=${_kpiRaw['totalProjects']}");
+      } else {
+        print("ERREUR        KPI HTTP ${kpiRes.statusCode} → _kpiRaw reste vide");
       }
 
-      // 2. Projects list:
-      //    Admin → /projects (tous) | User → /projects/my-projects (les siens)
-      final endpoint  = _isAdmin ? '/projects' : '/projects/my-projects';
-      final queryParams = {'page': 1, 'limit': 1000};
-      final projRes = await ApiClient.instance.dio.get(endpoint, queryParameters: queryParams);
+      // ── 2. Projects list ────────────────────────────────────────────────
+      final endpoint = _isAdmin ? '/projects' : '/projects/my-projects';
+      print("REQUEST_URL   PROJECTS : ${ApiConfig.baseUrl}$endpoint?page=1&limit=1000");
+
+      final projRes  = await ApiClient.instance.dio.get(endpoint, queryParameters: {'page': 1, 'limit': 1000});
       final projData = projRes.data;
-      List raw = [];
-      if (projData is Map) raw = (projData['items'] ?? projData['data'] ?? projData['results'] ?? []) as List;
-      else if (projData is List) raw = projData;
+
+      print("RESPONSE      PROJECTS type=${projData.runtimeType}");
+      if (projData is Map) {
+        print("RESPONSE      PROJECTS keys=${projData.keys.toList()}");
+        final items   = projData['items'];
+        final data    = projData['data'];
+        final results = projData['results'];
+        print("PARSED_DATA   PROJECTS['items']=${items?.runtimeType} len=${items is List ? items.length : 'N/A'}");
+        print("PARSED_DATA   PROJECTS['data']=${data?.runtimeType} len=${data is List ? data.length : 'N/A'}");
+        print("PARSED_DATA   PROJECTS['results']=${results?.runtimeType} len=${results is List ? results.length : 'N/A'}");
+        rawProjects = (items ?? data ?? results ?? []) as List;
+      } else if (projData is List) {
+        rawProjects = projData;
+      }
+      print("PARSED_DATA   PROJECTS count=${rawProjects.length}");
+      if (rawProjects.isNotEmpty) {
+        print("PARSED_DATA   PROJECTS[0] keys=${rawProjects[0] is Map ? (rawProjects[0] as Map).keys.toList() : 'non-map'}");
+      }
+
+      // ── 3. CRM upcoming followups ────────────────────────────────────────
+      try {
+        final followParams = <String, dynamic>{'limit': 200};
+        if (!_isAdmin && _currentUserId.isNotEmpty) followParams['userId'] = _currentUserId;
+        print("REQUEST_URL   FOLLOWUPS : ${ApiConfig.baseUrl}/crm/upcoming-followups params=$followParams");
+
+        final followRes = await ApiClient.instance.dio.get('/crm/upcoming-followups', queryParameters: followParams);
+        final fData     = followRes.data;
+        print("RESPONSE      FOLLOWUPS type=${fData.runtimeType}");
+        if (fData is Map) {
+          print("RESPONSE      FOLLOWUPS keys=${fData.keys.toList()}");
+          rawFollowups = [
+            ...((fData['overdue']  as List?) ?? []),
+            ...((fData['today']    as List?) ?? []),
+            ...((fData['upcoming'] as List?) ?? []),
+            ...((fData['items']    as List?) ?? []),
+            ...((fData['data']     as List?) ?? []),
+          ];
+        } else if (fData is List) {
+          rawFollowups = fData;
+        }
+        print("PARSED_DATA   FOLLOWUPS count=${rawFollowups.length}");
+      } catch (e) {
+        print("ERREUR        FOLLOWUPS (fallback projets): $e");
+        rawFollowups = rawProjects
+            .where((p) => _sf(p['prochaineRelance'] ?? p['nextRelanceAt']).isNotEmpty)
+            .toList();
+        print("PARSED_DATA   FOLLOWUPS fallback count=${rawFollowups.length}");
+      }
+
+      print("=== [DASHBOARD DIAG END] projects=${rawProjects.length} followups=${rawFollowups.length} ===");
 
       setState(() {
-        _projects   = raw;
+        _projects   = rawProjects;
+        _followups  = rawFollowups;
         _lastUpdate = DateTime.now();
       });
-    } catch (e) {
+    } catch (e, stack) {
+      print("ERREUR GLOBALE [Dashboard] $e");
+      print("STACK: $stack");
       debugPrint('[Dashboard] $e');
     } finally {
       setState(() => _loading = false);
@@ -191,15 +267,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   List get _revendeurs   => _projects.where((p) => _sf(p['projectModele']).toLowerCase() == 'revendeur').toList();
   List get _applicateurs => _projects.where((p) => _sf(p['projectModele']).toLowerCase() == 'applicateur').toList();
-  List get _relances     => _projects.where((p) => _sf(p['prochaineRelance']).isNotEmpty).toList()
-    ..sort((a, b) => _sf(a['prochaineRelance']).compareTo(_sf(b['prochaineRelance'])));
+  // Utilise _followups (API dédiée) ou fallback prochaineRelance dans _projects
+  List get _relances {
+    final source = _followups.isNotEmpty
+        ? _followups
+        : _projects.where((p) => _sf(p['prochaineRelance'] ?? p['nextRelanceAt']).isNotEmpty).toList();
+    return source..sort((a, b) {
+      final da = _sf(a['prochaineRelance'] ?? a['nextRelanceAt'] ?? a['followupDate'] ?? a['nextActionDate'] ?? '');
+      final db = _sf(b['prochaineRelance'] ?? b['nextRelanceAt'] ?? b['followupDate'] ?? b['nextActionDate'] ?? '');
+      return da.compareTo(db);
+    });
+  }
 
   // Monthly data: last 6 months
   List<(String label, int created, int validated)> get _monthly {
     final now = DateTime.now();
-    return List.generate(6, (i) {
-      final m    = DateTime(now.year, now.month - 5 + i);
-      final lbl  = '${_months[m.month - 1]} ${m.year.toString().substring(2)}';
+    // Génère 6 mois consécutifs distincts, chacun une seule fois
+    final seen = <String>{};
+    final result = <(String, int, int)>[];
+    for (int i = 0; i < 6; i++) {
+      // Dart normalise correctement les mois négatifs
+      final m   = DateTime(now.year, now.month - 5 + i);
+      final key = '${m.year}-${m.month}';
+      if (seen.contains(key)) continue;   // sécurité anti-doublon
+      seen.add(key);
+      // Label : "Jan 26" ou "Jan 2026" si l'année diffère
+      final lbl = m.year == now.year
+          ? _months[m.month - 1]
+          : '${_months[m.month - 1]} ${m.year.toString().substring(2)}';
       final proj = _projects.where((p) {
         final d = DateTime.tryParse(_sf(p['createdAt']));
         return d != null && d.year == m.year && d.month == m.month;
@@ -208,8 +303,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final v = _sf(p['validationStatut']).toLowerCase();
         return v.contains('valid') && !v.contains('non');
       }).length;
-      return (lbl, proj.length, val);
-    });
+      result.add((lbl, proj.length, val));
+    }
+    return result;
   }
 
   String get _lastUpdateStr => _lastUpdate == null
@@ -915,11 +1011,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // ══════════════════════════════════════════════════════════════════════════
   Widget _buildAlerts(BuildContext context) {
     final alerts = [
-      (label: 'Bureau de contrôle manquant', icon: Icons.domain_disabled_rounded,  count: _missingBureau, color: const Color(0xFFEF4444)),
-      (label: 'Architecte manquant',         icon: Icons.architecture_rounded,      count: _missingArch,   color: const Color(0xFFF97316)),
-      (label: 'Ingénieur manquant',          icon: Icons.engineering_rounded,       count: _missingIng,    color: const Color(0xFFF59E0B)),
-      (label: 'Téléphone manquant',          icon: Icons.phone_disabled_rounded,    count: _missingTel,    color: const Color(0xFF8B5CF6)),
-      (label: 'Adresse manquante',           icon: Icons.location_off_rounded,      count: _missingAddr,   color: const Color(0xFF3B82F6)),
+      (label: 'Bureau de contrôle manquant', icon: Icons.domain_disabled_rounded,  count: _missingBureau, color: const Color(0xFFEF4444), fieldKey: 'bureauControle'),
+      (label: 'Architecte manquant',         icon: Icons.architecture_rounded,      count: _missingArch,   color: const Color(0xFFF97316), fieldKey: 'architecte'),
+      (label: 'Ingénieur manquant',          icon: Icons.engineering_rounded,       count: _missingIng,    color: const Color(0xFFF59E0B), fieldKey: 'ingenieur'),
+      (label: 'Téléphone manquant',          icon: Icons.phone_disabled_rounded,    count: _missingTel,    color: const Color(0xFF8B5CF6), fieldKey: 'telephone'),
+      (label: 'Adresse manquante',           icon: Icons.location_off_rounded,      count: _missingAddr,   color: const Color(0xFF3B82F6), fieldKey: 'adresse'),
     ];
 
     final w    = MediaQuery.of(context).size.width;
@@ -930,77 +1026,164 @@ class _DashboardScreenState extends State<DashboardScreen> {
       const SizedBox(height: 16),
       _ResponsiveGrid(
         cols: cols, gap: 12,
-        children: alerts.map((a) => _AlertCard(label: a.label, icon: a.icon, count: a.count, color: a.color, total: _total)).toList(),
+        children: alerts.map<Widget>((a) => _AlertCard(
+          label:    a.label,
+          icon:     a.icon,
+          count:    a.count,
+          color:    a.color,
+          total:    _total,
+          fieldKey: a.fieldKey,
+        )).toList(),
       ),
     ]);
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 8. RELANCES TABLE
+  // 8. RELANCES — grouped timeline view
   // ══════════════════════════════════════════════════════════════════════════
+
+  // Timing helpers
+  static const _kOverdue   = 0;
+  static const _kToday     = 1;
+  static const _kThisWeek  = 2;
+  static const _kFuture    = 3;
+
+  int _relanceTiming(dynamic p) {
+    final raw = _sf(p['prochaineRelance'] ?? p['nextRelanceAt'] ?? p['followupDate'] ?? p['nextActionDate'] ?? '');
+    final dt  = DateTime.tryParse(raw);
+    if (dt == null) return _kFuture;
+    final now   = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final d     = DateTime(dt.year, dt.month, dt.day);
+    if (d.isBefore(today))                               return _kOverdue;
+    if (d.isAtSameMomentAs(today))                       return _kToday;
+    if (d.isBefore(today.add(const Duration(days: 7))))  return _kThisWeek;
+    return _kFuture;
+  }
+
+  Color _timingColor(int t) {
+    switch (t) {
+      case _kOverdue:  return const Color(0xFFEF4444);
+      case _kToday:    return const Color(0xFFF97316);
+      case _kThisWeek: return const Color(0xFF3B82F6);
+      default:         return const Color(0xFF64748B);
+    }
+  }
+
+  String _timingLabel(int t) {
+    switch (t) {
+      case _kOverdue:  return '📅 En retard';
+      case _kToday:    return '📅 Aujourd\'hui';
+      case _kThisWeek: return '📅 Cette semaine';
+      default:         return '📅 Plus tard';
+    }
+  }
+
   Widget _buildRelances(BuildContext context) {
-    final top = _relances.take(10).toList();
+    final all = _relances;
+
+    // Grouper par timing
+    final groups = <int, List<dynamic>>{
+      _kOverdue: [],
+      _kToday: [],
+      _kThisWeek: [],
+      _kFuture: [],
+    };
+    for (final p in all) {
+      groups[_relanceTiming(p)]!.add(p);
+    }
+    final hasAny = groups.values.any((g) => g.isNotEmpty);
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: _cardDeco(),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _sectionHeader('Relances à venir', badge: '${_relances.length}'),
+        Row(children: [
+          Expanded(child: _sectionHeader('Relances à venir', badge: '${all.length}')),
+          // Légende
+          _timingLegendChip(_kOverdue),
+          const SizedBox(width: 6),
+          _timingLegendChip(_kToday),
+          const SizedBox(width: 6),
+          _timingLegendChip(_kThisWeek),
+        ]),
         const SizedBox(height: 20),
-        if (top.isEmpty)
+        if (!hasAny)
           _emptyState('Aucune relance planifiée')
         else
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columnSpacing: 24,
-              headingRowHeight: 44,
-              dataRowMinHeight: 52,
-              dataRowMaxHeight: 60,
-              headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
-              headingTextStyle: AppTextStyles.tableHeader,
-              dividerThickness: 0.5,
-              columns: const [
-                DataColumn(label: Text('PROJET')),
-                DataColumn(label: Text('UTILISATEUR')),
-                DataColumn(label: Text('STATUT')),
-                DataColumn(label: Text('DERNIÈRE RELANCE')),
-                DataColumn(label: Text('PROCHAINE RELANCE')),
-              ],
-              rows: top.map((p) {
-                final statut   = _sf(p['statut'] ?? p['validationStatut']);
-                final userMap  = p['user'] is Map ? p['user'] as Map : {};
-                final user     = _sf(userMap['nom'] ?? userMap['name'] ?? p['user_nom']);
-                final last     = _fmtDate(_sf(p['derniereRelance'] ?? p['lastRelanceAt']));
-                final next     = _sf(p['prochaineRelance'] ?? p['nextRelanceAt']);
-                final nextDt   = DateTime.tryParse(next);
-                final isUrgent = nextDt != null && nextDt.isBefore(DateTime.now().add(const Duration(days: 3)));
-
-                return DataRow(cells: [
-                  DataCell(Text(_sf(p['nomProjet'] ?? p['name']),
-                      style: const TextStyle(fontFamily: 'InterTight', fontSize: 12, fontWeight: FontWeight.w600, color: _kText))),
-                  DataCell(Text(user.isNotEmpty ? user : '—', style: AppTextStyles.bodyMuted.copyWith(fontSize: 12))),
-                  DataCell(statut.isEmpty ? const Text('—') : Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: _statutColor(statut).withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                    child: Text(statut, style: TextStyle(fontFamily: 'InterTight', fontSize: 10, fontWeight: FontWeight.w700, color: _statutColor(statut))),
-                  )),
-                  DataCell(Text(last.isNotEmpty ? last : '—', style: AppTextStyles.bodyMuted.copyWith(fontSize: 12))),
-                  DataCell(Row(children: [
-                    if (isUrgent) const Padding(
-                      padding: EdgeInsets.only(right: 5),
-                      child: Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFEF4444)),
+          ...[_kOverdue, _kToday, _kThisWeek, _kFuture].expand((timing) {
+            final items = groups[timing]!;
+            if (items.isEmpty) return <Widget>[];
+            return [
+              // ── Section header ──────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 10),
+                child: Row(children: [
+                  Text(
+                    _timingLabel(timing),
+                    style: TextStyle(
+                      fontFamily: 'InterTight',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _timingColor(timing),
                     ),
-                    Text(_fmtDate(next).isNotEmpty ? _fmtDate(next) : '—',
-                        style: TextStyle(fontFamily: 'InterTight', fontSize: 12, fontWeight: FontWeight.w600,
-                            color: isUrgent ? const Color(0xFFEF4444) : _kMuted)),
-                  ])),
-                ]);
-              }).toList(),
-            ),
-          ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: _timingColor(timing).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${items.length}',
+                      style: TextStyle(
+                        fontFamily: 'InterTight',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: _timingColor(timing),
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+              // ── Relance cards ───────────────────────────────────────
+              ...items.map((p) {
+                final data = p is Map<String, dynamic>
+                    ? p
+                    : Map<String, dynamic>.from(p as Map);
+                return CrmRelanceCard(
+                  key:  ValueKey(_sf(data['_id'] ?? data['id'] ??
+                                     data['projectId'] ?? data['nomProjet'] ?? '')),
+                  data: data,
+                );
+              }),
+              const SizedBox(height: 16),
+            ];
+          }),
       ]),
     );
   }
+
+  Widget _timingLegendChip(int timing) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: _timingColor(timing).withOpacity(0.1),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 6, height: 6,
+        decoration: BoxDecoration(color: _timingColor(timing), shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 4),
+      Text(
+        timing == _kOverdue ? 'Retard' : timing == _kToday ? 'Aujourd\'hui' : 'Cette sem.',
+        style: TextStyle(fontFamily: 'InterTight', fontSize: 9, fontWeight: FontWeight.w700, color: _timingColor(timing)),
+      ),
+    ]),
+  );
+
 
   // ══════════════════════════════════════════════════════════════════════════
   // SHARED HELPERS
@@ -1125,53 +1308,172 @@ class _KpiCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ALERT CARD WIDGET
+// ALERT CARD WIDGET  (interactive — hover + scale + dynamic shadow)
 // ─────────────────────────────────────────────────────────────────────────────
-class _AlertCard extends StatelessWidget {
-  const _AlertCard({required this.label, required this.icon, required this.count, required this.color, required this.total});
+class _AlertCard extends StatefulWidget {
+  const _AlertCard({
+    required this.label,
+    required this.icon,
+    required this.count,
+    required this.color,
+    required this.total,
+    required this.fieldKey,
+  });
   final String   label;
   final IconData icon;
   final int      count;
   final Color    color;
   final int      total;
+  final String   fieldKey;
+
+  @override
+  State<_AlertCard> createState() => _AlertCardState();
+}
+
+class _AlertCardState extends State<_AlertCard> {
+  bool _hovered = false;
+
+  bool get _clickable => widget.count > 0;
+
+  void _navigate(BuildContext context) {
+    if (!_clickable) return;
+    context.push(
+      Uri(
+        path: '/projects-list',
+        queryParameters: {
+          'field': widget.fieldKey,
+          'label': widget.label,
+        },
+      ).toString(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final pct = total == 0 ? 0.0 : count / total;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _kCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: count > 0 ? color.withOpacity(0.3) : const Color(0xFFE2E8F0)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, size: 16, color: color),
-          ),
-          const Spacer(),
-          Text('$count', style: TextStyle(fontFamily: 'InterTight', fontSize: 22, fontWeight: FontWeight.w800, color: count > 0 ? color : const Color(0xFF94A3B8))),
-        ]),
-        const SizedBox(height: 10),
-        Text(label, style: const TextStyle(fontFamily: 'InterTight', fontSize: 11, fontWeight: FontWeight.w600, color: _kText), maxLines: 2),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: pct,
-            minHeight: 4,
-            backgroundColor: const Color(0xFFF1F5F9),
-            valueColor: AlwaysStoppedAnimation(count > 0 ? color : const Color(0xFF94A3B8)),
+    final pct = widget.total == 0 ? 0.0 : widget.count / widget.total;
+
+    return MouseRegion(
+      cursor: _clickable ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: (_) { if (_clickable) setState(() => _hovered = true); },
+      onExit:  (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: () => _navigate(context),
+        child: AnimatedScale(
+          scale: _hovered ? 1.035 : 1.0,
+          duration: const Duration(milliseconds: 190),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 190),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _kCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: widget.count > 0
+                    ? widget.color.withOpacity(_hovered ? 0.65 : 0.3)
+                    : const Color(0xFFE2E8F0),
+                width: _hovered ? 1.4 : 1.0,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _hovered && _clickable
+                      ? widget.color.withOpacity(0.22)
+                      : Colors.black.withOpacity(0.04),
+                  blurRadius: _hovered ? 28 : 12,
+                  spreadRadius: _hovered ? 1 : 0,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 190),
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    color: widget.color.withOpacity(_hovered ? 0.18 : 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(widget.icon, size: 16, color: widget.color),
+                ),
+                const Spacer(),
+                // Badge count
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 190),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: widget.count > 0
+                        ? widget.color.withOpacity(_hovered ? 0.18 : 0.1)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${widget.count}',
+                    style: TextStyle(
+                      fontFamily: 'InterTight',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: widget.count > 0 ? widget.color : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 10),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  fontFamily: 'InterTight',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: _kText,
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: pct,
+                  minHeight: 4,
+                  backgroundColor: const Color(0xFFF1F5F9),
+                  valueColor: AlwaysStoppedAnimation(
+                    widget.count > 0 ? widget.color : const Color(0xFF94A3B8),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(children: [
+                Expanded(
+                  child: Text(
+                    widget.total > 0
+                        ? '${(pct * 100).toStringAsFixed(0)}% des projets'
+                        : '—',
+                    style: AppTextStyles.bodyMuted.copyWith(fontSize: 10),
+                  ),
+                ),
+                if (_clickable)
+                  AnimatedOpacity(
+                    opacity: _hovered ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 190),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(
+                        'Voir',
+                        style: TextStyle(
+                          fontFamily: 'InterTight',
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: widget.color,
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(Icons.arrow_forward_rounded, size: 10, color: widget.color),
+                    ]),
+                  ),
+              ]),
+            ]),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(total > 0 ? '${(pct * 100).toStringAsFixed(0)}% des projets' : '—',
-            style: AppTextStyles.bodyMuted.copyWith(fontSize: 10)),
-      ]),
+      ),
     );
   }
 }
