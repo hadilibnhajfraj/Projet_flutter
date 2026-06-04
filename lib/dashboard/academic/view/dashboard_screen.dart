@@ -2,6 +2,7 @@
 // Business Intelligence Dashboard — complete rewrite
 
 import 'dart:convert';
+import 'package:dio/dio.dart' show DioException;
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:go_router/go_router.dart';
@@ -50,6 +51,10 @@ const _months = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','
 String _sf(dynamic v)   => (v == null || v.toString().trim().isEmpty) ? '' : v.toString().trim();
 double _num(dynamic v)  => v is num ? v.toDouble() : double.tryParse(_sf(v)) ?? 0;
 
+// Extraction List sécurisée — jamais de cast aveugle
+// Évite : type '_JsonMap' is not a subtype of List
+List   _safeList(dynamic v) => v is List ? v : [];
+
 BoxDecoration _cardDeco([double r = 20]) => BoxDecoration(
   color: _kCard,
   borderRadius: BorderRadius.circular(r),
@@ -91,11 +96,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _currentUserId = '';
 
   // ── Raw API data ─────────────────────────────────────────────────────────
-  Map<String, dynamic> _kpiRaw    = {};
-  List<dynamic>        _projects  = [];
-  List<dynamic>        _followups = [];
-  bool                 _loading   = true;
+  Map<String, dynamic> _kpiRaw          = {};
+  List<dynamic>        _projects        = [];
+  List<dynamic>        _followups       = [];
+  bool                 _loading         = true;
   DateTime?            _lastUpdate;
+
+  // ── Followups error state ─────────────────────────────────────────────────
+  bool   _followupsError    = false;
+  String _followupsErrorMsg = '';
 
   @override
   void initState() {
@@ -160,7 +169,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         print("PARSED_DATA   PROJECTS['items']=${items?.runtimeType} len=${items is List ? items.length : 'N/A'}");
         print("PARSED_DATA   PROJECTS['data']=${data?.runtimeType} len=${data is List ? data.length : 'N/A'}");
         print("PARSED_DATA   PROJECTS['results']=${results?.runtimeType} len=${results is List ? results.length : 'N/A'}");
-        rawProjects = (items ?? data ?? results ?? []) as List;
+        // Sécurisé : jamais de cast aveugle
+        final candidate = items ?? data ?? results;
+        rawProjects = _safeList(candidate);
       } else if (projData is List) {
         rawProjects = projData;
       }
@@ -170,41 +181,89 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       // ── 3. CRM upcoming followups ────────────────────────────────────────
+      bool   _errFollowups    = false;
+      String _errFollowupsMsg = '';
+
       try {
         final followParams = <String, dynamic>{'limit': 200};
         if (!_isAdmin && _currentUserId.isNotEmpty) followParams['userId'] = _currentUserId;
         print("REQUEST_URL   FOLLOWUPS : ${ApiConfig.baseUrl}/crm/upcoming-followups params=$followParams");
 
-        final followRes = await ApiClient.instance.dio.get('/crm/upcoming-followups', queryParameters: followParams);
-        final fData     = followRes.data;
-        print("RESPONSE      FOLLOWUPS type=${fData.runtimeType}");
+        final followRes = await ApiClient.instance.dio.get(
+          '/crm/upcoming-followups',
+          queryParameters: followParams,
+        );
+
+        // ── Logs demandés ──────────────────────────────────────────────────
+        print("FOLLOWUPS RESPONSE");
+        print(followRes.data);
+
+        final fData = followRes.data;
+
         if (fData is Map) {
-          print("RESPONSE      FOLLOWUPS keys=${fData.keys.toList()}");
+          print("COUNT    = ${fData['count']}");
+          print("TODAY    = ${_safeList(fData['today']).length}");
+          print("UPCOMING = ${_safeList(fData['upcoming']).length}");
+          print("OVERDUE  = ${_safeList(fData['overdue']).length}");
+          print("RESPONSE FOLLOWUPS keys=${fData.keys.toList()}");
+
+          // Parsing sécurisé — _safeList évite les crashes
+          // JAMAIS : (fData['overdue'] as List?) — crash si valeur non-List
           rawFollowups = [
-            ...((fData['overdue']  as List?) ?? []),
-            ...((fData['today']    as List?) ?? []),
-            ...((fData['upcoming'] as List?) ?? []),
-            ...((fData['items']    as List?) ?? []),
-            ...((fData['data']     as List?) ?? []),
+            ..._safeList(fData['overdue']),
+            ..._safeList(fData['today']),
+            ..._safeList(fData['upcoming']),
+            ..._safeList(fData['items']),
+            ..._safeList(fData['data']),
           ];
         } else if (fData is List) {
           rawFollowups = fData;
+          print("COUNT    = ${rawFollowups.length} (liste directe)");
+        } else {
+          print("FOLLOWUPS format inattendu : ${fData?.runtimeType}");
         }
-        print("PARSED_DATA   FOLLOWUPS count=${rawFollowups.length}");
-      } catch (e) {
-        print("ERREUR        FOLLOWUPS (fallback projets): $e");
-        rawFollowups = rawProjects
-            .where((p) => _sf(p['prochaineRelance'] ?? p['nextRelanceAt']).isNotEmpty)
-            .toList();
-        print("PARSED_DATA   FOLLOWUPS fallback count=${rawFollowups.length}");
+
+        print("PARSED_DATA   FOLLOWUPS total agrégé=${rawFollowups.length}");
+      } catch (e, stack) {
+        // ── Diagnostic erreur ──────────────────────────────────────────────
+        final isDioError = e is DioException;
+        final httpStatus = isDioError ? (e.response?.statusCode ?? 0) : 0;
+
+        print("ERREUR FOLLOWUPS [$httpStatus] : $e");
+        if (isDioError && e.response != null) {
+          print("FOLLOWUPS RESPONSE BODY : ${e.response!.data}");
+        }
+        print("STACK FOLLOWUPS : $stack");
+
+        if (httpStatus == 500) {
+          // Erreur serveur explicite (ex: admin sans accès) —
+          // NE PAS afficher un fallback trompeur
+          _errFollowups    = true;
+          _errFollowupsMsg = 'Erreur serveur (500) — Impossible de charger les relances.';
+          print("HTTP 500 → affichage message erreur, pas de fallback");
+
+        } else {
+          // Réseau / endpoint absent → fallback prochaineRelance des projets
+          rawFollowups = rawProjects
+              .where((p) => _sf(p['prochaineRelance'] ?? p['nextRelanceAt']).isNotEmpty)
+              .toList();
+          print("PARSED_DATA   FOLLOWUPS fallback projets count=${rawFollowups.length}");
+
+          if (rawFollowups.isEmpty) {
+            _errFollowups    = true;
+            _errFollowupsMsg = 'Impossible de charger les relances (${e.runtimeType}).';
+          }
+        }
       }
 
-      print("=== [DASHBOARD DIAG END] projects=${rawProjects.length} followups=${rawFollowups.length} ===");
+      print("=== [DASHBOARD DIAG END] projects=${rawProjects.length} followups=${rawFollowups.length} followupsError=$_errFollowups ===");
 
       setState(() {
-        _projects   = rawProjects;
-        _followups  = rawFollowups;
-        _lastUpdate = DateTime.now();
+        _projects         = rawProjects;
+        _followups        = rawFollowups;
+        _followupsError   = _errFollowups;
+        _followupsErrorMsg = _errFollowupsMsg;
+        _lastUpdate       = DateTime.now();
       });
     } catch (e, stack) {
       print("ERREUR GLOBALE [Dashboard] $e");
@@ -216,8 +275,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ── Computed getters ──────────────────────────────────────────────────────
-  List   get _userStats   => (_kpiRaw['userStats']   as List?) ?? [];
-  List   get _statutStats => (_kpiRaw['statutStats'] as List?) ?? [];
+  List   get _userStats   => _safeList(_kpiRaw['userStats']);
+  List   get _statutStats => _safeList(_kpiRaw['statutStats']);
   int    get _total       => _projects.length;
   int    get _validated   => _projects.where((p) {
     final v = _sf(p['validationStatut']).toLowerCase();
@@ -367,7 +426,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 28),
                 _buildAlerts(context),
                 const SizedBox(height: 28),
-                _buildRelances(context),
+                _buildProjectsFollowup(context),
               ] else ...[
                 // ── USER VIEW ───────────────────────────────────────────
                 _buildUserKpiRow(context),
@@ -376,7 +435,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 28),
                 _buildMonthlyChart(context),
                 const SizedBox(height: 28),
-                _buildRelances(context),
+                _buildProjectsFollowup(context),
               ],
               const SizedBox(height: 40),
             ],
@@ -503,7 +562,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _KpiCfg(label: 'Mes Projets',        icon: Icons.folder_copy_rounded,    g1: Color(0xFF4F46E5), g2: Color(0xFF6366F1)),
       _KpiCfg(label: 'Mes Validations',    icon: Icons.check_circle_rounded,   g1: Color(0xFF059669), g2: Color(0xFF10B981)),
       _KpiCfg(label: 'Mon Taux Réussite',  icon: Icons.percent_rounded,        g1: Color(0xFF0284C7), g2: Color(0xFF38BDF8)),
-      _KpiCfg(label: 'Mes Relances',       icon: Icons.alarm_rounded,          g1: Color(0xFFD97706), g2: Color(0xFFF59E0B)),
+      _KpiCfg(label: 'Projets à suivre',   icon: Icons.alarm_rounded,          g1: Color(0xFFD97706), g2: Color(0xFFF59E0B)),
       _KpiCfg(label: 'Ma Surface m²',      icon: Icons.square_foot_rounded,    g1: Color(0xFF7C3AED), g2: Color(0xFFA78BFA)),
     ];
 
@@ -515,7 +574,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       '$_total',
       '$_validated',
       '${_validRate.toStringAsFixed(1)}%',
-      '${_relances.length}',
+      '$_total',   // Projets à suivre = total projets API, pas nombre de reminders
       surfStr,
     ];
 
@@ -1108,7 +1167,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _timingLegendChip(_kThisWeek),
         ]),
         const SizedBox(height: 20),
-        if (!hasAny)
+        // ── Bandeau erreur prioritaire ──────────────────────────────────────
+        if (_followupsError)
+          _buildFollowupsErrorBanner(),
+        if (_followupsError && !hasAny)
+          const SizedBox.shrink()
+        else if (!hasAny)
           _emptyState('Aucune relance planifiée')
         else
           ...[_kOverdue, _kToday, _kThisWeek, _kFuture].expand((timing) {
@@ -1184,6 +1248,347 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ]),
   );
 
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 9. PROJETS À SUIVRE  (remplace _buildRelances)
+  //    • Source : _projects (tous les projets de l'API, pas uniquement les reminders)
+  //    • Compteur badge = _projects.length  (pas _relances.length)
+  //    • Admin : groupé par utilisateur avec badge "X projets à suivre"
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Helpers privés ────────────────────────────────────────────────────────
+
+  /// Nom du propriétaire depuis n'importe quel format de réponse API.
+  String _projectOwnerName(dynamic p) {
+    final u = p['user']  is Map ? p['user']  as Map :
+              p['owner'] is Map ? p['owner'] as Map : <dynamic, dynamic>{};
+    return _sf(u['nom'] ?? u['name'] ?? u['prenom'] ??
+               p['userNom'] ?? p['userName'] ?? p['ownerName'] ?? '');
+  }
+
+  /// Couleur hex depuis string "#RRGGBB".
+  Color _hexClr(String hex) {
+    try { return Color(int.parse('FF${hex.replaceAll('#', '')}', radix: 16)); }
+    catch (_) { return const Color(0xFF6366F1); }
+  }
+
+  /// Chip texte coloré unifié.
+  Widget _followupChip(String label, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Text(label,
+      style: TextStyle(fontFamily: 'InterTight', fontSize: 10,
+          fontWeight: FontWeight.w600, color: color),
+      maxLines: 1, overflow: TextOverflow.ellipsis,
+    ),
+  );
+
+  /// Chip priorité avec icône directionnelle.
+  Widget _priorityChip(String p) {
+    final l = p.toLowerCase();
+    Color color; IconData icon;
+    if (l == 'high' || l == 'haute' || l == 'élevée') {
+      color = const Color(0xFFEF4444); icon = Icons.keyboard_double_arrow_up_rounded;
+    } else if (l == 'medium' || l == 'moyenne') {
+      color = const Color(0xFFF97316); icon = Icons.remove_rounded;
+    } else {
+      color = const Color(0xFF22C55E); icon = Icons.keyboard_double_arrow_down_rounded;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 10, color: color), const SizedBox(width: 3),
+        Text(p, style: TextStyle(fontFamily: 'InterTight', fontSize: 10,
+            fontWeight: FontWeight.w600, color: color)),
+      ]),
+    );
+  }
+
+  /// Bouton icône compact pour les actions projet.
+  Widget _followupIconBtn({
+    required IconData icon,
+    required Color color,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) => Tooltip(
+    message: tooltip,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(7),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 16, color: color),
+      ),
+    ),
+  );
+
+  // ── Carte individuelle projet ──────────────────────────────────────────────
+  Widget _buildProjectFollowupCard(BuildContext context, dynamic p) {
+    final projectId  = _sf(p['_id'] ?? p['id'] ?? p['projectId'] ?? '');
+    final nomProjet  = _sf(p['nomProjet'] ?? p['name'] ?? '');
+    final owner      = _projectOwnerName(p);
+
+    // Pipeline stage — {name, color} ou string
+    final stageMap   = p['pipelineStage'] is Map ? p['pipelineStage'] as Map : null;
+    final stageName  = _sf(stageMap?['name'] ??
+        (p['pipelineStage'] is String ? p['pipelineStage'] : null) ??
+        p['etapeCRM'] ?? p['stage'] ?? '');
+    final stageClr   = stageMap?['color'] != null
+        ? _hexClr(_sf(stageMap!['color']))
+        : _statutColor(stageName);
+
+    final valStatut  = _sf(p['validationStatut'] ?? p['statut'] ?? '');
+    final priority   = _sf(p['priority'] ?? p['priorite'] ?? '');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: _kBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kBorder),
+      ),
+      child: Row(children: [
+        // ── Avatar initiale projet ─────────────────────────────────────
+        Container(
+          width: 38, height: 38,
+          decoration: BoxDecoration(
+            color: stageClr.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            nomProjet.isNotEmpty ? nomProjet[0].toUpperCase() : '?',
+            style: TextStyle(fontFamily: 'InterTight', fontSize: 15,
+                fontWeight: FontWeight.w800, color: stageClr),
+          ),
+        ),
+        const SizedBox(width: 12),
+
+        // ── Informations projet ────────────────────────────────────────
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              nomProjet.isNotEmpty ? nomProjet : '—',
+              style: const TextStyle(fontFamily: 'InterTight', fontSize: 13,
+                  fontWeight: FontWeight.w700, color: _kText),
+              maxLines: 1, overflow: TextOverflow.ellipsis,
+            ),
+            if (owner.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Row(children: [
+                const Icon(Icons.person_outline_rounded, size: 12, color: _kMuted),
+                const SizedBox(width: 4),
+                Flexible(child: Text(owner,
+                  style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
+                  maxLines: 1, overflow: TextOverflow.ellipsis)),
+              ]),
+            ],
+            const SizedBox(height: 6),
+            Wrap(spacing: 6, runSpacing: 4, children: [
+              if (stageName.isNotEmpty)
+                _followupChip(stageName, stageClr),
+              if (valStatut.isNotEmpty)
+                _followupChip(valStatut, _statutColor(valStatut)),
+              if (priority.isNotEmpty)
+                _priorityChip(priority),
+            ]),
+          ]),
+        ),
+
+        // ── Boutons Voir + Timeline ────────────────────────────────────
+        if (projectId.isNotEmpty) ...[
+          const SizedBox(width: 8),
+          _followupIconBtn(
+            icon: Icons.visibility_rounded,
+            color: const Color(0xFF2563EB),
+            tooltip: 'Voir projet',
+            onTap: () => context.push('/forms/project?id=$projectId'),
+          ),
+          const SizedBox(width: 4),
+          _followupIconBtn(
+            icon: Icons.timeline_rounded,
+            color: const Color(0xFF7C3AED),
+            tooltip: 'Timeline',
+            onTap: () => context.push('/forms/project-timeline?projectId=$projectId'),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  // ── Vue admin : groupée par utilisateur ───────────────────────────────────
+  Widget _buildAdminFollowupGroups(BuildContext context) {
+    // Grouper par nom utilisateur
+    final Map<String, List<dynamic>> byUser = {};
+    for (final p in _projects) {
+      final name = _projectOwnerName(p);
+      byUser.putIfAbsent(name.isNotEmpty ? name : '(Non assigné)', () => []).add(p);
+    }
+
+    // Trier par nombre de projets décroissant
+    final entries = byUser.entries.toList()
+      ..sort((a, b) => b.value.length.compareTo(a.value.length));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: entries.asMap().entries.map((en) {
+        final idx  = en.key;
+        final name = en.value.key;
+        final list = en.value.value;
+        final cnt  = list.length;
+
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // ── En-tête utilisateur ──────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 10),
+            child: Row(children: [
+              _avatar(name, idx),
+              const SizedBox(width: 10),
+              Expanded(child: Text(name,
+                style: const TextStyle(fontFamily: 'InterTight', fontSize: 13,
+                    fontWeight: FontWeight.w700, color: _kText),
+              )),
+              // Badge "X projets à suivre"
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$cnt projet${cnt != 1 ? 's' : ''} à suivre',
+                  style: const TextStyle(fontFamily: 'InterTight', fontSize: 11,
+                      fontWeight: FontWeight.w700, color: Color(0xFF4F46E5)),
+                ),
+              ),
+            ]),
+          ),
+          // ── Cartes projets de cet utilisateur ───────────────────────
+          ...list.map((p) => _buildProjectFollowupCard(context, p)),
+          const SizedBox(height: 4),
+          const Divider(height: 1, thickness: 0.8, color: Color(0xFFEFF2F7)),
+          const SizedBox(height: 12),
+        ]);
+      }).toList(),
+    );
+  }
+
+  // ── Widget principal ──────────────────────────────────────────────────────
+  Widget _buildProjectsFollowup(BuildContext context) {
+    final total = _projects.length;   // ← compteur basé sur projets API
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: _cardDeco(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── En-tête avec badge total ─────────────────────────────────────
+        Row(children: [
+          Expanded(child: _sectionHeader('Projets à suivre')),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4F46E5).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '$total projet${total != 1 ? 's' : ''}',
+              style: const TextStyle(fontFamily: 'InterTight', fontSize: 12,
+                  fontWeight: FontWeight.w700, color: Color(0xFF4F46E5)),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 20),
+
+        if (_projects.isEmpty)
+          _emptyState('Aucun projet à suivre')
+        else if (_isAdmin)
+          _buildAdminFollowupGroups(context)
+        else
+          ..._projects.map((p) => _buildProjectFollowupCard(context, p)),
+      ]),
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // FOLLOWUPS ERROR BANNER
+  // ══════════════════════════════════════════════════════════════════════════
+  Widget _buildFollowupsErrorBanner() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEF2F2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.35)),
+      ),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEF4444).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.error_outline_rounded,
+              color: Color(0xFFDC2626), size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text(
+              'Impossible de charger les relances',
+              style: TextStyle(
+                fontFamily: 'InterTight',
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFDC2626),
+              ),
+            ),
+            if (_followupsErrorMsg.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(
+                _followupsErrorMsg,
+                style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
+              ),
+            ],
+          ]),
+        ),
+        const SizedBox(width: 12),
+        TextButton.icon(
+          onPressed: () {
+            setState(() {
+              _followupsError    = false;
+              _followupsErrorMsg = '';
+            });
+            _loadAll();
+          },
+          icon: const Icon(Icons.refresh_rounded, size: 14),
+          label: const Text('Réessayer'),
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFFDC2626),
+            backgroundColor: const Color(0xFFEF4444).withOpacity(0.08),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            textStyle: const TextStyle(
+              fontFamily: 'InterTight',
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // SHARED HELPERS
