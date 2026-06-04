@@ -13,6 +13,7 @@ import 'package:dash_master_toolkit/providers/api_client.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dash_master_toolkit/core/theme/app_text_styles.dart';
 import 'package:dash_master_toolkit/dashboard/academic/widgets/crm_relance_card.dart';
+import 'package:dash_master_toolkit/dashboard/academic/widgets/relances_followup_section.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -1486,36 +1487,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // ── Widget principal ──────────────────────────────────────────────────────
   Widget _buildProjectsFollowup(BuildContext context) {
-    final total = _projects.length;   // ← compteur basé sur projets API
-
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: _cardDeco(),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ── En-tête avec badge total ─────────────────────────────────────
+        // ── En-tête ──────────────────────────────────────────────────────────
         Row(children: [
-          Expanded(child: _sectionHeader('Projets à suivre')),
+          Expanded(child: _sectionHeader('Relances à venir')),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFF4F46E5).withOpacity(0.1),
+              color: const Color(0xFFEEF2FF),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              '$total projet${total != 1 ? 's' : ''}',
-              style: const TextStyle(fontFamily: 'InterTight', fontSize: 12,
+              '${_projects.length}',
+              style: const TextStyle(fontFamily: 'InterTight', fontSize: 13,
                   fontWeight: FontWeight.w700, color: Color(0xFF4F46E5)),
             ),
           ),
         ]),
         const SizedBox(height: 20),
 
-        if (_projects.isEmpty)
-          _emptyState('Aucun projet à suivre')
-        else if (_isAdmin)
-          _buildAdminFollowupGroups(context)
-        else
-          ..._projects.map((p) => _buildProjectFollowupCard(context, p)),
+        // ── Section complète avec filtres, recherche, groupes, pagination ──
+        RelancesFollowupSection(
+          items:   _projects,
+          isAdmin: _isAdmin,
+        ),
       ]),
     );
   }
