@@ -1,14 +1,5 @@
 // lib/dashboard/academic/widgets/relances_followup_section.dart
-//
-// Section "Relances à venir" — UI complète :
-//   • Résumé global  (Total / En retard / Aujourd'hui / Cette semaine)
-//   • Barre de filtres dynamique  (timing + pipeline stages)
-//   • Barre de recherche  (nom projet, commercial, stage)
-//   • Groupement par commercial (admin) avec badge "X relances"
-//   • Pagination par groupe  (10 par page)
-//   • Cartes riches responsive  (desktop wide / tablette 2 col / mobile 1 col)
-//   • Couleurs par timing  (rouge / orange / bleu / gris)
-//   • Boutons Voir Projet + Timeline
+// Section Relances — cartes CRM directes · pagination · actions Voir Projet + Timeline
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -30,9 +21,8 @@ const _cSoon   = Color(0xFF3B82F6);
 const _cFuture = Color(0xFF94A3B8);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PRIVATE HELPERS  (top-level, tree-shake friendly)
+// HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
-
 String _sf(dynamic v) =>
     (v == null || v.toString().trim().isEmpty) ? '' : v.toString().trim();
 
@@ -51,7 +41,6 @@ String _fmtDate(String v) {
   catch (_) { return v; }
 }
 
-// Stage → color mapping (same palette as the main dashboard)
 Color _stageColor(String s) {
   final l = s.toLowerCase();
   if (l.contains('identif'))    return const Color(0xFF6B7280);
@@ -78,8 +67,6 @@ Color _valColor(String s) {
   if (l.contains('attente'))                     return const Color(0xFFF59E0B);
   return const Color(0xFF94A3B8);
 }
-
-// ── Field extractors ─────────────────────────────────────────────────────────
 
 String _ownerOf(dynamic p) {
   final u = p['user']  is Map ? p['user']  as Map :
@@ -129,9 +116,8 @@ Color _tColor(dynamic p) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WIDGET PRINCIPAL
+// WIDGET PRINCIPAL — pas de filtres, pas de recherche, pas de statistiques
 // ─────────────────────────────────────────────────────────────────────────────
-
 class RelancesFollowupSection extends StatefulWidget {
   const RelancesFollowupSection({
     super.key,
@@ -139,10 +125,7 @@ class RelancesFollowupSection extends StatefulWidget {
     required this.isAdmin,
   });
 
-  /// Projets bruts depuis l'API (List<dynamic> de _projects ou _followups).
   final List<dynamic> items;
-
-  /// true → vue admin groupée par commercial.
   final bool isAdmin;
 
   @override
@@ -150,69 +133,18 @@ class RelancesFollowupSection extends StatefulWidget {
       _RelancesFollowupSectionState();
 }
 
-class _RelancesFollowupSectionState
-    extends State<RelancesFollowupSection> {
-
+class _RelancesFollowupSectionState extends State<RelancesFollowupSection> {
   static const int _pageSize = 10;
 
-  final TextEditingController _searchCtrl = TextEditingController();
-  String _search = '';
-  String _filter = 'tous';
-
-  /// Page courante par groupe (key = owner ou '_global').
+  // Pagination par groupe (clé = owner ou '_global')
   final Map<String, int> _pages = {};
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
 
   // ── Computed ────────────────────────────────────────────────────────────────
 
-  List<dynamic> get _filtered {
-    final q = _search.toLowerCase().trim();
-    return widget.items.where((p) {
-      // Timing filter
-      if (_filter == 'retard'      && !_isLate(p))  return false;
-      if (_filter == 'auj'         && !_isToday(p)) return false;
-      if (_filter == 'semaine'     && !_isWeek(p))  return false;
-      // Stage filter (tout ce qui n'est pas un timing)
-      if (_filter != 'tous' && _filter != 'retard' &&
-          _filter != 'auj'  && _filter != 'semaine') {
-        if (_stageNameOf(p).toLowerCase() != _filter.toLowerCase()) return false;
-      }
-      // Search
-      if (q.isNotEmpty) {
-        final nom   = _sf(p['nomProjet'] ?? p['name'] ?? '').toLowerCase();
-        final owner = _ownerOf(p).toLowerCase();
-        final stage = _stageNameOf(p).toLowerCase();
-        if (!nom.contains(q) && !owner.contains(q) && !stage.contains(q))
-          return false;
-      }
-      return true;
-    }).toList();
-  }
-
-  List<String> get _stageList {
-    final s = <String>{};
-    for (final p in widget.items) {
-      final n = _stageNameOf(p);
-      if (n.isNotEmpty) s.add(n);
-    }
-    return s.toList()..sort();
-  }
-
-  // Summary counts from ALL items (before filters)
-  // Named _count* to avoid shadowing the top-level Color constants _cLate/_cToday
-  int get _countTotal => widget.items.length;
-  int get _countLate  => widget.items.where(_isLate).length;
-  int get _countToday => widget.items.where(_isToday).length;
-  int get _countWeek  => widget.items.where(_isWeek).length;
-
+  // Groupement par commercial pour vue admin — trié par nb de relances desc
   Map<String, List<dynamic>> get _grouped {
     final map = <String, List<dynamic>>{};
-    for (final p in _filtered) {
+    for (final p in widget.items) {
       final k = _ownerOf(p);
       map.putIfAbsent(k.isEmpty ? '(Non assigné)' : k, () => []).add(p);
     }
@@ -221,140 +153,19 @@ class _RelancesFollowupSectionState
     return Map.fromEntries(sorted);
   }
 
-  int  _page(String key)      => _pages[key] ?? 0;
-  int  _pages2(int n)         => (n / _pageSize).ceil().clamp(1, 9999);
+  int  _page(String key)       => _pages[key] ?? 0;
+  int  _totalPages(int n)      => (n / _pageSize).ceil().clamp(1, 9999);
   void _setPage(String k, int p) => setState(() => _pages[k] = p);
 
-  void _resetPages() => _pages.clear();
-
-  // ── BUILD ────────────────────────────────────────────────────────────────────
+  // ── BUILD ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _buildSummary(),
-      const SizedBox(height: 16),
-      _buildFilters(),
-      const SizedBox(height: 12),
-      _buildSearch(),
-      const SizedBox(height: 20),
-      if (_filtered.isEmpty)
-        _empty()
-      else if (widget.isAdmin)
-        _adminView(context)
-      else
-        _userView(context),
-    ]);
+    if (widget.items.isEmpty) return _empty();
+    return widget.isAdmin ? _adminView(context) : _userView(context);
   }
 
-  // ── 1. Barre de résumé global ─────────────────────────────────────────────
-
-  Widget _buildSummary() => Wrap(spacing: 10, runSpacing: 10, children: [
-    _sumChip('Total relances', _countTotal, _cAccent),
-    _sumChip('En retard',      _countLate,  _cLate),
-    _sumChip("Aujourd'hui",    _countToday, _cToday),
-    _sumChip('Cette semaine',  _countWeek,  _cSoon),
-  ]);
-
-  Widget _sumChip(String label, int value, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.07),
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: color.withOpacity(0.22)),
-    ),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(width: 8, height: 8,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-      const SizedBox(width: 8),
-      Text(label, style: const TextStyle(fontFamily: 'InterTight',
-          fontSize: 12, fontWeight: FontWeight.w500, color: _kMuted)),
-      const SizedBox(width: 8),
-      Text('$value', style: TextStyle(fontFamily: 'InterTight',
-          fontSize: 14, fontWeight: FontWeight.w800, color: color)),
-    ]),
-  );
-
-  // ── 2. Barre de filtres ────────────────────────────────────────────────────
-
-  Widget _buildFilters() {
-    final chips = <(String key, String label, Color color)>[
-      ('tous',    'Tous',           _cAccent),
-      ('retard',  'En retard',      _cLate),
-      ('auj',     "Aujourd'hui",    _cToday),
-      ('semaine', 'Cette semaine',  _cSoon),
-      ..._stageList.map((s) => (s, s, _stageColor(s))),
-    ];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: chips.map((c) {
-          final active = _filter == c.$1;
-          final color  = c.$3;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 140),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: active ? color.withOpacity(0.12) : _kCard,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: active ? color.withOpacity(0.55) : _kBorder,
-                  width: active ? 1.4 : 1,
-                ),
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () => setState(() { _filter = c.$1; _resetPages(); }),
-                child: Text(c.$2,
-                  style: TextStyle(
-                    fontFamily: 'InterTight',
-                    fontSize: 12,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                    color: active ? color : _kMuted,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  // ── 3. Barre de recherche ──────────────────────────────────────────────────
-
-  Widget _buildSearch() => TextField(
-    controller: _searchCtrl,
-    onChanged: (v) => setState(() { _search = v; _resetPages(); }),
-    decoration: InputDecoration(
-      hintText: 'Rechercher par nom projet, commercial, stage...',
-      hintStyle: const TextStyle(
-          fontFamily: 'InterTight', fontSize: 13, color: _kMuted),
-      prefixIcon: const Icon(Icons.search_rounded, size: 20, color: _kMuted),
-      suffixIcon: _search.isNotEmpty
-          ? IconButton(
-              icon: const Icon(Icons.close_rounded, size: 18, color: _kMuted),
-              onPressed: () {
-                _searchCtrl.clear();
-                setState(() { _search = ''; _resetPages(); });
-              })
-          : null,
-      filled: true,
-      fillColor: _kCard,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _kBorder)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _kBorder)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: _cAccent, width: 1.4)),
-    ),
-  );
-
-  // ── 4. Vue admin (groupée par commercial) ─────────────────────────────────
+  // ── Vue admin : groupée par commercial ───────────────────────────────────
 
   Widget _adminView(BuildContext context) {
     final groups = _grouped;
@@ -363,26 +174,22 @@ class _RelancesFollowupSectionState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: groups.entries.toList().asMap().entries.map((en) {
-        final idx   = en.key;
         final owner = en.value.key;
         final list  = en.value.value;
         final cnt   = list.length;
         final page  = _page(owner);
-        final total = _pages2(cnt);
+        final total = _totalPages(cnt);
         final start = page * _pageSize;
         final end   = (start + _pageSize).clamp(0, cnt);
 
         return Padding(
-          padding: const EdgeInsets.only(bottom: 28),
+          padding: const EdgeInsets.only(bottom: 24),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // ── En-tête groupe commercial ──────────────────────────────
-            _groupHeader(owner, cnt, idx),
-            const SizedBox(height: 14),
-            // ── Cartes de ce commercial ────────────────────────────────
+            _groupHeader(owner, cnt),
+            const SizedBox(height: 12),
             _cardGrid(context, list.sublist(start, end)),
-            // ── Pagination ─────────────────────────────────────────────
             if (total > 1) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _pagination(owner, page, total),
             ],
             const SizedBox(height: 8),
@@ -393,28 +200,28 @@ class _RelancesFollowupSectionState
     );
   }
 
-  // ── 5. Vue utilisateur normal (flat, paginée) ─────────────────────────────
+  // ── Vue utilisateur : flat paginée ───────────────────────────────────────
 
   Widget _userView(BuildContext context) {
-    final list  = _filtered;
+    final list  = widget.items;
     final cnt   = list.length;
     final page  = _page('_g');
-    final total = _pages2(cnt);
+    final total = _totalPages(cnt);
     final start = page * _pageSize;
     final end   = (start + _pageSize).clamp(0, cnt);
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _cardGrid(context, list.sublist(start, end)),
       if (total > 1) ...[
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         _pagination('_g', page, total),
       ],
     ]);
   }
 
-  // ── En-tête commercial (admin) ─────────────────────────────────────────────
+  // ── En-tête groupe commercial ─────────────────────────────────────────────
 
-  Widget _groupHeader(String owner, int cnt, int idx) {
+  Widget _groupHeader(String owner, int cnt) {
     const palette = [_cAccent, Color(0xFF22C55E), Color(0xFF3B82F6),
                      Color(0xFFF59E0B), Color(0xFFEF4444), Color(0xFF8B5CF6)];
     final color = palette[owner.hashCode.abs() % palette.length];
@@ -422,24 +229,21 @@ class _RelancesFollowupSectionState
 
     return Row(children: [
       Container(
-        width: 38, height: 38,
+        width: 36, height: 36,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.13),
-          borderRadius: BorderRadius.circular(10),
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(9),
         ),
         alignment: Alignment.center,
         child: Text(init, style: TextStyle(fontFamily: 'InterTight',
             fontSize: 14, fontWeight: FontWeight.w800, color: color)),
       ),
       const SizedBox(width: 10),
-      Expanded(
-        child: Text('👤 $owner',
-          style: const TextStyle(fontFamily: 'InterTight', fontSize: 14,
-              fontWeight: FontWeight.w700, color: _kText),
-          maxLines: 1, overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      const SizedBox(width: 10),
+      Expanded(child: Text('👤 $owner',
+        style: const TextStyle(fontFamily: 'InterTight', fontSize: 14,
+            fontWeight: FontWeight.w700, color: _kText),
+        maxLines: 1, overflow: TextOverflow.ellipsis)),
+      const SizedBox(width: 8),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
@@ -453,114 +257,103 @@ class _RelancesFollowupSectionState
     ]);
   }
 
-  // ── Grille responsive de cartes ────────────────────────────────────────────
+  // ── Grille responsive de cartes ──────────────────────────────────────────
 
   Widget _cardGrid(BuildContext context, List<dynamic> items) {
     return LayoutBuilder(builder: (_, box) {
       final w = box.maxWidth;
 
       if (w > 900) {
-        // Desktop : colonnes larges
         return Column(children: items.map((p) =>
             _card(context, p, wide: true)).toList());
       }
 
       if (w > 560) {
-        // Tablette : 2 colonnes
         final rows = <Widget>[];
         for (int i = 0; i < items.length; i += 2) {
           rows.add(IntrinsicHeight(
-            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _card(context, items[i], wide: false)),
-                const SizedBox(width: 12),
-                Expanded(child: i + 1 < items.length
-                    ? _card(context, items[i + 1], wide: false)
-                    : const SizedBox()),
-              ]),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              Expanded(child: _card(context, items[i], wide: false)),
+              const SizedBox(width: 10),
+              Expanded(child: i + 1 < items.length
+                  ? _card(context, items[i + 1], wide: false)
+                  : const SizedBox()),
+            ]),
           ));
-          if (i + 2 < items.length) rows.add(const SizedBox(height: 10));
+          if (i + 2 < items.length) rows.add(const SizedBox(height: 8));
         }
         return Column(children: rows);
       }
 
-      // Mobile : 1 colonne
       return Column(children: items.map((p) =>
           _card(context, p, wide: false)).toList());
     });
   }
 
-  // ── Carte individuelle ─────────────────────────────────────────────────────
+  // ── Carte individuelle ────────────────────────────────────────────────────
 
   Widget _card(BuildContext context, dynamic p, {required bool wide}) {
-    // ── Extraction champs ────────────────────────────────────────────────
-    final id         = _sf(p['_id'] ?? p['id'] ?? p['projectId'] ?? '');
-    final nom        = _sf(p['nomProjet'] ?? p['name'] ?? '');
-    final owner      = _ownerOf(p);
-    final stageName  = _stageNameOf(p);
-    final stageClr   = _stageColorOf(p);
-    final valStatut  = _sf(p['validationStatut'] ?? p['statut'] ?? '');
-    final dateStr    = _fmtDate(_dateRawOf(p));
-    final priority   = _sf(p['priority'] ?? p['priorite'] ?? '');
-    final surface    = _nd(p['surfaceProspectee']);
-    final pctReuss   = _nd(p['pourcentageReussite']);
+    final id        = _sf(p['_id'] ?? p['id'] ?? p['projectId'] ?? '');
+    final nom       = _sf(p['nomProjet'] ?? p['name'] ?? '');
+    final owner     = _ownerOf(p);
+    final stageName = _stageNameOf(p);
+    final stageClr  = _stageColorOf(p);
+    final valStatut = _sf(p['validationStatut'] ?? p['statut'] ?? '');
+    final dateStr   = _fmtDate(_dateRawOf(p));
+    final priority  = _sf(p['priority'] ?? p['priorite'] ?? '');
+    final surface   = _nd(p['surfaceProspectee']);
+    final pctReuss  = _nd(p['pourcentageReussite']);
 
     final tc   = _tColor(p);
     final late = _isLate(p);
     final days = _daysOf(p);
 
-    // Timing label
     final tLabel = late
         ? 'Retard ${days.abs()}j'
         : _isToday(p)
             ? "Aujourd'hui"
-            : days < 9999
-                ? 'Dans ${days}j'
-                : '—';
+            : days < 9999 ? 'Dans ${days}j' : '—';
 
-    // Card background
-    Color cardBg;
-    Color cardBorder;
+    Color cardBg, cardBorder;
     if (late) {
-      cardBg = const Color(0xFFFEF2F2); cardBorder = _cLate.withOpacity(0.30);
+      cardBg = const Color(0xFFFEF2F2); cardBorder = _cLate.withOpacity(0.28);
     } else if (_isToday(p)) {
-      cardBg = const Color(0xFFFFF7ED); cardBorder = _cToday.withOpacity(0.30);
+      cardBg = const Color(0xFFFFF7ED); cardBorder = _cToday.withOpacity(0.28);
     } else if (_isWeek(p)) {
-      cardBg = const Color(0xFFEFF6FF); cardBorder = _cSoon.withOpacity(0.30);
+      cardBg = const Color(0xFFEFF6FF); cardBorder = _cSoon.withOpacity(0.28);
     } else {
       cardBg = _kBg; cardBorder = _kBorder;
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: cardBg,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(13),
         border: Border.all(color: cardBorder, width: 1.2),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03),
-            blurRadius: 8, offset: const Offset(0, 3))],
+            blurRadius: 7, offset: const Offset(0, 3))],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(12),
         child: IntrinsicHeight(
           child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            // Barre timing gauche
+            // Barre timing latérale colorée
             Container(
               width: 4,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                  colors: [tc, tc.withOpacity(0.35)],
-                ),
+                  colors: [tc, tc.withOpacity(0.35)]),
               ),
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(13),
                 child: wide
-                    ? _cardBodyWide(context, id, nom, owner, stageName, stageClr,
+                    ? _bodyWide(context, id, nom, owner, stageName, stageClr,
                         valStatut, dateStr, priority, surface, pctReuss, tc, tLabel, late)
-                    : _cardBodyNarrow(context, id, nom, owner, stageName, stageClr,
+                    : _bodyNarrow(context, id, nom, owner, stageName, stageClr,
                         valStatut, dateStr, priority, surface, pctReuss, tc, tLabel, late),
               ),
             ),
@@ -570,15 +363,14 @@ class _RelancesFollowupSectionState
     );
   }
 
-  // ── Corps carte LARGE (desktop) ────────────────────────────────────────────
+  // ── Corps LARGE (desktop) ─────────────────────────────────────────────────
 
-  Widget _cardBodyWide(
+  Widget _bodyWide(
     BuildContext context, String id, String nom, String owner,
     String stageName, Color stageClr, String valStatut, String dateStr,
     String priority, double surface, double pct, Color tc,
     String tLabel, bool late,
   ) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    // Ligne 1 : timing + stage + validation
     Row(children: [
       _timingBadge(tLabel, tc, late),
       const SizedBox(width: 8),
@@ -586,8 +378,7 @@ class _RelancesFollowupSectionState
       const Spacer(),
       if (valStatut.isNotEmpty) _valBadge(valStatut),
     ]),
-    const SizedBox(height: 10),
-    // Nom projet
+    const SizedBox(height: 9),
     Text(nom.isNotEmpty ? nom : '—',
       style: const TextStyle(fontFamily: 'InterTight', fontSize: 15,
           fontWeight: FontWeight.w800, color: _kText),
@@ -595,35 +386,31 @@ class _RelancesFollowupSectionState
     if (owner.isNotEmpty) ...[
       const SizedBox(height: 3),
       Row(children: [
-        const Icon(Icons.person_outline_rounded, size: 13, color: _kMuted),
+        const Icon(Icons.person_outline_rounded, size: 12, color: _kMuted),
         const SizedBox(width: 4),
-        Flexible(child: Text(owner,
-          style: const TextStyle(fontFamily: 'InterTight', fontSize: 12, color: _kMuted),
+        Flexible(child: Text(owner, style: const TextStyle(fontFamily: 'InterTight',
+            fontSize: 12, color: _kMuted),
           maxLines: 1, overflow: TextOverflow.ellipsis)),
       ]),
     ],
-    const SizedBox(height: 10),
-    // Ligne méta : date + priorité + surface + %
-    Wrap(spacing: 16, runSpacing: 6, children: [
-      if (dateStr.isNotEmpty)
-        _metaChip(Icons.calendar_today_rounded, dateStr, tc),
+    const SizedBox(height: 8),
+    Wrap(spacing: 14, runSpacing: 5, children: [
+      if (dateStr.isNotEmpty) _metaChip(Icons.calendar_today_rounded, dateStr, tc),
       if (priority.isNotEmpty) _priorityBadge(priority),
-      if (surface > 0)
-        _metaChip(Icons.square_foot_rounded, '${surface.toStringAsFixed(0)} m²',
-            const Color(0xFF7C3AED)),
-      if (pct > 0)
-        _metaChip(Icons.percent_rounded, '${pct.toStringAsFixed(0)}%',
-            const Color(0xFF059669)),
+      if (surface > 0) _metaChip(Icons.square_foot_rounded,
+          '${surface.toStringAsFixed(0)} m²', const Color(0xFF7C3AED)),
+      if (pct > 0) _metaChip(Icons.percent_rounded,
+          '${pct.toStringAsFixed(0)}%', const Color(0xFF059669)),
     ]),
-    const SizedBox(height: 12),
-    const Divider(height: 1, color: Color(0xFFEFF2F7)),
     const SizedBox(height: 10),
+    const Divider(height: 1, color: Color(0xFFEFF2F7)),
+    const SizedBox(height: 8),
     _actions(context, id),
   ]);
 
-  // ── Corps carte ÉTROITE (tablette / mobile) ────────────────────────────────
+  // ── Corps ÉTROIT (tablette / mobile) ─────────────────────────────────────
 
-  Widget _cardBodyNarrow(
+  Widget _bodyNarrow(
     BuildContext context, String id, String nom, String owner,
     String stageName, Color stageClr, String valStatut, String dateStr,
     String priority, double surface, double pct, Color tc,
@@ -634,7 +421,7 @@ class _RelancesFollowupSectionState
       const Spacer(),
       if (stageName.isNotEmpty) _stageBadge(stageName, stageClr),
     ]),
-    const SizedBox(height: 8),
+    const SizedBox(height: 7),
     Text(nom.isNotEmpty ? nom : '—',
       style: const TextStyle(fontFamily: 'InterTight', fontSize: 14,
           fontWeight: FontWeight.w700, color: _kText),
@@ -642,37 +429,35 @@ class _RelancesFollowupSectionState
     if (owner.isNotEmpty) ...[
       const SizedBox(height: 3),
       Row(children: [
-        const Icon(Icons.person_outline_rounded, size: 12, color: _kMuted),
+        const Icon(Icons.person_outline_rounded, size: 11, color: _kMuted),
         const SizedBox(width: 4),
-        Flexible(child: Text(owner,
-          style: const TextStyle(fontFamily: 'InterTight', fontSize: 11, color: _kMuted),
+        Flexible(child: Text(owner, style: const TextStyle(fontFamily: 'InterTight',
+            fontSize: 11, color: _kMuted),
           maxLines: 1, overflow: TextOverflow.ellipsis)),
       ]),
     ],
-    const SizedBox(height: 8),
-    Wrap(spacing: 6, runSpacing: 4, children: [
+    const SizedBox(height: 7),
+    Wrap(spacing: 5, runSpacing: 4, children: [
       if (valStatut.isNotEmpty) _valBadge(valStatut),
       if (dateStr.isNotEmpty)   _metaChip(Icons.calendar_today_rounded, dateStr, tc),
       if (priority.isNotEmpty)  _priorityBadge(priority),
     ]),
     if (surface > 0 || pct > 0) ...[
-      const SizedBox(height: 6),
-      Wrap(spacing: 6, runSpacing: 4, children: [
-        if (surface > 0)
-          _metaChip(Icons.square_foot_rounded, '${surface.toStringAsFixed(0)} m²',
-              const Color(0xFF7C3AED)),
-        if (pct > 0)
-          _metaChip(Icons.percent_rounded, '${pct.toStringAsFixed(0)}%',
-              const Color(0xFF059669)),
+      const SizedBox(height: 5),
+      Wrap(spacing: 5, runSpacing: 4, children: [
+        if (surface > 0) _metaChip(Icons.square_foot_rounded,
+            '${surface.toStringAsFixed(0)} m²', const Color(0xFF7C3AED)),
+        if (pct > 0) _metaChip(Icons.percent_rounded,
+            '${pct.toStringAsFixed(0)}%', const Color(0xFF059669)),
       ]),
     ],
-    const SizedBox(height: 10),
-    const Divider(height: 1, color: Color(0xFFEFF2F7)),
     const SizedBox(height: 8),
+    const Divider(height: 1, color: Color(0xFFEFF2F7)),
+    const SizedBox(height: 7),
     _actions(context, id),
   ]);
 
-  // ── Boutons d'action par carte ─────────────────────────────────────────────
+  // ── Boutons Voir Projet + Timeline ────────────────────────────────────────
 
   Widget _actions(BuildContext context, String id) {
     if (id.isEmpty) return const SizedBox.shrink();
@@ -696,7 +481,7 @@ class _RelancesFollowupSectionState
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color:  filled ? color : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
@@ -713,13 +498,13 @@ class _RelancesFollowupSectionState
       ),
     );
 
-  // ── Pagination ─────────────────────────────────────────────────────────────
+  // ── Pagination ────────────────────────────────────────────────────────────
 
   Widget _pagination(String key, int page, int pages) => Container(
-    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+    padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 12),
     decoration: BoxDecoration(
       color: _kCard,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(11),
       border: Border.all(color: _kBorder),
     ),
     child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
@@ -727,7 +512,7 @@ class _RelancesFollowupSectionState
           page > 0, () => _setPage(key, page - 1)),
       const SizedBox(width: 12),
       Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
         decoration: BoxDecoration(
           color: const Color(0xFFEEF2FF), borderRadius: BorderRadius.circular(20)),
         child: Text('Page ${page + 1} / $pages',
@@ -759,23 +544,23 @@ class _RelancesFollowupSectionState
     return on
         ? InkWell(onTap: cb, borderRadius: BorderRadius.circular(8),
             child: Padding(padding: const EdgeInsets.symmetric(
-                horizontal: 8, vertical: 4), child: child))
+                horizontal: 7, vertical: 4), child: child))
         : Padding(padding: const EdgeInsets.symmetric(
-            horizontal: 8, vertical: 4), child: child);
+            horizontal: 7, vertical: 4), child: child);
   }
 
-  // ── Micro badges ───────────────────────────────────────────────────────────
+  // ── Micro badges ─────────────────────────────────────────────────────────
 
   Widget _timingBadge(String label, Color color, bool late) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
     decoration: BoxDecoration(
       color: color.withOpacity(0.12),
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.4)),
+      border: Border.all(color: color.withOpacity(0.38)),
     ),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(late ? Icons.warning_amber_rounded : Icons.schedule_rounded,
-          size: 12, color: color),
+          size: 11, color: color),
       const SizedBox(width: 4),
       Text(label, style: TextStyle(fontFamily: 'InterTight', fontSize: 11,
           fontWeight: FontWeight.w800, color: color)),
@@ -783,14 +568,14 @@ class _RelancesFollowupSectionState
   );
 
   Widget _stageBadge(String name, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     decoration: BoxDecoration(
       color: color.withOpacity(0.1),
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: color.withOpacity(0.28)),
+      border: Border.all(color: color.withOpacity(0.25)),
     ),
     child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(width: 6, height: 6,
+      Container(width: 5, height: 5,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
       const SizedBox(width: 5),
       Text(name, style: TextStyle(fontFamily: 'InterTight', fontSize: 10,
@@ -808,15 +593,15 @@ class _RelancesFollowupSectionState
             ? Icons.cancel_rounded
             : Icons.hourglass_top_rounded;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
         color: c.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: c.withOpacity(0.22)),
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: c.withOpacity(0.20)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 11, color: c),
-        const SizedBox(width: 4),
+        Icon(icon, size: 10, color: c),
+        const SizedBox(width: 3),
         Text(s, style: TextStyle(fontFamily: 'InterTight', fontSize: 10,
             fontWeight: FontWeight.w700, color: c)),
       ]),
@@ -828,10 +613,10 @@ class _RelancesFollowupSectionState
       Container(
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-            color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(5)),
-        child: Icon(icon, size: 11, color: color),
+            color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+        child: Icon(icon, size: 10, color: color),
       ),
-      const SizedBox(width: 5),
+      const SizedBox(width: 4),
       Text(label, style: const TextStyle(fontFamily: 'InterTight',
           fontSize: 11, fontWeight: FontWeight.w600, color: _kMuted)),
     ]);
@@ -847,11 +632,11 @@ class _RelancesFollowupSectionState
       c = const Color(0xFF22C55E); icon = Icons.keyboard_double_arrow_down_rounded;
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-          color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+          color: c.withOpacity(0.1), borderRadius: BorderRadius.circular(11)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 11, color: c), const SizedBox(width: 3),
+        Icon(icon, size: 10, color: c), const SizedBox(width: 3),
         Text(p, style: TextStyle(fontFamily: 'InterTight', fontSize: 10,
             fontWeight: FontWeight.w700, color: c)),
       ]),
@@ -860,11 +645,11 @@ class _RelancesFollowupSectionState
 
   Widget _empty() => Center(
     child: Padding(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(28),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.event_busy_rounded, size: 48, color: Colors.grey[300]),
-        const SizedBox(height: 12),
-        const Text('Aucune relance trouvée',
+        Icon(Icons.event_busy_rounded, size: 44, color: Colors.grey[300]),
+        const SizedBox(height: 10),
+        const Text('Aucune relance',
           style: TextStyle(fontFamily: 'InterTight', fontSize: 14,
               color: _kMuted, fontWeight: FontWeight.w500)),
       ]),

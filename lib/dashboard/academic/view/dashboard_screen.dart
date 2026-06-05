@@ -14,6 +14,8 @@ import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dash_master_toolkit/core/theme/app_text_styles.dart';
 import 'package:dash_master_toolkit/dashboard/academic/widgets/crm_relance_card.dart';
 import 'package:dash_master_toolkit/dashboard/academic/widgets/relances_followup_section.dart';
+import 'package:dash_master_toolkit/dashboard/academic/widgets/crm_dashboard_widgets.dart';
+import 'package:dash_master_toolkit/dashboard/academic/widgets/crm_performance_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -276,8 +278,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ── Computed getters ──────────────────────────────────────────────────────
-  List   get _userStats   => _safeList(_kpiRaw['userStats']);
-  List   get _statutStats => _safeList(_kpiRaw['statutStats']);
+  List<Map<String, dynamic>> get _userStats =>
+      _safeList(_kpiRaw['userStats'])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+  List<Map<String, dynamic>> get _statutStats =>
+      _safeList(_kpiRaw['statutStats'])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
   int    get _total       => _projects.length;
   int    get _validated   => _projects.where((p) {
     final v = _sf(p['validationStatut']).toLowerCase();
@@ -325,8 +335,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int get _missingTel     => _missing((p) => _sf(p['telephoneIngenieur'] ?? p['telephone']));
   int get _missingAddr    => _missing((p) => _sf(p['adresse']));
 
-  List get _revendeurs   => _projects.where((p) => _sf(p['projectModele']).toLowerCase() == 'revendeur').toList();
-  List get _applicateurs => _projects.where((p) => _sf(p['projectModele']).toLowerCase() == 'applicateur').toList();
   // Utilise _followups (API dédiée) ou fallback prochaineRelance dans _projects
   List get _relances {
     final source = _followups.isNotEmpty
@@ -419,9 +427,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 28),
                 _buildStatusSection(context),
                 const SizedBox(height: 28),
-                _buildUserTable(context),
+                // ── NOUVELLES SECTIONS : Top Commerciaux + Pipeline Health
+                _buildTopPipelineRow(context),
                 const SizedBox(height: 28),
-                _buildRevendeurApplicateurRow(context),
+                _buildUserTable(context),
                 const SizedBox(height: 28),
                 _buildMonthlyChart(context),
                 const SizedBox(height: 28),
@@ -507,20 +516,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 2A. ADMIN KPI ROW  (7 cards)
+  // 2A. ADMIN KPI ROW  (5 cards — Revendeurs/Applicateurs supprimés)
   // ══════════════════════════════════════════════════════════════════════════
   Widget _buildAdminKpiRow(BuildContext context) {
     final w    = MediaQuery.of(context).size.width;
-    final cols = w > 1300 ? 7 : w > 900 ? 4 : w > 600 ? 3 : 2;
+    final cols = w > 1100 ? 5 : w > 750 ? 3 : 2;
 
     const cfgs = [
-      _KpiCfg(label: 'Total Projets',     icon: Icons.folder_copy_rounded,     g1: Color(0xFF4F46E5), g2: Color(0xFF6366F1)),
-      _KpiCfg(label: 'Utilisateurs',      icon: Icons.people_alt_rounded,      g1: Color(0xFF0284C7), g2: Color(0xFF38BDF8)),
-      _KpiCfg(label: 'Applicateurs',      icon: Icons.brush_rounded,           g1: Color(0xFF7C3AED), g2: Color(0xFFA78BFA)),
-      _KpiCfg(label: 'Revendeurs',        icon: Icons.storefront_rounded,      g1: Color(0xFFD97706), g2: Color(0xFFF59E0B)),
-      _KpiCfg(label: 'Validés',           icon: Icons.check_circle_rounded,    g1: Color(0xFF059669), g2: Color(0xFF10B981)),
-      _KpiCfg(label: 'Non validés',       icon: Icons.cancel_rounded,          g1: Color(0xFFDC2626), g2: Color(0xFFEF4444)),
-      _KpiCfg(label: 'Surface m²',        icon: Icons.square_foot_rounded,     g1: Color(0xFF0E7490), g2: Color(0xFF06B6D4)),
+      _KpiCfg(label: 'Total Projets',   icon: Icons.folder_copy_rounded,    g1: Color(0xFF4F46E5), g2: Color(0xFF6366F1)),
+      _KpiCfg(label: 'Utilisateurs',    icon: Icons.people_alt_rounded,     g1: Color(0xFF0284C7), g2: Color(0xFF38BDF8)),
+      _KpiCfg(label: 'Validés',         icon: Icons.check_circle_rounded,   g1: Color(0xFF059669), g2: Color(0xFF10B981)),
+      _KpiCfg(label: 'Non validés',     icon: Icons.cancel_rounded,         g1: Color(0xFFDC2626), g2: Color(0xFFEF4444)),
+      _KpiCfg(label: 'Surface m²',      icon: Icons.square_foot_rounded,    g1: Color(0xFF0E7490), g2: Color(0xFF06B6D4)),
     ];
 
     final surfStr = _surface >= 1000
@@ -530,8 +537,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final values = [
       '$_total',
       '${_userStats.length}',
-      '${_applicateurs.length}',
-      '${_revendeurs.length}',
       '$_validated',
       '$_nonValidated',
       surfStr,
@@ -539,15 +544,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final variations = [
       _variation(_thisMonth, _lastMonth),
-      '—', '—', '—',
-      '—', '—', '—',
+      '—', '—', '—', '—',
     ];
 
     return _ResponsiveGrid(
       cols: cols, gap: 14,
-      children: List.generate(7, (i) => _KpiCard(
-        cfg: cfgs[i], value: values[i], variation: variations[i],
-        isUp: true,
+      children: List.generate(5, (i) => CrmModernKpiCard(
+        label:    cfgs[i].label,
+        value:    values[i],
+        icon:     cfgs[i].icon,
+        gradient: [cfgs[i].g1, cfgs[i].g2],
+        trend:    variations[i],
+        isUp:     !variations[i].startsWith('-'),
       )),
     );
   }
@@ -586,9 +594,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return _ResponsiveGrid(
       cols: cols, gap: 14,
-      children: List.generate(5, (i) => _KpiCard(
-        cfg: cfgs[i], value: values[i], variation: variations[i],
-        isUp: true,
+      children: List.generate(5, (i) => CrmModernKpiCard(
+        label:    cfgs[i].label,
+        value:    values[i],
+        icon:     cfgs[i].icon,
+        gradient: [cfgs[i].g1, cfgs[i].g2],
+        trend:    variations[i],
+        isUp:     !variations[i].startsWith('-'),
       )),
     );
   }
@@ -627,59 +639,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
         : Column(children: [donut, const SizedBox(height: 16), bars]);
   }
 
-  // ── Donut + HBars from a computed list ────────────────────────────────────
-  Widget _buildDonutFromList(List<Map<String, dynamic>> stats) {
-    final total = stats.fold<double>(0, (s, e) => s + _num(e['count']));
-    if (total == 0) return _emptyState('Aucune donnée');
-    return Column(children: [
-      SizedBox(
-        height: 220,
-        child: PieChart(PieChartData(
-          centerSpaceRadius: 55,
-          sectionsSpace: 2,
-          sections: stats.asMap().entries.map((en) {
-            final count = _num(en.value['count']);
-            final pct   = count / total * 100;
-            final color = _statutColor(_sf(en.value['statut']));
-            return PieChartSectionData(
-              value: count, color: color, radius: 50,
-              title: '${pct.toStringAsFixed(0)}%',
-              titleStyle: const TextStyle(fontFamily: 'InterTight', fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
-            );
-          }).toList(),
-        )),
-      ),
-      const SizedBox(height: 14),
-      Wrap(spacing: 12, runSpacing: 6, children: stats.map((s) {
-        final color = _statutColor(_sf(s['statut']));
-        return Row(mainAxisSize: MainAxisSize.min, children: [
-          Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
-          const SizedBox(width: 5),
-          Text('${_sf(s['statut'])} (${_num(s['count']).toInt()})', style: AppTextStyles.bodyMuted.copyWith(fontSize: 11)),
-        ]);
-      }).toList()),
-    ]);
-  }
+  // ── Donut + HBars — délèguent aux widgets modernes ───────────────────────
+  Widget _buildDonutFromList(List<Map<String, dynamic>> stats) =>
+      CrmDonutWithLegend(stats: stats, colorOf: _statutColor);
 
-  Widget _buildHBarsFromList(List<Map<String, dynamic>> stats) {
-    final max = stats.fold<double>(0, (m, e) => _num(e['count']) > m ? _num(e['count']) : m);
-    if (max == 0) return _emptyState('Aucune donnée');
-    return Column(children: stats.map((s) {
-      final count = _num(s['count']);
-      final color = _statutColor(_sf(s['statut']));
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Row(children: [
-          SizedBox(width: 110, child: Text(_sf(s['statut']), style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
-              maxLines: 1, overflow: TextOverflow.ellipsis)),
-          Expanded(child: ClipRRect(borderRadius: BorderRadius.circular(6),
-              child: LinearProgressIndicator(value: max == 0 ? 0 : count / max, minHeight: 18,
-                  backgroundColor: color.withOpacity(0.1), valueColor: AlwaysStoppedAnimation(color)))),
-          const SizedBox(width: 8),
-          SizedBox(width: 28, child: Text('${count.toInt()}', style: AppTextStyles.bodyMuted.copyWith(fontWeight: FontWeight.w700, fontSize: 12), textAlign: TextAlign.right)),
-        ]),
-      );
-    }).toList());
+  Widget _buildHBarsFromList(List<Map<String, dynamic>> stats) =>
+      CrmStatusBars(stats: stats, colorOf: _statutColor);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // NEW : TOP COMMERCIAUX  +  PIPELINE HEALTH  (côte à côte sur desktop)
+  // ══════════════════════════════════════════════════════════════════════════
+  Widget _buildTopPipelineRow(BuildContext context) {
+    final w = MediaQuery.of(context).size.width;
+
+    // Calcul valByUser (même logique que _buildUserTable)
+    final valByUser = <String, int>{};
+    for (final p in _projects) {
+      final userMap = p['user'] is Map ? p['user'] as Map : {};
+      final uid = _sf(userMap['_id'] ?? userMap['id'] ?? p['userId']);
+      final v   = _sf(p['validationStatut']).toLowerCase();
+      if (uid.isNotEmpty && v.contains('valid') && !v.contains('non')) {
+        valByUser[uid] = (valByUser[uid] ?? 0) + 1;
+      }
+    }
+
+    final cardTop = Container(
+      padding: const EdgeInsets.all(24),
+      decoration: _cardDeco(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _sectionHeader('Top Commerciaux', badge: '${_userStats.length}'),
+        const SizedBox(height: 20),
+        _userStats.isEmpty
+            ? _emptyState('Aucun commercial disponible')
+            : CrmTopCommerciaux(
+                userStats: _userStats,
+                valByUser: valByUser,
+              ),
+      ]),
+    );
+
+    final cardHealth = Container(
+      padding: const EdgeInsets.all(24),
+      decoration: _cardDeco(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _sectionHeader('Pipeline Health'),
+        const SizedBox(height: 20),
+        CrmPipelineHealth(
+          statutStats: _computedStatutStats,
+          total:       _total,
+          validated:   _validated,
+        ),
+      ]),
+    );
+
+    return w > 900
+        ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: cardTop),
+            const SizedBox(width: 16),
+            Expanded(child: cardHealth),
+          ])
+        : Column(children: [cardTop, const SizedBox(height: 16), cardHealth]);
   }
 
   // ── keep old _buildKpiRow name as alias so nothing else breaks ────────────
@@ -768,103 +787,100 @@ class _DashboardScreenState extends State<DashboardScreen> {
         : Column(children: [cardL, const SizedBox(height: 16), cardR]);
   }
 
-  Widget _buildDonut() {
-    final total = _statutStats.fold<double>(0, (s, e) => s + _num(e['count']));
-    if (total == 0) return _emptyState('Aucune donnée');
+  // Admin : donut et barres horizontales — widgets modernes
+  Widget _buildDonut() =>
+      CrmDonutWithLegend(stats: _statutStats, colorOf: _statutColor);
 
-    return Column(children: [
-      SizedBox(
-        height: 220,
-        child: PieChart(PieChartData(
-          centerSpaceRadius: 55,
-          sectionsSpace: 2,
-          sections: _statutStats.asMap().entries.map((en) {
-            final s     = en.value;
-            final count = _num(s['count']);
-            final pct   = count / total * 100;
-            final color = _statutColor(_sf(s['statut']));
-            return PieChartSectionData(
-              value: count,
-              color: color,
-              radius: 50,
-              title: '${pct.toStringAsFixed(0)}%',
-              titleStyle: const TextStyle(fontFamily: 'InterTight', fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
-            );
-          }).toList(),
-        )),
-      ),
-      const SizedBox(height: 16),
-      Wrap(
-        spacing: 12, runSpacing: 8,
-        children: _statutStats.map((s) {
-          final color = _statutColor(_sf(s['statut']));
-          return Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3))),
-            const SizedBox(width: 5),
-            Text('${_sf(s['statut'])} (${_num(s['count']).toInt()})',
-                style: AppTextStyles.bodyMuted.copyWith(fontSize: 11)),
-          ]);
-        }).toList(),
-      ),
-    ]);
-  }
-
-  Widget _buildHBars() {
-    final max = _statutStats.fold<double>(0, (m, e) => _num(e['count']) > m ? _num(e['count']) : m);
-    if (max == 0) return _emptyState('Aucune donnée');
-    return Column(
-      children: _statutStats.map((s) {
-        final count = _num(s['count']);
-        final frac  = max == 0 ? 0.0 : count / max;
-        final color = _statutColor(_sf(s['statut']));
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
-          child: Row(children: [
-            SizedBox(
-              width: 120,
-              child: Text(_sf(s['statut']), style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: frac.toDouble(),
-                  minHeight: 18,
-                  backgroundColor: color.withOpacity(0.1),
-                  valueColor: AlwaysStoppedAnimation(color),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            SizedBox(
-              width: 32,
-              child: Text('${count.toInt()}',
-                  style: AppTextStyles.bodyMuted.copyWith(fontWeight: FontWeight.w700, fontSize: 12),
-                  textAlign: TextAlign.right),
-            ),
-          ]),
-        );
-      }).toList(),
-    );
-  }
+  Widget _buildHBars() =>
+      CrmStatusBars(stats: _statutStats, colorOf: _statutColor);
 
   // ══════════════════════════════════════════════════════════════════════════
   // 4. USER PERFORMANCE TABLE
   // ══════════════════════════════════════════════════════════════════════════
   Widget _buildUserTable(BuildContext context) {
-    // Enrich userStats with validated count from _projects
-    final valByUser = <String, int>{};
+    final valByUser      = <String, int>{};
+    final surfaceByUser  = <String, double>{};
+    final pipelineByUser = <String, Map<String, int>>{};
+
+    final now         = DateTime.now();
+    final last30Start = now.subtract(const Duration(days: 30));
+    final prev30Start = now.subtract(const Duration(days: 60));
+    final last30ByUser    = <String, int>{};
+    final prev30ByUser    = <String, int>{};
+    final thisMonthByUser = <String, int>{};
+
     for (final p in _projects) {
       final userMap = p['user'] is Map ? p['user'] as Map : {};
       final uid = _sf(userMap['_id'] ?? userMap['id'] ?? p['userId']);
-      final v   = _sf(p['validationStatut']).toLowerCase();
-      if (uid.isNotEmpty && v.contains('valid') && !v.contains('non')) {
+      if (uid.isEmpty) continue;
+
+      final v = _sf(p['validationStatut']).toLowerCase();
+      if (v.contains('valid') && !v.contains('non')) {
         valByUser[uid] = (valByUser[uid] ?? 0) + 1;
+      }
+
+      surfaceByUser[uid] = (surfaceByUser[uid] ?? 0) + _num(p['surfaceProspectee']);
+
+      final stageMap  = p['pipelineStage'] is Map ? p['pipelineStage'] as Map : null;
+      final stageName = _sf(stageMap?['name'] ??
+          (p['pipelineStage'] is String ? p['pipelineStage'] : null) ??
+          p['etapeCRM'] ?? p['stage'] ?? '');
+      if (stageName.isNotEmpty) {
+        if (!pipelineByUser.containsKey(uid)) pipelineByUser[uid] = {};
+        pipelineByUser[uid]![stageName] =
+            (pipelineByUser[uid]![stageName] ?? 0) + 1;
+      }
+
+      // évolution 30 jours + objectif mensuel
+      final d = DateTime.tryParse(_sf(p['createdAt']));
+      if (d != null) {
+        if (d.isAfter(last30Start)) {
+          last30ByUser[uid] = (last30ByUser[uid] ?? 0) + 1;
+        } else if (d.isAfter(prev30Start)) {
+          prev30ByUser[uid] = (prev30ByUser[uid] ?? 0) + 1;
+        }
+        if (d.year == now.year && d.month == now.month) {
+          thisMonthByUser[uid] = (thisMonthByUser[uid] ?? 0) + 1;
+        }
       }
     }
 
-    final users = List<Map>.from(_userStats)
+    // Évolution % sur 30 jours par utilisateur
+    final evolutionByUser = <String, double>{};
+    for (final e in last30ByUser.entries) {
+      final prev = prev30ByUser[e.key] ?? 0;
+      if (prev > 0) {
+        evolutionByUser[e.key] = (e.value - prev) / prev * 100;
+      } else if (e.value > 0) {
+        evolutionByUser[e.key] = 100.0;
+      }
+    }
+
+    // Objectif mensuel = maximum des projets créés ce mois parmi tous les users
+    final monthlyTarget = thisMonthByUser.values
+        .fold(0, (a, b) => a > b ? a : b)
+        .clamp(1, 9999);
+
+    // Reminders depuis _followups (fallback API)
+    final remindersCountByUser = <String, int>{};
+    for (final f in _followups) {
+      final userMap = f['user'] is Map ? f['user'] as Map : {};
+      final uid = _sf(userMap['_id'] ?? userMap['id'] ??
+          f['userId'] ?? f['ownerId'] ?? f['owner'] ?? '');
+      if (uid.isNotEmpty) {
+        remindersCountByUser[uid] = (remindersCountByUser[uid] ?? 0) + 1;
+      }
+    }
+
+    final users = List<Map>.from(_userStats).map((u) {
+      final uid = _sf(u['userId'] ?? u['_id']);
+      final enriched = Map<String, dynamic>.from(u);
+      if (_num(enriched['totalReminders'] ?? enriched['remindersCount']) == 0 &&
+          remindersCountByUser.containsKey(uid)) {
+        enriched['totalReminders'] = remindersCountByUser[uid];
+      }
+      return enriched;
+    }).toList()
       ..sort((a, b) => (_num(b['count']) - _num(a['count'])).toInt());
     final top10 = users.take(10).toList();
 
@@ -874,122 +890,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _sectionHeader('Top 10 — Performance Utilisateurs', badge: '${top10.length}'),
         const SizedBox(height: 20),
-        if (top10.isEmpty)
-          _emptyState('Aucun utilisateur')
-        else
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columnSpacing: 24,
-              headingRowHeight: 44,
-              dataRowMinHeight: 52,
-              dataRowMaxHeight: 60,
-              headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
-              headingTextStyle: AppTextStyles.tableHeader,
-              dividerThickness: 0.5,
-              columns: const [
-                DataColumn(label: Text('UTILISATEUR')),
-                DataColumn(label: Text('EMAIL')),
-                DataColumn(label: Text('NB PROJETS'), numeric: true),
-                DataColumn(label: Text('VALIDÉS'), numeric: true),
-                DataColumn(label: Text('NON VALIDÉS'), numeric: true),
-                DataColumn(label: Text('TAUX RÉUSSITE')),
-              ],
-              rows: top10.asMap().entries.map((en) {
-                final u       = en.value;
-                final total   = _num(u['count']).toInt();
-                final uid     = _sf(u['userId'] ?? u['_id']);
-                final valid   = valByUser[uid] ?? 0;
-                final nonVal  = total - valid;
-                final rate    = total == 0 ? 0.0 : valid / total * 100;
-
-                return DataRow(cells: [
-                  DataCell(Row(children: [
-                    _avatar(_sf(u['userName'] ?? u['name'] ?? u['nom']), en.key),
-                    const SizedBox(width: 10),
-                    Text(_sf(u['userName'] ?? u['name'] ?? u['nom']),
-                        style: const TextStyle(fontFamily: 'InterTight', fontSize: 13, fontWeight: FontWeight.w600, color: _kText)),
-                  ])),
-                  DataCell(Text(_sf(u['userEmail'] ?? u['email']),
-                      style: AppTextStyles.bodyMuted.copyWith(fontSize: 12))),
-                  DataCell(_statBadge('$total', const Color(0xFF4F46E5))),
-                  DataCell(_statBadge('$valid', const Color(0xFF22C55E))),
-                  DataCell(_statBadge('$nonVal', nonVal > 0 ? const Color(0xFFEF4444) : const Color(0xFF94A3B8))),
-                  DataCell(_rateBar(rate)),
-                ]);
-              }).toList(),
-            ),
-          ),
+        CrmPerformanceGrid(
+          users:           top10,
+          valByUser:       valByUser,
+          surfaceByUser:   surfaceByUser,
+          pipelineByUser:  pipelineByUser,
+          evolutionByUser: evolutionByUser,
+          monthlyByUser:   thisMonthByUser,
+          monthlyTarget:   monthlyTarget,
+        ),
       ]),
     );
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 5. REVENDEUR + APPLICATEUR (side by side)
-  // ══════════════════════════════════════════════════════════════════════════
-  Widget _buildRevendeurApplicateurRow(BuildContext context) {
-    final w = MediaQuery.of(context).size.width;
-    final rv = _buildModelTable('Top Revendeurs', _revendeurs, ['Nom','Email','Projets','Surface','Validation']);
-    final ap = _buildModelTable('Top Applicateurs', _applicateurs, ['Nom','Email','Projets','Surface','Validation']);
-    return w > 900
-        ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Expanded(child: rv), const SizedBox(width: 16), Expanded(child: ap),
-          ])
-        : Column(children: [rv, const SizedBox(height: 16), ap]);
-  }
-
-  Widget _buildModelTable(String title, List items, List<String> cols) {
-    final top = items.take(5).toList();
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: _cardDeco(),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _sectionHeader(title, badge: '${items.length}'),
-        const SizedBox(height: 16),
-        if (top.isEmpty)
-          _emptyState('Aucun élément')
-        else
-          ...top.asMap().entries.map((en) {
-            final p    = en.value;
-            final name = _sf(p['nomProjet'] ?? p['name']);
-            final email = _sf(p['user'] is Map ? (p['user'] as Map)['email'] : p['userEmail']);
-            final surf = _num(p['surfaceProspectee']);
-            final val  = _sf(p['validationStatut']);
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(children: [
-                _avatar(name, en.key),
-                const SizedBox(width: 10),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name.isNotEmpty ? name : '—',
-                      style: const TextStyle(fontFamily: 'InterTight', fontSize: 12, fontWeight: FontWeight.w600, color: _kText),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                  Text(email.isNotEmpty ? email : '—',
-                      style: AppTextStyles.bodyMuted.copyWith(fontSize: 11),
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                ])),
-                const SizedBox(width: 8),
-                if (surf > 0)
-                  Text('${surf.toStringAsFixed(0)} m²', style: AppTextStyles.bodyMuted.copyWith(fontSize: 11)),
-                const SizedBox(width: 8),
-                if (val.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: _statutColor(val).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(val, style: TextStyle(fontFamily: 'InterTight', fontSize: 10, fontWeight: FontWeight.w700, color: _statutColor(val))),
-                  ),
-              ]),
-            );
-          }),
-      ]),
-    );
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // 6. MONTHLY EVOLUTION  (line chart)
+  // 5. MONTHLY EVOLUTION  (line chart)
   // ══════════════════════════════════════════════════════════════════════════
   Widget _buildMonthlyChart(BuildContext context) {
     final data = _monthly;
