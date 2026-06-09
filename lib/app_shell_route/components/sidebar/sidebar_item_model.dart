@@ -70,11 +70,22 @@ List<SidebarItemModel> buildTopMenus({
 }) {
   if (isAccueil || isCommercial) return [];
   return [
-    SidebarItemModel(
-      name:            'Dashboard',
-      icon:            Icons.dashboard_outlined,
-      navigationPath:  '/dashboard/kpi-projects', // route valide → DashboardScreen
-      sidebarItemType: SidebarItemType.tile,
+    _safeSubmenuItem(
+      name:           'Dashboard',
+      icon:           Icons.dashboard_outlined,
+      navigationPath: '/dashboard',
+      submenus: [
+        SidebarSubmenuModel(
+          name:           'KPI Projets CRM',
+          navigationPath: 'kpi-projects',       // relatif → /dashboard/kpi-projects
+          icon:           Icons.analytics_outlined,
+        ),
+        SidebarSubmenuModel(
+          name:           'KPI Commercial Contacts',
+          navigationPath: '/users/commercial-contacts-kpi', // absolu → navigation directe
+          icon:           Icons.people_alt_outlined,
+        ),
+      ],
     ),
   ];
 }
@@ -111,10 +122,16 @@ List<GroupedMenuModel> buildGroupedMenus({
         name: 'COMMERCIAL',
         menus: [
           SidebarItemModel(
-            name:           'Commercial List',
+            name:           'Commercial Contacts',
             icon:           Icons.contact_page_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: '/users/commercial-contacts',
+          ),
+          SidebarItemModel(
+            name:           'Commercial Contacts Analytics',
+            icon:           Icons.analytics_outlined,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: '/users/commercial-contacts-kpi',
           ),
           SidebarItemModel(
             name:           'Commercial Profile',

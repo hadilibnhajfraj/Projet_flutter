@@ -1,27 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:get_storage/get_storage.dart';
 
 import '../common_imports.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 class UserProfileAvatar extends StatelessWidget {
   const UserProfileAvatar({super.key});
 
   static const String kSigninPath = '/authentication/signin';
-  static const String kProfilePath = '/users/user_profile'; // ✅ adapte si besoin
-  static const String kSettingsPath = '/application/settings';     // ✅ adapte si besoin
+  static const String kProfilePath = '/users/user_profile';
+  static const String kSettingsPath = '/application/settings';
 
   Future<void> _logout(BuildContext context) async {
-    final box = GetStorage();
+    debugPrint('LOGOUT CLICKED');
 
-    // supprime tout ce qui concerne session
-    await box.remove("accessToken");
-    await box.remove("token");
-    await box.remove("user");
-    await box.remove("role");
+    // Nettoyage complet de la session via AuthService :
+    // isLoggedIn=false, accessToken, tokenExpiryMs, userId, userEmail, userRole
+    // + AuthStorage (secure storage) + ApiClient token header
+    await AuthService().logout();
+
+    debugPrint('TOKEN REMOVED');
+    debugPrint('REDIRECT TO LOGIN');
 
     if (context.mounted) {
-      context.go(kSigninPath); // ✅ path exact
+      context.go(kSigninPath);
     }
   }
 

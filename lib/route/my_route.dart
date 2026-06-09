@@ -66,6 +66,8 @@ import 'package:dash_master_toolkit/forms/view/archive_request_chat_screen.dart'
 import 'package:dash_master_toolkit/forms/view/projects_explorer_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_timeline_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/add_commercial_action_screen.dart';
+import 'package:dash_master_toolkit/dashboard/commercial_contacts/view/commercial_contacts_kpi_screen.dart';
+import 'package:dash_master_toolkit/application/users/view/commercial_contacts_analytics_screen.dart';
 
 class MyRoute {
   static const login = '/login';
@@ -77,6 +79,8 @@ class MyRoute {
   static const salesAdmin = '/kpi-projects';
   static const dashboardComercial = "/dashboard-commercial";
   static const dashboardSalesAdmin = '/dashboard/kpi-projects';
+  static const commercialContactsKpi        = '/dashboard/commercial-contacts-kpi';
+  static const commercialContactsKpiUsers   = '/users/commercial-contacts-kpi';
 
   static const financeAdmin = 'finance-admin';
   static const dashboardFinanceAdmin = '/dashboard/finance-admin';
@@ -146,6 +150,17 @@ static const clientsProfileScreen = '/users/client';
           state.matchedLocation == signUpScreen ||
           state.matchedLocation == forgotPasswordScreen ||
           state.matchedLocation == resetPasswordScreen;
+
+      // Déjà connecté sur la page login ou root → rediriger vers le bon dashboard
+      if (loggedIn && (state.matchedLocation == initialPath || isAuthRoute)) {
+        final role = (AuthService().userRole ?? '').toLowerCase().trim();
+        debugPrint('ROLE CONNECTE = $role');
+        if (role == 'commercial') {
+          debugPrint('REDIRECTION = /users/commercial-contacts-kpi');
+          return commercialContactsKpiUsers;
+        }
+        return dashboardSalesAdmin;
+      }
 
       if (state.matchedLocation == initialPath) {
         return signInScreen;
@@ -231,6 +246,15 @@ static const clientsProfileScreen = '/users/client';
                 pageBuilder: (context, state) {
                   final token = AuthService().accessToken ?? '';
                   return NoTransitionPage(child: DashboardScreen(token: token));
+                },
+              ),
+              GoRoute(
+                path: 'commercial-contacts-kpi',
+                pageBuilder: (context, state) {
+                  final token = AuthService().accessToken ?? '';
+                  return NoTransitionPage(
+                    child: CommercialContactsKpiScreen(token: token),
+                  );
                 },
               ),
             ],
@@ -346,6 +370,14 @@ GoRoute(
       contactId: contactId,
     );
   },
+),
+GoRoute(
+  path: '/commercial-contacts-kpi',
+  pageBuilder: (context, state) => NoTransitionPage(
+    child: CommercialContactsAnalyticsScreen(
+      token: AuthService().accessToken ?? '',
+    ),
+  ),
 ),
 
             ],

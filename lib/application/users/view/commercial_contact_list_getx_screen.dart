@@ -349,13 +349,16 @@ Future<void> _loadContacts({
     final data = await _service.fetchMyContacts(
       token: widget.token,
       query: query,
-      userNom: userNom,        // ✅ IMPORTANT
-      typeClient: typeClient,  // ✅ IMPORTANT
+      userNom: userNom,
+      typeClient: typeClient,
     );
+
+    debugPrint('Visible contacts = ${data.length}');
 
     if (mounted) {
       setState(() {
         _contacts = data;
+        currentPage = 1;
       });
     }
   } catch (e) {
@@ -1922,59 +1925,98 @@ Widget _buildSearchBar() {
     }
 
     if (_error != null) {
-      return Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF1F2),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFFDA4AF)),
-          ),
-          child: Text(
-            _error!,
-            style: const TextStyle(
-              color: Color(0xFFB42318),
-              fontWeight: FontWeight.w500,
+      return ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          _buildSearchBar(),
+          const SizedBox(height: 20),
+          Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 500),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF1F2),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFDA4AF)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline_rounded,
+                      size: 42, color: Color(0xFFB42318)),
+                  const SizedBox(height: 10),
+                  Text(
+                    _error!,
+                    style: const TextStyle(
+                      color: Color(0xFFB42318),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 14),
+                  ElevatedButton.icon(
+                    onPressed: _loadContacts,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Réessayer'),
+                  ),
+                ],
+              ),
             ),
-            textAlign: TextAlign.center,
           ),
-        ),
+        ],
       );
     }
 
+    // État vide : search bar toujours visible + message + bouton reset
     if (_contacts.isEmpty) {
-      return Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 460),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFE4E7EC)),
-          ),
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.folder_open_outlined,
-                  size: 54, color: Color(0xFF98A2B3)),
-              SizedBox(height: 12),
-              Text(
-                'No commercial contacts found.',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
+      return ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          _buildSearchBar(),
+          const SizedBox(height: 24),
+          Center(
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 460),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE4E7EC)),
               ),
-              SizedBox(height: 8),
-              Text(
-                'Try changing your search criteria or add new contacts.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Color(0xFF667085)),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.folder_open_outlined,
+                      size: 54, color: Color(0xFF98A2B3)),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'No commercial contacts found.',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Essayez de modifier vos critères de recherche ou réinitialisez les filtres.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Color(0xFF667085)),
+                  ),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        selectedUser = null;
+                        selectedType = null;
+                      });
+                      _loadContacts();
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Réinitialiser les filtres'),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       );
     }
 

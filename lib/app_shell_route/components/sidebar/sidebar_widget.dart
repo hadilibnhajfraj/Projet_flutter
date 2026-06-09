@@ -142,21 +142,31 @@ class SideBarWidget extends StatelessWidget {
   (bool, SidebarSubmenuModel?) _isSelected(BuildContext context, SidebarItemModel menu) {
     final currentRoute =
         GoRouter.of(context).routerDelegate.currentConfiguration.fullPath;
-    final nav = (menu.navigationPath ?? '').toLowerCase().trim();
-    final isSelectedMenu = nav.isNotEmpty ? currentRoute.startsWith(nav) : false;
 
     if (menu.sidebarItemType == SidebarItemType.submenu) {
-      final segments = currentRoute
-          .split('/')
-          .where((s) => s.isNotEmpty)
-          .toList();
-      if (segments.length > 1) {
-        final sub = menu.submenus?.firstWhereOrNull(
-          (s) => s.navigationPath?.split('/').last == segments.last,
-        );
-        if (sub != null) return (true, sub);
-      }
+      // Cherche le sous-menu actif parmi les submenus, qu'ils soient
+      // en chemin relatif ("kpi-projects") ou absolu ("/users/xxx").
+      final sub = menu.submenus?.firstWhereOrNull((s) {
+        final sPath = (s.navigationPath ?? '').trim();
+        if (sPath.isEmpty) return false;
+        // Chemin absolu → comparaison directe
+        if (sPath.startsWith('/')) {
+          return currentRoute == sPath || currentRoute.startsWith('$sPath/');
+        }
+        // Chemin relatif → préfixe avec le chemin parent
+        final full = '${menu.navigationPath ?? ''}/$sPath';
+        return currentRoute == full || currentRoute.startsWith('$full/');
+      });
+      if (sub != null) return (true, sub);
+
+      // Le parent est actif si sa navigationPath est préfixe de la route courante
+      final nav = (menu.navigationPath ?? '').trim();
+      if (nav.isNotEmpty && currentRoute.startsWith(nav)) return (true, null);
+      return (false, null);
     }
+
+    final nav = (menu.navigationPath ?? '').toLowerCase().trim();
+    final isSelectedMenu = nav.isNotEmpty ? currentRoute.startsWith(nav) : false;
     return (isSelectedMenu, null);
   }
 
@@ -167,9 +177,10 @@ class SideBarWidget extends StatelessWidget {
     if (menu.sidebarItemType == SidebarItemType.tile) {
       route = menu.navigationPath;
     } else if (menu.sidebarItemType == SidebarItemType.submenu) {
-      final main = menu.navigationPath;
-      final sub  = submenu?.navigationPath;
-      if (main != null && sub != null) route = '$main/$sub';
+      final sPath = (submenu?.navigationPath ?? '').trim();
+      if (sPath.isEmpty) return;
+      // Chemin absolu → navigation directe sans préfixe parent
+      route = sPath.startsWith('/') ? sPath : '${menu.navigationPath ?? ''}/$sPath';
     }
 
     if (route == null || route.isEmpty) {

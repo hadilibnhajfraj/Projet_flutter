@@ -117,11 +117,30 @@ class _AppShellState extends State<AppShell> {
   }
 
   NavigationBreadcrumbModel _getBreadcrumbData(BuildContext context) {
-    return routerParam[GoRouterState.of(context).matchedLocation] ??
-        const NavigationBreadcrumbModel(
-          title: 'N/A',
-          parentRoute: 'N/A',
-          childRoute: 'N/A',
-        );
+    final location = GoRouterState.of(context).matchedLocation;
+    return routerParam[location] ?? _fallbackBreadcrumb(location);
+  }
+
+  // Génère un breadcrumb lisible depuis le chemin URL quand aucune
+  // métadonnée n'est définie — supprime tous les affichages "N/A".
+  NavigationBreadcrumbModel _fallbackBreadcrumb(String path) {
+    String toTitle(String segment) => segment
+        .split('-')
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+
+    final segments = path.split('/').where((s) => s.isNotEmpty).toList();
+    if (segments.isEmpty) {
+      return const NavigationBreadcrumbModel(
+        title: 'Dashboard', parentRoute: 'Dashboard', childRoute: 'Dashboard');
+    }
+    final child  = toTitle(segments.last);
+    final parent = segments.length >= 2 ? toTitle(segments[segments.length - 2]) : 'App';
+    return NavigationBreadcrumbModel(
+      title:       child,
+      parentRoute: parent,
+      childRoute:  child,
+    );
   }
 }

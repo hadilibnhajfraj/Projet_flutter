@@ -209,20 +209,22 @@ Widget build(BuildContext context) {
                                         password:
                                             controller.passwordController.text,
                                       );
-                                      // 🔥 LOGIN AUTO
-await authService.signin(
-  email: controller.userNameController.text,
-  password: controller.passwordController.text,
-);
 
-// 🔥 CHECK ROLE
-if (authService.userRole == "commercial") {
-  await showUserNameDialog(context);
-}
-                                      //if (!mounted) return;
+                                      final role = (authService.userRole ?? '').toLowerCase().trim();
+                                      debugPrint('ROLE CONNECTE = $role');
 
-                                      context.go(
-                                          MyRoute.dashboardSalesAdmin);
+                                      if (role == 'commercial') {
+                                        await showUserNameDialog(context);
+                                      }
+
+                                      if (!context.mounted) return;
+
+                                      if (role == 'commercial') {
+                                        debugPrint('REDIRECTION = /users/commercial-contacts-kpi');
+                                        context.go(MyRoute.commercialContactsKpiUsers);
+                                      } else {
+                                        context.go(MyRoute.dashboardSalesAdmin);
+                                      }
                                     } catch (e) {
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(

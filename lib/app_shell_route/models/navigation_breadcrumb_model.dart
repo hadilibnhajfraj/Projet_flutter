@@ -29,11 +29,6 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
       parentRoute: 'Dashboard',
       childRoute: 'Project Validation',
     ),
-     MyRoute.commercialProfileScreen: NavigationBreadcrumbModel(
-      title: 'Commercial',
-      parentRoute: 'Commercial',
-      childRoute: 'Commercial',
-    ),
      MyRoute.projectTimeline: NavigationBreadcrumbModel(
       title: 'TimeLine',
       parentRoute: 'TimeLine',
@@ -130,6 +125,17 @@ MyRoute.revendeurProjectsScreen: NavigationBreadcrumbModel(
   parentRoute: 'Customers',
   childRoute: 'Customers',
 ),
+  // ── KPI Commercial Contacts ──────────────────────────────────────────────
+  MyRoute.commercialContactsKpiUsers: NavigationBreadcrumbModel(
+    title: 'Commercial Contacts Analytics',
+    parentRoute: 'Dashboard',
+    childRoute: 'KPI Commercial Contacts',
+  ),
+  MyRoute.commercialContactsKpi: NavigationBreadcrumbModel(
+    title: 'Commercial Contacts Analytics',
+    parentRoute: 'Dashboard',
+    childRoute: 'KPI Commercial Contacts',
+  ),
     MyRoute.mapScreen: NavigationBreadcrumbModel(
       title: 'googleMap',
       parentRoute: 'Pages',
