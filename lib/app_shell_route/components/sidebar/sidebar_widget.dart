@@ -25,8 +25,15 @@ class SideBarWidget extends StatelessWidget {
     final isAdmin = role == 'admin' || role == 'superadmin';
     final isCommercial = role == 'commercial';
     final isAccueil    = role == 'accueil';
+    final canViewCommercialKpi = auth.canViewCommercialKpi;
 
-    final topMenus     = buildTopMenus(isAccueil: isAccueil, isCommercial: isCommercial);
+    debugPrint('ROLE CONNECTE = $role');
+
+    final topMenus     = buildTopMenus(
+      isAccueil:           isAccueil,
+      isCommercial:        isCommercial,
+      canViewCommercialKpi: canViewCommercialKpi,
+    );
     final groupedMenus = buildGroupedMenus(
       isAdmin:      isAdmin,
       isCommercial: isCommercial,

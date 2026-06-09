@@ -229,6 +229,15 @@ static const clientsProfileScreen = '/users/client';
               ),
               GoRoute(
                 path: salesAdmin,      // /dashboard/kpi-projects — route principale
+                redirect: (context, state) {
+                  final role = (AuthService().userRole ?? '').toLowerCase().trim();
+                  if (role == 'commercial') {
+                    debugPrint('ROLE CONNECTE = $role');
+                    debugPrint('REDIRECTION = /users/commercial-contacts-kpi');
+                    return commercialContactsKpiUsers;
+                  }
+                  return null;
+                },
                 pageBuilder: (context, state) {
                   final token = AuthService().accessToken ?? '';
                   return NoTransitionPage(child: DashboardScreen(token: token));
@@ -373,6 +382,16 @@ GoRoute(
 ),
 GoRoute(
   path: '/commercial-contacts-kpi',
+  redirect: (context, state) {
+    final role = (AuthService().userRole ?? '').toLowerCase().trim();
+    debugPrint('ROLE CONNECTE = $role');
+    final canView = AuthService().canViewCommercialKpi;
+    if (!canView) {
+      debugPrint('Accès refusé à /users/commercial-contacts-kpi pour role=$role → redirection dashboard');
+      return dashboardSalesAdmin;
+    }
+    return null;
+  },
   pageBuilder: (context, state) => NoTransitionPage(
     child: CommercialContactsAnalyticsScreen(
       token: AuthService().accessToken ?? '',

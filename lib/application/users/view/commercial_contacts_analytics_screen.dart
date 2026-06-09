@@ -198,8 +198,12 @@ class _CommercialContactsAnalyticsScreenState
   @override
   void initState() {
     super.initState();
-    final role = (AuthService().userRole ?? '').toLowerCase().trim();
+    final role   = (AuthService().userRole ?? '').toLowerCase().trim();
+    final userId = AuthService().userId ?? 'N/A';
     _isAdmin = role == 'admin' || role == 'superadmin';
+    debugPrint('========== KPI FRONT DEBUG ==========');
+    debugPrint('ROLE CONNECTE = $role');
+    debugPrint('USER ID = $userId');
     _load();
     _searchCtrl.addListener(_onSearch);
   }
@@ -214,10 +218,67 @@ class _CommercialContactsAnalyticsScreenState
   Future<void> _load() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final data = await _svc.fetchMyContacts(token: widget.token);
-      _allContacts = data;
-      _lastUpdate  = DateTime.now();
-      _compute();
+      // ── 1. Essai endpoint KPI agrégé ──────────────────────────────────────
+      // commercial → /my-kpi | admin/superadmin → /kpi
+      // Retourne CommercialAnalyticsModel si le backend envoie {totalContacts,...}
+      // Retourne null si format inattendu (404, liste, JSON mal formé)
+      final kpiModel = _isAdmin
+          ? await _svc.fetchGlobalKpiAggregated(token: widget.token)
+          : await _svc.fetchMyKpiAggregated(token: widget.token);
+
+      if (kpiModel != null) {
+        // ── Données pré-agrégées du backend ─────────────────────────────
+        _totalContacts    = kpiModel.totalContacts;
+        _totalCalls       = kpiModel.totalCalls;
+        _totalEntreprises = kpiModel.totalCompanies;
+        _totalCommerciaux = kpiModel.totalCommerciaux;
+        _totalActifs      = kpiModel.totalActifs;
+        _totalNonValides  = kpiModel.totalNonValides;
+
+        _statutStats = kpiModel.contactsByStatut
+            .map((s) => <String, dynamic>{'statut': s.statut, 'count': s.count})
+            .toList();
+        _typeStats = kpiModel.contactsByType
+            .map((t) => <String, dynamic>{'statut': t.type, 'count': t.count})
+            .toList();
+
+        if (kpiModel.monthlyActivity.isNotEmpty) {
+          _monthlyData = kpiModel.monthlyActivity
+              .map((m) => _MonthData(label: m.month, contacts: m.contacts, calls: m.calls))
+              .toList();
+        }
+
+        // Per-user stats — pour admin (podium + classement)
+        _userStats = kpiModel.contactsByCommercial.map((c) => _UserStat(
+          name:        c.commercial,
+          contacts:    c.contacts,
+          calls:       c.calls,
+          actifs:      c.actifs,
+          nonValides:  c.nonValides,
+          entreprises: c.entreprises,
+        )).toList();
+
+        _companyStats = kpiModel.topCompanies.map((c) => _CompanyStat(
+          name:     c.name,
+          contacts: c.contacts,
+          calls:    c.calls,
+        )).toList();
+
+        _maxContacts = _userStats.isEmpty ? 1 : _userStats.map((u) => u.contacts).reduce(math.max).clamp(1, 1 << 30);
+        _maxCalls    = _userStats.isEmpty ? 1 : _userStats.map((u) => u.calls).reduce(math.max).clamp(1, 1 << 30);
+        _maxEnts     = _userStats.isEmpty ? 1 : _userStats.map((u) => u.entreprises).reduce(math.max).clamp(1, 1 << 30);
+        _filtered    = List.from(_userStats);
+        _allContacts = [];
+
+      } else {
+        // ── 2. Fallback : liste brute + calcul client-side ─────────────
+        debugPrint('Endpoint KPI non disponible — chargement liste contacts');
+        final data = await _svc.fetchMyContacts(token: widget.token);
+        _allContacts = data;
+        _compute();
+      }
+
+      _lastUpdate = DateTime.now();
       setState(() => _loading = false);
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });

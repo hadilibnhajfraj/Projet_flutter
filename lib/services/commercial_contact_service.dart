@@ -125,10 +125,119 @@ Future<List<CommercialContact>> fetchMyContacts({
   }
 }
 
+  // ── Helpers internes ───────────────────────────────────────────────────────
+
+  List<CommercialContact> _parseContactList(String body) {
+    final decoded = jsonDecode(body);
+    List<dynamic> items;
+    if (decoded is List) {
+      items = decoded;
+    } else if (decoded is Map) {
+      final raw = decoded['items'] ?? decoded['data'] ?? decoded['contacts'] ?? decoded['results'];
+      items = raw is List ? raw : [];
+    } else {
+      items = [];
+    }
+    debugPrint('Contacts count = ${items.length}');
+    return items
+        .map((e) => CommercialContact.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  // ── GET /commercial-contacts/my-kpi — données personnelles ────────────────
+  // Retourne CommercialAnalyticsModel si le backend envoie {totalContacts,...}
+  // Retourne null si le format est inattendu (le screen fera un fallback)
+  Future<CommercialAnalyticsModel?> fetchMyKpiAggregated({required String token}) =>
+      _fetchKpiAggregated(endpoint: 'my-kpi', token: token);
+
+  // ── GET /commercial-contacts/kpi — données globales admin ──────────────────
+  Future<CommercialAnalyticsModel?> fetchGlobalKpiAggregated({required String token}) =>
+      _fetchKpiAggregated(endpoint: 'kpi', token: token);
+
+  // ── Méthode interne avec logs complets ─────────────────────────────────────
+  Future<CommercialAnalyticsModel?> _fetchKpiAggregated({
+    required String endpoint,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$baseUrl/$endpoint');
+
+    debugPrint('========== KPI FRONT DEBUG ==========');
+    debugPrint('API URL = $uri');
+
+    final response = await http.get(uri, headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    });
+
+    debugPrint('STATUS KPI = ${response.statusCode}');
+    debugPrint('BODY KPI = ${response.body.length > 800 ? "${response.body.substring(0, 800)}..." : response.body}');
+
+    if (response.statusCode != 200) {
+      debugPrint('Endpoint /$endpoint non disponible (${response.statusCode}) — fallback contact list');
+      debugPrint('========== END KPI FRONT ==========');
+      return null;
+    }
+
+    try {
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is! Map<String, dynamic>) {
+        debugPrint('KPI JSON MAL FORMÉ — attendu Map, reçu ${decoded.runtimeType}');
+        debugPrint('========== END KPI FRONT ==========');
+        return null;
+      }
+
+      final json = decoded;
+
+      if (json['totalContacts'] == null) {
+        debugPrint('KPI JSON MAL FORMÉ — clé totalContacts absente');
+        debugPrint('========== END KPI FRONT ==========');
+        return null;
+      }
+
+      debugPrint('TOTAL CONTACTS = ${json["totalContacts"]}');
+      debugPrint('TOTAL CALLS = ${json["totalCalls"]}');
+      debugPrint('TOTAL COMPANIES = ${json["totalCompanies"] ?? json["totalEntreprises"]}');
+      debugPrint('CONTACTS BY STATUS = ${json["contactsByStatut"] ?? json["contactsByStatus"]}');
+      debugPrint('CONTACTS BY TYPE = ${json["contactsByType"]}');
+      debugPrint('========== END KPI FRONT ==========');
+
+      return CommercialAnalyticsModel.fromJson(json);
+    } catch (e) {
+      debugPrint('KPI JSON MAL FORMÉ — erreur parsing: $e');
+      debugPrint('========== END KPI FRONT ==========');
+      return null;
+    }
+  }
+
+  // ── Fallback historique (liste brute) ──────────────────────────────────────
+  Future<List<CommercialContact>> fetchMyKpi({required String token}) async {
+    final uri = Uri.parse('$baseUrl/my-kpi');
+    debugPrint('API URL = $uri');
+    final response = await http.get(uri, headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    });
+    debugPrint('STATUS my-kpi = ${response.statusCode}');
+    if (response.statusCode == 200) return _parseContactList(response.body);
+    debugPrint('my-kpi non disponible — fallback GET /commercial-contacts');
+    return fetchMyContacts(token: token);
+  }
+
+  Future<List<CommercialContact>> fetchGlobalKpi({required String token}) async {
+    final uri = Uri.parse('$baseUrl/kpi');
+    debugPrint('API URL = $uri');
+    final response = await http.get(uri, headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    });
+    debugPrint('STATUS kpi = ${response.statusCode}');
+    if (response.statusCode == 200) return _parseContactList(response.body);
+    debugPrint('kpi non disponible — fallback GET /commercial-contacts');
+    return fetchMyContacts(token: token);
+  }
+
   // GET /commercial-contacts/analytics
-  // Retourne des agrégats pré-calculés côté serveur.
-  // Si le backend ne dispose pas encore de cet endpoint, utilise fetchMyContacts()
-  // et construit la réponse côté client via CommercialAnalyticsModel.fromContacts().
   Future<CommercialAnalyticsModel> fetchAnalytics(String token) async {
     final response = await http.get(
       Uri.parse('$baseUrl/analytics'),
@@ -144,7 +253,6 @@ Future<List<CommercialContact>> fetchMyContacts({
       );
     }
 
-    // Fallback : construit les analytics depuis la liste complète des contacts
     final contacts = await fetchMyContacts(token: token);
     return CommercialAnalyticsModel.fromContacts(contacts);
   }

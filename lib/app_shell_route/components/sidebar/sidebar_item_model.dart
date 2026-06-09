@@ -67,8 +67,30 @@ enum SidebarItemType { tile, submenu }
 List<SidebarItemModel> buildTopMenus({
   required bool isAccueil,
   required bool isCommercial,
+  required bool canViewCommercialKpi,
 }) {
-  if (isAccueil || isCommercial) return [];
+  if (isAccueil) return [];
+
+  // Commercial : Dashboard avec uniquement KPI Commercial Contacts (pas KPI Projets CRM)
+  if (isCommercial) {
+    return [
+      _safeSubmenuItem(
+        name:           'Dashboard',
+        icon:           Icons.dashboard_outlined,
+        navigationPath: '/dashboard',
+        submenus: [
+          SidebarSubmenuModel(
+            name:           'KPI Commercial Contacts',
+            navigationPath: '/users/commercial-contacts-kpi',
+            icon:           Icons.people_alt_outlined,
+          ),
+        ],
+      ),
+    ];
+  }
+
+  // Admin / superadmin / autres : Dashboard avec KPI Projets CRM
+  // KPI Commercial Contacts uniquement si le rôle y a accès (admin, superadmin, commercial)
   return [
     _safeSubmenuItem(
       name:           'Dashboard',
@@ -77,14 +99,15 @@ List<SidebarItemModel> buildTopMenus({
       submenus: [
         SidebarSubmenuModel(
           name:           'KPI Projets CRM',
-          navigationPath: 'kpi-projects',       // relatif → /dashboard/kpi-projects
+          navigationPath: 'kpi-projects',
           icon:           Icons.analytics_outlined,
         ),
-        SidebarSubmenuModel(
-          name:           'KPI Commercial Contacts',
-          navigationPath: '/users/commercial-contacts-kpi', // absolu → navigation directe
-          icon:           Icons.people_alt_outlined,
-        ),
+        if (canViewCommercialKpi)
+          SidebarSubmenuModel(
+            name:           'KPI Commercial Contacts',
+            navigationPath: '/users/commercial-contacts-kpi',
+            icon:           Icons.people_alt_outlined,
+          ),
       ],
     ),
   ];
@@ -128,7 +151,7 @@ List<GroupedMenuModel> buildGroupedMenus({
             navigationPath: '/users/commercial-contacts',
           ),
           SidebarItemModel(
-            name:           'Commercial Contacts Analytics',
+            name:           'KPI Commercial Contacts',
             icon:           Icons.analytics_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: '/users/commercial-contacts-kpi',
@@ -139,14 +162,13 @@ List<GroupedMenuModel> buildGroupedMenus({
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.commercialProfileScreen,
           ),
+        ],
+      ),
+      GroupedMenuModel(
+        name: 'MES PROJETS',
+        menus: [
           SidebarItemModel(
-            name:           'Client',
-            icon:           Icons.people_outlined,
-            sidebarItemType: SidebarItemType.tile,
-            navigationPath: MyRoute.clientsProfileScreen,
-          ),
-          SidebarItemModel(
-            name:           'Projects',
+            name:           'Mes Projets',
             icon:           Icons.folder_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.projectFormScreen,
@@ -156,44 +178,11 @@ List<GroupedMenuModel> buildGroupedMenus({
       GroupedMenuModel(
         name: 'TOOLS',
         menus: [
-          _safeSubmenuItem(
-            name:           'User & Project Management',
-            icon:           Icons.manage_accounts_outlined,
-            navigationPath: '/users',
-            submenus: [
-              SidebarSubmenuModel(
-                name:           'Project Management',
-                navigationPath: 'project-list',
-                icon:           Icons.account_tree_outlined,
-              ),
-              SidebarSubmenuModel(
-                name:           'Project List',
-                navigationPath: 'user_project',
-                icon:           Icons.list_alt_outlined,
-              ),
-              SidebarSubmenuModel(
-                name:           'Applicateur List',
-                navigationPath: 'applicateur',
-                icon:           Icons.brush_outlined,
-              ),
-              SidebarSubmenuModel(
-                name:           'Revendeur List',
-                navigationPath: 'revendeur',
-                icon:           Icons.storefront_outlined,
-              ),
-              if (isAdmin)
-                SidebarSubmenuModel(
-                  name:           'Client',
-                  navigationPath: 'client',
-                  icon:           Icons.person_pin_outlined,
-                ),
-              if (isAdmin)
-                SidebarSubmenuModel(
-                  name:           'Dashboard Commercial',
-                  navigationPath: 'dashboard-commercial',
-                  icon:           Icons.bar_chart_outlined,
-                ),
-            ],
+          SidebarItemModel(
+            name:           'Calendar',
+            icon:           Icons.calendar_month_outlined,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: MyRoute.calendarScreen,
           ),
         ],
       ),

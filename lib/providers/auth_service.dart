@@ -36,6 +36,14 @@ bool get isAdmin {
   }
 bool get isAgent => userRole?.toLowerCase() == 'agent';
 bool get isClient => userRole?.toLowerCase() == 'client';
+
+// Accès au dashboard KPI Commercial Contacts :
+// uniquement admin, superadmin et commercial.
+// Le rôle "user" est explicitement exclu.
+bool get canViewCommercialKpi {
+  final r = (userRole ?? '').toLowerCase().trim();
+  return r == 'admin' || r == 'superadmin' || r == 'commercial';
+}
   // ---------------- SIGNUP ----------------
   Future<void> signup({required String email, required String password}) async {
     await ApiClient.instance.dio.post('/auth/signup', data: {

@@ -145,31 +145,68 @@ class CommercialAnalyticsModel {
     );
   }
 
+  // ── Parseurs flexibles (Map ou List, clés alternatives) ────────────────────
+
+  static List<StatutCount> _parseStatuts(dynamic raw) {
+    if (raw == null) return [];
+    if (raw is List) {
+      return raw.map((e) => StatutCount.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    if (raw is Map) {
+      return (raw.entries
+          .map((e) => StatutCount(statut: e.key.toString(), count: (e.value as num).toInt()))
+          .toList()
+        ..sort((a, b) => b.count.compareTo(a.count)));
+    }
+    return [];
+  }
+
+  static List<TypeCount> _parseTypes(dynamic raw) {
+    if (raw == null) return [];
+    if (raw is List) {
+      return raw.map((e) => TypeCount.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    if (raw is Map) {
+      return (raw.entries
+          .map((e) => TypeCount(type: e.key.toString(), count: (e.value as num).toInt()))
+          .toList()
+        ..sort((a, b) => b.count.compareTo(a.count)));
+    }
+    return [];
+  }
+
+  static List<CommercialCount> _parseCommercials(dynamic raw) {
+    if (raw == null || raw is! List) return [];
+    return raw.map((e) => CommercialCount.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  static List<CompanyCount> _parseCompanies(dynamic raw) {
+    if (raw == null || raw is! List) return [];
+    return raw.map((e) => CompanyCount.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  static List<MonthlyCount> _parseMonthly(dynamic raw) {
+    if (raw == null || raw is! List) return [];
+    return raw.map((e) => MonthlyCount.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
   factory CommercialAnalyticsModel.fromJson(Map<String, dynamic> j) =>
       CommercialAnalyticsModel(
         totalContacts:    (j['totalContacts']    as num? ?? 0).toInt(),
         totalCalls:       (j['totalCalls']       as num? ?? 0).toInt(),
-        totalCompanies:   (j['totalCompanies']   as num? ?? 0).toInt(),
+        // accepte totalCompanies OU totalEntreprises
+        totalCompanies:   ((j['totalCompanies']  ?? j['totalEntreprises']) as num? ?? 0).toInt(),
         totalCommerciaux: (j['totalCommerciaux'] as num? ?? 0).toInt(),
         totalActifs:      (j['totalActifs']      as num? ?? 0).toInt(),
         totalNonValides:  (j['totalNonValides']  as num? ?? 0).toInt(),
-        contactsByStatut: (j['contactsByStatut'] as List<dynamic>? ?? [])
-            .map((e) => StatutCount.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        contactsByType: (j['contactsByType'] as List<dynamic>? ?? [])
-            .map((e) => TypeCount.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        contactsByCommercial:
-            (j['contactsByCommercial'] as List<dynamic>? ?? [])
-                .map((e) =>
-                    CommercialCount.fromJson(e as Map<String, dynamic>))
-                .toList(),
-        topCompanies: (j['topCompanies'] as List<dynamic>? ?? [])
-            .map((e) => CompanyCount.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        monthlyActivity: (j['monthlyActivity'] as List<dynamic>? ?? [])
-            .map((e) => MonthlyCount.fromJson(e as Map<String, dynamic>))
-            .toList(),
+        // accepte contactsByStatut OU contactsByStatus — Map ou List
+        contactsByStatut:    _parseStatuts(j['contactsByStatut'] ?? j['contactsByStatus']),
+        // accepte Map ou List
+        contactsByType:      _parseTypes(j['contactsByType']),
+        contactsByCommercial: _parseCommercials(j['contactsByCommercial']),
+        topCompanies:        _parseCompanies(j['topCompanies']),
+        // accepte monthlyActivity OU monthly
+        monthlyActivity:     _parseMonthly(j['monthlyActivity'] ?? j['monthly']),
       );
 
   Map<String, dynamic> toJson() => {
