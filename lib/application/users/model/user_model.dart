@@ -31,7 +31,7 @@ class UserModel {
   String get displayImage {
     if (avatarUrl != null && avatarUrl!.isNotEmpty) {
       // TODO: Update to use ApiConfig when displayImage is called from UI context
-      return "http://localhost:4000$avatarUrl";
+      return "https://api.crmprobar.com$avatarUrl";
     }
     return imageUrl;
   }
