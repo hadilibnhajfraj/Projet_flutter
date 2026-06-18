@@ -9,7 +9,7 @@ class ApiConfig {
   static const String baseUrl = 'https://api.crmprobar.com';
 
   /// WebSocket base URL
-  static const String wsBaseUrl = 'ws://api.crmprobar.com';
+  static const String wsBaseUrl = 'wss://api.crmprobar.com';
 
   /// Convenience getters
   static String get apiPath => baseUrl;
