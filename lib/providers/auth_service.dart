@@ -59,7 +59,14 @@ Future<List<String>> getUserNames() async {
   return List<String>.from(response.data);
 }
   // ---------------- SIGNIN (7 days session) ----------------
-  Future<void> signin({required String email, required String password}) async {
+  // Déclenche manuellement le redirect GoRouter (après dialog si silentNotify=true).
+  void triggerRefresh() => notifyListeners();
+
+  Future<void> signin({
+    required String email,
+    required String password,
+    bool silentNotify = false,
+  }) async {
     // ✅ reset session avant tentative
     await _box.write('isLoggedIn', false);
     await _box.remove('accessToken');
@@ -110,7 +117,7 @@ Future<List<String>> getUserNames() async {
       // ✅ set token in dio header
       ApiClient.instance.setToken(token);
 
-      notifyListeners();
+      if (!silentNotify) notifyListeners();
     } on DioException catch (e) {
       final data = e.response?.data;
       final msg = (data is Map && data['message'] != null)
@@ -208,6 +215,15 @@ Future<List<String>> getUserNames() async {
         ? (res.data as Map<String, dynamic>)
         : Map<String, dynamic>.from(res.data);
   }
+
+  // ---------------- COMMERCIAL SELECTION ----------------
+  void clearCommercialSelection() {
+    _box.remove('selectedCommercial');
+    _box.remove('selectedCommercialId');
+  }
+
+  String get selectedCommercial =>
+      _box.read<String>('selectedCommercial') ?? '';
 
   // ---------------- PRIVATE: CLEANUP ----------------
   Future<void> _cleanupSession() async {

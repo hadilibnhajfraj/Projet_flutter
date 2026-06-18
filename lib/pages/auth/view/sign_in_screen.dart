@@ -5,16 +5,13 @@ import 'package:dash_master_toolkit/theme/theme_controller.dart';
 import 'package:dash_master_toolkit/widgets/common_button.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:get/get.dart';
-import '../../../widgets/user_name_dialog.dart';
 import '../../../constant/app_images.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../providers/auth_service.dart';
-import '../../../utils/validation.dart';
-import '../../../widgets/common_app_widget.dart';
 import 'package:go_router/go_router.dart';
 import '../../../route/my_route.dart';
 import 'dart:ui';
-import '../../../widgets/user_name_dialog.dart';
+import '../widgets/commercial_profile_dialog.dart';
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
 
@@ -200,36 +197,40 @@ Widget build(BuildContext context) {
                                   onPressed: () async {
                                     if (!controller.formKey.currentState!
                                         .validate()) return;
-
                                     try {
                                       final authService = AuthService();
 
+                                      // silentNotify=true : GoRouter ne redirige
+                                      // pas encore — on garde la main pour
+                                      // afficher le dialog si besoin.
                                       await authService.signin(
                                         email: controller.userNameController.text,
-                                        password:
-                                            controller.passwordController.text,
+                                        password: controller.passwordController.text,
+                                        silentNotify: true,
                                       );
 
-                                      final role = (authService.userRole ?? '').toLowerCase().trim();
-                                      debugPrint('ROLE CONNECTE = $role');
+                                      final email =
+                                          (authService.userEmail ?? '')
+                                              .toLowerCase();
+                                      print('ROLE = ${authService.userRole}');
 
-                                      if (role == 'commercial') {
-                                        await showUserNameDialog(context);
+                                      // Dialog commercial uniquement pour
+                                      // @probardistribution.com, et uniquement
+                                      // si le widget est encore affiché.
+                                      if (email.endsWith('@probardistribution.com') &&
+                                          context.mounted) {
+                                        await showCommercialProfileDialog(context);
                                       }
 
-                                      if (!context.mounted) return;
-
-                                      if (role == 'commercial') {
-                                        debugPrint('REDIRECTION = /users/commercial-contacts-kpi');
-                                        context.go(MyRoute.commercialContactsKpiUsers);
-                                      } else {
-                                        context.go(MyRoute.dashboardSalesAdmin);
-                                      }
+                                      // triggerRefresh déclenche le redirect
+                                      // GoRouter → dashboard selon le rôle.
+                                      // Appelé dans tous les cas (même si
+                                      // context n'est plus monté).
+                                      authService.triggerRefresh();
                                     } catch (e) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                            content: Text(e.toString())),
+                                      if (!context.mounted) return;
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text(e.toString())),
                                       );
                                     }
                                   },

@@ -68,6 +68,7 @@ import 'package:dash_master_toolkit/application/users/view/commercial_timeline_s
 import 'package:dash_master_toolkit/application/users/view/add_commercial_action_screen.dart';
 import 'package:dash_master_toolkit/dashboard/commercial_contacts/view/commercial_contacts_kpi_screen.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_contacts_analytics_screen.dart';
+import 'package:dash_master_toolkit/pages/auth/view/commercial_selection_screen.dart';
 
 class MyRoute {
   static const login = '/login';
@@ -133,6 +134,7 @@ static const clientsProfileScreen = '/users/client';
   static const signUpScreen = '/authentication/signup';
   static const forgotPasswordScreen = '/authentication/forgot_password';
   static const resetPasswordScreen = '/authentication/reset_password';
+  static const commercialSelectionScreen = '/authentication/select-commercial';
     static const  applicateurProjectsScreen = "/users/applicateur";
   static const  revendeurProjectsScreen = "/users/revendeur";
   static const archiveRequestsScreen = '/archive-requests';
@@ -145,28 +147,32 @@ static const clientsProfileScreen = '/users/client';
 
     redirect: (context, state) {
       final loggedIn = AuthService().isLoggedIn;
+      final loc = state.matchedLocation;
 
-      final isAuthRoute = state.matchedLocation == signInScreen ||
-          state.matchedLocation == signUpScreen ||
-          state.matchedLocation == forgotPasswordScreen ||
-          state.matchedLocation == resetPasswordScreen;
+      final isAuthRoute = loc == signInScreen ||
+          loc == signUpScreen ||
+          loc == forgotPasswordScreen ||
+          loc == resetPasswordScreen;
 
-      // Déjà connecté sur la page login ou root → rediriger vers le bon dashboard
-      if (loggedIn && (state.matchedLocation == initialPath || isAuthRoute)) {
+      // ── Non connecté sur route protégée → login ─────────────────────────
+      if (!loggedIn && !isAuthRoute) return signInScreen;
+
+      // ── Connecté sur auth route ou racine → dashboard ───────────────────
+      // La sélection du commercial (@probardistribution.com) est gérée
+      // exclusivement dans sign_in_screen.dart après un login réussi.
+      // Le router NE redirige JAMAIS vers select-commercial automatiquement.
+      if (loggedIn && (loc == initialPath || isAuthRoute)) {
         final role = (AuthService().userRole ?? '').toLowerCase().trim();
-        debugPrint('ROLE CONNECTE = $role');
+        print('ROLE = $role');
         if (role == 'commercial') {
-          debugPrint('REDIRECTION = /users/commercial-contacts-kpi');
+          debugPrint('REDIRECTION → $commercialContactsKpiUsers');
           return commercialContactsKpiUsers;
         }
         return dashboardSalesAdmin;
       }
 
-      if (state.matchedLocation == initialPath) {
-        return signInScreen;
-      }
-
-      if (!loggedIn && !isAuthRoute) return signInScreen;
+      // ── Route racine → login ─────────────────────────────────────────────
+      if (loc == initialPath) return signInScreen;
 
       return null;
     },
@@ -204,6 +210,12 @@ static const clientsProfileScreen = '/users/client';
         pageBuilder: (context, state) =>
             const NoTransitionPage<void>(child: ResetPasswordScreen()),
       ),
+      // ── Sélection commercial (hors AppShell, obligatoire pour role=commercial)
+      GoRoute(
+        path: commercialSelectionScreen,
+        pageBuilder: (context, state) =>
+            const NoTransitionPage<void>(child: CommercialSelectionScreen()),
+      ),
 
       // APP SHELL
       ShellRoute(
@@ -228,16 +240,7 @@ static const clientsProfileScreen = '/users/client';
                 },
               ),
               GoRoute(
-                path: salesAdmin,      // /dashboard/kpi-projects — route principale
-                redirect: (context, state) {
-                  final role = (AuthService().userRole ?? '').toLowerCase().trim();
-                  if (role == 'commercial') {
-                    debugPrint('ROLE CONNECTE = $role');
-                    debugPrint('REDIRECTION = /users/commercial-contacts-kpi');
-                    return commercialContactsKpiUsers;
-                  }
-                  return null;
-                },
+                path: salesAdmin,
                 pageBuilder: (context, state) {
                   final token = AuthService().accessToken ?? '';
                   return NoTransitionPage(child: DashboardScreen(token: token));
