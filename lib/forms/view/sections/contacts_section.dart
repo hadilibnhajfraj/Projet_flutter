@@ -19,6 +19,7 @@ import 'package:get/get.dart';
 import 'package:dash_master_toolkit/forms/controller/project_form_controller.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/view/widgets/crm_widgets.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 class ContactsSection extends StatelessWidget {
   final ProjectFormController c;
@@ -39,7 +40,8 @@ class ContactsSection extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.only(top: 48),
                   child: Text(
-                    'Contacts are only required for the Project type.',
+                    AppLocalizations.of(context)
+                        .translate('Contacts are only required for the Project type.'),
                     textAlign: TextAlign.center,
                     style: tInter(fontSize: 14, color: kCrmTextSub),
                   ),
@@ -69,10 +71,10 @@ class _ContactsBody extends StatelessWidget {
         hint: 'Select company',
         rxValue: c.selectedCompanyId,
         buildItems: () => [
-          const DropdownMenuItem(value: null, child: Text('None')),
+          DropdownMenuItem(value: null, child: Text(AppLocalizations.of(context).translate('None'))),
           ...c.companies.map((co) =>
               DropdownMenuItem(value: co.id, child: Text(co.name))),
-          const DropdownMenuItem(value: 'other', child: Text('Other')),
+          DropdownMenuItem(value: 'other', child: Text(AppLocalizations.of(context).translate('Other'))),
         ],
         onChanged: c.setSelectedCompany,
       ),
@@ -95,10 +97,10 @@ class _ContactsBody extends StatelessWidget {
         hint: 'Select engineer',
         rxValue: c.selectedEngineerId,
         buildItems: () => [
-          const DropdownMenuItem(value: null, child: Text('None')),
+          DropdownMenuItem(value: null, child: Text(AppLocalizations.of(context).translate('None'))),
           ...c.engineers.map((e) =>
               DropdownMenuItem(value: e.id, child: Text(e.name))),
-          const DropdownMenuItem(value: 'other', child: Text('Other')),
+          DropdownMenuItem(value: 'other', child: Text(AppLocalizations.of(context).translate('Other'))),
         ],
         onChanged: c.setSelectedEngineer,
       ),
@@ -135,10 +137,10 @@ class _ContactsBody extends StatelessWidget {
         hint: 'Select architect',
         rxValue: c.selectedArchitectId,
         buildItems: () => [
-          const DropdownMenuItem(value: null, child: Text('None')),
+          DropdownMenuItem(value: null, child: Text(AppLocalizations.of(context).translate('None'))),
           ...c.architects.map((a) =>
               DropdownMenuItem(value: a.id, child: Text(a.name))),
-          const DropdownMenuItem(value: 'other', child: Text('Other')),
+          DropdownMenuItem(value: 'other', child: Text(AppLocalizations.of(context).translate('Other'))),
         ],
         onChanged: c.setSelectedArchitect,
       ),

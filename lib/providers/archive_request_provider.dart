@@ -32,15 +32,26 @@ class ArchiveRequestProvider extends GetxController {
   final unreadTotal    = 0.obs;
   final lastApprovedAt = Rxn<DateTime>();
   final messageCtrl    = TextEditingController();
+  final stats          = <String, int>{}.obs;
 
   ArchiveRequest? get selectedRequest =>
       requests.firstWhereOrNull((r) => r.id == selectedId.value);
 
   String get currentUserId => _auth.userId ?? '';
-  bool   get isAdmin       => _auth.isAdmin;
+  // Seul cbitunisia@cbi-tunisia.com voit/gère les demandes — un rôle
+  // admin/superadmin/superadmin2 ne suffit plus (faille corrigée).
+  bool   get isAdmin       => _auth.isRootAdmin;
 
   int get pendingCount =>
       requests.where((r) => r.status == 'pending').length;
+  int get archivageCount =>
+      requests.where((r) => r.isArchivage).length;
+  int get desarchivageCount =>
+      requests.where((r) => !r.isArchivage).length;
+  int get approvedCount =>
+      requests.where((r) => r.status == 'approved').length;
+  int get rejectedCount =>
+      requests.where((r) => r.status == 'rejected').length;
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   @override
@@ -67,7 +78,14 @@ class ArchiveRequestProvider extends GetxController {
   }
 
   // ── Load — direct Dio call with full logs ──────────────────────────────────
-  Future<void> load() async => loadArchiveRequests();
+  Future<void> load() async {
+    await loadArchiveRequests();
+    if (isAdmin) await loadStats();
+  }
+
+  Future<void> loadStats() async {
+    stats.value = await _service.fetchStats();
+  }
 
   Future<void> loadArchiveRequests() async {
     loading.value = true;
@@ -121,14 +139,17 @@ class ArchiveRequestProvider extends GetxController {
     required String projectId,
     required String projectName,
     required String message,
+    String type = 'DESARCHIVAGE',
   }) async {
     sending.value = true;
-    final subject = 'Demande de désarchivage - $projectName';
+    final label = type == 'ARCHIVAGE' ? 'archivage' : 'désarchivage';
+    final subject = 'Demande de $label - $projectName';
     try {
       final req = await _service.create(
         projectId: projectId,
         subject:   subject,
         message:   message,
+        type:      type,
       );
       requests.insert(0, req);
       _recalcUnread();
@@ -159,12 +180,13 @@ class ArchiveRequestProvider extends GetxController {
   // ── Send chat message ──────────────────────────────────────────────────────
   Future<void> sendMessage() async {
     final text = messageCtrl.text.trim();
-    if (text.isEmpty || selectedId.value == null) return;
+    final requestId = selectedId.value;
+    if (text.isEmpty || requestId == null) return;
     sending.value = true;
     messageCtrl.clear();
     try {
-      final msg = await _service.addMessage(selectedId.value!, text);
-      _appendMessage(selectedId.value!, msg);
+      final msg = await _service.addMessage(requestId, text);
+      _appendMessage(requestId, msg);
     } catch (e) {
       debugPrint('[ArchiveReq] sendMessage error: $e');
       _handleError(e, fallback: 'Impossible d\'envoyer le message');
@@ -193,14 +215,26 @@ class ArchiveRequestProvider extends GetxController {
   }
 
   // ── Admin reject ───────────────────────────────────────────────────────────
-  Future<void> rejectRequest(String requestId) async {
+  Future<void> rejectRequest(String requestId, {String? reason}) async {
     try {
-      await _service.reject(requestId);
+      await _service.reject(requestId, reason: reason);
       _updateStatus(requestId, 'rejected');
       await load(); // refresh list
     } catch (e) {
       debugPrint('[ArchiveReq] reject error: $e');
       _handleError(e, fallback: 'Erreur lors du refus');
+    }
+  }
+
+  // ── Admin delete ───────────────────────────────────────────────────────────
+  Future<void> deleteRequest(String requestId) async {
+    try {
+      await _service.deleteRequest(requestId);
+      requests.removeWhere((r) => r.id == requestId);
+      _recalcUnread();
+    } catch (e) {
+      debugPrint('[ArchiveReq] delete error: $e');
+      _handleError(e, fallback: 'Erreur lors de la suppression');
     }
   }
 
@@ -339,6 +373,11 @@ class ArchiveRequestProvider extends GetxController {
 
   void _showApprovedDialog(String projectName) {
     if (Get.isDialogOpen ?? false) return;
+    // GetxController n'a pas de BuildContext propre (pas de fallback
+    // showDialog possible ici) — on vérifie donc Get.context avant d'appeler
+    // Get.dialog, jamais `Get.context!`. Si null, on renonce silencieusement
+    // plutôt que de crasher (l'approbation a déjà réussi côté serveur).
+    if (Get.context == null) return;
     Get.dialog(
       Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

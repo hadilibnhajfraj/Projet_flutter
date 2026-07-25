@@ -11,6 +11,7 @@ import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/application/users/model/user_projects_response.dart';
 import 'package:csv/csv.dart';
 import 'package:excel/excel.dart' as excel;
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 class UserProjectsScreen extends StatefulWidget {
   final String token;
 
@@ -710,7 +711,7 @@ String _getValidationColorHex(String? value) {
       child: TextField(
         controller: controller,
         decoration: InputDecoration(
-          hintText: hint,
+          hintText: AppLocalizations.of(context).translate(hint),
           filled: true,
           fillColor: Colors.white,
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -762,9 +763,9 @@ items = items.where((p) => p.projectModele == "project").toList();
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'My Projects',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context).translate('My Projects'),
+              style: const TextStyle(
                 fontSize: 30,
                 fontWeight: FontWeight.w800,
                 color: kTextDark,
@@ -772,9 +773,10 @@ items = items.where((p) => p.projectModele == "project").toList();
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'View your associated projects and filter them professionally by architect, promoter, engineer, and company.',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context)
+                  .translate('View your associated projects and filter them professionally by architect, promoter, engineer, and company.'),
+              style: const TextStyle(
                 fontSize: 15,
                 color: kTextMuted,
                 height: 1.4,
@@ -853,15 +855,15 @@ items = items.where((p) => p.projectModele == "project").toList();
 
 DropdownButtonFormField<String>(
   value: selectedStatusFilter ?? "ALL", // ✅ IMPORTANT
-  hint: const Text("Status"),
+  hint: Text(AppLocalizations.of(context).translate("Status")),
   items: [
-    const DropdownMenuItem(
+    DropdownMenuItem(
       value: "ALL",
-      child: Text("All"),
+      child: Text(AppLocalizations.of(context).translate("All")),
     ),
     ...STATUS_LIST.map((s) => DropdownMenuItem<String>(
           value: s["value"],
-          child: Text(s["label"]!),
+          child: Text(AppLocalizations.of(context).translate(s["label"]!)),
         ))
   ],
   onChanged: (value) {
@@ -871,14 +873,14 @@ DropdownButtonFormField<String>(
     });
   },
 ),
-                      if (userRole == "superadmin")
+                      if (userRole == "superadmin" || userRole == "superadmin2")
   SizedBox(
     width: 300,
     child: DropdownButtonFormField<String>(
       value: selectedUser,
       isExpanded: true,
       itemHeight: null,
-      hint: const Text("Created By"),
+      hint: Text(AppLocalizations.of(context).translate("Created By")),
       decoration: InputDecoration(
         filled: true,
         fillColor: Colors.white,
@@ -956,7 +958,7 @@ DropdownButtonFormField<String>(
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '$count projets',
+                  '$count ${AppLocalizations.of(context).translate('projets')}',
                   style: const TextStyle(
                     fontSize: 11,
                     color: Color(0xFF1D4ED8),
@@ -1044,7 +1046,7 @@ DropdownButtonFormField<String>(
                           _loadProjects();
                         },
                         icon: const Icon(Icons.search_rounded),
-                        label: const Text('Apply Filters'),
+                        label: Text(AppLocalizations.of(context).translate('Apply Filters')),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: kPrimary,
                           foregroundColor: Colors.white,
@@ -1058,7 +1060,7 @@ DropdownButtonFormField<String>(
                       OutlinedButton.icon(
                         onPressed: _resetFilters,
                         icon: const Icon(Icons.refresh_rounded),
-                        label: const Text('Reset'),
+                        label: Text(AppLocalizations.of(context).translate('Reset')),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: kTextDark,
                           side: const BorderSide(color: kBorder),
@@ -1072,7 +1074,7 @@ DropdownButtonFormField<String>(
                       ElevatedButton.icon(
                         onPressed: items.isEmpty ? null : _exportExcelFull,
                         icon: const Icon(Icons.download_rounded),
-                        label: const Text('Export CSV'),
+                        label: Text(AppLocalizations.of(context).translate('Export CSV')),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF111827),
                           foregroundColor: Colors.white,
@@ -1132,15 +1134,15 @@ DropdownButtonFormField<String>(
                 ),
                 child: Column(
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(20, 20, 20, 14),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 14),
                       child: Row(
                         children: [
-                          Icon(Icons.table_chart_rounded, color: kPrimary),
-                          SizedBox(width: 10),
+                          const Icon(Icons.table_chart_rounded, color: kPrimary),
+                          const SizedBox(width: 10),
                           Text(
-                            'Projects Table',
-                            style: TextStyle(
+                            AppLocalizations.of(context).translate('Projects Table'),
+                            style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w700,
                               color: kTextDark,
@@ -1152,11 +1154,11 @@ DropdownButtonFormField<String>(
                     const Divider(height: 1, thickness: 1, color: kBorder),
 
                     if (items.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(30),
+                      Padding(
+                        padding: const EdgeInsets.all(30),
                         child: Text(
-                          'No projects found for the selected filters.',
-                          style: TextStyle(
+                          AppLocalizations.of(context).translate('No projects found for the selected filters.'),
+                          style: const TextStyle(
                             fontSize: 15,
                             color: kTextMuted,
                           ),
@@ -1175,11 +1177,11 @@ DropdownButtonFormField<String>(
                           headingRowColor: WidgetStateProperty.resolveWith<Color?>(
                             (states) => const Color(0xFFF8FAFC),
                           ),
-                          columns: const [
+                          columns: [
                             DataColumn(
                               label: Text(
-                                'Project Name',
-                                style: TextStyle(
+                                AppLocalizations.of(context).translate('Project Name'),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: kTextDark,
                                 ),
@@ -1187,8 +1189,8 @@ DropdownButtonFormField<String>(
                             ),
                             DataColumn(
                               label: Text(
-                                'Engineer',
-                                style: TextStyle(
+                                AppLocalizations.of(context).translate('Engineer'),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: kTextDark,
                                 ),
@@ -1196,8 +1198,8 @@ DropdownButtonFormField<String>(
                             ),
                             DataColumn(
                               label: Text(
-                                'Architect',
-                                style: TextStyle(
+                                AppLocalizations.of(context).translate('Architect'),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: kTextDark,
                                 ),
@@ -1205,8 +1207,8 @@ DropdownButtonFormField<String>(
                             ),
                             DataColumn(
                               label: Text(
-                                'Promoter',
-                                style: TextStyle(
+                                AppLocalizations.of(context).translate('Promoter'),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: kTextDark,
                                 ),
@@ -1214,8 +1216,8 @@ DropdownButtonFormField<String>(
                             ),
                             DataColumn(
                               label: Text(
-                                'Company',
-                                style: TextStyle(
+                                AppLocalizations.of(context).translate('Company'),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: kTextDark,
                                 ),
@@ -1223,8 +1225,8 @@ DropdownButtonFormField<String>(
                             ),
                             DataColumn(
                               label: Text(
-                                'Start Date',
-                                style: TextStyle(
+                                AppLocalizations.of(context).translate('Start Date'),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: kTextDark,
                                 ),
@@ -1232,18 +1234,18 @@ DropdownButtonFormField<String>(
                             ),
                             DataColumn(
                               label: Text(
-                                'Status',
-                                style: TextStyle(
+                                AppLocalizations.of(context).translate('Status'),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: kTextDark,
                                 ),
                               ),
                             ),
-                          
+
                             DataColumn(
                               label: Text(
-                                'Validation',
-                                style: TextStyle(
+                                AppLocalizations.of(context).translate('Validation'),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: kTextDark,
                                 ),
@@ -1251,8 +1253,8 @@ DropdownButtonFormField<String>(
                             ),
                             DataColumn(
                               label: Text(
-                                'Project Type',
-                                style: TextStyle(
+                                AppLocalizations.of(context).translate('Project Type'),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: kTextDark,
                                 ),
@@ -1260,8 +1262,8 @@ DropdownButtonFormField<String>(
                             ),
                               DataColumn(
                               label: Text(
-                                'Actions',
-                                style: TextStyle(
+                                AppLocalizations.of(context).translate('Actions'),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   color: kTextDark,
                                 ),
@@ -1317,9 +1319,9 @@ DropdownButtonFormField<String>(
             color: Colors.grey.withOpacity(0.3),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Text(
-            "ARCHIVED",
-            style: TextStyle(
+          child: Text(
+            AppLocalizations.of(context).translate("ARCHIVED"),
+            style: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
               color: Colors.black54,
@@ -1400,7 +1402,7 @@ DropdownButtonFormField<String>(
           items: STATUS_LIST.map((status) {
             return DropdownMenuItem<String>(
               value: status["value"],
-              child: Text(status["label"]!),
+              child: Text(AppLocalizations.of(context).translate(status["label"]!)),
             );
           }).toList(),
 
@@ -1484,7 +1486,7 @@ DropdownButtonFormField<String>(
                       child: Row(
                         children: [
                           Text(
-                            'Page $_page / $totalPages',
+                            '${AppLocalizations.of(context).translate('Page')} $_page / $totalPages',
                             style: const TextStyle(
                               color: kTextMuted,
                               fontWeight: FontWeight.w600,
@@ -1500,7 +1502,7 @@ DropdownButtonFormField<String>(
                                     _loadProjects();
                                   }
                                 : null,
-                            child: const Text('Previous'),
+                            child: Text(AppLocalizations.of(context).translate('Previous')),
                           ),
                           const SizedBox(width: 10),
                           ElevatedButton(
@@ -1516,7 +1518,7 @@ DropdownButtonFormField<String>(
                               backgroundColor: kPrimary,
                               foregroundColor: Colors.white,
                             ),
-                            child: const Text('Next'),
+                            child: Text(AppLocalizations.of(context).translate('Next')),
                           ),
                         ],
                       ),
@@ -1578,7 +1580,7 @@ class _SummaryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  AppLocalizations.of(context).translate(title),
                   style: const TextStyle(
                     fontSize: 13,
                     color: Color(0xFF6B7280),
@@ -1623,7 +1625,7 @@ class _TagChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(30),
       ),
       child: Text(
-        text,
+        AppLocalizations.of(context).translate(text),
         style: TextStyle(
           color: fg,
           fontWeight: FontWeight.w700,

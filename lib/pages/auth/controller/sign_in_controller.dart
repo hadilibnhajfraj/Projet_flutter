@@ -19,7 +19,9 @@ class SignInController extends GetxController {
   void onInit() {
     super.onInit();
 
-    userNameController.text = "yourname";
-    passwordController.text = "Test@123";
+    // Champs vides par défaut — seuls les placeholders sont visibles avant
+    // saisie (voir sign_in_screen.dart).
+    f1.addListener(() => userNameFieldFocused.value = f1.hasFocus);
+    f2.addListener(() => passwordFieldFocused.value = f2.hasFocus);
   }
 }

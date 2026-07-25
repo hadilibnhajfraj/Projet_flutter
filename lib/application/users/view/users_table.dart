@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 import '../controller/user_project_controller.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 class UsersTable extends StatelessWidget {
 
@@ -23,9 +24,9 @@ class UsersTable extends StatelessWidget {
         elevation: 0,
         backgroundColor: const Color(0xFF1D4ED8),
         foregroundColor: Colors.white,
-        title: const Text(
-          "Commercial Dashboard",
-          style: TextStyle(fontWeight: FontWeight.w700),
+        title: Text(
+          AppLocalizations.of(context).translate("Commercial Dashboard"),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
 
@@ -42,11 +43,11 @@ class UsersTable extends StatelessWidget {
 
             children: [
 
-              _buildTopCards(),
+              _buildTopCards(context),
 
               const SizedBox(height: 20),
 
-              _buildSearchField(),
+              _buildSearchField(context),
 
               const SizedBox(height: 20),
 
@@ -68,7 +69,7 @@ class UsersTable extends StatelessWidget {
   }
 
   /// KPI CARDS
-  Widget _buildTopCards() {
+  Widget _buildTopCards(BuildContext context) {
 
     final users = controller.filteredUsers;
 
@@ -103,9 +104,9 @@ class UsersTable extends StatelessWidget {
 
               children: [
 
-                const Text(
-                  "Total commerciaux",
-                  style: TextStyle(color: Colors.white70),
+                Text(
+                  AppLocalizations.of(context).translate("Total commerciaux"),
+                  style: const TextStyle(color: Colors.white70),
                 ),
 
                 const SizedBox(height: 10),
@@ -151,9 +152,9 @@ class UsersTable extends StatelessWidget {
 
               children: [
 
-                const Text(
-                  "Total projets",
-                  style: TextStyle(color: Colors.white70),
+                Text(
+                  AppLocalizations.of(context).translate("Total projets"),
+                  style: const TextStyle(color: Colors.white70),
                 ),
 
                 const SizedBox(height: 10),
@@ -182,7 +183,7 @@ class UsersTable extends StatelessWidget {
   }
 
   /// SEARCH
-  Widget _buildSearchField() {
+  Widget _buildSearchField(BuildContext context) {
 
     return TextField(
 
@@ -192,7 +193,7 @@ class UsersTable extends StatelessWidget {
 
       decoration: InputDecoration(
 
-        hintText: "Search commercial...",
+        hintText: AppLocalizations.of(context).translate("Search commercial..."),
 
         prefixIcon: const Icon(Icons.search),
 
@@ -247,10 +248,10 @@ class UsersTable extends StatelessWidget {
 
           ),
 
-          child: const Center(
+          child: Center(
             child: Text(
-              "No commercial found",
-              style: TextStyle(fontSize: 16),
+              AppLocalizations.of(context).translate("No commercial found"),
+              style: const TextStyle(fontSize: 16),
             ),
           ),
 
@@ -283,9 +284,9 @@ class UsersTable extends StatelessWidget {
 
           child: PaginatedDataTable(
 
-            header: const Text(
-              "Commercial list",
-              style: TextStyle(
+            header: Text(
+              AppLocalizations.of(context).translate("Commercial list"),
+              style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
               ),
@@ -300,15 +301,15 @@ class UsersTable extends StatelessWidget {
             headingRowColor:
                 const WidgetStatePropertyAll(Color(0xFFF1F5F9)),
 
-            columns: const [
+            columns: [
 
-              DataColumn(label: Text("#")),
+              const DataColumn(label: Text("#")),
 
-              DataColumn(label: Text("Commercial")),
+              DataColumn(label: Text(AppLocalizations.of(context).translate("Commercial"))),
 
-              DataColumn(label: Text("Email")),
+              DataColumn(label: Text(AppLocalizations.of(context).translate("Email"))),
 
-              DataColumn(label: Text("Projects")),
+              DataColumn(label: Text(AppLocalizations.of(context).translate("Projects"))),
 
             ],
 

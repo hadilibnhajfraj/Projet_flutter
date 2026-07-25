@@ -15,6 +15,7 @@ import 'package:dash_master_toolkit/services/commercial_contact_service.dart';
 import 'package:dash_master_toolkit/core/theme/app_text_styles.dart';
 import 'package:dash_master_toolkit/dashboard/academic/widgets/crm_dashboard_widgets.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -200,7 +201,7 @@ class _CommercialContactsAnalyticsScreenState
     super.initState();
     final role   = (AuthService().userRole ?? '').toLowerCase().trim();
     final userId = AuthService().userId ?? 'N/A';
-    _isAdmin = role == 'admin' || role == 'superadmin';
+    _isAdmin = role == 'admin' || role == 'superadmin' || role == 'superadmin2';
     debugPrint('========== KPI FRONT DEBUG ==========');
     debugPrint('ROLE CONNECTE = $role');
     debugPrint('USER ID = $userId');
@@ -461,11 +462,11 @@ class _CommercialContactsAnalyticsScreenState
       sb.writeln('${u.name},${u.contacts},${u.calls},${u.entreprises},${u.actifs},${u.nonValides},${u.tauxReussite.toStringAsFixed(1)},${_score(u).toStringAsFixed(0)}');
     }
     Clipboard.setData(ClipboardData(text: sb.toString()));
-    _snack(ctx, 'Export Excel — Données CSV copiées. Collez dans Excel ou Google Sheets.', const Color(0xFF059669));
+    _snack(ctx, AppLocalizations.of(ctx).translate('Export Excel — Données CSV copiées. Collez dans Excel ou Google Sheets.'), const Color(0xFF059669));
   }
 
   void _exportPdf(BuildContext ctx) {
-    _snack(ctx, 'Export PDF — Utilisez Ctrl+P pour imprimer ou enregistrer en PDF.', const Color(0xFF0284C7));
+    _snack(ctx, AppLocalizations.of(ctx).translate('Export PDF — Utilisez Ctrl+P pour imprimer ou enregistrer en PDF.'), const Color(0xFF0284C7));
   }
 
   void _snack(BuildContext ctx, String msg, Color color) =>
@@ -517,14 +518,14 @@ class _CommercialContactsAnalyticsScreenState
   Widget _errorView() => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
     const Icon(Icons.cloud_off_rounded, size: 52, color: Color(0xFFEF4444)),
     const SizedBox(height: 16),
-    const Text('Erreur de chargement', style: TextStyle(fontFamily: 'InterTight', fontSize: 18, fontWeight: FontWeight.w700, color: _kText)),
+    Text(AppLocalizations.of(context).translate('Erreur de chargement'), style: const TextStyle(fontFamily: 'InterTight', fontSize: 18, fontWeight: FontWeight.w700, color: _kText)),
     const SizedBox(height: 8),
     Text(_error ?? '', style: AppTextStyles.bodyMuted, textAlign: TextAlign.center),
     const SizedBox(height: 24),
     FilledButton.icon(
       onPressed: _load,
       icon: const Icon(Icons.refresh_rounded),
-      label: const Text('Réessayer'),
+      label: Text(AppLocalizations.of(context).translate('Réessayer')),
       style: FilledButton.styleFrom(
         backgroundColor: _kIndigo,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -581,10 +582,11 @@ class _CommercialContactsAnalyticsScreenState
   // HEADER
   // ══════════════════════════════════════════════════════════════════════════
   Widget _header() {
+    final lang  = AppLocalizations.of(context);
     final upd   = DateFormat('dd/MM/yyyy HH:mm').format(_lastUpdate);
     final isMe  = !_isAdmin;
-    final title = isMe ? 'Mon Tableau de Bord Commercial' : 'Commercial Contacts Analytics';
-    final sub   = isMe ? 'Vos contacts et performances personnelles.' : 'Analyse complète des contacts commerciaux.';
+    final title = lang.translate(isMe ? 'Mon Tableau de Bord Commercial' : 'Commercial Contacts Analytics');
+    final sub   = lang.translate(isMe ? 'Vos contacts et performances personnelles.' : 'Analyse complète des contacts commerciaux.');
 
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -613,11 +615,11 @@ class _CommercialContactsAnalyticsScreenState
                     borderRadius: BorderRadius.circular(20),
                     border:       Border.all(color: _kIndigo.withOpacity(0.30)),
                   ),
-                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.person_rounded, size: 12, color: _kIndigo),
-                    SizedBox(width: 4),
-                    Text('Vue personnelle',
-                        style: TextStyle(fontFamily: 'InterTight', fontSize: 11, fontWeight: FontWeight.w700, color: _kIndigo)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Icon(Icons.person_rounded, size: 12, color: _kIndigo),
+                    const SizedBox(width: 4),
+                    Text(lang.translate('Vue personnelle'),
+                        style: const TextStyle(fontFamily: 'InterTight', fontSize: 11, fontWeight: FontWeight.w700, color: _kIndigo)),
                   ]),
                 ),
               ],
@@ -630,7 +632,7 @@ class _CommercialContactsAnalyticsScreenState
         Row(children: [
           const Icon(Icons.access_time_rounded, size: 12, color: _kMuted),
           const SizedBox(width: 5),
-          Text('Mis à jour : $upd — $_totalContacts contacts · $_totalCalls appels',
+          Text('${lang.translate('Mis à jour')} : $upd — $_totalContacts ${lang.translate('contacts').toLowerCase()} · $_totalCalls ${lang.translate('appels')}',
               style: const TextStyle(fontFamily: 'InterTight', fontSize: 11, color: _kMuted)),
         ]),
       ])),
@@ -843,7 +845,7 @@ class _CommercialContactsAnalyticsScreenState
             controller: _searchCtrl,
             style: const TextStyle(fontFamily: 'InterTight', fontSize: 13, color: _kText),
             decoration: InputDecoration(
-              hintText: 'Rechercher…',
+              hintText: AppLocalizations.of(context).translate('Rechercher…'),
               hintStyle: AppTextStyles.bodyMuted,
               prefixIcon: const Icon(Icons.search_rounded, size: 18, color: _kMuted),
               contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
@@ -875,14 +877,14 @@ class _CommercialContactsAnalyticsScreenState
               dataTextStyle: const TextStyle(fontFamily: 'InterTight', fontSize: 13, color: _kText),
               horizontalMargin: 16, columnSpacing: 22, dividerThickness: 0.5,
               columns: [
-                DataColumn(label: const Text('Commercial'),    onSort: _sort),
-                DataColumn(label: const Text('Contacts'),      numeric: true, onSort: _sort),
-                DataColumn(label: const Text('Appels'),        numeric: true, onSort: _sort),
-                DataColumn(label: const Text('Entreprises'),   numeric: true, onSort: _sort),
-                DataColumn(label: const Text('Validés'),       numeric: true, onSort: _sort),
-                DataColumn(label: const Text('Non validés'),   numeric: true, onSort: _sort),
-                DataColumn(label: const Text('Taux valid.'),   numeric: true, onSort: _sort),
-                DataColumn(label: const Text('Score CRM'),     numeric: true, onSort: _sort),
+                DataColumn(label: Text(AppLocalizations.of(context).translate('Commercial')),    onSort: _sort),
+                DataColumn(label: Text(AppLocalizations.of(context).translate('Contacts')),      numeric: true, onSort: _sort),
+                DataColumn(label: Text(AppLocalizations.of(context).translate('Appels')),        numeric: true, onSort: _sort),
+                DataColumn(label: Text(AppLocalizations.of(context).translate('Entreprises')),   numeric: true, onSort: _sort),
+                DataColumn(label: Text(AppLocalizations.of(context).translate('Validés')),       numeric: true, onSort: _sort),
+                DataColumn(label: Text(AppLocalizations.of(context).translate('Non validés')),   numeric: true, onSort: _sort),
+                DataColumn(label: Text(AppLocalizations.of(context).translate('Taux valid.')),   numeric: true, onSort: _sort),
+                DataColumn(label: Text(AppLocalizations.of(context).translate('Score CRM')),     numeric: true, onSort: _sort),
               ],
               rows: _paged.asMap().entries.map((e) {
                 final idx  = _filtered.indexOf(e.value);
@@ -924,7 +926,7 @@ class _CommercialContactsAnalyticsScreenState
     final end   = math.min((_tablePage + 1) * _rowsPerPage, total);
     final pages = (total / _rowsPerPage).ceil();
     return Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-      Text('$start–$end de $total', style: AppTextStyles.bodyMuted.copyWith(fontSize: 12)),
+      Text('$start–$end ${AppLocalizations.of(context).translate('de')} $total', style: AppTextStyles.bodyMuted.copyWith(fontSize: 12)),
       const SizedBox(width: 12),
       IconButton(
         icon: const Icon(Icons.chevron_left_rounded, size: 20), color: _kIndigo,
@@ -1666,12 +1668,12 @@ class _SH extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
-    Text(title, style: AppTextStyles.sectionTitle),
+    Text(AppLocalizations.of(context).translate(title), style: AppTextStyles.sectionTitle),
     if (badge != null) ...[
       const SizedBox(width: 8),
       Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(color: _kIndigo.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-        child: Text(badge!, style: const TextStyle(fontFamily: 'InterTight', fontSize: 11, fontWeight: FontWeight.w800, color: _kIndigo))),
+        child: Text(AppLocalizations.of(context).translate(badge!), style: const TextStyle(fontFamily: 'InterTight', fontSize: 11, fontWeight: FontWeight.w800, color: _kIndigo))),
     ],
   ]);
 }
@@ -1687,7 +1689,7 @@ class _Btn extends StatelessWidget {
   Widget build(BuildContext context) => TextButton.icon(
     onPressed: onTap,
     icon: Icon(icon, size: 15),
-    label: Text(label),
+    label: Text(AppLocalizations.of(context).translate(label)),
     style: TextButton.styleFrom(
       foregroundColor: color,
       backgroundColor: color.withOpacity(0.08),
@@ -1707,7 +1709,7 @@ class _Leg extends StatelessWidget {
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
     Container(width: 10, height: 3, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
     const SizedBox(width: 6),
-    Text(label, style: const TextStyle(fontFamily: 'InterTight', fontSize: 11, fontWeight: FontWeight.w500, color: _kMuted)),
+    Text(AppLocalizations.of(context).translate(label), style: const TextStyle(fontFamily: 'InterTight', fontSize: 11, fontWeight: FontWeight.w500, color: _kMuted)),
   ]);
 }
 
@@ -1866,7 +1868,7 @@ class _Empty extends StatelessWidget {
     child: Padding(padding: const EdgeInsets.symmetric(vertical: 32), child: Column(mainAxisSize: MainAxisSize.min, children: [
       Icon(Icons.inbox_rounded, size: 38, color: Colors.grey[300]),
       const SizedBox(height: 8),
-      Text(msg, style: AppTextStyles.bodyMuted),
+      Text(AppLocalizations.of(context).translate(msg), style: AppTextStyles.bodyMuted),
     ])),
   );
 }

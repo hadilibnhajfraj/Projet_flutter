@@ -64,7 +64,7 @@ Color getFactureColor(String? date) {
       final role = await _service.getRole();
       print('ROLE DANS CONTROLLER = $role');
 
-      if (role != 'admin' && role != 'superadmin' && role != 'commercial') {
+      if (role != 'admin' && role != 'superadmin' && role != 'superadmin2' && role != 'commercial') {
         isAdmin.value = false;
         errorMessage.value =
             "Accès refusé. Seuls admin et superadmin peuvent consulter cette page.";

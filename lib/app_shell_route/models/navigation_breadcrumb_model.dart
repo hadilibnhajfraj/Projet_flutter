@@ -49,6 +49,11 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
       parentRoute: 'Application',
       childRoute: 'calendar',
     ),
+    MyRoute.followupCalendarScreen: NavigationBreadcrumbModel(
+      title: 'Calendrier Follow-up',
+      parentRoute: 'Application',
+      childRoute: 'followups',
+    ),
     MyRoute.chatScreen: NavigationBreadcrumbModel(
       title: 'Chat',
       parentRoute: 'Application',

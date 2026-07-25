@@ -22,6 +22,7 @@ import 'package:dash_master_toolkit/forms/view/widgets/crm_widgets.dart';
 import 'package:dash_master_toolkit/services/location_service.dart';
 import 'package:dash_master_toolkit/widgets/common_app_widget.dart';
 import 'package:dash_master_toolkit/widgets/map_picker_widget.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 class LocationSection extends StatelessWidget {
   final ProjectFormController c;
@@ -182,11 +183,13 @@ class _LocationBodyState extends State<_LocationBody> {
           final hasAddr = v != null && v.trim().isNotEmpty;
           final hasCoords =
               c.latitude.value != null && c.longitude.value != null;
-          if (!hasAddr && !hasCoords) return 'Location is required';
+          if (!hasAddr && !hasCoords) {
+            return AppLocalizations.of(context).translate('Location is required');
+          }
           return null;
         },
         decoration: inputDecoration(context,
-            hintText: 'Type address or use the map below'),
+            hintText: AppLocalizations.of(context).translate('Type address or use the map below')),
       ),
 
       // Suggestions dropdown — plain setState, no Obx needed here
@@ -251,8 +254,8 @@ class _LocationBodyState extends State<_LocationBody> {
                   'https://www.google.com/maps?q=$lat,$lng';
               await launchUrl(Uri.parse(url));
             },
-            child: const Text('View on Maps',
-                style: TextStyle(
+            child: Text(AppLocalizations.of(context).translate('View on Maps'),
+                style: const TextStyle(
                     color: Colors.blue,
                     decoration: TextDecoration.underline,
                     fontSize: 12)),
@@ -301,7 +304,7 @@ class _SuggestionsDropdown extends StatelessWidget {
     } else if (error != null) {
       content = Padding(
         padding: const EdgeInsets.all(14),
-        child: Text(error!,
+        child: Text(AppLocalizations.of(context).translate(error!),
             style:
                 theme.textTheme.bodyMedium?.copyWith(color: Colors.black54)),
       );

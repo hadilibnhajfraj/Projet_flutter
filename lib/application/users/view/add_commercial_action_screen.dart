@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:dash_master_toolkit/providers/api_client.dart';
 import 'package:dio/dio.dart' as dio;
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 class AddCommercialActionScreen extends StatefulWidget {
   final String contactId;
   final String? initialType;
@@ -70,8 +71,8 @@ await ApiClient.instance.dio.post(
   data: formData,
 );
       Get.snackbar(
-        "Success",
-        "Action added",
+        AppLocalizations.of(context).translate("Success"),
+        AppLocalizations.of(context).translate("Action added"),
         backgroundColor: Colors.green,
         colorText: Colors.white,
       );
@@ -81,8 +82,8 @@ await ApiClient.instance.dio.post(
     } catch (e) {
 
       Get.snackbar(
-        "Error",
-        "Cannot add action",
+        AppLocalizations.of(context).translate("Error"),
+        AppLocalizations.of(context).translate("Cannot add action"),
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
@@ -112,7 +113,7 @@ await ApiClient.instance.dio.post(
     return Scaffold(
 
       appBar: AppBar(
-        title: const Text("Add Commercial Action"),
+        title: Text(AppLocalizations.of(context).translate("Add Commercial Action")),
       ),
 
       body: Padding(
@@ -132,23 +133,23 @@ await ApiClient.instance.dio.post(
 
                 value: type,
 
-                items: const [
-                  DropdownMenuItem(value: "Visite", child: Text("Visite")),
-                  DropdownMenuItem(value: "Plan technique", child: Text("Plan technique")),
-                  DropdownMenuItem(value: "Echantillonnage", child: Text("Echantillonnage")),
-                  DropdownMenuItem(value: "Devis envoyé", child: Text("Devis envoyé")),
-                  DropdownMenuItem(value: "Negociation", child: Text("Negociation")),
-                  DropdownMenuItem(value: "Relance", child: Text("Relance")),
-                  DropdownMenuItem(value: "Commande gagnée", child: Text("Commande gagnée")),
-                  DropdownMenuItem(value: "Commande perdue", child: Text("Commande perdue")),
+                items: [
+                  DropdownMenuItem(value: "Visite", child: Text(AppLocalizations.of(context).translate("Visite"))),
+                  DropdownMenuItem(value: "Plan technique", child: Text(AppLocalizations.of(context).translate("Plan technique"))),
+                  DropdownMenuItem(value: "Echantillonnage", child: Text(AppLocalizations.of(context).translate("Echantillonnage"))),
+                  DropdownMenuItem(value: "Devis envoyé", child: Text(AppLocalizations.of(context).translate("Devis envoyé"))),
+                  DropdownMenuItem(value: "Negociation", child: Text(AppLocalizations.of(context).translate("Negociation"))),
+                  DropdownMenuItem(value: "Relance", child: Text(AppLocalizations.of(context).translate("Relance"))),
+                  DropdownMenuItem(value: "Commande gagnée", child: Text(AppLocalizations.of(context).translate("Commande gagnée"))),
+                  DropdownMenuItem(value: "Commande perdue", child: Text(AppLocalizations.of(context).translate("Commande perdue"))),
                 ],
 
                 onChanged: (v) {
                   setState(() => type = v.toString());
                 },
 
-                decoration: const InputDecoration(
-                  labelText: "Action type",
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context).translate("Action type"),
                 ),
               ),
 
@@ -158,8 +159,8 @@ await ApiClient.instance.dio.post(
               TextField(
                 controller: commentaireCtrl,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: "Comment",
+                decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context).translate("Comment"),
                 ),
               ),
 
@@ -172,14 +173,14 @@ await ApiClient.instance.dio.post(
                   Expanded(
                     child: Text(
                       relanceDate == null
-                          ? "No follow-up date"
+                          ? AppLocalizations.of(context).translate("No follow-up date")
                           : relanceDate.toString().split(" ")[0],
                     ),
                   ),
 
                   ElevatedButton(
                     onPressed: pickDate,
-                    child: const Text("Select date"),
+                    child: Text(AppLocalizations.of(context).translate("Select date")),
                   ),
                 ],
               ),
@@ -193,14 +194,14 @@ await ApiClient.instance.dio.post(
                   Expanded(
                     child: Text(
                       selectedFile == null
-                          ? "No file selected"
+                          ? AppLocalizations.of(context).translate("No file selected")
                           : selectedFile!.name,
                     ),
                   ),
 
                   ElevatedButton(
                     onPressed: pickFile,
-                    child: const Text("Upload"),
+                    child: Text(AppLocalizations.of(context).translate("Upload")),
                   ),
                 ],
               ),
@@ -218,7 +219,7 @@ await ApiClient.instance.dio.post(
 
                   onPressed: submit,
 
-                  child: const Text("Save Action"),
+                  child: Text(AppLocalizations.of(context).translate("Save Action")),
                 ),
               ),
             ],

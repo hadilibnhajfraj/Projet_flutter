@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:go_router/go_router.dart';
+
 import 'package:dash_master_toolkit/constant/app_color.dart';
 import 'package:dash_master_toolkit/pages/auth/controller/sign_in_controller.dart';
-import 'package:dash_master_toolkit/theme/theme_controller.dart';
-import 'package:dash_master_toolkit/widgets/common_button.dart';
-import 'package:flutter_svg/flutter_svg.dart';
-import 'package:get/get.dart';
-import '../../../constant/app_images.dart';
-import '../../../localization/app_localizations.dart';
+
 import '../../../providers/auth_service.dart';
-import 'package:go_router/go_router.dart';
 import '../../../route/my_route.dart';
-import 'dart:ui';
+import '../widgets/auth_ui_kit.dart';
 import '../widgets/commercial_profile_dialog.dart';
+
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
 
@@ -21,301 +19,174 @@ class SignInScreen extends StatefulWidget {
 
 class SignInScreenState extends State<SignInScreen> {
   final SignInController controller = SignInController();
-  final ThemeController themeController = Get.put(ThemeController());
-Widget _buildInput({
-  required TextEditingController controller,
-  required String hint,
-  bool isPassword = false,
-}) {
-  return TextFormField(
-    controller: controller,
-    obscureText: isPassword,
-    style: const TextStyle(color: Colors.white),
 
-    decoration: InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: Colors.white60),
+  // Logique de connexion inchangée (voir authService.signin / dialog
+  // commercial / triggerRefresh) — factorisée ici pour être déclenchée à la
+  // fois par le bouton et par la validation du champ mot de passe.
+  Future<void> _handleSignIn(BuildContext context) async {
+    if (!controller.formKey.currentState!.validate()) return;
+    try {
+      final authService = AuthService();
 
-      filled: true,
-      fillColor: Colors.white.withOpacity(0.08),
-
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-    ),
-  );
-}
-@override
-Widget build(BuildContext context) {
-  final theme = Theme.of(context);
-  final screenWidth = MediaQuery.sizeOf(context).width;
-  final lang = AppLocalizations.of(context);
-  final desktopView = screenWidth >= 1200;
-  final isMobile = screenWidth < 600;
-
-  return GetBuilder<SignInController>(
-    init: controller,
-    tag: 'sign_in',
-    builder: (controller) {
-      return Scaffold(
-        backgroundColor: Colors.transparent,
-
-        body: SizedBox.expand(
-          child: Stack(
-            children: [
-              // 🔥 BACKGROUND IMAGE FULL
-              Positioned.fill(
-                child: Image.asset(
-                  "assets/images/login_bg.png",
-                  fit: BoxFit.cover,
-                ),
-              ),
-
-              // 🔥 OVERLAY PRO
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.black.withOpacity(0.7),
-                        Colors.black.withOpacity(0.4),
-                        Colors.black.withOpacity(0.2),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                ),
-              ),
-
-              // 🔥 FORMULAIRE CENTER
-              Center(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-                    child: Container(
-                      margin: EdgeInsets.symmetric(horizontal: 20),
-                      padding: const EdgeInsets.all(25),
-                      constraints: BoxConstraints(
-                        maxWidth: desktopView ? 450 : double.infinity,
-                      ),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-
-                        // 🔥 GLASS EFFECT
-                        color: Colors.white.withOpacity(0.10),
-
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.2),
-                        ),
-
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 25,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-
-                      child: SingleChildScrollView(
-                        child: Form(
-                          key: controller.formKey,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                             
-                              const SizedBox(height: 15),
-
-                              Text(
-                                "Sign In to your account",
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-
-                              const SizedBox(height: 8),
-
-                              Text(
-                                "Enter your details to sign in",
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: Colors.white70,
-                                ),
-                              ),
-
-                              const SizedBox(height: 30),
-
-                              // 🔥 USERNAME
-                              _buildInput(
-                                controller: controller.userNameController,
-                                hint: "Username or Email",
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              // 🔥 PASSWORD
-                              _buildInput(
-                                controller: controller.passwordController,
-                                hint: "Password",
-                                isPassword: true,
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              Row(
-                                children: [
-                                  Obx(() => Checkbox(
-                                        value: controller.rememberMe.value,
-                                        onChanged: (v) =>
-                                            controller.rememberMe.value = v!,
-                                        activeColor: Colors.blueAccent,
-                                      )),
-                                  const SizedBox(width: 5),
-                                  const Text(
-                                    "Keep me logged in",
-                                    style: TextStyle(color: Colors.white70),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              // 🔥 BUTTON
-                              SizedBox(
-                                width: double.infinity,
-                                height: 50,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.black,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  onPressed: () async {
-                                    if (!controller.formKey.currentState!
-                                        .validate()) return;
-                                    try {
-                                      final authService = AuthService();
-
-                                      // silentNotify=true : GoRouter ne redirige
-                                      // pas encore — on garde la main pour
-                                      // afficher le dialog si besoin.
-                                      await authService.signin(
-                                        email: controller.userNameController.text,
-                                        password: controller.passwordController.text,
-                                        silentNotify: true,
-                                      );
-
-                                      final email =
-                                          (authService.userEmail ?? '')
-                                              .toLowerCase();
-                                      print('ROLE = ${authService.userRole}');
-
-                                      // Dialog commercial uniquement pour
-                                      // @probardistribution.com, et uniquement
-                                      // si le widget est encore affiché.
-                                      if (email.endsWith('@probardistribution.com') &&
-                                          context.mounted) {
-                                        await showCommercialProfileDialog(context);
-                                      }
-
-                                      // triggerRefresh déclenche le redirect
-                                      // GoRouter → dashboard selon le rôle.
-                                      // Appelé dans tous les cas (même si
-                                      // context n'est plus monté).
-                                      authService.triggerRefresh();
-                                    } catch (e) {
-                                      if (!context.mounted) return;
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text(e.toString())),
-                                      );
-                                    }
-                                  },
-                                  child: const Text(
-  "Sign In",
-  style: TextStyle(color: Colors.white70),
-),
-                                ),
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              TextButton(
-                                onPressed: () {
-                                  context.go(MyRoute.signUpScreen);
-                                },
-                                child: const Text(
-                                  "Don't have an account? Sign Up",
-                                  style: TextStyle(color: Colors.white70),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+      // silentNotify=true : GoRouter ne redirige
+      // pas encore — on garde la main pour
+      // afficher le dialog si besoin.
+      await authService.signin(
+        email: controller.userNameController.text,
+        password: controller.passwordController.text,
+        silentNotify: true,
       );
-    },
-  );
-}
-  Widget _buildUserImageView(bool desktopView) {
-    return Container(
-      width: desktopView ? 84 : 64,
-      height: desktopView ? 84 : 84,
-      padding: EdgeInsets.all(desktopView ? 15 : 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: themeController.isDarkMode
-              ? [
-                  colorDarkG1.withValues(alpha: 0.100),
-                  colorDarkG2,
-                  colorDarkG3,
-                ]
-              : [
-                  colorG1.withValues(alpha: 0.48),
-                  colorG2,
-                  colorG3,
-                ],
-          stops: const [0, 100, 100],
-        ),
-        shape: BoxShape.circle,
-      ),
-      child: Container(
-        width: 52,
-        height: 52,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: themeController.isDarkMode ? colorGrey800 : colorWhite,
-          boxShadow: [
-            BoxShadow(
-              color: colorDark.withValues(alpha: 0.04),
-              blurRadius: themeController.isDarkMode ? 3.05 : 4,
-              offset: Offset(0, themeController.isDarkMode ? 1.52 : 2),
-              spreadRadius: 0,
-            )
-          ],
-          border: Border.all(
-            color: themeController.isDarkMode ? colorGrey700 : colorGrey100,
+
+      final email = (authService.userEmail ?? '').toLowerCase();
+      print('ROLE = ${authService.userRole}');
+
+      // Dialog commercial uniquement pour
+      // @probardistribution.com, et uniquement
+      // si le widget est encore affiché.
+      if (email.endsWith('@probardistribution.com') && context.mounted) {
+        await showCommercialProfileDialog(context);
+      }
+
+      // triggerRefresh déclenche le redirect
+      // GoRouter → dashboard selon le rôle.
+      // Appelé dans tous les cas (même si
+      // context n'est plus monté).
+      authService.triggerRefresh();
+    } on MfaRequiredException catch (e) {
+      // Mot de passe correct mais second facteur requis (voir
+      // services/mfa.service.js côté backend) — aucune session n'est
+      // ouverte, on bascule vers l'écran de code à 6 chiffres. Le
+      // challengeToken passe par `extra` (jamais dans l'URL, voir
+      // my_route.dart) — jamais persisté côté client au-delà de cet écran.
+      if (!context.mounted) return;
+      context.push(
+        MyRoute.mfaVerificationScreen,
+        extra: {
+          'email': controller.userNameController.text.trim(),
+          'challengeToken': e.challengeToken,
+          'expiresInSeconds': e.expiresInSeconds,
+        },
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GetBuilder<SignInController>(
+      init: controller,
+      tag: 'sign_in',
+      builder: (controller) {
+        return AuthScaffold(
+          child: Form(
+            key: controller.formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const AuthTitle(
+                  title: 'Bienvenue',
+                  subtitle: 'Connectez-vous à votre espace CRM',
+                ),
+
+                const SizedBox(height: 36),
+
+                // ── Champs ────────────────────────────────
+                Obx(
+                  () => AuthTextField(
+                    controller: controller.userNameController,
+                    focusNode: controller.f1,
+                    placeholder: 'Adresse email',
+                    icon: Icons.mail_outline_rounded,
+                    isFocused: controller.userNameFieldFocused.value,
+                    textInputAction: TextInputAction.next,
+                    onFieldSubmitted: (_) =>
+                        FocusScope.of(context).requestFocus(controller.f2),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Obx(
+                  () => AuthTextField(
+                    controller: controller.passwordController,
+                    focusNode: controller.f2,
+                    placeholder: 'Mot de passe',
+                    icon: Icons.lock_outline_rounded,
+                    isFocused: controller.passwordFieldFocused.value,
+                    isPassword: controller.isShowPasswordIcon.value,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _handleSignIn(context),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        controller.isShowPasswordIcon.value
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        size: 20,
+                        color: controller.passwordFieldFocused.value
+                            ? colorPrimary100
+                            : kAuthFieldGrey,
+                      ),
+                      onPressed: () => controller.isShowPasswordIcon.toggle(),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+
+                // ── Options ───────────────────────────────
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Obx(
+                      () => AuthCheckboxRow(
+                        value: controller.rememberMe.value,
+                        onChanged: (v) => controller.rememberMe.value = v ?? false,
+                        label: 'Se souvenir de moi',
+                      ),
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () => context.go(MyRoute.forgotPasswordScreen),
+                      child: Text(
+                        'Mot de passe oublié ?',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colorPrimary100,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 32),
+
+                // ── Bouton ────────────────────────────────
+                AuthGradientButton(
+                  label: 'Se connecter',
+                  onPressed: () => _handleSignIn(context),
+                ),
+
+                const SizedBox(height: 28),
+
+                AuthBottomLink(
+                  prefix: 'Pas encore de compte ?',
+                  actionText: 'Créer un compte',
+                  onTap: () => context.go(MyRoute.signUpScreen),
+                ),
+              ],
+            ),
           ),
-          shape: BoxShape.circle,
-        ),
-        child: SvgPicture.asset(
-          userIcon,
-          colorFilter: ColorFilter.mode(
-            themeController.isDarkMode ? Colors.white : colorGrey500,
-            BlendMode.srcIn,
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

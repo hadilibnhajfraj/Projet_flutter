@@ -34,6 +34,12 @@ class ProjectActionModel {
   final String? fileUrl;
   final List<ReminderModel> reminders;
 
+  // ── Calendrier CRM + Google Calendar (voir projectActionCalendarSync.service.js) ──
+  final String? calendarEventId;
+  final bool googleCalendarSynced;
+  final String? googleCalendarError;
+  final String? googleEventLink;
+
   const ProjectActionModel({
     required this.id,
     required this.typeAction,
@@ -42,7 +48,21 @@ class ProjectActionModel {
     required this.dateAction,
     this.fileUrl,
     required this.reminders,
+    this.calendarEventId,
+    this.googleCalendarSynced = false,
+    this.googleCalendarError,
+    this.googleEventLink,
   });
+
+  /// Synchronisé dans le calendrier CRM personnel de l'agent (Task) —
+  /// indépendant de Google Calendar (voir googleCalendarSynced).
+  bool get isCalendarSynced => calendarEventId != null;
+
+  /// Point 11 : "✓ Synchronisé" ne doit s'afficher QUE si googleEventId
+  /// existe ET Google a confirmé la création/mise à jour (HTTP 200/201) —
+  /// googleCalendarSynced n'est jamais mis à true côté backend sans ce
+  /// succès confirmé (voir projectActionGoogleSync.service.js).
+  bool get isGoogleSynced => googleCalendarSynced == true;
 
   factory ProjectActionModel.fromJson(Map<String, dynamic> j) {
     // Backend uses typeAction_legacy as the canonical field name.
@@ -67,6 +87,10 @@ class ProjectActionModel {
       dateAction: date,
       fileUrl: j['fileUrl']?.toString(),
       reminders: reminders,
+      calendarEventId: j['calendarEventId']?.toString(),
+      googleCalendarSynced: j['googleCalendarSynced'] == true,
+      googleCalendarError: j['googleCalendarError']?.toString(),
+      googleEventLink: j['googleEventLink']?.toString(),
     );
   }
 }

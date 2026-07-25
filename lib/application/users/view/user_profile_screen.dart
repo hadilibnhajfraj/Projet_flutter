@@ -207,12 +207,81 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
               const SizedBox(height: 15),
 
+              _buildGoogleCalendarWidget(theme, screenWidth),
+
+              const SizedBox(height: 15),
+
               // ✅ Only Section: Personal Information
               _buildPersonalInfoWidget(theme, lang, screenWidth),
             ],
           );
         }),
       ),
+    );
+  }
+
+  Widget _buildGoogleCalendarWidget(ThemeData theme, double? screenWidth) {
+    return _commonBackgroundWidget(
+      screenWidth: screenWidth,
+      child: Obx(() {
+        final connected = controller.googleCalendarConnected.value;
+        final email = controller.googleCalendarEmail.value;
+        final loading = controller.googleCalendarLoading.value;
+
+        return Row(
+          children: [
+            Icon(
+              Icons.event_available_rounded,
+              color: connected ? Colors.green.shade600 : colorGrey500,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Google Calendar",
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    connected
+                        ? "Connecté${email.isNotEmpty ? ' ($email)' : ''}"
+                        : "Non connecté — les Follow-up ne seront pas synchronisés",
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: connected ? Colors.green.shade700 : colorGrey500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            if (loading)
+              const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            else if (connected)
+              TextButton(
+                onPressed: controller.disconnectGoogleCalendar,
+                child: const Text("Déconnecter"),
+              )
+            else ...[
+              CommonButton(
+                onPressed: controller.connectGoogleCalendar,
+                text: "Connecter",
+                width: 120,
+                height: 38,
+                borderRadius: 8,
+                fontSize: 14,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: "Rafraîchir le statut",
+                onPressed: controller.loadGoogleCalendarStatus,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+            ],
+          ],
+        );
+      }),
     );
   }
 

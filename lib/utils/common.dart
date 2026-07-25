@@ -12,6 +12,13 @@ import '../route/my_route.dart';
 /// Make any variable nullable
 T? makeNullable<T>(T? value) => value;
 
+/// Formats a [TimeOfDay] as 24h "HH:mm" — required by backends that
+/// validate against a strict HH:mm pattern. [TimeOfDay.format] is
+/// locale-dependent (e.g. "5:54 PM") and must never be sent to an API.
+String formatTime24h(TimeOfDay time) {
+  return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+}
+
 BorderRadius radius([double? radius]) {
   return BorderRadius.all(radiusCircular(radius ?? defaultRadius));
 }

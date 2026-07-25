@@ -538,7 +538,7 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAdminMsg = msg.role == 'admin' || msg.role == 'superadmin';
+    final isAdminMsg = msg.role == 'admin' || msg.role == 'superadmin' || msg.role == 'superadmin2';
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(

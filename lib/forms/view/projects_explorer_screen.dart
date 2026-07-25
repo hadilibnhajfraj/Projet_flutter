@@ -11,6 +11,7 @@ import 'package:dio/dio.dart' show Options, ResponseType;
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
+import 'package:dash_master_toolkit/forms/constants/product_family.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -249,6 +250,8 @@ class _State extends State<ProjectsExplorerScreen>
   String?   _statusF;
   String?   _validationF;
   String?   _userIdF;    // null = tous les utilisateurs (admin seulement)
+  String?   _productFamilyF;
+  int?      _diameterF;
   DateTime? _dateFrom;
   DateTime? _dateTo;
   bool      _filtersOpen = false;
@@ -339,6 +342,8 @@ class _State extends State<ProjectsExplorerScreen>
         if (modele != null)                     'projectModele': modele,
         if (_statusF?.isNotEmpty == true)        'statut': _statusF,
         if (_validationF?.isNotEmpty == true)    'validationStatut': _validationF,
+        if (_productFamilyF != null)             'productFamily': _productFamilyF,
+        if (_diameterF != null)                  'diameterMm': _diameterF,
         // userId : uniquement pour admin — le backend ignore ce param pour les users
         if (_isAdmin && _userIdF?.isNotEmpty == true) 'userId': _userIdF,
         if (_dateFrom != null)
@@ -405,11 +410,13 @@ class _State extends State<ProjectsExplorerScreen>
   void _reset() {
     _searchCtrl.clear();
     setState(() {
-      _statusF     = null;
-      _validationF = null;
-      _userIdF     = null;
-      _dateFrom    = null;
-      _dateTo      = null;
+      _statusF        = null;
+      _validationF    = null;
+      _userIdF        = null;
+      _productFamilyF = null;
+      _diameterF      = null;
+      _dateFrom       = null;
+      _dateTo         = null;
     });
     _tab.animateTo(0);
     _page = 1;
@@ -437,7 +444,7 @@ class _State extends State<ProjectsExplorerScreen>
   // (sectionLabel, darkHex, lightHex, colCount)
   static const _kSections = <(String, String, String, int)>[
     ('UTILISATEUR',    '#1D4ED8', '#DBEAFE', 4),
-    ('PROJET',         '#166534', '#DCFCE7', 8),
+    ('PROJET',         '#166534', '#DCFCE7', 10),
     ('DATES',          '#334155', '#F1F5F9', 8),
     ('INGENIEUR',      '#5B21B6', '#EDE9FE', 3),
     ('ARCHITECTE',     '#5B21B6', '#EDE9FE', 3),
@@ -454,9 +461,9 @@ class _State extends State<ProjectsExplorerScreen>
   static const _kCols = <String>[
     // UTILISATEUR (4)
     'Nom Utilisateur', 'Email Utilisateur', 'Rôle', 'User ID',
-    // PROJET (8)
-    'Project Name', 'Project ID', 'Type Projet', 'Modèle Projet',
-    'Statut', 'Validation Statut', 'Priorité', 'Pipeline Stage',
+    // PROJET (10)
+    'Project Name', 'Project ID', 'Type Projet', 'Product Family', 'Diameter (mm)',
+    'Modèle Projet', 'Statut', 'Validation Statut', 'Priorité', 'Pipeline Stage',
     // DATES (8)
     'Date Démarrage', 'Date Prospection', 'Date Limite Ingénieur',
     'Date Création', 'Date Modification', 'Date Archivage',
@@ -496,6 +503,8 @@ class _State extends State<ProjectsExplorerScreen>
     (r) => r.name,
     (r) => r.id,
     (r) => _sf(r.raw['typeProjet']),
+    (r) => productFamilyLabel(r.raw['productFamily'] as String?),
+    (r) => diameterLabel(r.raw['diameterMm'] is num ? (r.raw['diameterMm'] as num).toInt() : null),
     (r) => _typeLabel(r.type),
     (r) => r.status,
     (r) => r.validation,
@@ -599,6 +608,8 @@ class _State extends State<ProjectsExplorerScreen>
           if (_searchCtrl.text.trim().isNotEmpty) 'q': _searchCtrl.text.trim(),
           if (_statusF?.isNotEmpty == true)       'statut': _statusF,
           if (_validationF?.isNotEmpty == true)   'validationStatut': _validationF,
+          if (_productFamilyF != null)            'productFamily': _productFamilyF,
+          if (_diameterF != null)                 'diameterMm': _diameterF,
           if (_dateFrom != null)
             'dateStart': DateFormat('yyyy-MM-dd').format(_dateFrom!),
           if (_dateTo != null)
@@ -675,8 +686,8 @@ class _State extends State<ProjectsExplorerScreen>
         // Column widths
         final widths = <int, double>{
           0: 22, 1: 28, 2: 14, 3: 30,
-          4: 26, 5: 30, 6: 16, 7: 16,
-          8: 22, 9: 20,
+          4: 26, 5: 30, 6: 16, 7: 18,
+          8: 16, 9: 16, 10: 22, 11: 20,
         };
         for (int col = 0; col < _kCols.length; col++) {
           sheet.setColWidth(col, widths[col] ?? 18);
@@ -892,9 +903,59 @@ class _State extends State<ProjectsExplorerScreen>
     _statusF != null,
     _validationF != null,
     _userIdF != null,
+    _productFamilyF != null,
+    _diameterF != null,
     _dateFrom != null,
     _dateTo != null,
   ].where((v) => v).length;
+
+  // ── Product Family / Diameter filter dropdowns ──────────────────────────────
+  // Not reusing _Drop<T> here: it casts items (List<String>) to T, so it can't
+  // back an int-typed Diameter dropdown, and it can't show a label distinct
+  // from the stored value (needed to display "Probar" for 'PROBAR').
+  Widget _productFamilyDropdown() => DropdownButtonFormField<String?>(
+    value: _productFamilyF,
+    decoration: InputDecoration(
+      labelText: 'Product Family',
+      labelStyle: tInter(fontSize: 11, color: kCrmTextSub),
+      filled: true, fillColor: kCrmBg,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kDivider)),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kDivider)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    ),
+    style: tInter(fontSize: 13, color: kCrmText),
+    items: [
+      DropdownMenuItem<String?>(value: null, child: Text('Toutes familles', style: tInter(fontSize: 13, color: kCrmTextSub))),
+      ...kProductFamilies.map((f) => DropdownMenuItem<String?>(
+          value: f, child: Text(productFamilyLabel(f), style: tInter(fontSize: 13, color: kCrmText)))),
+    ],
+    onChanged: (v) => setState(() {
+      _productFamilyF = v;
+      _diameterF = null;
+    }),
+  );
+
+  Widget _diameterDropdown() {
+    final options = kDiametersByFamily[_productFamilyF] ?? const <int>[];
+    return DropdownButtonFormField<int?>(
+      value: options.contains(_diameterF) ? _diameterF : null,
+      decoration: InputDecoration(
+        labelText: 'Diameter',
+        labelStyle: tInter(fontSize: 11, color: kCrmTextSub),
+        filled: true, fillColor: kCrmBg,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kDivider)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: _kDivider)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+      style: tInter(fontSize: 13, color: kCrmText),
+      items: [
+        DropdownMenuItem<int?>(value: null, child: Text('Tous diamètres', style: tInter(fontSize: 13, color: kCrmTextSub))),
+        ...options.map((mm) => DropdownMenuItem<int?>(
+            value: mm, child: Text(diameterLabel(mm), style: tInter(fontSize: 13, color: kCrmText)))),
+      ],
+      onChanged: options.isEmpty ? null : (v) => setState(() => _diameterF = v),
+    );
+  }
 
   Widget _filtersCard() => _SurCard(
     child: Column(children: [
@@ -949,6 +1010,12 @@ class _State extends State<ProjectsExplorerScreen>
                 items: _validations,
                 onChanged: (v) => setState(() => _validationF = v),
               )),
+            ]),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(child: _productFamilyDropdown()),
+              const SizedBox(width: 10),
+              Expanded(child: _diameterDropdown()),
             ]),
             // Filtre utilisateur — admin uniquement
             if (_isAdmin) ...[
@@ -1114,6 +1181,8 @@ class _State extends State<ProjectsExplorerScreen>
         ),
         columns: [
           const DataColumn(label: Text('NOM')),
+          const DataColumn(label: Text('FAMILLE')),
+          const DataColumn(label: Text('DIAMETER')),
           const DataColumn(label: Text('TYPE')),
           if (showUserCols) const DataColumn(label: Text('UTILISATEUR')),
           if (showUserCols) const DataColumn(label: Text('EMAIL')),
@@ -1131,6 +1200,13 @@ class _State extends State<ProjectsExplorerScreen>
     return DataRow(cells: [
       // Nom + avatar
       DataCell(_AvatarNameCell(name: r.name, archived: r.isArchived)),
+      // Product Family (read-only)
+      DataCell(Text(productFamilyLabel(r.raw['productFamily'] as String?),
+          style: tInter(fontSize: 12, color: kCrmTextSub))),
+      // Diameter (read-only)
+      DataCell(Text(
+          diameterLabel(r.raw['diameterMm'] is num ? (r.raw['diameterMm'] as num).toInt() : null),
+          style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmText))),
       // Type badge
       DataCell(_TypeBadge(type: r.type)),
       // Utilisateur (admin only)

@@ -16,6 +16,7 @@ import 'package:dash_master_toolkit/forms/view/bon_de_commande_form_section.dart
 import 'package:dash_master_toolkit/forms/view/devis_form_section.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/view/widgets/crm_widgets.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 class ActionSection extends StatelessWidget {
   final ProjectFormController c;
@@ -84,16 +85,16 @@ class ActionSection extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // ── Next action dropdown ──────────────────────────────────────────
-        const CrmSectionTitle(
-            title: 'Next Action', icon: Icons.send_rounded),
+        CrmSectionTitle(
+            title: AppLocalizations.of(context).translate('Next Action'), icon: Icons.send_rounded),
         const SizedBox(height: 12),
         Obx(() => DropdownButtonFormField<String>(
               value: _validAction(),
               validator: (v) =>
-                  (v == null || v.isEmpty) ? 'Next Action is required' : null,
-              decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Next Action'),
+                  (v == null || v.isEmpty) ? AppLocalizations.of(context).translate('Next Action is required') : null,
+              decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: AppLocalizations.of(context).translate('Next Action')),
               items: _actionLabels.entries
                   .map((e) => DropdownMenuItem(
                         value: e.key,
@@ -101,7 +102,7 @@ class ActionSection extends StatelessWidget {
                           Icon(kActionIcon(e.key),
                               size: 16, color: kActionColor(e.key)),
                           const SizedBox(width: 8),
-                          Text(e.value),
+                          Text(AppLocalizations.of(context).translate(e.value)),
                         ]),
                       ))
                   .toList(),
@@ -116,7 +117,7 @@ class ActionSection extends StatelessWidget {
             child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Attachment (optional)',
+                  Text(AppLocalizations.of(context).translate('Attachment (optional)'),
                       style: tInter(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -135,7 +136,7 @@ class ActionSection extends StatelessWidget {
                     },
                     icon: const Icon(Icons.attach_file_rounded, size: 16),
                     // Obx reads c.fileName.value → correct.
-                    label: Obx(() => Text(c.fileName.value ?? 'Choose file',
+                    label: Obx(() => Text(c.fileName.value ?? AppLocalizations.of(context).translate('Choose file'),
                         style: tInter(fontSize: 13))),
                     style: OutlinedButton.styleFrom(
                         foregroundColor: kCrmPrimary,
@@ -165,8 +166,8 @@ class ActionSection extends StatelessWidget {
         // ── Devis + Bon de Commande (edit mode only) ──────────────────────
         if (projectId != null) ...[
           const SizedBox(height: 24),
-          const CrmSectionTitle(
-              title: 'Quotation', icon: Icons.description_rounded),
+          CrmSectionTitle(
+              title: AppLocalizations.of(context).translate('Quotation'), icon: Icons.description_rounded),
           const SizedBox(height: 12),
           DevisFormSection(
             projectId: projectId!,
@@ -176,8 +177,8 @@ class ActionSection extends StatelessWidget {
             onUploaded: onRefreshColors,
           ),
           const SizedBox(height: 16),
-          const CrmSectionTitle(
-              title: 'Purchase Order', icon: Icons.shopping_cart_rounded),
+          CrmSectionTitle(
+              title: AppLocalizations.of(context).translate('Purchase Order'), icon: Icons.shopping_cart_rounded),
           const SizedBox(height: 12),
           Obx(() => BonDeCommandeFormSection(
                 projectId: projectId!,
@@ -189,7 +190,7 @@ class ActionSection extends StatelessWidget {
             onPressed: () => context
                 .go('/forms/project-timeline?projectId=$projectId'),
             icon: const Icon(Icons.timeline_rounded, size: 16),
-            label: Text('View CRM Timeline', style: tInter(fontSize: 13)),
+            label: Text(AppLocalizations.of(context).translate('View CRM Timeline'), style: tInter(fontSize: 13)),
             style: OutlinedButton.styleFrom(
                 foregroundColor: kCrmPrimary,
                 side: const BorderSide(color: kCrmPrimary)),
@@ -233,7 +234,7 @@ class _SummaryCard extends StatelessWidget {
         Row(children: [
           const Icon(Icons.summarize_rounded, size: 16, color: kCrmPrimary),
           const SizedBox(width: 8),
-          Text('Summary',
+          Text(AppLocalizations.of(context).translate('Summary'),
               style: tInter(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -248,12 +249,12 @@ class _SummaryCard extends StatelessWidget {
           final action = c.selectedAction.value ?? '—';
           return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _SummaryRow(label: 'Project',
-                value: nom.isEmpty ? '(not set)' : nom),
+                value: nom.isEmpty ? AppLocalizations.of(context).translate('(not set)') : nom),
             _SummaryRow(label: 'Type', value: type),
             _SummaryRow(label: 'Next Action', value: action),
             if (projectId != null)
-              const _SummaryRow(
-                  label: 'Mode', value: 'Editing existing project'),
+              _SummaryRow(
+                  label: 'Mode', value: AppLocalizations.of(context).translate('Editing existing project')),
           ]);
         }),
       ]),
@@ -274,7 +275,7 @@ class _SummaryRow extends StatelessWidget {
       child: Row(children: [
         SizedBox(
             width: 100,
-            child: Text('$label:', style: tInter(fontSize: 12, color: kCrmTextSub))),
+            child: Text('${AppLocalizations.of(context).translate(label)}:', style: tInter(fontSize: 12, color: kCrmTextSub))),
         Expanded(
             child: Text(value,
                 style: tInter(

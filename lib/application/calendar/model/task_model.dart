@@ -10,6 +10,12 @@ class TaskModel {
   final String? projectId;
   final String? projectName;
 
+  // ── Ajoutés pour les événements issus des actions Timeline (voir
+  // projectActionCalendarSync.service.js) — nullable : les Task créées
+  // manuellement avant cette colonne retombent sur le fallback +30min.
+  final DateTime? endAt;
+  final String? priority;
+
   TaskModel({
     required this.id,
     required this.title,
@@ -19,7 +25,13 @@ class TaskModel {
     this.creatorEmail,
     this.projectId,
     this.projectName,
+    this.endAt,
+    this.priority,
   });
+
+  /// Fin réelle de l'événement si renseignée, sinon fallback historique
+  /// (comportement inchangé pour les Task créées avant l'ajout d'`endAt`).
+  DateTime get effectiveEndAt => endAt ?? startAt.add(const Duration(minutes: 30));
 
   factory TaskModel.fromJson(Map<String, dynamic> json) {
     return TaskModel(
@@ -33,6 +45,9 @@ class TaskModel {
       // ✅ NEW
       projectId: json["projectId"]?.toString(),
       projectName: json["projectName"]?.toString(),
+
+      endAt: json["endAt"] != null ? DateTime.tryParse(json["endAt"].toString()) : null,
+      priority: json["priority"]?.toString(),
     );
   }
 }

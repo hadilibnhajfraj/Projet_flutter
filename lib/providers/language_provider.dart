@@ -7,9 +7,10 @@ class AppLanguageProvider extends ChangeNotifier {
     "Arabic": Locale('ar', 'SA'), // Arabic, Saudi Arabia
     "Bengali": Locale('bn', 'BD'), // Bengali, Bangladesh
     "English": Locale('en', 'US'), // English, United States
+    "French": Locale('fr', 'FR'), // French, France
     "Hindi": Locale('hi', 'IN'), // Hindi, India
     "Indonesian": Locale('id', 'ID'), // Indonesian, Indonesia
-
+    "Russian": Locale('ru', 'RU'), // Russian, Russia
   };
 
   bool isRTL = false;

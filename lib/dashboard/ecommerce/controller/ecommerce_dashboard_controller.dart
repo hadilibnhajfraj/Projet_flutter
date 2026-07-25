@@ -21,7 +21,7 @@ class EcommerceDashboardController extends GetxController {
   // ✅ role admin/superadmin
   bool get isAdminRole {
     final role = (AuthService().userRole ?? '').toString().trim().toLowerCase();
-    return role == 'admin' || role == 'superadmin';
+    return role == 'admin' || role == 'superadmin' || role == 'superadmin2';
   }
 
   // ✅ TOP CARDS

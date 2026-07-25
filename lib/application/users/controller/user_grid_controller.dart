@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../services/project_api.dart';
 import '../model/project_grid_data.dart';
+import 'package:dash_master_toolkit/forms/constants/product_family.dart';
 
 class UserGridController extends GetxController {
 
@@ -77,13 +78,17 @@ class UserGridController extends GetxController {
         final adr = (p.adresse ?? "").toLowerCase();
         final engineer = (p.ingenieurResponsable ?? "").toLowerCase();
         final architect = (p.architecte ?? "").toLowerCase();
+        final family = productFamilyLabel(p.productFamily).toLowerCase();
+        final diameter = p.diameterLabel.toLowerCase();
 
         return nom.contains(q) ||
             ent.contains(q) ||
             st.contains(q) ||
             adr.contains(q) ||
             engineer.contains(q) ||
-            architect.contains(q);
+            architect.contains(q) ||
+            family.contains(q) ||
+            diameter.contains(q);
 
       }).toList(),
 
@@ -141,10 +146,15 @@ class UserGridController extends GetxController {
               old.ownerName.isNotEmpty
           ? old.ownerName
           : fresh.ownerName,
+      ownerId: (fresh.ownerId?.isEmpty ?? true) && old.ownerId != null
+          ? old.ownerId
+          : fresh.ownerId,
       hasDevis:             fresh.hasDevis,
       hasBonCommande:       fresh.hasBonCommande,
       isArchived:           fresh.isArchived,
       projectModele:        fresh.projectModele,
+      productFamily:        fresh.productFamily,
+      diameterMm:           fresh.diameterMm,
     );
   }
 

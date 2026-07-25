@@ -174,7 +174,7 @@ class _CommercialContactsKpiScreenState
   void initState() {
     super.initState();
     final role = (AuthService().userRole ?? '').toLowerCase().trim();
-    _isAdmin = role == 'admin' || role == 'superadmin';
+    _isAdmin = role == 'admin' || role == 'superadmin' || role == 'superadmin2';
     _load();
     _searchCtrl.addListener(_onSearch);
   }

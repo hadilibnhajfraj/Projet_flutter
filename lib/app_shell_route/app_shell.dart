@@ -27,7 +27,6 @@ class _AppShellState extends State<AppShell> {
       key: scaffoldKey,
       backgroundColor: themeController.isDarkMode ? colorGrey900 : colorWhite,
       drawer: screenSize.width > 1240 ? null : _buildSidebar(isDesktop && isSidebarExpanded),
-      bottomNavigationBar: isDesktop ? null : const CommonFooterWidget(),
       body: rf.ResponsiveRowColumn(
         layout: rf.ResponsiveRowColumnType.ROW,
         rowCrossAxisAlignment: CrossAxisAlignment.start,
@@ -82,12 +81,6 @@ class _AppShellState extends State<AppShell> {
                   columnFit: FlexFit.tight,
                   child: widget.child,
                 ),
-
-                // Footer for Larger Screens
-                if (isDesktop)
-                  const rf.ResponsiveRowColumnItem(
-                    child: CommonFooterWidget(),
-                  ),
               ],
             ),
           ),

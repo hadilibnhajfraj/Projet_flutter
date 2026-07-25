@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:dash_master_toolkit/route/my_route.dart';
 import 'dart:html' as html;
 import 'package:excel/excel.dart' as excel;
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 class RevendeurProjectsScreen extends StatefulWidget {
   const RevendeurProjectsScreen({super.key});
 
@@ -185,9 +186,9 @@ void _exportExcelFull() {
           children: [
 
             /// HEADER
-            const Text(
-              "Revendeur Projects",
-              style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+            Text(
+              AppLocalizations.of(context).translate("Revendeur Projects"),
+              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
             ),
 
             const SizedBox(height: 20),
@@ -195,9 +196,9 @@ void _exportExcelFull() {
             /// STATS
             Row(
               children: [
-                _card("Total", total.toString(), Icons.folder),
-                _card("Page", page.toString(), Icons.layers),
-                _card("Pages", totalPages.toString(), Icons.grid_view),
+                _card(context, "Total", total.toString(), Icons.folder),
+                _card(context, "Page", page.toString(), Icons.layers),
+                _card(context, "Pages", totalPages.toString(), Icons.grid_view),
               ],
             ),
 
@@ -209,9 +210,9 @@ void _exportExcelFull() {
     Expanded(
       child: TextField(
         controller: searchCtrl,
-        decoration: const InputDecoration(
-          hintText: "Search...",
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          hintText: AppLocalizations.of(context).translate("Search..."),
+          border: const OutlineInputBorder(),
         ),
       ),
     ),
@@ -222,7 +223,7 @@ void _exportExcelFull() {
         page = 1;
         loadProjects();
       },
-      child: const Text("Apply"),
+      child: Text(AppLocalizations.of(context).translate("Apply")),
     ),
 
     const SizedBox(width: 10),
@@ -233,7 +234,7 @@ void _exportExcelFull() {
         page = 1;
         loadProjects();
       },
-      child: const Text("Reset"),
+      child: Text(AppLocalizations.of(context).translate("Reset")),
     ),
 
     const SizedBox(width: 10),
@@ -242,7 +243,7 @@ void _exportExcelFull() {
     ElevatedButton.icon(
       onPressed: items.isEmpty ? null : _exportExcelFull,
       icon: const Icon(Icons.download),
-      label: const Text("Export Excel"),
+      label: Text(AppLocalizations.of(context).translate("Export Excel")),
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
@@ -263,14 +264,14 @@ void _exportExcelFull() {
               child: Column(
                 children: [
 
-                  const Padding(
-                    padding: EdgeInsets.all(16),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
-                        Icon(Icons.table_chart, color: kPrimary),
-                        SizedBox(width: 10),
-                        Text("Revendeur Table",
-                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        const Icon(Icons.table_chart, color: kPrimary),
+                        const SizedBox(width: 10),
+                        Text(AppLocalizations.of(context).translate("Revendeur Table"),
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -297,13 +298,13 @@ void _exportExcelFull() {
                               headingRowColor:
                                   MaterialStateProperty.all(Color(0xFFF8FAFC)),
 
-                              columns: const [
-                                DataColumn(label: Text("Projet")),
-                                DataColumn(label: Text("Comptoir")),
-                                DataColumn(label: Text("Téléphone")),
-                                DataColumn(label: Text("Statut")),
-                                DataColumn(label: Text("Adresse")),
-                                DataColumn(label: Text("Actions")),
+                              columns: [
+                                DataColumn(label: Text(AppLocalizations.of(context).translate("Projet"))),
+                                DataColumn(label: Text(AppLocalizations.of(context).translate("Comptoir"))),
+                                DataColumn(label: Text(AppLocalizations.of(context).translate("Téléphone"))),
+                                DataColumn(label: Text(AppLocalizations.of(context).translate("Statut"))),
+                                DataColumn(label: Text(AppLocalizations.of(context).translate("Adresse"))),
+                                DataColumn(label: Text(AppLocalizations.of(context).translate("Actions"))),
                               ],
 
                               rows: items.map<DataRow>((p) {
@@ -339,9 +340,9 @@ void _exportExcelFull() {
                 color: Colors.grey.withOpacity(.3),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Text(
-                "ARCHIVED",
-                style: TextStyle(
+              child: Text(
+                AppLocalizations.of(context).translate("ARCHIVED"),
+                style: const TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                 ),
@@ -425,7 +426,7 @@ void _exportExcelFull() {
                     padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
-                        Text("Page $page / $totalPages"),
+                        Text("${AppLocalizations.of(context).translate('Page')} $page / $totalPages"),
                         const Spacer(),
 
                         OutlinedButton(
@@ -435,7 +436,7 @@ void _exportExcelFull() {
                                   loadProjects();
                                 }
                               : null,
-                          child: const Text("Previous"),
+                          child: Text(AppLocalizations.of(context).translate("Previous")),
                         ),
 
                         const SizedBox(width: 10),
@@ -447,7 +448,7 @@ void _exportExcelFull() {
                                   loadProjects();
                                 }
                               : null,
-                          child: const Text("Next"),
+                          child: Text(AppLocalizations.of(context).translate("Next")),
                         ),
                       ],
                     ),
@@ -461,7 +462,7 @@ void _exportExcelFull() {
     );
   }
 
-  Widget _card(String title, String value, IconData icon) {
+  Widget _card(BuildContext context, String title, String value, IconData icon) {
     return Expanded(
       child: Container(
         margin: const EdgeInsets.only(right: 10),
@@ -477,7 +478,7 @@ void _exportExcelFull() {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title),
+                Text(AppLocalizations.of(context).translate(title)),
                 Text(value,
                     style: const TextStyle(
                         fontSize: 18, fontWeight: FontWeight.bold)),

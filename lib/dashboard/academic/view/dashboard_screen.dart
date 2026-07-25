@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/providers/api_client.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 import 'package:dash_master_toolkit/core/theme/app_text_styles.dart';
 import 'package:dash_master_toolkit/dashboard/academic/widgets/crm_relance_card.dart';
 import 'package:dash_master_toolkit/dashboard/academic/widgets/relances_followup_section.dart';
@@ -100,8 +101,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // ── Raw API data ─────────────────────────────────────────────────────────
   Map<String, dynamic> _kpiRaw          = {};
+  // GET /dashboard/user — KPI BI dédiés à la vue utilisateur (cartes
+  // cliquables + répartition famille/diamètre). Vide pour un admin (non
+  // chargé, la vue admin garde son calcul existant à partir de _projects).
+  Map<String, dynamic> _userKpi          = {};
   List<dynamic>        _projects        = [];
   List<dynamic>        _followups       = [];
+  // Buckets bruts /crm/upcoming-followups — conservés séparément (en plus de
+  // _followups, la liste agrégée) pour pouvoir compter et afficher
+  // today/upcoming/overdue indépendamment (cartes KPI Aujourd'hui/À venir/En retard/Toutes).
+  List<dynamic>        _followupsToday    = [];
+  List<dynamic>        _followupsUpcoming = [];
+  List<dynamic>        _followupsOverdue  = [];
   bool                 _loading         = true;
   DateTime?            _lastUpdate;
 
@@ -114,7 +125,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     final auth = AuthService();
     final role = (auth.userRole ?? '').toLowerCase().trim();
-    _isAdmin       = role == 'admin' || role == 'superadmin';
+    _isAdmin       = role == 'admin' || role == 'superadmin' || role == 'superadmin2';
     _currentUserId = auth.userId ?? '';
     _loadAll();
   }
@@ -124,6 +135,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() => _loading = true);
     List<dynamic> rawProjects = [];
     List<dynamic> rawFollowups = [];
+    List<dynamic> rawFollowupsToday    = [];
+    List<dynamic> rawFollowupsUpcoming = [];
+    List<dynamic> rawFollowupsOverdue  = [];
 
     // ── DIAGNOSTIC LOGS ──────────────────────────────────────────────────────
     print("=== [DASHBOARD DIAG] ========================================");
@@ -154,6 +168,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
         print("PARSED_DATA   KPI totalProjects=${_kpiRaw['totalProjects']}");
       } else {
         print("ERREUR        KPI HTTP ${kpiRes.statusCode} → _kpiRaw reste vide");
+      }
+
+      // ── 1B. User dashboard KPI (BI) — vue utilisateur uniquement ─────────
+      // GET /dashboard/user : totalProjects, pendingValidation, successRate,
+      // followupProjects, totalSurface, familyStats, diameterStats — calculé
+      // côté backend, scopé à l'utilisateur connecté (req.user.sub).
+      Map<String, dynamic> rawUserKpi = {};
+      if (!_isAdmin) {
+        try {
+          final userKpiRes = await ApiClient.instance.dio.get('/dashboard/user');
+          if (userKpiRes.data is Map) {
+            rawUserKpi = Map<String, dynamic>.from(userKpiRes.data);
+          }
+          print("PARSED_DATA   USER_KPI = $rawUserKpi");
+        } catch (e) {
+          print("ERREUR        USER_KPI : $e");
+        }
       }
 
       // ── 2. Projects list ────────────────────────────────────────────────
@@ -204,18 +235,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final fData = followRes.data;
 
         if (fData is Map) {
+          // Buckets conservés séparément (pas seulement concaténés) afin que
+          // le Dashboard puisse compter et afficher today/upcoming/overdue
+          // indépendamment — voir _followupsToday/_followupsUpcoming/_followupsOverdue.
+          rawFollowupsToday    = _safeList(fData['today']);
+          rawFollowupsUpcoming = _safeList(fData['upcoming']);
+          rawFollowupsOverdue  = _safeList(fData['overdue']);
+
           print("COUNT    = ${fData['count']}");
-          print("TODAY    = ${_safeList(fData['today']).length}");
-          print("UPCOMING = ${_safeList(fData['upcoming']).length}");
-          print("OVERDUE  = ${_safeList(fData['overdue']).length}");
+          print("TODAY    = ${rawFollowupsToday.length}");
+          print("UPCOMING = ${rawFollowupsUpcoming.length}");
+          print("OVERDUE  = ${rawFollowupsOverdue.length}");
           print("RESPONSE FOLLOWUPS keys=${fData.keys.toList()}");
 
           // Parsing sécurisé — _safeList évite les crashes
           // JAMAIS : (fData['overdue'] as List?) — crash si valeur non-List
           rawFollowups = [
-            ..._safeList(fData['overdue']),
-            ..._safeList(fData['today']),
-            ..._safeList(fData['upcoming']),
+            ...rawFollowupsOverdue,
+            ...rawFollowupsToday,
+            ...rawFollowupsUpcoming,
             ..._safeList(fData['items']),
             ..._safeList(fData['data']),
           ];
@@ -262,11 +300,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       print("=== [DASHBOARD DIAG END] projects=${rawProjects.length} followups=${rawFollowups.length} followupsError=$_errFollowups ===");
 
       setState(() {
-        _projects         = rawProjects;
-        _followups        = rawFollowups;
-        _followupsError   = _errFollowups;
+        _userKpi           = rawUserKpi;
+        _projects          = rawProjects;
+        _followups         = rawFollowups;
+        _followupsToday    = rawFollowupsToday;
+        _followupsUpcoming = rawFollowupsUpcoming;
+        _followupsOverdue  = rawFollowupsOverdue;
+        _followupsError    = _errFollowups;
         _followupsErrorMsg = _errFollowupsMsg;
-        _lastUpdate       = DateTime.now();
+        _lastUpdate        = DateTime.now();
       });
     } catch (e, stack) {
       print("ERREUR GLOBALE [Dashboard] $e");
@@ -300,6 +342,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int    get _pending     => _total - _validated - _nonValidated;
   double get _validRate   => _total == 0 ? 0 : _validated / _total * 100;
   double get _surface     => _projects.fold(0, (s, p) => s + _num(p['surfaceProspectee']));
+
+  // ── User KPI (BI) — depuis GET /dashboard/user, vue utilisateur uniquement.
+  int    get _uTotalProjects     => (_userKpi['totalProjects'] as num?)?.toInt() ?? 0;
+  int    get _uPendingValidation => (_userKpi['pendingValidation'] as num?)?.toInt() ?? 0;
+  double get _uSuccessRate       => (_userKpi['successRate'] as num?)?.toDouble() ?? 0;
+  int    get _uFollowupProjects  => (_userKpi['followupProjects'] as num?)?.toInt() ?? 0;
+  double get _uTotalSurface      => (_userKpi['totalSurface'] as num?)?.toDouble() ?? 0;
+  List<Map<String, dynamic>> get _uFamilyStats =>
+      _safeList(_userKpi['familyStats']).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  List<Map<String, dynamic>> get _uDiameterStats =>
+      _safeList(_userKpi['diameterStats']).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+
+  // ── Navigation KPI → /users/project-list avec filtre automatique ─────────
+  // Idiome déjà utilisé par _AlertCard._navigate (context.push + Uri query
+  // params) — repris ici pour rester cohérent avec le reste du dashboard.
+  void _goToProjectList(BuildContext context, Map<String, String> filters) {
+    context.push(Uri(path: '/users/project-list', queryParameters: filters.isEmpty ? null : filters).toString());
+  }
 
   int get _thisMonth {
     final now = DateTime.now();
@@ -402,7 +462,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const CircularProgressIndicator(color: Color(0xFF4F46E5), strokeWidth: 2),
             const SizedBox(height: 16),
-            Text('Chargement du dashboard...', style: AppTextStyles.bodyMuted),
+            Text(AppLocalizations.of(context).translate('Chargement du dashboard...'), style: AppTextStyles.bodyMuted),
           ]),
         ),
       );
@@ -443,6 +503,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 28),
                 _buildUserStatusSection(context),
                 const SizedBox(height: 28),
+                // ── NOUVEAU : Répartition famille/diamètre + graphique interactif
+                _buildUserFamilyDiameterSection(context),
+                const SizedBox(height: 28),
                 _buildMonthlyChart(context),
                 const SizedBox(height: 28),
                 _buildProjectsFollowup(context),
@@ -459,14 +522,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // 1. HEADER
   // ══════════════════════════════════════════════════════════════════════════
   Widget _buildHeader() {
+    final lang = AppLocalizations.of(context);
     final subtitle = _isAdmin
-        ? 'Vue globale des performances — $_total projets · ${_userStats.length} utilisateurs'
-        : 'Mes performances personnelles — $_total projets';
+        ? '${lang.translate('Vue globale des performances')} — $_total ${lang.translate('projets')} · ${_userStats.length} ${lang.translate('Utilisateurs').toLowerCase()}'
+        : '${lang.translate('Mes performances personnelles')} — $_total ${lang.translate('projets')}';
     return Row(children: [
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(
-            _isAdmin ? 'Business Intelligence Dashboard' : 'Mon Dashboard',
+            lang.translate(_isAdmin ? 'Business Intelligence Dashboard' : 'Mon Dashboard'),
             style: AppTextStyles.pageTitle,
           ),
           const SizedBox(height: 6),
@@ -475,7 +539,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Row(children: [
             const Icon(Icons.access_time_rounded, size: 13, color: Color(0xFF94A3B8)),
             const SizedBox(width: 5),
-            Text('Dernière mise à jour : $_lastUpdateStr',
+            Text('${lang.translate('Dernière mise à jour')} : $_lastUpdateStr',
                 style: AppTextStyles.bodyMuted.copyWith(fontSize: 11)),
           ]),
         ]),
@@ -493,7 +557,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Icon(_isAdmin ? Icons.admin_panel_settings_rounded : Icons.person_rounded,
               size: 14, color: _isAdmin ? const Color(0xFF4F46E5) : const Color(0xFF22C55E)),
           const SizedBox(width: 5),
-          Text(_isAdmin ? 'Admin' : 'Utilisateur',
+          Text(lang.translate(_isAdmin ? 'Admin' : 'Utilisateur'),
               style: TextStyle(
                 fontFamily: 'InterTight', fontSize: 11, fontWeight: FontWeight.w700,
                 color: _isAdmin ? const Color(0xFF4F46E5) : const Color(0xFF22C55E),
@@ -503,7 +567,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       TextButton.icon(
         onPressed: _loadAll,
         icon: const Icon(Icons.refresh_rounded, size: 16),
-        label: const Text('Actualiser'),
+        label: Text(lang.translate('Actualiser')),
         style: TextButton.styleFrom(
           foregroundColor: const Color(0xFF4F46E5),
           backgroundColor: const Color(0xFFEEF2FF),
@@ -575,21 +639,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _KpiCfg(label: 'Ma Surface m²',      icon: Icons.square_foot_rounded,    g1: Color(0xFF7C3AED), g2: Color(0xFFA78BFA)),
     ];
 
-    final surfStr = _surface >= 1000
-        ? '${(_surface / 1000).toStringAsFixed(1)}k'
-        : _surface.toStringAsFixed(0);
+    final surfStr = _uTotalSurface >= 1000
+        ? '${(_uTotalSurface / 1000).toStringAsFixed(1)}k'
+        : _uTotalSurface.toStringAsFixed(0);
 
+    // Valeurs 100% backend (GET /dashboard/user) — cohérentes avec le filtre
+    // appliqué au clic (voir _navigators ci-dessous).
     final values = [
-      '$_total',
-      '$_validated',
-      '${_validRate.toStringAsFixed(1)}%',
-      '$_total',   // Projets à suivre = total projets API, pas nombre de reminders
+      '$_uTotalProjects',
+      '$_uPendingValidation',
+      '${_uSuccessRate.toStringAsFixed(1)}%',
+      '$_uFollowupProjects',
       surfStr,
     ];
 
     final variations = [
       _variation(_thisMonth, _lastMonth),
       '—', '—', '—', '—',
+    ];
+
+    // Filtre automatique appliqué à /users/project-list selon la carte
+    // cliquée — voir section 2 du cahier des charges (FILTRES AUTOMATIQUES).
+    final navigators = <void Function()>[
+      () => _goToProjectList(context, {}),                             // Mes Projets → tous
+      () => _goToProjectList(context, {'validation': 'Non validé'}),   // Mes Validations → en attente
+      () => _goToProjectList(context, {'validation': 'Validé'}),       // Mon Taux Réussite → terminés/validés
+      () => _goToProjectList(context, {'followup': '1'}),              // Projets à suivre → nécessitent une action
+      () => _goToProjectList(context, {}),                             // Ma Surface → tous (surface totale)
     ];
 
     return _ResponsiveGrid(
@@ -601,6 +677,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         gradient: [cfgs[i].g1, cfgs[i].g2],
         trend:    variations[i],
         isUp:     !variations[i].startsWith('-'),
+        onTap:    navigators[i],
       )),
     );
   }
@@ -618,7 +695,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _sectionHeader('Mes projets par statut'),
         const SizedBox(height: 16),
-        stats.isEmpty ? _emptyState('Aucun projet') : _buildDonutFromList(stats),
+        stats.isEmpty
+            ? _emptyState('Aucun projet')
+            : _buildDonutFromList(stats, onSegmentTap: (statut) => _goToProjectList(context, {'statut': statut})),
       ]),
     );
 
@@ -628,7 +707,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _sectionHeader('Volume par statut'),
         const SizedBox(height: 16),
-        stats.isEmpty ? _emptyState('Aucun projet') : _buildHBarsFromList(stats),
+        stats.isEmpty
+            ? _emptyState('Aucun projet')
+            : _buildHBarsFromList(stats, onBarTap: (statut) => _goToProjectList(context, {'statut': statut})),
       ]),
     );
 
@@ -640,11 +721,91 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ── Donut + HBars — délèguent aux widgets modernes ───────────────────────
-  Widget _buildDonutFromList(List<Map<String, dynamic>> stats) =>
-      CrmDonutWithLegend(stats: stats, colorOf: _statutColor);
+  // Cliquer sur une part / une barre ouvre /users/project-list filtré sur ce
+  // statut (section 6 & 7 du cahier des charges).
+  Widget _buildDonutFromList(List<Map<String, dynamic>> stats, {void Function(String statut)? onSegmentTap}) =>
+      CrmDonutWithLegend(stats: stats, colorOf: _statutColor, onSegmentTap: onSegmentTap);
 
-  Widget _buildHBarsFromList(List<Map<String, dynamic>> stats) =>
-      CrmStatusBars(stats: stats, colorOf: _statutColor);
+  Widget _buildHBarsFromList(List<Map<String, dynamic>> stats, {void Function(String statut)? onBarTap}) =>
+      CrmStatusBars(stats: stats, colorOf: _statutColor, onBarTap: onBarTap);
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 3C. RÉPARTITION PAR FAMILLE / PAR DIAMÈTRE + GRAPHIQUE INTERACTIF
+  //     (vue utilisateur uniquement — nouveau, depuis GET /dashboard/user)
+  // ══════════════════════════════════════════════════════════════════════════
+  static const Map<String, Color> _familyDotColors = {
+    'PROBAR': Color(0xFF4F46E5),
+    'PROMESH': Color(0xFF14B8A6),
+  };
+
+  Widget _buildUserFamilyDiameterSection(BuildContext context) {
+    final family   = _uFamilyStats;
+    final diameter = _uDiameterStats;
+    final w        = MediaQuery.of(context).size.width;
+
+    final familyCard = Container(
+      padding: const EdgeInsets.all(24),
+      decoration: _cardDeco(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _sectionHeader('Répartition par famille'),
+        const SizedBox(height: 16),
+        family.isEmpty
+            ? _emptyState('Aucune donnée')
+            : Column(children: family.map((f) {
+                final fam = _sf(f['family']);
+                return _ClickableStatRow(
+                  color: _familyDotColors[fam] ?? _kMuted,
+                  label: fam,
+                  count: (f['count'] as num?)?.toInt() ?? 0,
+                  onTap: () => _goToProjectList(context, {'family': fam}),
+                );
+              }).toList()),
+      ]),
+    );
+
+    final diameterCard = Container(
+      padding: const EdgeInsets.all(24),
+      decoration: _cardDeco(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _sectionHeader('Répartition par diamètre'),
+        const SizedBox(height: 16),
+        diameter.isEmpty
+            ? _emptyState('Aucune donnée')
+            : Column(children: diameter.map((d) {
+                final dia = (d['diameter'] as num?)?.toInt() ?? 0;
+                return _ClickableStatRow(
+                  color: const Color(0xFF0284C7),
+                  label: 'Ø$dia',
+                  count: (d['count'] as num?)?.toInt() ?? 0,
+                  onTap: () => _goToProjectList(context, {'diameter': '$dia'}),
+                );
+              }).toList()),
+      ]),
+    );
+
+    final chartCard = Container(
+      padding: const EdgeInsets.all(24),
+      decoration: _cardDeco(),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _sectionHeader('Analyse interactive'),
+        const SizedBox(height: 20),
+        CrmFamilyDiameterChart(
+          familyStats:   family,
+          diameterStats: diameter,
+          onFamilyTap:   (fam) => _goToProjectList(context, {'family': fam}),
+          onDiameterTap: (dia) => _goToProjectList(context, {'diameter': '$dia'}),
+        ),
+      ]),
+    );
+
+    final topRow = w > 800
+        ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: familyCard), const SizedBox(width: 16), Expanded(child: diameterCard),
+          ])
+        : Column(children: [familyCard, const SizedBox(height: 16), diameterCard]);
+
+    return Column(children: [topRow, const SizedBox(height: 16), chartCard]);
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // NEW : TOP COMMERCIAUX  +  PIPELINE HEALTH  (côte à côte sur desktop)
@@ -1046,11 +1207,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   String _timingLabel(int t) {
+    final lang = AppLocalizations.of(context);
     switch (t) {
-      case _kOverdue:  return '📅 En retard';
-      case _kToday:    return '📅 Aujourd\'hui';
-      case _kThisWeek: return '📅 Cette semaine';
-      default:         return '📅 Plus tard';
+      case _kOverdue:  return '📅 ${lang.translate('En retard')}';
+      case _kToday:    return '📅 ${lang.translate('Aujourd\'hui')}';
+      case _kThisWeek: return '📅 ${lang.translate('Cette semaine')}';
+      default:         return '📅 ${lang.translate('Plus tard')}';
     }
   }
 
@@ -1158,7 +1320,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       const SizedBox(width: 4),
       Text(
-        timing == _kOverdue ? 'Retard' : timing == _kToday ? 'Aujourd\'hui' : 'Cette sem.',
+        AppLocalizations.of(context).translate(
+            timing == _kOverdue ? 'Retard' : timing == _kToday ? 'Aujourd\'hui' : 'Cette sem.'),
         style: TextStyle(fontFamily: 'InterTight', fontSize: 9, fontWeight: FontWeight.w700, color: _timingColor(timing)),
       ),
     ]),
@@ -1401,7 +1564,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ── Widget principal ──────────────────────────────────────────────────────
+  // BUG CORRIGÉ : cette section passait `_projects` (TOUS les projets de
+  // /projects ou /projects/my-projects) à RelancesFollowupSection, au lieu de
+  // `_relances` (= _followups, les données de l'endpoint dédié
+  // /crm/upcoming-followups). Les relances "overdue" renvoyées par le
+  // backend (confirmé : count=1, overdue=[...]) étaient donc bien reçues et
+  // parsées (_followupsOverdue), mais jamais affichées car totalement
+  // absentes du jeu de données réellement rendu par ce widget.
   Widget _buildProjectsFollowup(BuildContext context) {
+    final today    = _followupsToday;
+    final upcoming = _followupsUpcoming;
+    final overdue  = _followupsOverdue;
+    // _relances = _followups (overdue+today+upcoming) si l'API a répondu,
+    // sinon fallback sur les projets ayant une prochaine relance.
+    final combined = _relances;
+
+    // ── Logs demandés (avant affichage) ─────────────────────────────────────
+    print("today = ${today.length}");
+    print("upcoming = ${upcoming.length}");
+    print("overdue = ${overdue.length}");
+    print("total = ${today.length + upcoming.length + overdue.length}");
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: _cardDeco(),
@@ -1416,21 +1599,86 @@ class _DashboardScreenState extends State<DashboardScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              '${_projects.length}',
+              '${combined.length}',
               style: const TextStyle(fontFamily: 'InterTight', fontSize: 13,
                   fontWeight: FontWeight.w700, color: Color(0xFF4F46E5)),
             ),
           ),
         ]),
+        const SizedBox(height: 16),
+
+        // ── Cartes KPI : Aujourd'hui / À venir / En retard / Toutes ────────
+        _followupKpiRow(
+          today:    today.length,
+          upcoming: upcoming.length,
+          overdue:  overdue.length,
+          total:    combined.length,
+        ),
         const SizedBox(height: 20),
 
         // ── Section complète avec filtres, recherche, groupes, pagination ──
         RelancesFollowupSection(
-          items:   _projects,
+          items:   combined,
           isAdmin: _isAdmin,
         ),
       ]),
     );
+  }
+
+  // ── Cartes KPI Aujourd'hui / À venir / En retard / Toutes ─────────────────
+  // Toutes = today.length + upcoming.length + overdue.length (jamais
+  // uniquement today ou upcoming) — voir _buildProjectsFollowup.
+  Widget _followupKpiRow({
+    required int today,
+    required int upcoming,
+    required int overdue,
+    required int total,
+  }) {
+    final cards = <(String, int, Color, IconData)>[
+      ("Aujourd'hui", today,    const Color(0xFFF97316), Icons.today_rounded),
+      ('À venir',     upcoming, const Color(0xFF3B82F6), Icons.event_available_rounded),
+      ('En retard',   overdue,  const Color(0xFFEF4444), Icons.warning_amber_rounded),
+      ('Toutes',      total,    const Color(0xFF4F46E5), Icons.list_alt_rounded),
+    ];
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final isNarrow = constraints.maxWidth < 640;
+      final width = isNarrow
+          ? (constraints.maxWidth - 8) / 2
+          : (constraints.maxWidth - 8 * 3) / 4;
+
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: cards.map((c) {
+          final (label, count, color, icon) = c;
+          return SizedBox(
+            width: width,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: color.withOpacity(0.22)),
+              ),
+              child: Row(children: [
+                Icon(icon, size: 18, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('$count', style: TextStyle(fontFamily: 'InterTight',
+                        fontSize: 18, fontWeight: FontWeight.w800, color: color)),
+                    Text(label, style: const TextStyle(fontFamily: 'InterTight',
+                        fontSize: 11, fontWeight: FontWeight.w600, color: _kMuted),
+                        overflow: TextOverflow.ellipsis),
+                  ]),
+                ),
+              ]),
+            ),
+          );
+        }).toList(),
+      );
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1486,7 +1734,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _loadAll();
           },
           icon: const Icon(Icons.refresh_rounded, size: 14),
-          label: const Text('Réessayer'),
+          label: Text(AppLocalizations.of(context).translate('Réessayer')),
           style: TextButton.styleFrom(
             foregroundColor: const Color(0xFFDC2626),
             backgroundColor: const Color(0xFFEF4444).withOpacity(0.08),
@@ -1507,7 +1755,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   // SHARED HELPERS
   // ══════════════════════════════════════════════════════════════════════════
   Widget _sectionHeader(String title, {String? badge}) => Row(children: [
-    Text(title, style: AppTextStyles.cardTitle),
+    Text(AppLocalizations.of(context).translate(title), style: AppTextStyles.cardTitle),
     if (badge != null) ...[
       const SizedBox(width: 10),
       Container(
@@ -1524,7 +1772,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.inbox_rounded, size: 40, color: Colors.grey[300]),
         const SizedBox(height: 10),
-        Text(msg, style: AppTextStyles.bodyMuted),
+        Text(AppLocalizations.of(context).translate(msg), style: AppTextStyles.bodyMuted),
       ]),
     ),
   );
@@ -1569,7 +1817,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _legend(Color color, String label) => Row(mainAxisSize: MainAxisSize.min, children: [
     Container(width: 12, height: 3, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
     const SizedBox(width: 5),
-    Text(label, style: AppTextStyles.bodyMuted.copyWith(fontSize: 11)),
+    Text(AppLocalizations.of(context).translate(label), style: AppTextStyles.bodyMuted.copyWith(fontSize: 11)),
   ]);
 
   String _fmtDate(String v) {
@@ -1738,7 +1986,7 @@ class _AlertCardState extends State<_AlertCard> {
               ]),
               const SizedBox(height: 10),
               Text(
-                widget.label,
+                AppLocalizations.of(context).translate(widget.label),
                 style: const TextStyle(
                   fontFamily: 'InterTight',
                   fontSize: 11,
@@ -1827,5 +2075,74 @@ class _ResponsiveGrid extends StatelessWidget {
       if (i + cols < children.length) rows.add(SizedBox(height: gap));
     }
     return Column(children: rows);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLICKABLE STAT ROW — ligne "PROBAR · 42 projets" / "Ø12 · 8 projets"
+// (sections Répartition par famille / par diamètre) — hover + clic.
+// ─────────────────────────────────────────────────────────────────────────────
+class _ClickableStatRow extends StatefulWidget {
+  const _ClickableStatRow({
+    required this.color,
+    required this.label,
+    required this.count,
+    required this.onTap,
+  });
+  final Color        color;
+  final String       label;
+  final int          count;
+  final VoidCallback onTap;
+
+  @override
+  State<_ClickableStatRow> createState() => _ClickableStatRowState();
+}
+
+class _ClickableStatRowState extends State<_ClickableStatRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit:  (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.symmetric(vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: _hovered ? widget.color.withOpacity(0.07) : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _hovered ? widget.color.withOpacity(0.35) : _kBorder,
+            ),
+          ),
+          child: Row(children: [
+            Container(
+              width: 10, height: 10,
+              decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(widget.label,
+                style: TextStyle(
+                  fontFamily: 'InterTight', fontSize: 13, fontWeight: FontWeight.w700,
+                  color: _hovered ? widget.color : _kText,
+                )),
+            ),
+            Text('${widget.count} ${AppLocalizations.of(context).translate(widget.count > 1 ? 'projets' : 'projet')}',
+              style: const TextStyle(
+                fontFamily: 'InterTight', fontSize: 12, fontWeight: FontWeight.w600, color: _kMuted,
+              )),
+            const SizedBox(width: 6),
+            Icon(Icons.chevron_right_rounded, size: 16,
+              color: _hovered ? widget.color : _kMuted.withOpacity(0.6)),
+          ]),
+        ),
+      ),
+    );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:dash_master_toolkit/application/users/controller/user_grid_controller.dart';
 import 'package:dash_master_toolkit/application/users/model/project_grid_data.dart';
+import 'package:dash_master_toolkit/forms/constants/product_family.dart';
 import 'package:dash_master_toolkit/constant/app_color.dart';
 import 'package:dash_master_toolkit/constant/app_images.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
@@ -11,6 +12,7 @@ import 'package:dash_master_toolkit/forms/view/ProjectCommentScreen.dart';
 import 'package:dash_master_toolkit/app_shell_route/components/topbar/NotificationController.dart';
 import 'package:dash_master_toolkit/forms/view/archive_request_dialog.dart';
 import 'package:dash_master_toolkit/providers/archive_request_provider.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -22,7 +24,12 @@ import 'package:dash_master_toolkit/application/users/model/user_projects_respon
 import 'dart:html' as html;
 import 'package:excel/excel.dart' as excel;
 class UserGridScreen extends StatefulWidget {
-  const UserGridScreen({super.key});
+  // Filtres reçus depuis la navigation (cartes KPI cliquables du dashboard,
+  // donut/barres statut, graphique famille/diamètre) — clés attendues :
+  // 'statut', 'family', 'diameter', 'validation', 'followup'.
+  final Map<String, String>? initialFilters;
+
+  const UserGridScreen({super.key, this.initialFilters});
 
   @override
   State<UserGridScreen> createState() => _UserGridScreenState();
@@ -33,7 +40,13 @@ class _UserGridScreenState extends State<UserGridScreen> {
   final controller = Get.put(UserGridController());
 String? selectedStatusFilter;
 String? selectedModele;
+String? selectedProductFamily;
+int? selectedDiameter;
 String? selectedUser;
+// Filtres additionnels pilotés uniquement par la navigation depuis le
+// dashboard (pas de dropdown dédié) — "Mes Validations" / "Projets à suivre".
+String? selectedValidationFilter;
+bool followupOnly = false;
 String? editableProjectId;   // id of the row currently unlocked for editing
 List<String> users = [];
   UserProjectsResponse? _response;
@@ -66,14 +79,16 @@ void _exportExcelFull() {
   excel.Sheet sheet = excelFile['Projects'];
 
   final headers = [
-    'Project Name',   // 0
-    'Start Date',     // 1
-    'Engineer',       // 2
-    'Company',        // 3
-    'Status',         // 4
-    'Validation',     // 5
-    'Surface',        // 6 ✅ NUMBER
-    'Réussite %',     // 7 ✅ NUMBER
+    'Project Name',    // 0
+    'Start Date',      // 1
+    'Engineer',        // 2
+    'Company',         // 3
+    'Product Family',  // 4
+    'Diameter (mm)',   // 5
+    'Status',          // 6
+    'Validation',      // 7
+    'Surface',         // 8 ✅ NUMBER
+    'Réussite %',      // 9 ✅ NUMBER
   ];
 
   /// HEADER
@@ -122,6 +137,8 @@ void _exportExcelFull() {
       "",
       "",
       "",
+      "",
+      "",
     ]);
 
     for (int col = 0; col < headers.length; col++) {
@@ -150,6 +167,8 @@ void _exportExcelFull() {
         safe(p.dateDemarrage),
         safe(p.ingenieurResponsable),
         safe(p.entreprise),
+        p.productFamilyLabelText,
+        p.diameterLabel,
         "  ${safe(p.statut)}  ",
         "  ${safe(p.validationStatut)}  ",
         surface ?? "",   // ✅ NUMBER
@@ -158,7 +177,7 @@ void _exportExcelFull() {
 
       /// 🎨 STATUS
       sheet
-          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: rowIndex))
+          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: rowIndex))
           .cellStyle = excel.CellStyle(
         backgroundColorHex: _getStatusColorHex(p.statut),
         bold: true,
@@ -167,7 +186,7 @@ void _exportExcelFull() {
 
       /// 🎨 VALIDATION
       sheet
-          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: rowIndex))
+          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
           .cellStyle = excel.CellStyle(
         backgroundColorHex: _getValidationColorHex(p.validationStatut),
         fontColorHex: "#FFFFFF",
@@ -186,7 +205,7 @@ void _exportExcelFull() {
       }
 
       sheet
-          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: rowIndex))
+          .cell(excel.CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: rowIndex))
           .cellStyle = excel.CellStyle(
         backgroundColorHex: color,
         fontColorHex: "#FFFFFF",
@@ -255,9 +274,30 @@ String _getValidationColorHex(String? value) {
   if (value == "Non validé") return "#F59E0B"; // orange
   return "#E5E7EB";
 }
+
+// Filtre automatique reçu depuis une carte KPI / donut / barre / graphique
+// cliqué sur le dashboard (voir dashboard_screen.dart _goToProjectList) —
+// 'statut'/'family'/'diameter' réutilisent les dropdowns existants,
+// 'validation'/'followup' n'ont pas de dropdown dédié (voir _activeFilterBanner).
+void _applyInitialFilters() {
+  final f = widget.initialFilters;
+  if (f == null || f.isEmpty) return;
+  final statut     = f['statut'];
+  final family     = f['family'];
+  final diameter   = int.tryParse(f['diameter'] ?? '');
+  final validation = f['validation'];
+  final followup   = f['followup'] == '1';
+  if (statut != null && statut.isNotEmpty)     selectedStatusFilter   = statut;
+  if (family != null && family.isNotEmpty)     selectedProductFamily  = family;
+  if (diameter != null)                        selectedDiameter       = diameter;
+  if (validation != null && validation.isNotEmpty) selectedValidationFilter = validation;
+  if (followup)                                 followupOnly           = true;
+}
+
 @override
 void initState() {
   super.initState();
+  _applyInitialFilters();
   loadUsers();
   // Auto-reload project list when an unarchive request is approved
   ever(
@@ -340,7 +380,7 @@ Color getStatusColor(String status) {
               ]),
               Wrap(spacing: 10, runSpacing: 8, children: [
                 _topBtn(Icons.view_kanban_rounded, 'Pipeline',
-                    const Color(0xFF6366F1), () => context.go('/forms/pipeline')),
+                    const Color(0xFF6366F1), () => context.go(MyRoute.projectPipeline)),
                 _topBtn(Icons.add_rounded, 'New Project',
                     const Color(0xFF10B981), () => context.go(MyRoute.projectFormScreen)),
                 _topBtn(Icons.download_rounded, 'Export',
@@ -358,35 +398,77 @@ Color getStatusColor(String status) {
             Expanded(flex: 4, child: _searchField()),
             const SizedBox(width: 10),
             Expanded(flex: 2, child: _filterDropdown<String>(
-              hint: 'Tous les modèles',
+              hint: AppLocalizations.of(context).translate('Tous les modèles'),
               value: selectedModele,
               items: [null, 'project', 'revendeur', 'applicateur'],
-              labelOf: (v) => switch (v) {
+              labelOf: (v) => AppLocalizations.of(context).translate(switch (v) {
                 'project'     => 'Project',
                 'revendeur'   => 'Revendeur',
                 'applicateur' => 'Applicateur',
                 _             => 'Tous les modèles',
-              },
+              }),
               onChanged: (v) => setState(() { selectedModele = v; currentPage = 1; }),
             )),
             const SizedBox(width: 10),
             Expanded(flex: 2, child: _filterDropdown<String>(
-              hint: 'All statuses',
+              hint: AppLocalizations.of(context).translate('All statuses'),
               value: selectedStatusFilter,
               items: [null, ...ALL_STATUSES],
-              labelOf: (v) => v ?? 'All statuses',
+              labelOf: (v) => AppLocalizations.of(context).translate(v ?? 'All statuses'),
               onChanged: (v) => setState(() { selectedStatusFilter = v; currentPage = 1; }),
             )),
             const SizedBox(width: 10),
             Expanded(flex: 2, child: _filterDropdown<String>(
-              hint: 'All users',
+              hint: AppLocalizations.of(context).translate('All users'),
               value: selectedUser,
               items: [null, ...users],
-              labelOf: (v) => v ?? 'All users',
+              labelOf: (v) => v ?? AppLocalizations.of(context).translate('All users'),
               onChanged: (v) => setState(() { selectedUser = v; currentPage = 1; }),
+            )),
+            const SizedBox(width: 10),
+            Expanded(flex: 2, child: _filterDropdown<String>(
+              hint: AppLocalizations.of(context).translate('Toutes familles'),
+              value: selectedProductFamily,
+              items: [null, ...kProductFamilies],
+              labelOf: (v) => v == null ? AppLocalizations.of(context).translate('Toutes familles') : productFamilyLabel(v),
+              onChanged: (v) => setState(() {
+                selectedProductFamily = v;
+                selectedDiameter = null;
+                currentPage = 1;
+              }),
+            )),
+            const SizedBox(width: 10),
+            Expanded(flex: 2, child: _filterDropdown<int>(
+              hint: AppLocalizations.of(context).translate('Tous diamètres'),
+              value: selectedDiameter,
+              items: [null, ...(kDiametersByFamily[selectedProductFamily] ?? const <int>[])],
+              labelOf: (v) => v == null ? AppLocalizations.of(context).translate('Tous diamètres') : diameterLabel(v),
+              onChanged: (v) => setState(() { selectedDiameter = v; currentPage = 1; }),
             )),
           ]),
         ),
+
+        // ── FILTRE ACTIF (venu du dashboard, pas de dropdown dédié) ─────────
+        if (selectedValidationFilter != null || followupOnly)
+          Container(
+            width: double.infinity,
+            color: _kCard,
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 14),
+            child: Wrap(spacing: 8, children: [
+              if (selectedValidationFilter != null)
+                _activeFilterChip(
+                  selectedValidationFilter == 'Validé'
+                      ? 'Projets terminés (validés)'
+                      : 'En attente de validation',
+                  () => setState(() { selectedValidationFilter = null; currentPage = 1; }),
+                ),
+              if (followupOnly)
+                _activeFilterChip(
+                  'Projets à suivre',
+                  () => setState(() { followupOnly = false; currentPage = 1; }),
+                ),
+            ]),
+          ),
 
         // ── TABLE ─────────────────────────────────────────────────────────
         Expanded(
@@ -402,6 +484,23 @@ Color getStatusColor(String status) {
             }
             if (selectedUser != null) {
               list = list.where((p) => p.ownerName == selectedUser).toList();
+            }
+            if (selectedProductFamily != null) {
+              list = list.where((p) => p.productFamily == selectedProductFamily).toList();
+            }
+            if (selectedDiameter != null) {
+              list = list.where((p) => p.diameterMm == selectedDiameter).toList();
+            }
+            // "Mes Validations" (validation=Non validé / Validé) — filtre venu
+            // du dashboard, pas de dropdown dédié (voir _applyInitialFilters).
+            if (selectedValidationFilter != null) {
+              list = list.where((p) => p.validationStatut == selectedValidationFilter).toList();
+            }
+            // "Projets à suivre" — statut actif, ni gagné ni perdu (même
+            // définition que followupProjects côté backend, voir
+            // dashboard.service.js getUserDashboard).
+            if (followupOnly) {
+              list = list.where((p) => p.statut != 'Gagné' && p.statut != 'Perdu').toList();
             }
             final totalPages = (list.isEmpty ? 1 :
                 (list.length / rowsPerPage).ceil());
@@ -486,6 +585,31 @@ Color getStatusColor(String status) {
             ]),
           ),
         ),
+      );
+
+  // ── Active filter chip (venu du dashboard) ─────────────────────────────────
+  Widget _activeFilterChip(String label, VoidCallback onClear) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEEF2FF),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.3)),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.filter_alt_rounded, size: 14, color: Color(0xFF4F46E5)),
+          const SizedBox(width: 6),
+          Text('${AppLocalizations.of(context).translate('Filtre')} : ${AppLocalizations.of(context).translate(label)}',
+              style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF4F46E5))),
+          const SizedBox(width: 6),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: onClear,
+              child: const Icon(Icons.close_rounded, size: 14, color: Color(0xFF4F46E5)),
+            ),
+          ),
+        ]),
       );
 
   // ── Search field ─────────────────────────────────────────────────────────
@@ -643,12 +767,13 @@ Color getStatusColor(String status) {
         border: Border(bottom: BorderSide(color: Color(0xFFEEF2F7), width: 1.5)),
       ),
       child: const Row(children: [
-        Expanded(flex: 28, child: Text('PROJECT',  style: style)),
-        Expanded(flex: 13, child: Text('MODÈLE',   style: style)),
-        Expanded(flex: 12, child: Text('START',    style: style)),
-        Expanded(flex: 19, child: Text('STATUT',   style: style)),
-        Expanded(flex: 14, child: Text('ACTIVITY', style: style)),
-        Expanded(flex: 14, child: Text('ACTIONS',  style: style)),
+        Expanded(flex: 26, child: Text('PROJECT',  style: style)),
+        Expanded(flex: 10, child: Text('DIAMETER', style: style)),
+        Expanded(flex: 11, child: Text('MODÈLE',   style: style)),
+        Expanded(flex: 11, child: Text('START',    style: style)),
+        Expanded(flex: 18, child: Text('STATUT',   style: style)),
+        Expanded(flex: 12, child: Text('ACTIVITY', style: style)),
+        Expanded(flex: 12, child: Text('ACTIONS',  style: style)),
       ]),
     );
   }
@@ -700,7 +825,7 @@ Color getStatusColor(String status) {
         child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
 
           // ── PROJECT ──────────────────────────────────────────────────────
-          Expanded(flex: 28, child: Row(children: [
+          Expanded(flex: 26, child: Row(children: [
             _avatar(p.nomProjet, isArchived ? 'archived' : p.projectModele),
             const SizedBox(width: 12),
             Expanded(child: Column(
@@ -723,7 +848,7 @@ Color getStatusColor(String status) {
                     ),
                   )),
                   if (isArchived) _archiveBadge(),
-                  if (isArchived) _pendingBadge(p.id),
+                  _pendingBadge(p.id),
                 ]),
                 const SizedBox(height: 3),
                 Text(
@@ -737,11 +862,18 @@ Color getStatusColor(String status) {
             )),
           ])),
 
+          // ── DIAMETER ─────────────────────────────────────────────────────
+          Expanded(flex: 10,
+              child: p.projectModele != 'project'
+                  ? const Text('—',
+                      style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13))
+                  : _diameterDropdown(p, isArchived || (hasSelection && !isSelected))),
+
           // ── MODÈLE ───────────────────────────────────────────────────────
-          Expanded(flex: 13, child: _modelBadge(p.projectModele)),
+          Expanded(flex: 11, child: _modelBadge(p.projectModele)),
 
           // ── START DATE ───────────────────────────────────────────────────
-          Expanded(flex: 12, child: Row(children: [
+          Expanded(flex: 11, child: Row(children: [
             if (p.dateDemarrage.isNotEmpty) ...[
               const Icon(Icons.calendar_today_rounded,
                   size: 11, color: Color(0xFFCBD5E1)),
@@ -755,14 +887,14 @@ Color getStatusColor(String status) {
           ])),
 
           // ── STATUT ───────────────────────────────────────────────────────
-          Expanded(flex: 19,
+          Expanded(flex: 18,
               child: p.projectModele == 'applicateur'
                   ? const Text('—',
                       style: TextStyle(color: Color(0xFFCBD5E1), fontSize: 13))
                   : _statusDropdown(p, statuses, safeStatut, statusDisabled)),
 
           // ── ACTIVITY ─────────────────────────────────────────────────────
-          Expanded(flex: 14, child: Wrap(
+          Expanded(flex: 12, child: Wrap(
             spacing: 5,
             runSpacing: 4,
             children: [
@@ -772,7 +904,7 @@ Color getStatusColor(String status) {
           )),
 
           // ── ACTIONS ──────────────────────────────────────────────────────
-          Expanded(flex: 14, child: Wrap(
+          Expanded(flex: 12, child: Wrap(
             spacing: 4,
             runSpacing: 4,
             children: [
@@ -782,14 +914,16 @@ Color getStatusColor(String status) {
                 // Discussion: open archive requests chat page
                 _circleBtn(Icons.forum_outlined, const Color(0xFF8B5CF6),
                     'Discussion', () => context.go('/forms/archive-requests')),
-                // Unarchive request dialog
+                // Unarchive request dialog — réservé au propriétaire du projet
                 _circleBtn(Icons.unarchive_outlined, const Color(0xFFF59E0B),
-                    'Demande de désarchivage', () => showArchiveRequestDialog(
-                      context,
-                      projectId:   p.id,
-                      projectName: p.nomProjet,
-                    )),
+                    'Demande de désarchivage',
+                    () => _requestArchiveAction(p, type: 'DESARCHIVAGE')),
               ] else ...[
+                // Archive request dialog — réservé au propriétaire du projet
+                // (project stays active until approved)
+                _circleBtn(Icons.archive_outlined, const Color(0xFF64748B),
+                    "Demande d'archivage",
+                    () => _requestArchiveAction(p, type: 'ARCHIVAGE')),
                 // Edit/Done toggle: selects this row or deselects it
                 _circleBtn(
                   isSelected
@@ -823,6 +957,44 @@ Color getStatusColor(String status) {
     return row;
   }
 
+  // ── Garde propriétaire — demande d'archivage/désarchivage ──────────────────
+  // Seul le propriétaire du projet (project.ownerId == currentUser.id) peut
+  // déclencher une demande. Vérifié AVANT d'ouvrir la popup de confirmation :
+  // aucune requête API n'est envoyée si l'utilisateur n'est pas propriétaire.
+  // Le backend revalide indépendamment (voir archiveRequest.service.js).
+  void _requestArchiveAction(ProjectGridData p, {required String type}) {
+    final currentUserId = AuthService().userId ?? '';
+    final ownerId = p.ownerId ?? '';
+    final isOwner = ownerId.isNotEmpty && ownerId == currentUserId;
+
+    if (!isOwner) {
+      showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Accès refusé'),
+          content: const Text(
+            "Vous n'êtes pas le propriétaire de ce projet.\n"
+            "Seul le propriétaire peut demander son archivage ou son désarchivage.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    showArchiveRequestDialog(
+      context,
+      projectId:   p.id,
+      projectName: p.nomProjet,
+      type:        type,
+    );
+  }
+
   // ── Status dropdown ───────────────────────────────────────────────────────
   Widget _statusDropdown(
       ProjectGridData p, List<String> statuses, String safeStatut, bool isArchived) {
@@ -853,7 +1025,7 @@ Color getStatusColor(String status) {
                 Container(width: 7, height: 7,
                     decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
                 const SizedBox(width: 9),
-                Text(s, style: TextStyle(fontSize: 12, color: c,
+                Text(AppLocalizations.of(context).translate(s), style: TextStyle(fontSize: 12, color: c,
                     fontWeight: FontWeight.w600)),
               ]),
             );
@@ -902,6 +1074,85 @@ Color getStatusColor(String status) {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                   content: Text('Échec de la mise à jour du statut'),
+                  backgroundColor: Color(0xFFEF4444),
+                  behavior: SnackBarBehavior.floating,
+                ));
+              }
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  // ── Diameter dropdown (inline edit, mirrors _statusDropdown) ────────────────
+  Widget _diameterDropdown(ProjectGridData p, bool disabled) {
+    final options = kDiametersByFamily[p.productFamily] ?? const <int>[];
+    final value = options.contains(p.diameterMm) ? p.diameterMm : null;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF6366F1).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: const Color(0xFF6366F1).withOpacity(0.22), width: 1),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: value,
+          isExpanded: true,
+          isDense: true,
+          hint: const Text('—',
+              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF6366F1)),
+          iconEnabledColor: const Color(0xFF6366F1).withOpacity(0.7),
+          iconSize: 16,
+          dropdownColor: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          elevation: 8,
+          items: options.map((mm) => DropdownMenuItem<int>(
+            value: mm,
+            child: Text(diameterLabel(mm), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          )).toList(),
+          onChanged: (disabled || options.isEmpty) ? null : (mmValue) async {
+            if (mmValue == null) return;
+
+            // Optimistic update — sync BOTH projects + filtered so Obx sees the change
+            final updated = p.copyWith(diameterMm: mmValue);
+            final pi = controller.projects.indexWhere((x) => x.id == p.id);
+            if (pi != -1) controller.projects[pi] = updated;
+            final fi = controller.filtered.indexWhere((x) => x.id == p.id);
+            if (fi != -1) controller.filtered[fi] = updated;
+            controller.forceRefresh();
+
+            try {
+              await ApiClient.instance.dio
+                  .put('/projects/${p.id}', data: {'diameterMm': mmValue});
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Row(children: [
+                    const Icon(Icons.check_circle_rounded,
+                        color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Text('Diamètre → ${diameterLabel(mmValue)}'),
+                  ]),
+                  backgroundColor: const Color(0xFF10B981),
+                  duration: const Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ));
+              }
+            } catch (e) {
+              debugPrint('DIAMETER UPDATE ERROR: $e');
+              // Rollback both lists
+              final ri = controller.projects.indexWhere((x) => x.id == p.id);
+              if (ri != -1) controller.projects[ri] = p;
+              final rfi = controller.filtered.indexWhere((x) => x.id == p.id);
+              if (rfi != -1) controller.filtered[rfi] = p;
+              controller.forceRefresh();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('Échec de la mise à jour du diamètre'),
                   backgroundColor: Color(0xFFEF4444),
                   behavior: SnackBarBehavior.floating,
                 ));

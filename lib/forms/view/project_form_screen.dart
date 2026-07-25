@@ -45,6 +45,7 @@ import 'sections/contacts_section.dart';
 import 'sections/location_section.dart';
 import 'sections/action_section.dart';
 import 'widgets/crm_widgets.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 // ── Wizard step descriptor ────────────────────────────────────────────────────
 
@@ -132,8 +133,8 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Loading error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${AppLocalizations.of(context).translate('Loading error')}: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -195,15 +196,16 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     if (!ok) return;
 
     if (c.isProject && !c.hasLocation) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Location is required')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocalizations.of(context).translate('Location is required'))));
       return;
     }
 
     // A file was attached but no action type selected — block before any API call.
     if (c.fileBytes.value != null && c.selectedAction.value == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Please select an action type for the file upload')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocalizations.of(context)
+              .translate('Please select an action type for the file upload'))));
       return;
     }
 
@@ -223,6 +225,8 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
       'location'              : c.isProject
           ? {'lat': c.latitude.value, 'lng': c.longitude.value} : null,
       'typeProjet'            : c.isProject ? clean(c.typeProjet.text) : null,
+      'productFamily'         : c.isProject ? c.productFamily.value : null,
+      'diameterMm'            : c.isProject ? c.diameterMm.value : null,
       'pourcentageReussite'   : c.isProject ? c.pourcentageReussiteValue : null,
       'surfaceProspectee'     : c.isProject ? c.surfaceProspecteeValue : null,
       'entreprise'            : c.isProject ? clean(c.entreprise.text) : null,
@@ -358,22 +362,22 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         setState(() => _projectId = project.id);
         await c.loadProject(project.id);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Project created successfully')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(AppLocalizations.of(context).translate('Project created successfully'))));
         if (goBackAfterSave) context.go(MyRoute.userGridScreen);
         c.clearFile();
         return;
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Project updated successfully')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(AppLocalizations.of(context).translate('Project updated successfully'))));
       if (goBackAfterSave) context.go(MyRoute.userGridScreen);
       c.clearFile();
     } on dio.DioException catch (e) {
       if (!mounted) return;
       final respData = e.response?.data;
-      String msg = e.message ?? 'Request failed';
+      String msg = e.message ?? AppLocalizations.of(context).translate('Request failed');
       if (respData is Map) {
         msg = respData['message']?.toString()
             ?? respData['error']?.toString()
@@ -382,12 +386,12 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         msg = respData;
       }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $msg'),
+          content: Text('${AppLocalizations.of(context).translate('Error')}: $msg'),
           backgroundColor: Colors.red.shade700));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error: $e'),
+          content: Text('${AppLocalizations.of(context).translate('Error')}: $e'),
           backgroundColor: Colors.red.shade700));
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -472,7 +476,9 @@ class _WizardHeader extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
           child: Row(children: [
             InkWell(
-              onTap: () => context.go('/pipeline'),
+              onTap: () => context.canPop()
+                  ? context.pop()
+                  : context.go(MyRoute.userGridScreen),
               borderRadius: BorderRadius.circular(8),
               child: Container(
                 padding: const EdgeInsets.all(7),
@@ -487,15 +493,16 @@ class _WizardHeader extends StatelessWidget {
             const SizedBox(width: 12),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(
-                projectId == null ? 'New Project' : 'Edit Project',
+                AppLocalizations.of(context).translate(projectId == null ? 'New Project' : 'Edit Project'),
                 style: tInter(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                     color: kCrmText),
               ),
               Text(
-                'Step ${currentStep + 1} of ${steps.length} — '
-                '${steps[currentStep].title}',
+                '${AppLocalizations.of(context).translate('Step')} ${currentStep + 1} '
+                '${AppLocalizations.of(context).translate('of')} ${steps.length} — '
+                '${AppLocalizations.of(context).translate(steps[currentStep].title)}',
                 style: tInter(fontSize: 12, color: kCrmTextSub),
               ),
             ]),
@@ -553,7 +560,7 @@ class _WizardHeader extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        step.title,
+                        AppLocalizations.of(context).translate(step.title),
                         style: tInter(
                           fontSize: 10,
                           fontWeight: current

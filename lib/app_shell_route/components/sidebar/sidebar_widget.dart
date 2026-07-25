@@ -1,7 +1,13 @@
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import '../common_imports.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/providers/archive_request_provider.dart';
+import 'package:dash_master_toolkit/providers/maintenance_request_provider.dart';
 import 'package:dash_master_toolkit/core/theme/app_text_styles.dart';
+import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart'
+    show kPromeshColor, kProbarColor, kMelangeColor, kMaintenanceColor;
+import 'package:dash_master_toolkit/forms/hr/theme/hr_theme.dart' show kHrColor;
+import 'package:dash_master_toolkit/forms/recuperables/theme/recuperable_theme.dart' show kRecuperableColor;
 
 part 'sidebar_item_model.dart';
 
@@ -22,22 +28,52 @@ class SideBarWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth    = context.watch<AuthService>();
     final role    = (auth.userRole ?? '').toString().trim().toLowerCase();
-    final isAdmin = role == 'admin' || role == 'superadmin';
+    final isAdmin = role == 'admin' || role == 'superadmin' || role == 'superadmin2';
     final isCommercial = role == 'commercial';
     final isAccueil    = role == 'accueil';
+    final isLogistiqueAchat = role == 'responsable_logistique_achat';
     final canViewCommercialKpi = auth.canViewCommercialKpi;
+    final canViewPorPromesh = auth.canViewPorPromesh;
+    final hideIndustrialDashboard = auth.hideIndustrialDashboard;
+    final email = (auth.userEmail ?? '').toLowerCase().trim();
+
+    // "user" et "commercial" ne doivent plus voir les groupes RH et
+    // Récupérables — inchangé pour tous les autres rôles.
+    final bool hideHrAndRecuperables = role == 'user' || role == 'commercial';
+
+    // issam@gmail.com et bayrem@gmail.com — comptes admin-tier restreints à
+    // Dashboard/Projects/Tools : aucun menu industriel (Dashboard Industriel,
+    // Production/PROMESH/PROBAR, Mélange, Maintenance, Super Admin, RH,
+    // Récupérables). cbitunisia@cbi-tunisia.com (root admin) et tout autre
+    // compte conservent leur affichage actuel, inchangé.
+    final bool isRestrictedAdmin =
+        email == 'issam@gmail.com' || email == 'bayrem@gmail.com';
+
+    // Rubrique Administration > Demandes (archivage/désarchivage) —
+    // visible uniquement pour cbitunisia@cbi-tunisia.com.
+    final bool isRootAdmin = auth.isRootAdmin;
 
     debugPrint('ROLE CONNECTE = $role');
 
     final topMenus     = buildTopMenus(
       isAccueil:           isAccueil,
       isCommercial:        isCommercial,
+      isLogistiqueAchat:   isLogistiqueAchat,
       canViewCommercialKpi: canViewCommercialKpi,
+      canViewPorPromesh:   canViewPorPromesh,
+      hideIndustrialDashboard: hideIndustrialDashboard,
+      isRestrictedAdmin: isRestrictedAdmin,
     );
     final groupedMenus = buildGroupedMenus(
       isAdmin:      isAdmin,
       isCommercial: isCommercial,
       isAccueil:    isAccueil,
+      isLogistiqueAchat: isLogistiqueAchat,
+      canViewPorPromesh: canViewPorPromesh,
+      hideIndustrialDashboard: hideIndustrialDashboard,
+      hideHrAndRecuperables: hideHrAndRecuperables,
+      isRestrictedAdmin: isRestrictedAdmin,
+      isRootAdmin: isRootAdmin,
     );
 
     final sidebarW = iconOnly
@@ -55,14 +91,19 @@ class SideBarWidget extends StatelessWidget {
       clipBehavior: Clip.none,
       width: sidebarW,
       child: Container(
-        color: Colors.white,
+        color: _kSidebarBg,
         child: SafeArea(
           child: Column(
             children: [
               // ── HEADER ────────────────────────────────────────────────────
               _SidebarHeader(iconOnly: iconOnly, onTap: () {
                 rootScaffoldKey.currentState?.closeDrawer();
-                context.go(MyRoute.dashboardSalesAdmin); // /dashboard/kpi-projects
+                // Le logo ramène toujours au Dashboard Business Intelligence
+                // (/dashboard/kpi-projects) — cbitunisia@cbi-tunisia.com y
+                // compris (voir my_route.dart redirect : Dashboard Industriel
+                // n'est plus la destination par défaut, seulement un lien du
+                // menu, toujours accessible via "Dashboard Industriel").
+                context.go(MyRoute.dashboardSalesAdmin);
               }),
 
               // ── MENU LIST ─────────────────────────────────────────────────
@@ -104,7 +145,7 @@ class SideBarWidget extends StatelessWidget {
                                 Padding(
                                   padding: const EdgeInsets.fromLTRB(8, 20, 8, 6),
                                   child: Text(
-                                    group.name,
+                                    AppLocalizations.of(context).translate(group.name),
                                     style: AppTextStyles.sidebarGroupLabel,
                                   ),
                                 )
@@ -219,16 +260,9 @@ class _SidebarHeader extends StatelessWidget {
         child: Container(
           width: double.infinity,
           padding: EdgeInsets.symmetric(horizontal: iconOnly ? 12 : 20, vertical: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: const Border(bottom: BorderSide(color: _kBorderC)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+          decoration: const BoxDecoration(
+            color: _kSidebarBg,
+            border: Border(bottom: BorderSide(color: _kBorderC)),
           ),
           child: iconOnly
               ? Center(
@@ -385,7 +419,9 @@ class SidebarMenuItem extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     child: Text(
                       lang.translate(groupName!),
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _kTextDark),
+                      // Popup flottant à fond blanc (hors thème sombre de la
+                      // sidebar) → texte foncé pour rester lisible.
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
                     ),
                   ),
                 ),
@@ -435,14 +471,16 @@ class SidebarMenuItem extends StatelessWidget {
     bool isExpanded = false,
   }) {
     final lang = AppLocalizations.of(context);
+    final accent = menuTile.accentColor ?? _kPrimary;
+    final accentL = menuTile.accentColor?.withOpacity(0.8) ?? _kPrimaryL;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       height: 56,
       decoration: BoxDecoration(
         gradient: isSelected
-            ? const LinearGradient(
-                colors: [_kPrimary, _kPrimaryL],
+            ? LinearGradient(
+                colors: [accent, accentL],
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
               )
@@ -465,7 +503,7 @@ class SidebarMenuItem extends StatelessWidget {
                 Icon(
                   menuTile.icon,
                   size: 20,
-                  color: isSelected ? Colors.white : _kTextSub,
+                  color: isSelected ? Colors.white : (menuTile.accentColor ?? _kTextSub),
                 ),
                 if (!iconOnly) ...[
                   const SizedBox(width: 12),
@@ -481,8 +519,16 @@ class SidebarMenuItem extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Badge
-                  if (menuTile.badge != null)
+                  // Badge — "Demandes" (Administration) affiche le compte
+                  // "en attente" en direct (GetX), les autres tuiles gardent
+                  // leur badge statique figé au build.
+                  if (menuTile.navigationPath == MyRoute.archiveRequestsScreen)
+                    Obx(() {
+                      final count = ArchiveRequestProvider.to.pendingCount;
+                      if (count == 0) return const SizedBox.shrink();
+                      return _Badge(count: count, selected: isSelected);
+                    })
+                  else if (menuTile.badge != null)
                     _Badge(count: menuTile.badge!, selected: isSelected),
                   // Chevron (submenu)
                   if (menuTile.submenus != null)
@@ -508,13 +554,14 @@ class SidebarMenuItem extends StatelessWidget {
   }) {
     final lang    = AppLocalizations.of(context);
     final isSelSub = selectedSubmenu == sub;
+    final accent = menuTile.accentColor ?? _kPrimary;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       height: 44,
       margin: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
-        color:         isSelSub ? _kHoverBg : Colors.transparent,
+        color:         isSelSub ? accent.withOpacity(0.1) : Colors.transparent,
         borderRadius:  BorderRadius.circular(10),
       ),
       child: Material(
@@ -523,14 +570,14 @@ class SidebarMenuItem extends StatelessWidget {
         child: InkWell(
           onTap: () => onChanged?.call(sub),
           borderRadius: BorderRadius.circular(10),
-          hoverColor: _kHoverBg,
+          hoverColor: accent.withOpacity(0.1),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(children: [
               Icon(
                 sub.icon,
                 size: 16,
-                color: isSelSub ? _kPrimary : _kGroupLbl,
+                color: isSelSub ? accent : _kGroupLbl,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -541,11 +588,21 @@ class SidebarMenuItem extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: isSelSub ? FontWeight.w700 : FontWeight.w500,
-                    color: isSelSub ? _kPrimary : _kTextSub,
+                    color: isSelSub ? accent : _kTextSub,
                   ),
                 ),
               ),
-              if (sub.badge != null) _Badge(count: sub.badge!, selected: false),
+              // "Maintenance" (Demandes) affiche le compte "en attente" en
+              // direct (GetX), les autres sous-menus gardent leur badge
+              // statique figé au build.
+              if (sub.navigationPath == MyRoute.maintenanceRequestsScreen)
+                Obx(() {
+                  final count = MaintenanceRequestProvider.to.pendingCount;
+                  if (count == 0) return const SizedBox.shrink();
+                  return _Badge(count: count, selected: false);
+                })
+              else if (sub.badge != null)
+                _Badge(count: sub.badge!, selected: false),
             ]),
           ),
         ),
@@ -567,7 +624,7 @@ class _Badge extends StatelessWidget {
     margin: const EdgeInsets.only(right: 4),
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
-      color: selected ? Colors.white.withOpacity(0.25) : const Color(0xFFEEF2FF),
+      color: selected ? Colors.white.withOpacity(0.25) : _kPrimary.withOpacity(0.18),
       borderRadius: BorderRadius.circular(50),
     ),
     child: Text(
@@ -575,7 +632,7 @@ class _Badge extends StatelessWidget {
       style: TextStyle(
         fontSize: 10,
         fontWeight: FontWeight.w700,
-        color: selected ? Colors.white : _kPrimary,
+        color: selected ? Colors.white : _kPrimaryL,
       ),
     ),
   );

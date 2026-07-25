@@ -1,6 +1,5 @@
 export 'sidebar/sidebar_widget.dart';
 export 'topbar/topbar_widget.dart';
-export 'footer/common_footer_widget.dart';
 export 'package:dash_master_toolkit/constant/app_images.dart';
 export 'package:dash_master_toolkit/constant/app_strings.dart';
 export 'package:flutter/material.dart';

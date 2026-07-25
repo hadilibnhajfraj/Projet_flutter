@@ -1,3 +1,5 @@
+import 'package:dash_master_toolkit/forms/constants/product_family.dart';
+
 class ProjectGridData {
   final String id;
   final String nomProjet;
@@ -17,10 +19,13 @@ class ProjectGridData {
 
   final String validationStatut;
   final String ownerName;
+  final String? ownerId;
   final bool isArchived;
   final bool hasDevis;
   final bool hasBonCommande;
   final String projectModele;
+  final String? productFamily; // 'PROBAR' | 'PROMESH' | null
+  final int? diameterMm;
 
   ProjectGridData({
     required this.id,
@@ -39,13 +44,21 @@ class ProjectGridData {
     required this.architecte,
     required this.validationStatut,
     required this.ownerName,
+    this.ownerId,
     required this.hasDevis,
     required this.hasBonCommande,
     this.projectModele = 'project',
+    this.productFamily,
+    this.diameterMm,
   });
 
   bool get canEdit => permission == "owner" || permission == "editor";
   bool get canDelete => permission == "owner";
+
+  /// Libellé calculé — jamais stocké tel quel ("Probar Ø12 mm").
+  String get diameterLabel => diameterMm == null ? '—' : 'Ø$diameterMm mm';
+  String get productFamilyLabelText => productFamilyLabel(productFamily);
+
 static String _resolveOwnerName(Map<String, dynamic> json) {
   final userNom = json["user_nom"]?.toString().trim();
   final userNomCustom = json["user_nom_custom"]?.toString().trim();
@@ -86,7 +99,20 @@ static String _safeUser(dynamic v) {
     return int.tryParse(v.toString()) ?? 0;
   }
 
-  ProjectGridData copyWith({String? statut, String? projectModele}) {
+  static int? _toIntOrNull(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse(v.toString());
+  }
+
+  ProjectGridData copyWith({
+    String? statut,
+    String? projectModele,
+    String? productFamily,
+    int? diameterMm,
+    bool clearDiameterMm = false,
+  }) {
     return ProjectGridData(
       id:                   id,
       nomProjet:            nomProjet,
@@ -103,17 +129,20 @@ static String _safeUser(dynamic v) {
       architecte:           architecte,
       validationStatut:     validationStatut,
       ownerName:            ownerName,
+      ownerId:              ownerId,
       hasDevis:             hasDevis,
       hasBonCommande:       hasBonCommande,
       isArchived:           isArchived,
       projectModele:        projectModele ?? this.projectModele,
+      productFamily:        productFamily ?? this.productFamily,
+      diameterMm:           clearDiameterMm ? null : (diameterMm ?? this.diameterMm),
     );
   }
 
   factory ProjectGridData.fromJson(Map<String, dynamic> json) {
     final devisCount = _toInt(json["devisCount"]);
     final bcCount = _toInt(json["bonCommandeCount"]);
-   
+
 
     return ProjectGridData(
       id: (json["id"] ?? "").toString(),
@@ -132,7 +161,10 @@ static String _safeUser(dynamic v) {
       architecte: (json["architecte"] ?? "").toString(),
       validationStatut: (json["validationStatut"] ?? "").toString(),
       ownerName:     _resolveOwnerName(json),
+      ownerId:       json['ownerId']?.toString(),
       projectModele: (json['projectModele'] ?? 'project').toString(),
+      productFamily: json['productFamily']?.toString(),
+      diameterMm:    _toIntOrNull(json['diameterMm']),
       hasDevis:      devisCount > 0,
       hasBonCommande: bcCount > 0,
     );

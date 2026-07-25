@@ -230,6 +230,12 @@ IconData kActionIcon(String type) {
   if (t.contains('gagn'))                        return Icons.emoji_events_rounded;
   if (t.contains('perd'))                        return Icons.cancel_rounded;
   if (t.contains('relance') || t.contains('rappel')) return Icons.alarm_rounded;
+  if (t.contains('appel'))                       return Icons.call_rounded;
+  if (t.contains('réunion') || t.contains('reunion')) return Icons.groups_rounded;
+  if (t.contains('maintenance'))                  return Icons.build_rounded;
+  if (t.contains('suivi'))                        return Icons.timeline_rounded;
+  if (t.contains('démo') || t.contains('demo'))   return Icons.slideshow_rounded;
+  if (t.contains('installation'))                 return Icons.settings_suggest_rounded;
   return Icons.bolt_rounded;
 }
 
@@ -242,6 +248,9 @@ Color kActionColor(String type) {
   if (t.contains('nego'))    return const Color(0xFFF97316);
   if (t.contains('gagn'))    return kCrmSuccess;
   if (t.contains('perd'))    return kCrmDanger;
+  if (t.contains('appel'))   return const Color(0xFF06B6D4);
+  if (t.contains('réunion') || t.contains('reunion')) return const Color(0xFF8B5CF6);
+  if (t.contains('maintenance')) return const Color(0xFF64748B);
   return kCrmInfo;
 }
 

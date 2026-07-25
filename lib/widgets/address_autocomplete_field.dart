@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import '../services/address_service.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 class AddressAutocompleteField extends StatelessWidget {
   final TextEditingController controller;
@@ -21,7 +22,9 @@ class AddressAutocompleteField extends StatelessWidget {
     return FormField<String>(
       validator: validator ??
           (_) {
-            if (controller.text.trim().isEmpty) return "Localisation est obligatoire";
+            if (controller.text.trim().isEmpty) {
+              return AppLocalizations.of(context).translate("Localisation est obligatoire");
+            }
             return null;
           },
       builder: (state) {
@@ -62,9 +65,9 @@ class AddressAutocompleteField extends StatelessWidget {
               },
             );
           },
-          emptyBuilder: (_) => const Padding(
-            padding: EdgeInsets.all(12),
-            child: Text("Aucune adresse trouvée."),
+          emptyBuilder: (_) => Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(AppLocalizations.of(context).translate("Aucune adresse trouvée.")),
           ),
           loadingBuilder: (_) => const Padding(
             padding: EdgeInsets.all(12),

@@ -98,6 +98,13 @@ final revendeurStatut = TextEditingController(text: "prospect");
   final adresseRevendeur = TextEditingController();
   // ---------------- Extra fields ----------------
   final typeProjet = TextEditingController();
+
+  // Gamme de produit / diamètre — mode "project" uniquement. Rx (pas de
+  // TextEditingController) car Diameter dépend réactivement de productFamily
+  // (même pattern que projectModele).
+  final Rxn<String> productFamily = Rxn<String>();
+  final Rxn<int> diameterMm = Rxn<int>();
+
   final surfaceProspectee = TextEditingController(); // number (m²)
   final pourcentageReussite = TextEditingController(); // number (0-100)
   final validationStatut = TextEditingController(text: "Non validé"); // API expects FR
@@ -190,6 +197,8 @@ void resetForm() {
   serviceTechnique.clear();
 
   typeProjet.clear();
+  productFamily.value = null;
+  diameterMm.value = null;
   surfaceProspectee.clear();
   pourcentageReussite.clear();
 
@@ -485,6 +494,8 @@ serviceTechnique.text = (j['serviceTechnique'] ?? '').toString();
       (j['localisationCommentaire'] ?? '').toString();
 
   typeProjet.text = (j['typeProjet'] ?? '').toString();
+  productFamily.value = j['productFamily'] as String?;
+  diameterMm.value = j['diameterMm'] is num ? (j['diameterMm'] as num).toInt() : null;
 
   validationStatut.text =
       (j['validationStatut'] ?? 'Non validé').toString();

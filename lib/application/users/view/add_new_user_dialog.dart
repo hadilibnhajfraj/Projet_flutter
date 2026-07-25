@@ -473,6 +473,7 @@ class _AddNewUserDialogState extends State<AddNewUserDialog> {
                         onPressed: () {
                           if (formKey.currentState!.validate()) {
                             final result = UserModel(
+                                id: '',
                                 name: userNameController.text,
                                 designation: selectedDesignation.value,
                                 department: selectedDepartment.value,

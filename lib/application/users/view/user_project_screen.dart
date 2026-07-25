@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controller/user_project_controller.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 class UserProjectScreen extends StatefulWidget {
 
@@ -31,7 +32,7 @@ class _UserProjectScreenState extends State<UserProjectScreen> {
     return Scaffold(
 
       appBar: AppBar(
-        title: const Text("Projets utilisateur"),
+        title: Text(AppLocalizations.of(context).translate("Projets utilisateur")),
       ),
 
       body: Obx((){
@@ -50,7 +51,7 @@ class _UserProjectScreenState extends State<UserProjectScreen> {
 
               child: Text(
 
-                "Nombre de projets : ${controller.total.value}",
+                "${AppLocalizations.of(context).translate('Nombre de projets')} : ${controller.total.value}",
 
                 style:const TextStyle(
                   fontSize:20,
@@ -86,8 +87,8 @@ class _UserProjectScreenState extends State<UserProjectScreen> {
 
                       subtitle:Text(
 
-                        "Entreprise : ${project["entreprise"] ?? ""}\n"
-                        "Pipeline : ${project["pipelineStage"] ?? ""}"
+                        "${AppLocalizations.of(context).translate('Entreprise')} : ${project["entreprise"] ?? ""}\n"
+                        "${AppLocalizations.of(context).translate('Pipeline')} : ${project["pipelineStage"] ?? ""}"
 
                       ),
 

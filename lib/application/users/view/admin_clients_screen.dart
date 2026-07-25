@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controller/admin_clients_controller.dart';
 import '../model/client_model.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 class AdminClientsScreen extends StatelessWidget {
   AdminClientsScreen({super.key});
@@ -17,9 +18,9 @@ class AdminClientsScreen extends StatelessWidget {
         elevation: 0,
         backgroundColor: const Color(0xFF1D4ED8),
         foregroundColor: Colors.white,
-        title: const Text(
-          'Customer management',
-          style: TextStyle(fontWeight: FontWeight.w700),
+        title: Text(
+          AppLocalizations.of(context).translate('Customer management'),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       body: Obx(() {
@@ -78,9 +79,9 @@ class AdminClientsScreen extends StatelessWidget {
   padding: const EdgeInsets.all(20),
   child: ListView(
     children: [
-      _buildTopCards(),
+      _buildTopCards(context),
       const SizedBox(height: 18),
-      _buildSearchField(),
+      _buildSearchField(context),
       const SizedBox(height: 18),
       SizedBox(
         height: 700,
@@ -93,7 +94,7 @@ class AdminClientsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTopCards() {
+  Widget _buildTopCards(BuildContext context) {
     return Row(
       children: [
         Expanded(
@@ -109,9 +110,9 @@ class AdminClientsScreen extends StatelessWidget {
               () => Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Total customers',
-                    style: TextStyle(
+                  Text(
+                    AppLocalizations.of(context).translate('Total customers'),
+                    style: const TextStyle(
                       color: Colors.white70,
                       fontSize: 14,
                     ),
@@ -140,20 +141,20 @@ class AdminClientsScreen extends StatelessWidget {
               ),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Access',
-                  style: TextStyle(
+                  AppLocalizations.of(context).translate('Access'),
+                  style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 14,
                   ),
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 Text(
-                  'Admin / Superadmin',
-                  style: TextStyle(
+                  AppLocalizations.of(context).translate('Admin / Superadmin'),
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -167,12 +168,13 @@ class AdminClientsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSearchField() {
+  Widget _buildSearchField(BuildContext context) {
     return TextField(
       controller: controller.searchController,
       onChanged: (_) => controller.filterClients(),
       decoration: InputDecoration(
-        hintText: 'Search by code, company name, region, registration number...',
+        hintText: AppLocalizations.of(context)
+            .translate('Search by code, company name, region, registration number...'),
         prefixIcon: const Icon(Icons.search),
         filled: true,
         fillColor: Colors.white,
@@ -206,10 +208,10 @@ Widget _buildClientsTable(BuildContext context) {
             ),
           ],
         ),
-        child: const Center(
+        child: Center(
           child: Text(
-            'No customers found.',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            AppLocalizations.of(context).translate('No customers found.'),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
           ),
         ),
       );
@@ -240,9 +242,9 @@ Widget _buildClientsTable(BuildContext context) {
               child: SizedBox(
                 width: constraints.maxWidth,
                 child: PaginatedDataTable(
-                  header: const Text(
-                    'Customer list',
-                    style: TextStyle(
+                  header: Text(
+                    AppLocalizations.of(context).translate('Customer list'),
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                       color: Color(0xFF0F172A),
@@ -255,24 +257,25 @@ Widget _buildClientsTable(BuildContext context) {
                   horizontalMargin: 12,
                   headingRowColor:
                       const WidgetStatePropertyAll(Color(0xFFF1F5F9)),
-                  columns: const [
-                    DataColumn(label: Text('#')),
-                    DataColumn(label: Text('ID')),
-                    DataColumn(label: Text('Code')),
-                    DataColumn(label: Text('Company name')),
-                    DataColumn(label: Text('Address')),
-                    DataColumn(label: Text('Postal code')),
-                    DataColumn(label: Text('Region')),
-                    DataColumn(label: Text('Created on')),
-                    DataColumn(label: Text('Last invoice')), // ✅ AJOUT ICI
-                    DataColumn(label: Text('Regime')),
-                    DataColumn(label: Text('Tax identification number')),
-                    DataColumn(label: Text('unique identifier')),
-                    DataColumn(label: Text('Contact')),
+                  columns: [
+                    const DataColumn(label: Text('#')),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('ID'))),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('Code'))),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('Company name'))),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('Address'))),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('Postal code'))),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('Region'))),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('Created on'))),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('Last invoice'))),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('Regime'))),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('Tax identification number'))),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('unique identifier'))),
+                    DataColumn(label: Text(AppLocalizations.of(context).translate('Contact'))),
                   ],
                   source: ClientsDataSource(
                     clients: controller.filteredClients,
                     controller: controller,
+                    context: context,
                   ),
                 ),
               ),
@@ -288,10 +291,12 @@ Widget _buildClientsTable(BuildContext context) {
 class ClientsDataSource extends DataTableSource {
   final List<ClientModel> clients;
   final AdminClientsController controller;
+  final BuildContext context;
 
   ClientsDataSource({
     required this.clients,
     required this.controller,
+    required this.context,
   });
 
   Widget _cellText(String? value, {double? width}) {
@@ -366,9 +371,9 @@ DataCell(
             color: Colors.red.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Text(
-            'Inactive',
-            style: TextStyle(
+          child: Text(
+            AppLocalizations.of(context).translate('Inactive'),
+            style: const TextStyle(
               color: Colors.red,
               fontSize: 12,
               fontWeight: FontWeight.bold,

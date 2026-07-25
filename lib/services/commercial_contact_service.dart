@@ -108,6 +108,84 @@ Future<List<CommercialContact>> fetchMyContacts({
       throw Exception(body['message']?.toString() ?? 'Delete failed');
     }
   }
+
+  // GET /commercial-contacts/:id — fiche complète, utilisée ici uniquement
+  // pour récupérer l'historique des statuts (statusHistory), le plus
+  // récent en premier (déjà trié côté backend).
+  Future<List<CommercialContactStatusHistoryItem>> fetchStatusHistory({
+    required String token,
+    required String contactId,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/$contactId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load status history (${response.statusCode})');
+    }
+
+    final decoded = jsonDecode(response.body);
+    final raw = decoded is Map ? decoded['statusHistory'] : null;
+    if (raw is! List) return [];
+
+    return raw
+        .map((e) => CommercialContactStatusHistoryItem.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  // POST /commercial-contacts/assign — action admin "Affecter des contacts" :
+  // attribue en masse une liste de contacts à un commercial.
+  Future<int> assignContacts({
+    required String token,
+    required List<String> contactIds,
+    required String commercialId,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/assign'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'contactIds': contactIds,
+        'commercialId': commercialId,
+      }),
+    );
+
+    final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+
+    if (response.statusCode == 200) {
+      return (body['updatedCount'] as num?)?.toInt() ?? 0;
+    }
+    throw Exception(body['message']?.toString() ?? 'Assign failed');
+  }
+
+  // GET /users/commercials — tous les utilisateurs sélectionnables comme
+  // "Commercial" (chargés dynamiquement depuis la table users côté backend,
+  // aucune liste codée en dur), pour le dropdown Follow-up "Commercial".
+  Future<List<CommercialUserOption>> fetchCommercialUsers(String token) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/users/commercials'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      final items = decoded is List ? decoded : <dynamic>[];
+      return items
+          .map((e) => CommercialUserOption.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    throw Exception('Failed to load commercial users (${response.statusCode})');
+  }
+
   Future<List<String>> getUserNames(String token) async {
   final response = await http.get(
     Uri.parse('$baseUrl/user-names/list'),

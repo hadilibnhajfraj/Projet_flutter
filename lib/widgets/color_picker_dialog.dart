@@ -12,7 +12,7 @@ class ColorPickerDialog {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title:  Text('Pick a color!',style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),),
+          title:  Text(AppLocalizations.of(context).translate('Pick a color!'),style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),),
           content: SingleChildScrollView(
             child: ColorPicker(
               pickerColor: pickerColor,

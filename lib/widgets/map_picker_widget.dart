@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 import '../services/location_service.dart';
 import '../theme/theme_controller.dart';
 import 'package:get/get.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 class MapPickerWidget extends StatefulWidget {
   final LatLng? initialLocation;
@@ -359,11 +360,11 @@ class _MapPickerWidgetState extends State<MapPickerWidget> {
         fullscreenDialog: true,
         builder: (_) => Scaffold(
           appBar: AppBar(
-            title: const Text('Select Location'),
+            title: Text(AppLocalizations.of(context).translate('Select Location')),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Done'),
+                child: Text(AppLocalizations.of(context).translate('done')),
               ),
             ],
           ),
@@ -555,7 +556,7 @@ class _MapPickerWidgetState extends State<MapPickerWidget> {
               textCapitalization: TextCapitalization.none,
               keyboardType: TextInputType.text,
               decoration: InputDecoration(
-                hintText: 'Search for a city or place…',
+                hintText: AppLocalizations.of(context).translate('Search for a city or place…'),
                 prefixIcon: const Icon(Icons.search, size: 20),
                 suffixIcon: _isSearching
                     ? const Padding(
@@ -611,8 +612,8 @@ class _MapPickerWidgetState extends State<MapPickerWidget> {
                                   strokeWidth: 2, color: Colors.white),
                             )
                           : const Icon(Icons.my_location, size: 16),
-                      label: const Text('Use Current Location',
-                          style: TextStyle(fontSize: 13)),
+                      label: Text(AppLocalizations.of(context).translate('Use Current Location'),
+                          style: const TextStyle(fontSize: 13)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: theme.primaryColor,
                         foregroundColor: Colors.white,

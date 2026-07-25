@@ -16,9 +16,11 @@ import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/providers/api_client.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/route/my_route.dart';
 
 import '../controller/project_timeline_controller.dart';
 import 'add_project_action_screen.dart';
+import '../../services/project_action_api.dart';
 
 class ProjectTimelineScreen extends StatefulWidget {
   final String projectId;
@@ -226,8 +228,9 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: kCrmTextSub),
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go('/pipeline'),
+          onPressed: () => context.canPop()
+              ? context.pop()
+              : context.go(MyRoute.projectPipeline),
         ),
         title: Text(
           _allTimelinesMode ? 'All Timelines' : 'CRM Timeline',
@@ -256,7 +259,7 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: OutlinedButton.icon(
-              onPressed: () => context.go('/pipeline'),
+              onPressed: () => context.go(MyRoute.projectPipeline),
               icon: const Icon(Icons.view_kanban_rounded, size: 15),
               label: Text('Pipeline', style: tInter(fontSize: 12)),
               style: OutlinedButton.styleFrom(
@@ -324,6 +327,7 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
             onDelete: () => _deleteAction(_ctrl.actions[i].id),
             onEdit: () => _editAction(_ctrl.actions[i]),
             onReminder: () => _openReminder(_ctrl.actions[i].id),
+            onRetrySync: () => _retryGoogleSync(_ctrl.actions[i].id),
           ),
         );
       }),
@@ -344,6 +348,34 @@ class _ProjectTimelineScreenState extends State<ProjectTimelineScreen> {
         content: Text('Action updated successfully',
             style: tInter(fontSize: 13, color: Colors.white)),
         backgroundColor: kCrmSuccess,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    }
+  }
+
+  // ── Retry Google Calendar sync (point 11) ─────────────────────────────────
+  Future<void> _retryGoogleSync(String actionId) async {
+    try {
+      await ProjectActionApi.instance.retryGoogleSync(
+        projectId: widget.projectId,
+        actionId: actionId,
+      );
+      _reload();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Synchronisation relancée',
+            style: tInter(fontSize: 13, color: Colors.white)),
+        backgroundColor: kCrmSuccess,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Échec de la nouvelle tentative',
+            style: tInter(fontSize: 13, color: Colors.white)),
+        backgroundColor: kCrmDanger,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ));
@@ -373,6 +405,7 @@ class _ActionCard extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onEdit;
   final VoidCallback onReminder;
+  final VoidCallback onRetrySync;
 
   const _ActionCard({
     required this.action,
@@ -381,6 +414,7 @@ class _ActionCard extends StatelessWidget {
     required this.onDelete,
     required this.onEdit,
     required this.onReminder,
+    required this.onRetrySync,
   });
 
   @override
@@ -477,6 +511,12 @@ class _ActionCard extends StatelessWidget {
                     onPressed: onDelete,
                   ),
                 ]),
+              ),
+
+              // Calendar / Google Calendar sync indicator
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+                child: _CalendarSyncBadge(action: action, onRetry: onRetrySync),
               ),
 
               // Comment
@@ -612,6 +652,61 @@ class _StatusBadge extends StatelessWidget {
               fontSize: 10,
               fontWeight: FontWeight.w600,
               color: color)),
+    );
+  }
+}
+
+// ── Calendar / Google Calendar sync indicator ─────────────────────────────────
+// Point 11 : "✓ Synchronisé" ne doit JAMAIS s'afficher tant que Google n'a
+// pas réellement confirmé la création de l'événement (googleEventId +
+// succès HTTP — voir ProjectActionModel.isGoogleSynced). Toute autre
+// situation (pas encore synchronisé, compte non connecté, échec Google)
+// affiche "⚠ Non synchronisé" + un bouton pour réessayer.
+class _CalendarSyncBadge extends StatelessWidget {
+  final ProjectActionModel action;
+  final VoidCallback onRetry;
+
+  const _CalendarSyncBadge({required this.action, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!action.isCalendarSynced) return const SizedBox.shrink();
+
+    if (action.isGoogleSynced) {
+      return Tooltip(
+        message: 'Synchronisé avec Google Calendar',
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.check_circle_rounded, size: 12, color: kCrmSuccess),
+          const SizedBox(width: 4),
+          Text('Synchronisé', style: tInter(fontSize: 10, fontWeight: FontWeight.w600, color: kCrmSuccess)),
+        ]),
+      );
+    }
+
+    final hasError = action.googleCalendarError != null && action.googleCalendarError!.isNotEmpty;
+    final tooltip = hasError
+        ? 'Erreur de synchronisation : ${action.googleCalendarError}'
+        : 'Google Calendar non connecté. L\'événement est enregistré dans votre calendrier CRM.';
+
+    return Tooltip(
+      message: tooltip,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.warning_amber_rounded, size: 12, color: kCrmWarning),
+        const SizedBox(width: 4),
+        Text('Non synchronisé', style: tInter(fontSize: 10, fontWeight: FontWeight.w600, color: kCrmWarning)),
+        const SizedBox(width: 8),
+        InkWell(
+          onTap: onRetry,
+          borderRadius: BorderRadius.circular(4),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.refresh_rounded, size: 12, color: kCrmPrimary),
+            const SizedBox(width: 2),
+            Text('Réessayer la synchronisation',
+                style: tInter(fontSize: 10, fontWeight: FontWeight.w600, color: kCrmPrimary,
+                    decoration: TextDecoration.underline)),
+          ]),
+        ),
+      ]),
     );
   }
 }

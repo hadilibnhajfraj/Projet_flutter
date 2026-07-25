@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../model/commercial_contact_model.dart';
 import 'package:dash_master_toolkit/services/commercial_contact_service.dart';
 import 'package:dash_master_toolkit/application/users/view/commercial_timeline_screen.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:excel/excel.dart' as excel;
 import 'dart:html' as html;
+
+// Compte pour lequel le Follow-up déclenche l'automatisation complète
+// (calendrier / notifications / email / WhatsApp) côté backend — le champ
+// "Commercial" n'est affiché/obligatoire que pour ce compte, inchangé pour
+// tous les autres utilisateurs.
+const String _kFollowupAutomationEmail = "info@probardistribution.com";
 class CommercialContactListGetxScreen extends StatefulWidget {
   final String token;
   
@@ -195,6 +203,7 @@ void _exportContactsExcel() {
     'Products',
     'Projects',
     'Relances',
+    'Follow-up Comment',
     'Created At',
   ];
 
@@ -247,6 +256,7 @@ void _exportContactsExcel() {
       "",
       "",
       "",
+      "",
     ]);
 
     /// 🎨 STYLE USER ROW
@@ -281,6 +291,14 @@ void _exportContactsExcel() {
               "${r.dateRelance ?? ''} ${r.heureRelance ?? ''}")
           .join(" | ");
 
+      /// FOLLOW-UP COMMENT (une entrée par relance, "-" si vide/null)
+      String followUpComments = c.relances
+          .map((r) {
+            final comment = (r.commentaire ?? '').trim();
+            return comment.isEmpty ? '-' : comment;
+          })
+          .join(" | ");
+
       sheet.appendRow([
   c.id,
   c.fullName,
@@ -300,6 +318,7 @@ void _exportContactsExcel() {
   produits,
   projects,
   relances,
+  followUpComments,
   c.createdAt?.toIso8601String() ?? "",
 ]);
 
@@ -376,16 +395,263 @@ Future<void> _loadContacts({
   }
 }
 
-  Future<void> _updateContact({
+  Future<CommercialContact> _updateContact({
     required String id,
     required Map<String, dynamic> data,
   }) async {
-    await _service.updateContact(
+    final updated = await _service.updateContact(
       token: widget.token,
       id: id,
       data: data,
     );
     await _loadContacts(query: _searchController.text);
+    return updated;
+  }
+
+  bool get _isFollowupAutomationActor =>
+      (AuthService().userEmail ?? '').toLowerCase().trim() == _kFollowupAutomationEmail;
+
+  // Rôles autorisés à voir/utiliser l'action admin "Affecter des contacts" —
+  // même périmètre que PRIVILEGED_ROLES côté backend
+  // (commercial_contacts.routes.js).
+  bool get _isPrivilegedRole => const ['admin', 'superadmin', 'superadmin2']
+      .contains((AuthService().userRole ?? '').toLowerCase().trim());
+
+  Future<List<CommercialUserOption>> _loadCommercialUsers() async {
+    try {
+      return await _service.fetchCommercialUsers(widget.token);
+    } catch (e) {
+      debugPrint('LOAD COMMERCIAL USERS ERROR: $e');
+      return [];
+    }
+  }
+
+  // ── Action admin "Affecter des contacts" ─────────────────────────────────
+  // Sélection multiple parmi les contacts actuellement chargés (_contacts),
+  // filtrable par nom/société, puis attribution en masse à un commercial via
+  // POST /commercial-contacts/assign.
+  Future<void> _showAssignContactsDialog() async {
+    final commercialUsers = await _loadCommercialUsers();
+    if (!mounted) return;
+
+    if (commercialUsers.isEmpty) {
+      _showError("Aucun commercial disponible pour l'affectation");
+      return;
+    }
+
+    final selectedIds = <String>{};
+    String? targetCommercialId;
+    String filterText = '';
+    bool submitting = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final filtered = filterText.trim().isEmpty
+                ? _contacts
+                : _contacts.where((c) {
+                    final f = filterText.trim().toLowerCase();
+                    return c.fullName.toLowerCase().contains(f) ||
+                        (c.nomSociete ?? '').toLowerCase().contains(f);
+                  }).toList();
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              title: const Text("Affecter des contacts"),
+              content: SizedBox(
+                width: 560,
+                height: 520,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: targetCommercialId,
+                      isExpanded: true,
+                      decoration: _inputDecoration("Commercial *"),
+                      items: commercialUsers
+                          .map((u) => DropdownMenuItem(
+                                value: u.id,
+                                child: Text(
+                                  u.label,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setDialogState(() {
+                        targetCommercialId = v;
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      decoration: _inputDecoration("Rechercher un contact..."),
+                      onChanged: (v) => setDialogState(() {
+                        filterText = v;
+                      }),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${selectedIds.length} sélectionné(s) sur ${filtered.length} affiché(s)',
+                          style: const TextStyle(fontSize: 12, color: kMuted),
+                        ),
+                        TextButton(
+                          onPressed: () => setDialogState(() {
+                            final allFilteredIds = filtered.map((c) => c.id).toSet();
+                            final allSelected = allFilteredIds.every(selectedIds.contains);
+                            if (allSelected) {
+                              selectedIds.removeAll(allFilteredIds);
+                            } else {
+                              selectedIds.addAll(allFilteredIds);
+                            }
+                          }),
+                          child: const Text("Tout sélectionner / désélectionner"),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final c = filtered[index];
+                          final checked = selectedIds.contains(c.id);
+                          return CheckboxListTile(
+                            dense: true,
+                            value: checked,
+                            title: Text(c.fullName, overflow: TextOverflow.ellipsis),
+                            subtitle: Text(
+                              (c.nomSociete ?? '').trim().isNotEmpty ? c.nomSociete! : c.telephone,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            onChanged: (v) => setDialogState(() {
+                              if (v == true) {
+                                selectedIds.add(c.id);
+                              } else {
+                                selectedIds.remove(c.id);
+                              }
+                            }),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: submitting
+                      ? null
+                      : () {
+                          if (Navigator.of(dialogContext).canPop()) {
+                            Navigator.of(dialogContext).pop();
+                          }
+                        },
+                  child: const Text("Annuler"),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: kPrimary, foregroundColor: Colors.white),
+                  onPressed: submitting || selectedIds.isEmpty || targetCommercialId == null
+                      ? null
+                      : () async {
+                          setDialogState(() => submitting = true);
+                          try {
+                            final updatedCount = await _service.assignContacts(
+                              token: widget.token,
+                              contactIds: selectedIds.toList(),
+                              commercialId: targetCommercialId!,
+                            );
+                            if (Navigator.of(dialogContext).canPop()) {
+                              Navigator.of(dialogContext).pop();
+                            }
+                            _showSuccess("$updatedCount contact(s) affecté(s)");
+                            await _loadContacts(query: _searchController.text);
+                          } catch (e) {
+                            setDialogState(() => submitting = false);
+                            _showError(e.toString());
+                          }
+                        },
+                  child: submitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text("Affecter"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showFollowupAutomationSummary(FollowupAutomationResult automation) {
+    if (!mounted) return;
+    Widget row(bool ok, String label, {bool neutral = false}) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Icon(
+                ok
+                    ? Icons.check_circle
+                    : neutral
+                        ? Icons.info_outline
+                        : Icons.cancel,
+                color: ok
+                    ? Colors.green
+                    : neutral
+                        ? Colors.grey
+                        : Colors.orange,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Text(label)),
+            ],
+          ),
+        );
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Follow-up automatisé"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            row(true, "Follow-up enregistré"),
+            row(automation.calendarEventCreated, "Évènement ajouté au calendrier"),
+            row(automation.notificationsSent, "Notifications créées"),
+            row(automation.emailsSent, "Emails envoyés"),
+            // WhatsApp non configuré = état normal (pas une erreur) — icône
+            // neutre distincte d'un vrai échec d'envoi Twilio.
+            automation.whatsappConfigured
+                ? row(automation.whatsappSent, "WhatsApp programmé")
+                : row(false, "WhatsApp non configuré", neutral: true),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              // Ferme uniquement ce Dialog (via son propre BuildContext) —
+              // ne jamais utiliser le context de l'écran englobant ici, ça
+              // popperait la route "Commercial Contacts" au lieu du popup.
+              if (Navigator.of(dialogContext).canPop()) {
+                Navigator.of(dialogContext).pop();
+              }
+            },
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _deleteContact(String id) async {
@@ -524,6 +790,173 @@ Future<void> _loadContacts({
     );
   }
 
+  // ── Historique des statuts (timeline, plus récent en premier) ───────────
+
+  Color _historyColor(CommercialContactStatusHistoryItem item) {
+    if (item.isPipelineStage) {
+      switch (item.nouveauStatut) {
+        case 'Prospect':
+          return const Color(0xFF22C55E);
+        case 'Contacté':
+          return const Color(0xFFF59E0B);
+        case 'Visite':
+          return const Color(0xFF6366F1);
+        case 'Devis envoyé':
+          return const Color(0xFF3B82F6);
+        case 'Negociation':
+          return const Color(0xFFF97316);
+        case 'Gagné':
+          return const Color(0xFF22C55E);
+        case 'Perdu':
+          return const Color(0xFFEF4444);
+        default:
+          return const Color(0xFF94A3B8);
+      }
+    }
+    switch (item.nouveauStatut) {
+      case 'ok':
+        return const Color(0xFF22C55E);
+      case 'rappeler_plus_tard':
+        return const Color(0xFFF97316);
+      case 'user_injoignable':
+        return const Color(0xFFEF4444);
+      case 'client_refuse':
+        return const Color(0xFF64748B);
+      default:
+        return const Color(0xFF94A3B8);
+    }
+  }
+
+  // Libellé affichable d'une valeur brute de statut ("ok", "Devis envoyé",
+  // ...) — les valeurs pipelineStage sont déjà lisibles telles quelles, les
+  // valeurs statut passent par _statusLabel (déjà utilisé pour le badge du
+  // formulaire, garantit un vocabulaire identique partout dans l'écran).
+  String _statusValueLabel(String value, bool isPipelineStage) {
+    if (value.isEmpty) return '-';
+    return isPipelineStage ? value : _statusLabel(value);
+  }
+
+  String _historyLabel(CommercialContactStatusHistoryItem item) =>
+      _statusValueLabel(item.nouveauStatut, item.isPipelineStage);
+
+  Widget _historyRow(CommercialContactStatusHistoryItem item, {required bool isLast}) {
+    final color = _historyColor(item);
+    final dateStr = item.createdAt != null
+        ? DateFormat('dd/MM/yyyy HH:mm').format(item.createdAt!.toLocal())
+        : '';
+    final hasComment = (item.commentaire ?? '').trim().isNotEmpty;
+
+    // Deux rendus distincts : la toute première entrée (création) affiche
+    // simplement le commentaire "Création du contact" ; toute entrée
+    // suivante affiche explicitement l'ancien ET le nouveau statut.
+    final detailLines = <Widget>[];
+    if (item.isCreated) {
+      if (hasComment) {
+        detailLines.add(Text(
+          item.commentaire!,
+          style: const TextStyle(fontSize: 12),
+        ));
+      }
+    } else {
+      detailLines.add(Text(
+        'Ancien statut : ${_statusValueLabel(item.ancienStatut ?? '', item.isPipelineStage)}',
+        style: const TextStyle(fontSize: 12),
+      ));
+      detailLines.add(Text(
+        'Nouveau statut : ${_historyLabel(item)}',
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+      ));
+      if (hasComment) {
+        detailLines.add(Text(
+          'Commentaire : ${item.commentaire}',
+          style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+        ));
+      }
+    }
+
+    final lineCount = detailLines.length;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                margin: const EdgeInsets.only(top: 4),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              if (!isLast)
+                Container(
+                  width: 2,
+                  height: 34 + (lineCount * 16),
+                  color: const Color(0xFFE4E7EC),
+                ),
+            ],
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _historyLabel(item),
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (dateStr.isNotEmpty) dateStr,
+                    if ((item.changedByName ?? '').trim().isNotEmpty)
+                      'par ${item.changedByName}',
+                  ].join('  •  '),
+                  style: const TextStyle(fontSize: 11, color: kMuted),
+                ),
+                if (detailLines.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  ...detailLines,
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusHistorySection(List<CommercialContactStatusHistoryItem> history) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kPrimary.withOpacity(.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Historique des statuts',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
+          const SizedBox(height: 14),
+          if (history.isEmpty)
+            const Text(
+              "Aucun changement de statut enregistré pour l'instant.",
+              style: TextStyle(fontSize: 12, color: kMuted),
+            )
+          else
+            for (int i = 0; i < history.length; i++)
+              _historyRow(history[i], isLast: i == history.length - 1),
+        ],
+      ),
+    );
+  }
+
   Widget _buildProductsCell(List<CommercialContactProduct> produits) {
     final items = produits.isEmpty
         ? [CommercialContactProduct(id: '', produit: 'PROBAR', qte: 1)]
@@ -629,6 +1062,16 @@ Future<void> _showRelanceDialog(CommercialContact contact) async {
         : "",
   );
 
+  final bool isFollowupActor = _isFollowupAutomationActor;
+  String? selectedCommercialId =
+      contact.relances.isNotEmpty ? contact.relances.first.commercialId : null;
+  List<CommercialUserOption> commercialUsers = [];
+  if (isFollowupActor) {
+    commercialUsers = await _loadCommercialUsers();
+  }
+  if (!mounted) return;
+  FollowupAutomationResult? capturedAutomation;
+
   Future<void> pickDate(BuildContext dialogContext) async {
     final picked = await showDatePicker(
       context: dialogContext,
@@ -718,6 +1161,28 @@ Future<void> _showRelanceDialog(CommercialContact contact) async {
                     maxLines: 3,
                     decoration: _inputDecoration("Comment"),
                   ),
+
+                  if (isFollowupActor) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedCommercialId,
+                      isExpanded: true,
+                      decoration: _inputDecoration("Commercial *"),
+                      items: commercialUsers
+                          .map((u) => DropdownMenuItem(
+                                value: u.id,
+                                child: Text(
+                                  u.label,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ))
+                          .toList(),
+                      onChanged: (v) => setDialogState(() {
+                        selectedCommercialId = v;
+                      }),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -734,6 +1199,15 @@ Future<void> _showRelanceDialog(CommercialContact contact) async {
                   foregroundColor: Colors.white,
                 ),
                 onPressed: () async {
+                  final hasDateAndTime = dateCtrl.text.trim().isNotEmpty &&
+                      heureCtrl.text.trim().isNotEmpty;
+                  if (isFollowupActor &&
+                      hasDateAndTime &&
+                      selectedCommercialId == null) {
+                    _showError("Commercial requis");
+                    return;
+                  }
+
                   try {
                     final payload = {
                       "dateRelance": dateCtrl.text.trim(),
@@ -746,17 +1220,20 @@ Future<void> _showRelanceDialog(CommercialContact contact) async {
 
                       /// 🔥 USER
                       "user_nom": selectedUser,
-                     
+
+                      if (isFollowupActor && selectedCommercialId != null)
+                        "commercialId": selectedCommercialId,
 
                       if (contact.statut != "ok" &&
                           contact.statut != "rappeler_plus_tard")
                         "statut": "rappeler_plus_tard",
                     };
 
-                    await _updateContact(
+                    final updated = await _updateContact(
                       id: contact.id,
                       data: payload,
                     );
+                    capturedAutomation = updated.automation;
 
                     if (dialogContext.mounted) {
                       Navigator.of(dialogContext).pop(true);
@@ -779,6 +1256,9 @@ Future<void> _showRelanceDialog(CommercialContact contact) async {
 
   if (saved == true) {
     _showSuccess("Follow-up saved successfully");
+    if (capturedAutomation != null) {
+      _showFollowupAutomationSummary(capturedAutomation!);
+    }
   }
 }
 
@@ -838,6 +1318,28 @@ String selectedPipeline =
           ? (contact.relances.first.commentaire ?? "")
           : "",
     );
+
+    final bool isFollowupActor = _isFollowupAutomationActor;
+    String? selectedCommercialId =
+        contact.relances.isNotEmpty ? contact.relances.first.commercialId : null;
+    List<CommercialUserOption> commercialUsers = [];
+    if (isFollowupActor) {
+      commercialUsers = await _loadCommercialUsers();
+    }
+
+    List<CommercialContactStatusHistoryItem> statusHistory = [];
+    try {
+      statusHistory = await _service.fetchStatusHistory(
+        token: widget.token,
+        contactId: contact.id,
+      );
+    } catch (e) {
+      debugPrint('LOAD STATUS HISTORY ERROR: $e');
+    }
+
+    if (!mounted) return;
+    FollowupAutomationResult? capturedAutomation;
+
 final projects = (contact.projects.isEmpty
         ? [CommercialProject(id: "", nomProjet: "")]
         : contact.projects)
@@ -1345,9 +1847,32 @@ OutlinedButton.icon(
                                 decoration:
                                     _inputDecoration("Follow-up comment"),
                               ),
+                              if (isFollowupActor) ...[
+                                const SizedBox(height: 12),
+                                DropdownButtonFormField<String>(
+                                  initialValue: selectedCommercialId,
+                                  isExpanded: true,
+                                  decoration: _inputDecoration("Commercial *"),
+                                  items: commercialUsers
+                                      .map((u) => DropdownMenuItem(
+                                            value: u.id,
+                                            child: Text(
+                                              u.label,
+                                              overflow: TextOverflow.ellipsis,
+                                              maxLines: 1,
+                                            ),
+                                          ))
+                                      .toList(),
+                                  onChanged: (v) => setDialogState(() {
+                                    selectedCommercialId = v;
+                                  }),
+                                ),
+                              ],
                             ],
                           ),
                         ),
+                      const SizedBox(height: 22),
+                      _buildStatusHistorySection(statusHistory),
                       const SizedBox(height: 22),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.end,
@@ -1364,6 +1889,16 @@ OutlinedButton.icon(
                               foregroundColor: Colors.white,
                             ),
                             onPressed: () async {
+                              final hasDateAndTime = canScheduleRelance &&
+                                  dateRelanceCtrl.text.trim().isNotEmpty &&
+                                  heureRelanceCtrl.text.trim().isNotEmpty;
+                              if (isFollowupActor &&
+                                  hasDateAndTime &&
+                                  selectedCommercialId == null) {
+                                _showError("Commercial requis");
+                                return;
+                              }
+
                               try {
                                 final payload = {
                                   "typeClient": selectedType,
@@ -1439,12 +1974,16 @@ OutlinedButton.icon(
                                           .isNotEmpty)
                                     "commentaire":
                                         commentaireRelanceCtrl.text.trim(),
+                                  if (isFollowupActor &&
+                                      selectedCommercialId != null)
+                                    "commercialId": selectedCommercialId,
                                 };
 
-                                await _updateContact(
+                                final updated = await _updateContact(
                                   id: contact.id,
                                   data: payload,
                                 );
+                                capturedAutomation = updated.automation;
 
                                 if (dialogContext.mounted) {
                                   Navigator.of(dialogContext).pop(true);
@@ -1472,6 +2011,9 @@ OutlinedButton.icon(
 if (saved == true) {
   await _loadContacts(); // 🔥 refresh complet
   _showSuccess("Contact updated successfully");
+  if (capturedAutomation != null) {
+    _showFollowupAutomationSummary(capturedAutomation!);
+  }
 }
   }
 
@@ -1912,6 +2454,18 @@ Widget _buildSearchBar() {
   icon: const Icon(Icons.download),
   label: const Text("Export Excel"),
 ),
+            if (_isPrivilegedRole) ...[
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(backgroundColor: kPrimary),
+                onPressed: _showAssignContactsDialog,
+                icon: const Icon(Icons.assignment_ind_outlined, color: Colors.white),
+                label: const Text(
+                  "Affecter des contacts",
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ],
           ],
         ),
       ],
@@ -1967,8 +2521,27 @@ Widget _buildSearchBar() {
       );
     }
 
-    // État vide : search bar toujours visible + message + bouton reset
+    // État vide : search bar toujours visible + message + bouton reset.
+    // Un commercial sans AUCUN contact affecté (et sans filtre actif) n'est
+    // pas une erreur — le backend l'a renvoyé volontairement (voir
+    // GET /commercial-contacts, court-circuit "assignedContactIds=[]"). Ce
+    // cas précis a son propre message, distinct d'une recherche trop
+    // restrictive, pour ne jamais laisser croire à un bug de filtrage.
     if (_contacts.isEmpty) {
+      final isCommercialRole =
+          (AuthService().userRole ?? '').toLowerCase().trim() == 'commercial';
+      final hasActiveFilters = _searchController.text.trim().isNotEmpty ||
+          selectedUser != null ||
+          selectedType != null;
+      final noAssignmentForCommercial = isCommercialRole && !hasActiveFilters;
+
+      final title = noAssignmentForCommercial
+          ? 'Aucun contact ne vous est actuellement affecté.'
+          : 'No commercial contacts found.';
+      final subtitle = noAssignmentForCommercial
+          ? "Un administrateur doit d'abord vous assigner des contacts commerciaux."
+          : 'Essayez de modifier vos critères de recherche ou réinitialisez les filtres.';
+
       return ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -1986,32 +2559,40 @@ Widget _buildSearchBar() {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.folder_open_outlined,
-                      size: 54, color: Color(0xFF98A2B3)),
+                  Icon(
+                    noAssignmentForCommercial
+                        ? Icons.person_off_outlined
+                        : Icons.folder_open_outlined,
+                    size: 54,
+                    color: const Color(0xFF98A2B3),
+                  ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'No commercial contacts found.',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  Text(
+                    title,
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Essayez de modifier vos critères de recherche ou réinitialisez les filtres.',
+                  Text(
+                    subtitle,
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Color(0xFF667085)),
+                    style: const TextStyle(color: Color(0xFF667085)),
                   ),
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() {
-                        selectedUser = null;
-                        selectedType = null;
-                      });
-                      _loadContacts();
-                    },
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Réinitialiser les filtres'),
-                  ),
+                  if (!noAssignmentForCommercial) ...[
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          selectedUser = null;
+                          selectedType = null;
+                        });
+                        _loadContacts();
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Réinitialiser les filtres'),
+                    ),
+                  ],
                 ],
               ),
             ),

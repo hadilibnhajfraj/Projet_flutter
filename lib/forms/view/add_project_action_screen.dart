@@ -33,19 +33,47 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
   late String _type;
   final _commentaire = TextEditingController();
   DateTime? _relance;
+  TimeOfDay? _relanceTime;
+  Duration _duration = const Duration(hours: 1);
+  String _priorite = 'normale';
   dynamic _selectedFile; // PlatformFile (web) or File (native)
   String? _fileName;
 
   bool _submitting = false;
 
+  // ── Priorité (synchronisée avec le calendrier CRM / Google Calendar) ──────
+  static const _priorites = [
+    {'label': 'Basse',   'value': 'basse'},
+    {'label': 'Normale', 'value': 'normale'},
+    {'label': 'Haute',   'value': 'haute'},
+    {'label': 'Urgente', 'value': 'urgente'},
+  ];
+
+  static const _durations = [
+    {'label': '15 min', 'value': Duration(minutes: 15)},
+    {'label': '30 min', 'value': Duration(minutes: 30)},
+    {'label': '1 heure', 'value': Duration(hours: 1)},
+    {'label': '2 heures', 'value': Duration(hours: 2)},
+  ];
+
   // ── Action types available in the CRM pipeline ────────────────────────────
+  // typeAction_legacy was a fixed Postgres ENUM until migration
+  // 20260728000200 (fix-project-actions-type-action-legacy-enum) — it now
+  // accepts free text, so the extra types below (Appel/Réunion/Maintenance/
+  // Suivi/Démonstration/Installation) no longer 500 on create.
   static const _actionTypes = [
     'Visite',
+    'Appel',
+    'Réunion',
     'Plan technique',
     'Echantillonnage',
     'Devis envoyé',
     'Negociation',
     'Relance',
+    'Suivi',
+    'Démonstration',
+    'Installation',
+    'Maintenance',
     'Commande gagnée',
     'Commande perdue',
     'Fidelisation',
@@ -65,10 +93,12 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
     super.dispose();
   }
 
-  // ── Date picker — only future dates are selectable ────────────────────────
+  // ── Date + heure picker — only future dates are selectable ────────────────
+  // Combine en un seul DateTime : c'est ce qui devient le début de
+  // l'événement calendrier CRM / Google Calendar (voir Heure début).
   Future<void> _pickDate() async {
     final tomorrow = DateTime.now().add(const Duration(days: 1));
-    final picked = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       // Earliest selectable day is tomorrow — today/past are greyed out.
       firstDate: tomorrow,
@@ -81,7 +111,27 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
         child: child!,
       ),
     );
-    if (picked != null) setState(() => _relance = picked);
+    if (pickedDate == null || !mounted) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: _relanceTime ?? const TimeOfDay(hour: 9, minute: 0),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(primary: kCrmPrimary),
+        ),
+        child: child!,
+      ),
+    );
+    if (pickedTime == null) return;
+
+    setState(() {
+      _relanceTime = pickedTime;
+      _relance = DateTime(
+        pickedDate.year, pickedDate.month, pickedDate.day,
+        pickedTime.hour, pickedTime.minute,
+      );
+    });
   }
 
   // ── File picker ───────────────────────────────────────────────────────────
@@ -110,12 +160,15 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
 
     setState(() => _submitting = true);
     try {
+      final dateFin = _relance!.add(_duration);
       await ProjectActionApi.instance.createAction(
         projectId: widget.projectId,
         type: _type,
         commentaire: _commentaire.text.trim(),
         // Full ISO-8601 — backend datetime comparison is unambiguous.
         dateRelance: _relance!.toIso8601String(),
+        dateFin: dateFin.toIso8601String(),
+        priorite: _priorite,
         file: _selectedFile,
       );
       if (!mounted) return;
@@ -270,7 +323,7 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
                   child: Text(
                     _relance == null
                         ? 'Select a future date (earliest: ${DateFormat('dd/MM/yyyy').format(tomorrow)})'
-                        : DateFormat('EEEE, dd MMM yyyy').format(_relance!),
+                        : DateFormat('EEEE, dd MMM yyyy — HH:mm').format(_relance!),
                     style: tInter(
                         fontSize: 13,
                         color: _relance != null ? kCrmText : kCrmTextSub),
@@ -294,6 +347,53 @@ class _AddProjectActionScreenState extends State<AddProjectActionScreen> {
                     style: tInter(fontSize: 11, color: kCrmTextSub)),
               ]),
             ),
+
+          const SizedBox(height: 20),
+
+          // ── Duration + Priority (feed the CRM/Google calendar event) ─────
+          Row(children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _Label('Duration'),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<Duration>(
+                  value: _duration,
+                  decoration: _inputDec('Duration'),
+                  items: _durations
+                      .map((d) => DropdownMenuItem(
+                            value: d['value'] as Duration,
+                            child: Text(d['label'] as String,
+                                style: tInter(fontSize: 13, color: kCrmText)),
+                          ))
+                      .toList(),
+                  onChanged: _submitting
+                      ? null
+                      : (v) => setState(() => _duration = v ?? const Duration(hours: 1)),
+                ),
+              ]),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _Label('Priority'),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  value: _priorite,
+                  decoration: _inputDec('Priority'),
+                  items: _priorites
+                      .map((p) => DropdownMenuItem(
+                            value: p['value'] as String,
+                            child: Text(p['label'] as String,
+                                style: tInter(fontSize: 13, color: kCrmText)),
+                          ))
+                      .toList(),
+                  onChanged: _submitting
+                      ? null
+                      : (v) => setState(() => _priorite = v ?? 'normale'),
+                ),
+              ]),
+            ),
+          ]),
 
           const SizedBox(height: 20),
 

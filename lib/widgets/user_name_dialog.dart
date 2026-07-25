@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../providers/auth_service.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 Future<void> showUserNameDialog(BuildContext context) async {
   final TextEditingController newUserController = TextEditingController();
@@ -30,9 +31,9 @@ Future<void> showUserNameDialog(BuildContext context) async {
 
           return AlertDialog(
             backgroundColor: Colors.black87,
-            title: const Text(
-              "Choisir utilisateur",
-              style: TextStyle(color: Colors.white),
+            title: Text(
+              AppLocalizations.of(context).translate("Choisir utilisateur"),
+              style: const TextStyle(color: Colors.white),
             ),
             content: isLoading
                 ? const SizedBox(
@@ -50,9 +51,9 @@ Future<void> showUserNameDialog(BuildContext context) async {
                       DropdownButtonFormField<String>(
                         dropdownColor: Colors.black,
                         value: selectedUser,
-                        hint: const Text(
-                          "Sélectionner utilisateur",
-                          style: TextStyle(color: Colors.white60),
+                        hint: Text(
+                          AppLocalizations.of(context).translate("Sélectionner utilisateur"),
+                          style: const TextStyle(color: Colors.white60),
                         ),
                         items: users.map((u) {
                           return DropdownMenuItem(
@@ -73,9 +74,9 @@ Future<void> showUserNameDialog(BuildContext context) async {
 
                       const SizedBox(height: 15),
 
-                      const Text(
-                        "OU",
-                        style: TextStyle(color: Colors.white54),
+                      Text(
+                        AppLocalizations.of(context).translate("or"),
+                        style: const TextStyle(color: Colors.white54),
                       ),
 
                       const SizedBox(height: 10),
@@ -86,9 +87,9 @@ Future<void> showUserNameDialog(BuildContext context) async {
                       TextField(
                         controller: newUserController,
                         style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
-                          hintText: "Saisir nouveau nom",
-                          hintStyle: TextStyle(color: Colors.white54),
+                        decoration: InputDecoration(
+                          hintText: AppLocalizations.of(context).translate("Saisir nouveau nom"),
+                          hintStyle: const TextStyle(color: Colors.white54),
                         ),
                         onChanged: (_) {
                           setState(() {
@@ -108,8 +109,9 @@ Future<void> showUserNameDialog(BuildContext context) async {
 
                   if (finalUser == null || finalUser.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text("Veuillez choisir ou saisir un utilisateur"),
+                      SnackBar(
+                        content: Text(AppLocalizations.of(context)
+                            .translate("Veuillez choisir ou saisir un utilisateur")),
                       ),
                     );
                     return;
@@ -123,7 +125,7 @@ Future<void> showUserNameDialog(BuildContext context) async {
 
                   Navigator.pop(context);
                 },
-                child: const Text("Valider"),
+                child: Text(AppLocalizations.of(context).translate("Valider")),
               ),
             ],
           );

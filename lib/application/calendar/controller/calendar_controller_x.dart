@@ -35,7 +35,7 @@ class CalendarControllerX extends GetxController {
       appointments.assignAll(
         tasks.map((t) {
           final startLocal = t.startAt.toLocal();
-          final endLocal = startLocal.add(const Duration(minutes: 30));
+          final endLocal = t.effectiveEndAt.toLocal();
 
           // ✅ notes = json (propre)
           final notes = jsonEncode({
@@ -48,7 +48,7 @@ class CalendarControllerX extends GetxController {
             endTime: endLocal,
             subject: t.title,       // ✅ seulement le titre
             notes: notes,           // ✅ meta pour UI
-            color: colorPrimary100,
+            color: _priorityColor(t.priority),
           );
         }).toList(),
       );
@@ -75,6 +75,22 @@ class CalendarControllerX extends GetxController {
   void changeView(CalendarView view) {
     calendarController.view = view;
     currentView.value = view;
+  }
+
+  // Couleur du rendez-vous selon la priorité de l'action Timeline d'origine
+  // (voir ProjectAction.priorite) — retombe sur la couleur historique si
+  // absente (Task créée manuellement, sans priorité).
+  Color _priorityColor(String? priority) {
+    switch (priority) {
+      case 'urgente':
+        return Colors.red;
+      case 'haute':
+        return Colors.orange;
+      case 'basse':
+        return Colors.grey;
+      default:
+        return colorPrimary100;
+    }
   }
 
   void goToPrevious() => calendarController.backward?.call();

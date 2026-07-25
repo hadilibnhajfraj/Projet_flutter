@@ -8,9 +8,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import 'package:dash_master_toolkit/forms/constants/product_family.dart';
 import 'package:dash_master_toolkit/forms/controller/project_form_controller.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/view/widgets/crm_widgets.dart';
+import 'package:dash_master_toolkit/widgets/common_app_widget.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 class DetailsSection extends StatelessWidget {
   final ProjectFormController c;
@@ -57,6 +60,18 @@ class _ProjectDetails extends StatelessWidget {
             controller: c.typeAdresseChantier,
             validator: (v) => c.requiredValidator(v, 'Site Type + Address')),
       ),
+      const SizedBox(height: 4),
+      Text(AppLocalizations.of(context).translate('Product Family'),
+          style: tInter(fontSize: 12.5, fontWeight: FontWeight.w600, color: kCrmTextSub)),
+      const SizedBox(height: 8),
+      Row(children: [
+        _ProductFamilyChip(c: c, label: 'Probar', value: 'PROBAR'),
+        const SizedBox(width: 10),
+        _ProductFamilyChip(c: c, label: 'Promesh', value: 'PROMESH'),
+      ]),
+      const SizedBox(height: 16),
+      _DiameterDropdown(c: c),
+      const SizedBox(height: 8),
       CrmTextField(
           label: 'Prospected Area m² (optional)',
           controller: c.surfaceProspectee,
@@ -140,8 +155,9 @@ class _RevendeurDetails extends StatelessWidget {
         controller: c.fonction,
         options: _fonctionOptions,
         hint: 'Choisir',
-        validator: (v) =>
-            (v == null || v.isEmpty) ? 'Fonction obligatoire' : null,
+        validator: (v) => (v == null || v.isEmpty)
+            ? AppLocalizations.of(context).translate('Fonction obligatoire')
+            : null,
       ),
       crmTwoCols(
         isMobile: isMobile,
@@ -213,5 +229,84 @@ class _ApplicateurDetails extends StatelessWidget {
             validator: (v) => c.requiredValidator(v, 'Registre')),
       ),
     ]);
+  }
+}
+
+// ── Product Family chip ─────────────────────────────────────────────────────
+// Même pattern que _TypeChip (general_section.dart) : Rx bindé, sélection
+// visuelle immédiate. Un changement de famille réinitialise le diamètre s'il
+// n'est plus valide pour la nouvelle famille (voir _DiameterDropdown).
+class _ProductFamilyChip extends StatelessWidget {
+  final ProjectFormController c;
+  final String label;
+  final String value;
+
+  const _ProductFamilyChip({required this.c, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final selected = c.productFamily.value == value;
+      return GestureDetector(
+        onTap: () {
+          c.productFamily.value = value;
+          final validDiameters = kDiametersByFamily[value] ?? const <int>[];
+          if (c.diameterMm.value != null && !validDiameters.contains(c.diameterMm.value)) {
+            c.diameterMm.value = null;
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? kCrmPrimary.withOpacity(0.1) : kCrmSurface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: selected ? kCrmPrimary : kCrmBorder, width: selected ? 1.5 : 1.0),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.category_outlined, size: 15, color: selected ? kCrmPrimary : kCrmTextSub),
+            const SizedBox(width: 6),
+            Text(AppLocalizations.of(context).translate(label),
+                style: tInter(
+                    fontSize: 13,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: selected ? kCrmPrimary : kCrmTextSub)),
+          ]),
+        ),
+      );
+    });
+  }
+}
+
+// ── Diameter dropdown — options dépendantes de Product Family ──────────────
+class _DiameterDropdown extends StatelessWidget {
+  final ProjectFormController c;
+
+  const _DiameterDropdown({required this.c});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final family = c.productFamily.value;
+      final options = kDiametersByFamily[family] ?? const <int>[];
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16, top: 4),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(AppLocalizations.of(context).translate('Diameter'),
+              style: tInter(fontSize: 12.5, fontWeight: FontWeight.w600, color: kCrmTextSub)),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<int>(
+            initialValue: options.contains(c.diameterMm.value) ? c.diameterMm.value : null,
+            decoration: inputDecoration(context,
+                hintText: AppLocalizations.of(context).translate(
+                    family == null ? 'Choisir Product Family d\'abord' : 'Choisir un diamètre')),
+            items: options
+                .map((mm) => DropdownMenuItem(value: mm, child: Text(diameterLabel(mm))))
+                .toList(),
+            onChanged: family == null ? null : (v) => c.diameterMm.value = v,
+          ),
+        ]),
+      );
+    });
   }
 }

@@ -45,12 +45,15 @@ class ArchiveRequest {
   final String id;
   final String projectId;
   final String projectName; // from project.nomProjet or flat field
+  final String society;     // from project.comptoir ("Société")
   final String userId;
   final String userEmail;   // from user.email or flat field
   final String userName;
   final String subject;
   final String message;
   String status;            // 'pending' | 'approved' | 'rejected'
+  final String type;        // 'ARCHIVAGE' | 'DESARCHIVAGE'
+  final String? rejectionReason;
   final List<ArchiveRequestMessage> messages;
   final DateTime createdAt;
 
@@ -58,6 +61,7 @@ class ArchiveRequest {
     required this.id,
     required this.projectId,
     required this.projectName,
+    this.society = '',
     required this.userId,
     required this.userEmail,
     required this.userName,
@@ -66,7 +70,11 @@ class ArchiveRequest {
     required this.status,
     required this.messages,
     required this.createdAt,
+    this.type = 'DESARCHIVAGE',
+    this.rejectionReason,
   });
+
+  bool get isArchivage => type == 'ARCHIVAGE';
 
   factory ArchiveRequest.fromJson(Map<String, dynamic> j) {
     // Nested objects — backend may use 'project' or 'archiveProject'
@@ -115,12 +123,17 @@ class ArchiveRequest {
         j['projectName'] ?? j['nomProjet'],
         fallback: 'Projet inconnu',
       ),
+      society:     _str(project['societe'] ?? project['comptoir'] ?? j['societe']),
       userId:      _str(requester['id'] ?? requester['_id'] ?? j['userId'] ?? j['requestedBy']),
       userEmail:   userEmail,
       userName:    userName,
       subject:     _str(j['subject'] ?? j['objet'], fallback: 'Demande de désarchivage'),
       message:     _str(j['message'] ?? j['reason'] ?? j['raisonDemande']),
       status:      _str(j['status'], fallback: 'pending'),
+      type:        _str(j['type'], fallback: 'DESARCHIVAGE').toUpperCase(),
+      rejectionReason: j['rejectionReason'] == null
+          ? null
+          : _str(j['rejectionReason']),
       messages:    rawMsgs
           .map((m) => ArchiveRequestMessage.fromJson(
               m is Map ? Map<String, dynamic>.from(m) : {}))
@@ -135,12 +148,15 @@ class ArchiveRequest {
     'id':          id,
     'projectId':   projectId,
     'projectName': projectName,
+    'societe':     society,
     'userId':      userId,
     'userEmail':   userEmail,
     'userName':    userName,
     'subject':     subject,
     'message':     message,
     'status':      status,
+    'type':        type,
+    'rejectionReason': rejectionReason,
     'createdAt':   createdAt.toIso8601String(),
     'messageCount': messages.length,
   };

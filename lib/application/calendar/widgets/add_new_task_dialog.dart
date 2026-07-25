@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:dash_master_toolkit/application/calendar/model/project_item.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 class AddTaskDialog extends StatefulWidget {
    final List<ProjectItem> projects;
 
@@ -46,8 +47,8 @@ void initState() {
 
   InputDecoration _dec(String label, String hint, IconData icon) {
     return InputDecoration(
-      labelText: label,
-      hintText: hint,
+      labelText: AppLocalizations.of(context).translate(label),
+      hintText: AppLocalizations.of(context).translate(hint),
       filled: true,
       fillColor: kFieldBg,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -92,8 +93,8 @@ void initState() {
     // ✅ IMPORTANT : on force le mode input (plus de grille calendrier)
     initialEntryMode: DatePickerEntryMode.input,
 
-    cancelText: "Cancel",
-    confirmText: "Save",
+    cancelText: AppLocalizations.of(context).translate("Cancel"),
+    confirmText: AppLocalizations.of(context).translate("Save"),
 
     builder: (ctx, child) {
       return Theme(
@@ -203,9 +204,9 @@ void initState() {
       child: AlertDialog(
         backgroundColor: kDialogBg,
         surfaceTintColor: Colors.transparent,
-        title: const Text(
-          "ADD New Task",
-          style: TextStyle(color: kTextDark, fontWeight: FontWeight.w900),
+        title: Text(
+          AppLocalizations.of(context).translate("ADD New Task"),
+          style: const TextStyle(color: kTextDark, fontWeight: FontWeight.w900),
         ),
         content: SizedBox(
           width: 520,
@@ -273,7 +274,7 @@ DropdownButtonFormField<ProjectItem>(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
             onPressed: () => Navigator.pop(context, null),
-            child: const Text("Cancel"),
+            child: Text(AppLocalizations.of(context).translate("Cancel")),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -286,7 +287,8 @@ DropdownButtonFormField<ProjectItem>(
               final start = _buildStartDateTime();
               if (_title.text.trim().isEmpty || start == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Title + Start date/time are required")),
+                  SnackBar(content: Text(AppLocalizations.of(context)
+                      .translate("Title + Start date/time are required"))),
                 );
                 return;
               }
@@ -297,7 +299,7 @@ DropdownButtonFormField<ProjectItem>(
                 "projectId": _selectedProject!.id,     // ✅ NEW
               });
             },
-            child: const Text("Save"),
+            child: Text(AppLocalizations.of(context).translate("Save")),
           ),
         ],
       ),

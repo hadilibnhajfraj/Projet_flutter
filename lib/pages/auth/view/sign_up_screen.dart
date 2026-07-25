@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
-import 'dart:ui';
+
+import 'package:dash_master_toolkit/constant/app_color.dart';
 
 import '../../../providers/auth_service.dart';
 import '../../../route/my_route.dart';
 import '../controller/signup_controller.dart';
+import '../widgets/auth_ui_kit.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -17,250 +19,174 @@ class SignUpScreen extends StatefulWidget {
 class _SignUpScreenState extends State<SignUpScreen> {
   final SignupController controller = SignupController();
 
-  // 🔥 INPUT MODERNE
-  Widget _buildInput({
-    required TextEditingController controller,
-    required String hint,
-    bool isPassword = false,
-  }) {
-    return TextFormField(
-      controller: controller,
-      obscureText: isPassword,
-      style: const TextStyle(color: Colors.white),
+  // Logique d'inscription inchangée (authService.signup avec email/password,
+  // puis redirection vers l'écran de connexion) — seules deux vérifications
+  // côté formulaire encadrent l'appel : conditions acceptées (déjà présente
+  // avant) et les deux mots de passe qui doivent correspondre (nécessaire au
+  // nouveau champ "Confirmer le mot de passe").
+  Future<void> _handleSignUp(BuildContext context) async {
+    final form = controller.formKey.currentState;
+    if (form == null || !form.validate()) return;
 
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Colors.white54),
+    if (!controller.isTermAccepted.value) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Veuillez accepter les conditions d'utilisation")),
+      );
+      return;
+    }
 
-        filled: true,
-        fillColor: Colors.white.withOpacity(0.05),
+    try {
+      final authService = AuthService();
 
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 18,
-        ),
+      await authService.signup(
+        email: controller.emailController.text,
+        password: controller.passwordController.text,
+      );
 
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(
-            color: Colors.white.withOpacity(0.1),
-          ),
-        ),
-
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(
-            color: Colors.white.withOpacity(0.1),
-          ),
-        ),
-
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(
-            color: Colors.white.withOpacity(0.4),
-          ),
-        ),
-      ),
-    );
+      if (!context.mounted) return;
+      context.go(MyRoute.signInScreen);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final desktopView = screenWidth >= 1200;
-
     return GetBuilder<SignupController>(
       init: controller,
       builder: (controller) {
-        return Scaffold(
-          backgroundColor: Colors.transparent,
-
-          body: SizedBox.expand(
-            child: Stack(
+        return AuthScaffold(
+          child: Form(
+            key: controller.formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // 🔥 BACKGROUND
-                Positioned.fill(
-                  child: Image.asset(
-                    "assets/images/login_bg.png",
-                    fit: BoxFit.cover,
+                const AuthTitle(
+                  title: 'Créer un compte',
+                  subtitle: 'Créez votre compte Probar CRM',
+                ),
+
+                const SizedBox(height: 36),
+
+                // ── Champs ────────────────────────────────
+                Obx(
+                  () => AuthTextField(
+                    controller: controller.fullNameController,
+                    focusNode: controller.f1,
+                    placeholder: 'Nom complet',
+                    icon: Icons.person_outline_rounded,
+                    isFocused: controller.fullNameFieldFocused.value,
+                    textInputAction: TextInputAction.next,
+                    onFieldSubmitted: (_) =>
+                        FocusScope.of(context).requestFocus(controller.f2),
                   ),
                 ),
 
-                // 🔥 OVERLAY
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.black.withOpacity(0.75),
-                          Colors.black.withOpacity(0.5),
-                          Colors.black.withOpacity(0.3),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+                const SizedBox(height: 20),
+
+                Obx(
+                  () => AuthTextField(
+                    controller: controller.emailController,
+                    focusNode: controller.f2,
+                    placeholder: 'Adresse email',
+                    icon: Icons.mail_outline_rounded,
+                    isFocused: controller.emailFieldFocused.value,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    onFieldSubmitted: (_) =>
+                        FocusScope.of(context).requestFocus(controller.f3),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Obx(
+                  () => AuthTextField(
+                    controller: controller.passwordController,
+                    focusNode: controller.f3,
+                    placeholder: 'Mot de passe',
+                    icon: Icons.lock_outline_rounded,
+                    isFocused: controller.passwordFieldFocused.value,
+                    isPassword: controller.isShowPasswordIcon.value,
+                    textInputAction: TextInputAction.next,
+                    onFieldSubmitted: (_) =>
+                        FocusScope.of(context).requestFocus(controller.f4),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        controller.isShowPasswordIcon.value
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        size: 20,
+                        color: controller.passwordFieldFocused.value
+                            ? colorPrimary100
+                            : kAuthFieldGrey,
                       ),
+                      onPressed: () => controller.isShowPasswordIcon.toggle(),
                     ),
                   ),
                 ),
 
-                // 🔥 FORMULAIRE
-                Center(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                      child: Container(
-                        padding: const EdgeInsets.all(28),
-                        margin: const EdgeInsets.symmetric(horizontal: 20),
-                        constraints: BoxConstraints(
-                          maxWidth: desktopView ? 420 : double.infinity,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.35),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.08),
-                          ),
-                        ),
+                const SizedBox(height: 20),
 
-                        child: Form(
-                          key: controller.formKey,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                "Create account",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-
-                              const SizedBox(height: 8),
-
-                              const Text(
-                                "Sign up to get started",
-                                style: TextStyle(color: Colors.white60),
-                              ),
-
-                              const SizedBox(height: 30),
-
-                              _buildInput(
-                                controller: controller.fullNameController,
-                                hint: "Full Name",
-                              ),
-
-                              const SizedBox(height: 18),
-
-                              _buildInput(
-                                controller: controller.emailController,
-                                hint: "Email",
-                              ),
-
-                              const SizedBox(height: 18),
-
-                              _buildInput(
-                                controller: controller.passwordController,
-                                hint: "Password",
-                                isPassword: true,
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              Row(
-                                children: [
-                                  Obx(() => Checkbox(
-                                        value: controller.isTermAccepted.value,
-                                        onChanged: (v) =>
-                                            controller.isTermAccepted.value = v!,
-                                        activeColor: Colors.white,
-                                        checkColor: Colors.black,
-                                      )),
-                                  const Expanded(
-                                    child: Text(
-                                      "I agree to the terms",
-                                      style: TextStyle(color: Colors.white60),
-                                    ),
-                                  ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              // 🔥 BUTTON
-                              SizedBox(
-                                width: double.infinity,
-                                height: 48,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.black,
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                  onPressed: () async {
-                                    final form = controller.formKey.currentState;
-
-                                    if (form == null || !form.validate()) return;
-
-                                    if (!controller.isTermAccepted.value) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        const SnackBar(
-                                            content: Text(
-                                                "Accept terms first")),
-                                      );
-                                      return;
-                                    }
-
-                                    try {
-                                      final authService = AuthService();
-
-                                      await authService.signup(
-                                        email: controller.emailController.text,
-                                        password:
-                                            controller.passwordController.text,
-                                      );
-
-                                      if (!mounted) return;
-
-                                      context.go(MyRoute.signInScreen);
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                            content: Text(e.toString())),
-                                      );
-                                    }
-                                  },
-                                  child: const Text(
-                                    "Sign Up",
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(height: 20),
-
-                              TextButton(
-                                onPressed: () {
-                                  context.go(MyRoute.signInScreen);
-                                },
-                                child: const Text(
-                                  "Already have an account?",
-                                  style: TextStyle(color: Colors.white60),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                Obx(
+                  () => AuthTextField(
+                    controller: controller.confirmPasswordController,
+                    focusNode: controller.f4,
+                    placeholder: 'Confirmer le mot de passe',
+                    icon: Icons.lock_outline_rounded,
+                    isFocused: controller.confirmPasswordFieldFocused.value,
+                    isPassword: controller.isShowConfirmPasswordIcon.value,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _handleSignUp(context),
+                    validator: (value) => value != controller.passwordController.text
+                        ? 'Les mots de passe ne correspondent pas'
+                        : null,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        controller.isShowConfirmPasswordIcon.value
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        size: 20,
+                        color: controller.confirmPasswordFieldFocused.value
+                            ? colorPrimary100
+                            : kAuthFieldGrey,
                       ),
+                      onPressed: () => controller.isShowConfirmPasswordIcon.toggle(),
                     ),
                   ),
+                ),
+
+                const SizedBox(height: 28),
+
+                // ── Conditions d'utilisation ──────────────
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Obx(
+                    () => AuthCheckboxRow(
+                      value: controller.isTermAccepted.value,
+                      onChanged: (v) => controller.isTermAccepted.value = v ?? false,
+                      label: "J'accepte les conditions d'utilisation",
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                // ── Bouton ────────────────────────────────
+                AuthGradientButton(
+                  label: 'Créer un compte',
+                  onPressed: () => _handleSignUp(context),
+                ),
+
+                const SizedBox(height: 28),
+
+                AuthBottomLink(
+                  prefix: 'Vous avez déjà un compte ?',
+                  actionText: 'Se connecter',
+                  onTap: () => context.go(MyRoute.signInScreen),
                 ),
               ],
             ),

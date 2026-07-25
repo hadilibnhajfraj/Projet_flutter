@@ -18,10 +18,6 @@
 
   <link rel="manifest" href="manifest.json">
 
-  <script>
-    const serviceWorkerVersion = null;
-  </script>
-  <script src="flutter.js" defer></script>
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDnnM6F3eJLqNHkU5cazsdphTQJ0ned9L0"></script>
 
   <style>
@@ -69,26 +65,7 @@
   <!--  <div id="loader"></div>-->
 </div>
 
-<script>
-  window.addEventListener('load', function() {
-    // Initialize the Flutter web app
-    _flutter.loader.loadEntrypoint({
-      serviceWorker: {
-        serviceWorkerVersion: serviceWorkerVersion,
-      },
-      onEntrypointLoaded: function(engineInitializer) {
-        // Run the app and hide the splash screen when the app is ready
-        engineInitializer.initializeEngine().then(function(appRunner) {
-          appRunner.runApp();
-          // Hide splash screen after app is ready
-          const splashScreen = document.getElementById('splash-screen');
-          splashScreen.style.display = 'none';
-        });
-      }
-    });
-  });
-</script>
+<script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
-
 

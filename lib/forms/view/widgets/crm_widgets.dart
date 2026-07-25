@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/widgets/common_app_widget.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 // ── Field label ───────────────────────────────────────────────────────────────
 
@@ -29,7 +30,7 @@ class FieldLabel extends StatelessWidget {
       text: TextSpan(
         style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmText),
         children: [
-          TextSpan(text: text),
+          TextSpan(text: AppLocalizations.of(context).translate(text)),
           if (required)
             const TextSpan(
               text: ' *',
@@ -82,7 +83,8 @@ class CrmTextField extends StatelessWidget {
           readOnly: readOnly,
           onTap: onTap,
           onChanged: onChanged,
-          decoration: inputDecoration(context, hintText: label, suffixWidget: suffixWidget),
+          decoration: inputDecoration(context,
+              hintText: AppLocalizations.of(context).translate(label), suffixWidget: suffixWidget),
         ),
       ]),
     );
@@ -119,12 +121,15 @@ class CrmDateField extends StatelessWidget {
           controller: controller,
           validator: validator ??
               (isReq
-                  ? (v) =>
-                      (v == null || v.trim().isEmpty) ? '$label is required' : null
+                  ? (v) => (v == null || v.trim().isEmpty)
+                      ? '${AppLocalizations.of(context).translate(label)} ${AppLocalizations.of(context).translate('is required')}'
+                      : null
                   : null),
           readOnly: true,
           onTap: onTap,
-          decoration: inputDecoration(context, hintText: 'Select date').copyWith(
+          decoration: inputDecoration(context,
+                  hintText: AppLocalizations.of(context).translate('Select date'))
+              .copyWith(
             suffixIcon: IconButton(
               icon: const Icon(Icons.calendar_month_outlined,
                   size: 18, color: kCrmTextSub),
@@ -157,7 +162,7 @@ class CrmSectionTitle extends StatelessWidget {
         child: Icon(icon, size: 14, color: kCrmPrimary),
       ),
       const SizedBox(width: 10),
-      Text(title,
+      Text(AppLocalizations.of(context).translate(title),
           style: tInter(fontSize: 14, fontWeight: FontWeight.w700, color: kCrmText)),
     ]);
   }
@@ -194,7 +199,7 @@ class CrmStatusBanner extends StatelessWidget {
           Icon(icon, color: color, size: 16),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(text,
+            child: Text(AppLocalizations.of(context).translate(text),
                 style: TextStyle(
                     color: color, fontSize: 12, fontWeight: FontWeight.w500)),
           ),
@@ -226,7 +231,8 @@ class GradientButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+        constraints: const BoxConstraints(minHeight: 52),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
         decoration: BoxDecoration(
           gradient: secondary
               ? LinearGradient(colors: [
@@ -238,7 +244,7 @@ class GradientButton extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: secondary
               ? null
               : [
@@ -250,13 +256,13 @@ class GradientButton extends StatelessWidget {
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(icon,
-              color: secondary ? kCrmTextSub : Colors.white, size: 14),
-          const SizedBox(width: 6),
-          Text(label,
+              color: secondary ? kCrmTextSub : Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Text(AppLocalizations.of(context).translate(label),
               style: tInter(
                   color: secondary ? kCrmTextSub : Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13)),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15)),
         ]),
       ),
     );
@@ -275,6 +281,24 @@ Widget crmTwoCols({
     Expanded(child: left),
     const SizedBox(width: 12),
     Expanded(child: right),
+  ]);
+}
+
+// ── Three-column layout helper ────────────────────────────────────────────────
+
+Widget crmThreeCols({
+  required bool isMobile,
+  required Widget first,
+  required Widget second,
+  required Widget third,
+}) {
+  if (isMobile) return Column(children: [first, second, third]);
+  return Row(children: [
+    Expanded(child: first),
+    const SizedBox(width: 12),
+    Expanded(child: second),
+    const SizedBox(width: 12),
+    Expanded(child: third),
   ]);
 }
 
@@ -326,8 +350,9 @@ class CrmDropdown<T> extends StatelessWidget {
         Obx(() => DropdownButtonFormField<T?>(
               value: rxValue.value,
               validator: validator,
-              decoration: inputDecoration(context, hintText: hint),
-              hint: Text(hint,
+              decoration: inputDecoration(context,
+                  hintText: AppLocalizations.of(context).translate(hint)),
+              hint: Text(AppLocalizations.of(context).translate(hint),
                   style: tInter(fontSize: 13, color: kCrmTextSub)),
               items: buildItems(),
               onChanged: onChanged,
@@ -377,10 +402,12 @@ class CrmStringDropdown extends StatelessWidget {
             return DropdownButtonFormField<String>(
               value: current.isEmpty ? null : current,
               validator: validator,
-              decoration: inputDecoration(context, hintText: hint),
+              decoration: inputDecoration(context,
+                  hintText: AppLocalizations.of(context).translate(hint)),
               items: options
                   .map((o) => DropdownMenuItem(
-                      value: o['value']!, child: Text(o['label']!)))
+                      value: o['value']!,
+                      child: Text(AppLocalizations.of(context).translate(o['label']!))))
                   .toList(),
               onChanged: (v) =>
                   controller.text = v ?? (defaultValue ?? ''),

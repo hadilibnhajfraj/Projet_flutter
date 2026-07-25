@@ -5,6 +5,7 @@ import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/application/users/model/project_stats_model.dart';
 import 'package:dash_master_toolkit/application/users/model/project_stats_row_model.dart';
 import 'package:dash_master_toolkit/services/project_stats_service.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 class AccueilProjectStatsTableScreen extends StatefulWidget {
   final String token;
@@ -133,7 +134,7 @@ class _AccueilProjectStatsTableScreenState
               border: Border.all(color: kBorder),
             ),
             child: Text(
-              'Access is restricted to the accueil role. Received role: "$role"',
+              '${AppLocalizations.of(context).translate('Access is restricted to the accueil role. Received role:')} "$role"',
               style: const TextStyle(
                 fontSize: 16,
                 color: kTextDark,
@@ -165,7 +166,7 @@ class _AccueilProjectStatsTableScreenState
                   border: Border.all(color: const Color(0xFFFECACA)),
                 ),
                 child: Text(
-                  'Error: ${snapshot.error}',
+                  '${AppLocalizations.of(context).translate('Error')}: ${snapshot.error}',
                   style: const TextStyle(
                     color: Colors.red,
                     fontSize: 15,
@@ -178,10 +179,10 @@ class _AccueilProjectStatsTableScreenState
 
           final items = snapshot.data ?? [];
           if (items.isEmpty) {
-            return const Center(
+            return Center(
               child: Text(
-                'No data found.',
-                style: TextStyle(fontSize: 16, color: kTextMuted),
+                AppLocalizations.of(context).translate('No data found.'),
+                style: const TextStyle(fontSize: 16, color: kTextMuted),
               ),
             );
           }
@@ -195,9 +196,9 @@ class _AccueilProjectStatsTableScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Project Statistics',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context).translate('Project Statistics'),
+                  style: const TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w800,
                     color: kTextDark,
@@ -205,9 +206,10 @@ class _AccueilProjectStatsTableScreenState
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Detailed project analysis by user with filters, search, sorting, and CSV export.',
-                  style: TextStyle(
+                Text(
+                  AppLocalizations.of(context)
+                      .translate('Detailed project analysis by user with filters, search, sorting, and CSV export.'),
+                  style: const TextStyle(
                     fontSize: 15,
                     color: kTextMuted,
                     height: 1.4,
@@ -260,15 +262,15 @@ class _AccueilProjectStatsTableScreenState
                   ),
                   child: Column(
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
                         child: Row(
                           children: [
-                            Icon(Icons.insights_rounded, color: kPrimary, size: 22),
-                            SizedBox(width: 10),
+                            const Icon(Icons.insights_rounded, color: kPrimary, size: 22),
+                            const SizedBox(width: 10),
                             Text(
-                              'Analytics Table',
-                              style: TextStyle(
+                              AppLocalizations.of(context).translate('Analytics Table'),
+                              style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
                                 color: kTextDark,
@@ -297,10 +299,10 @@ class _AccueilProjectStatsTableScreenState
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
                           ),
-                          tabs: const [
-                            Tab(text: 'Daily'),
-                            Tab(text: 'Weekly'),
-                            Tab(text: 'Monthly'),
+                          tabs: [
+                            Tab(text: AppLocalizations.of(context).translate('Daily')),
+                            Tab(text: AppLocalizations.of(context).translate('Weekly')),
+                            Tab(text: AppLocalizations.of(context).translate('Monthly')),
                           ],
                         ),
                       ),
@@ -396,7 +398,7 @@ class _KpiCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  AppLocalizations.of(context).translate(title),
                   style: const TextStyle(
                     fontSize: 13,
                     color: Color(0xFF6B7280),
@@ -603,7 +605,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '${totalRows.length} rows',
+                  '${totalRows.length} ${AppLocalizations.of(context).translate('rows')}',
                   style: TextStyle(
                     color: widget.badgeTextColor,
                     fontSize: 12,
@@ -619,7 +621,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  'Filtered total: $_filteredProjectsCount',
+                  '${AppLocalizations.of(context).translate('Filtered total')}: $_filteredProjectsCount',
                   style: const TextStyle(
                     color: Color(0xFF4338CA),
                     fontSize: 12,
@@ -631,7 +633,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
               ElevatedButton.icon(
                 onPressed: totalRows.isEmpty ? null : _exportCsv,
                 icon: const Icon(Icons.download_rounded, size: 18),
-                label: const Text('Export CSV'),
+                label: Text(AppLocalizations.of(context).translate('Export CSV')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: kPrimary,
                   foregroundColor: Colors.white,
@@ -668,7 +670,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                       });
                     },
                     decoration: InputDecoration(
-                      hintText: 'Search by user, email, period...',
+                      hintText: AppLocalizations.of(context).translate('Search by user, email, period...'),
                       prefixIcon: const Icon(Icons.search_rounded),
                       suffixIcon: _search.isNotEmpty
                           ? IconButton(
@@ -711,7 +713,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                         .map(
                           (user) => DropdownMenuItem<String>(
                             value: user,
-                            child: Text(user),
+                            child: Text(AppLocalizations.of(context).translate(user)),
                           ),
                         )
                         .toList(),
@@ -722,7 +724,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                       });
                     },
                     decoration: InputDecoration(
-                      labelText: 'Filter by user',
+                      labelText: AppLocalizations.of(context).translate('Filter by user'),
                       filled: true,
                       fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(
@@ -754,7 +756,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                     });
                   },
                   icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Reset'),
+                  label: Text(AppLocalizations.of(context).translate('Reset')),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: kTextDark,
                     side: const BorderSide(color: kBorder),
@@ -809,10 +811,10 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                   const Divider(height: 1, thickness: 1),
                   Expanded(
                     child: rows.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
-                              'No rows to display.',
-                              style: TextStyle(
+                              AppLocalizations.of(context).translate('No rows to display.'),
+                              style: const TextStyle(
                                 fontSize: 15,
                                 color: kTextMuted,
                               ),
@@ -845,7 +847,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                     child: Row(
                       children: [
                         Text(
-                          'Page ${_page + 1} / $_pageCount',
+                          '${AppLocalizations.of(context).translate('Page')} ${_page + 1} / $_pageCount',
                           style: const TextStyle(
                             color: kTextMuted,
                             fontWeight: FontWeight.w600,
@@ -860,7 +862,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                                   });
                                 }
                               : null,
-                          child: const Text('Previous'),
+                          child: Text(AppLocalizations.of(context).translate('Previous')),
                         ),
                         const SizedBox(width: 10),
                         ElevatedButton(
@@ -875,7 +877,7 @@ class _StatsDataListViewState extends State<StatsDataListView> {
                             backgroundColor: kPrimary,
                             foregroundColor: Colors.white,
                           ),
-                          child: const Text('Next'),
+                          child: Text(AppLocalizations.of(context).translate('Next')),
                         ),
                       ],
                     ),
@@ -906,7 +908,7 @@ class _HeaderRow extends StatelessWidget {
   static const Color kTextDark = Color(0xFF111827);
   static const Color kMuted = Color(0xFF6B7280);
 
-  Widget _header(String text, int index, {double width = 140}) {
+  Widget _header(BuildContext context, String text, int index, {double width = 140}) {
     final isActive = sortColumnIndex == index;
     return InkWell(
       onTap: () => onSort(index),
@@ -916,7 +918,7 @@ class _HeaderRow extends StatelessWidget {
           children: [
             Flexible(
               child: Text(
-                text,
+                AppLocalizations.of(context).translate(text),
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
@@ -946,16 +948,16 @@ class _HeaderRow extends StatelessWidget {
         height: 52,
         child: Row(
           children: [
-            _header('User', 0, width: 240),
-            _header('Email', 1, width: 270),
-            _header(periodLabelTitle, 2, width: 140),
-            _header('Projects Count', 3, width: 120),
-            _header('Total Projects', 4, width: 130),
-            const SizedBox(
+            _header(context, 'User', 0, width: 240),
+            _header(context, 'Email', 1, width: 270),
+            _header(context, periodLabelTitle, 2, width: 140),
+            _header(context, 'Projects Count', 3, width: 120),
+            _header(context, 'Total Projects', 4, width: 130),
+            SizedBox(
               width: 110,
               child: Text(
-                'Status',
-                style: TextStyle(
+                AppLocalizations.of(context).translate('Status'),
+                style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   color: kMuted,
                   fontSize: 14,
@@ -1086,7 +1088,7 @@ class _StatsListTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(30),
                 ),
                 child: Text(
-                  isActive ? 'Active' : 'Empty',
+                  AppLocalizations.of(context).translate(isActive ? 'Active' : 'Empty'),
                   style: TextStyle(
                     color: isActive
                         ? const Color(0xFF166534)

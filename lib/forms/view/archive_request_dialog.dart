@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:dash_master_toolkit/providers/archive_request_provider.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 
-/// Shows the "Demande de désarchivage" dialog for the given project.
+/// Shows the "Demande d'archivage" / "Demande de désarchivage" dialog for the
+/// given project. [type] is 'ARCHIVAGE' or 'DESARCHIVAGE' (défaut, compat).
 Future<void> showArchiveRequestDialog(
   BuildContext context, {
   required String projectId,
   required String projectName,
+  String type = 'DESARCHIVAGE',
 }) {
   return showDialog(
     context: context,
@@ -16,6 +18,7 @@ Future<void> showArchiveRequestDialog(
     builder: (_) => _ArchiveRequestDialog(
       projectId: projectId,
       projectName: projectName,
+      type: type,
     ),
   );
 }
@@ -23,9 +26,11 @@ Future<void> showArchiveRequestDialog(
 class _ArchiveRequestDialog extends StatefulWidget {
   final String projectId;
   final String projectName;
+  final String type;
   const _ArchiveRequestDialog({
     required this.projectId,
     required this.projectName,
+    this.type = 'DESARCHIVAGE',
   });
 
   @override
@@ -37,6 +42,10 @@ class _ArchiveRequestDialogState extends State<_ArchiveRequestDialog> {
   final _formKey = GlobalKey<FormState>();
   bool _sending = false;
 
+  bool get _isArchivage => widget.type == 'ARCHIVAGE';
+  String get _label => _isArchivage ? 'archivage' : 'désarchivage';
+  String get _verb => _isArchivage ? 'archiver' : 'désarchiver';
+
   @override
   void dispose() {
     _ctrl.dispose();
@@ -44,7 +53,8 @@ class _ArchiveRequestDialogState extends State<_ArchiveRequestDialog> {
   }
 
   Future<void> _send() async {
-    if (!_formKey.currentState!.validate()) return;
+    final isValid = _formKey.currentState?.validate() ?? false;
+    if (!isValid) return;
     setState(() => _sending = true);
 
     final provider = ArchiveRequestProvider.to;
@@ -52,6 +62,7 @@ class _ArchiveRequestDialogState extends State<_ArchiveRequestDialog> {
       projectId:   widget.projectId,
       projectName: widget.projectName,
       message:     _ctrl.text.trim(),
+      type:        widget.type,
     );
     if (mounted) {
       Navigator.pop(context);
@@ -97,7 +108,7 @@ class _ArchiveRequestDialogState extends State<_ArchiveRequestDialog> {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Demande de désarchivage',
+                        Text('Demande de $_label',
                             style: tInter(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
@@ -126,12 +137,12 @@ class _ArchiveRequestDialogState extends State<_ArchiveRequestDialog> {
                       const SizedBox(height: 8),
                       _infoRow('Envoyer à', 'Administrateur CRM'),
                       const SizedBox(height: 8),
-                      _infoRow('Objet', 'Demande de désarchivage'),
+                      _infoRow('Objet', 'Demande de $_label'),
                       const SizedBox(height: 20),
 
                       // Reason field
                       Text(
-                        'Pourquoi souhaitez-vous désarchiver ce projet ?',
+                        'Pourquoi souhaitez-vous $_verb ce projet ?',
                         style: tInter(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,

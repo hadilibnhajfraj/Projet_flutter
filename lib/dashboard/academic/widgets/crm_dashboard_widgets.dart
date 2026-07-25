@@ -12,6 +12,7 @@
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -64,6 +65,7 @@ class CrmModernKpiCard extends StatefulWidget {
     this.trend,
     this.isUp = true,
     this.subtitle,
+    this.onTap,
   });
 
   final String      label;
@@ -73,6 +75,9 @@ class CrmModernKpiCard extends StatefulWidget {
   final String?     trend;
   final bool        isUp;
   final String?     subtitle;
+  // Rend la carte cliquable (curseur pointer + hover + scale 98%→100% au
+  // clic) sans changer son apparence par défaut quand absent.
+  final VoidCallback? onTap;
 
   @override
   State<CrmModernKpiCard> createState() => _CrmModernKpiCardState();
@@ -80,20 +85,30 @@ class CrmModernKpiCard extends StatefulWidget {
 
 class _CrmModernKpiCardState extends State<CrmModernKpiCard> {
   bool _hovered = false;
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
     final trendVisible = widget.trend != null && widget.trend != '—';
+    final clickable     = widget.onTap != null;
+    // Pressed (98%) prend le pas sur hover (102.8%) — animation scale
+    // 98% → 100% demandée au clic, hover sinon.
+    final scale = _pressed ? 0.98 : (_hovered ? 1.028 : 1.0);
 
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      cursor: clickable ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hovered = true),
-      onExit:  (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
+      onExit:  (_) => setState(() { _hovered = false; _pressed = false; }),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onTapDown: clickable ? (_) => setState(() => _pressed = true) : null,
+        onTapUp:   clickable ? (_) => setState(() => _pressed = false) : null,
+        onTapCancel: clickable ? () => setState(() => _pressed = false) : null,
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
         transform: Matrix4.identity()
-          ..scale(_hovered ? 1.028 : 1.0),
+          ..scale(scale),
         transformAlignment: Alignment.center,
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -178,7 +193,7 @@ class _CrmModernKpiCardState extends State<CrmModernKpiCard> {
                     letterSpacing: -1.5, height: 1,
                   )),
                 const SizedBox(height: 6),
-                Text(widget.label,
+                Text(AppLocalizations.of(context).translate(widget.label),
                   style: const TextStyle(
                     fontFamily: 'InterTight', fontSize: 13,
                     fontWeight: FontWeight.w500, color: Colors.white70,
@@ -195,6 +210,7 @@ class _CrmModernKpiCardState extends State<CrmModernKpiCard> {
           ),
         ]),
       ),
+      ),
     );
   }
 }
@@ -209,11 +225,15 @@ class CrmDonutWithLegend extends StatefulWidget {
     required this.stats,
     required this.colorOf,
     this.centerLabel = 'projets',
+    this.onSegmentTap,
   });
 
   final List<Map<String, dynamic>>  stats;
   final Color Function(String s)    colorOf;
   final String                      centerLabel;
+  // Clic sur une part du donut ou sa ligne de légende → ouvre la liste des
+  // projets filtrée sur ce statut. Absent = comportement inchangé (hover only).
+  final void Function(String statut)? onSegmentTap;
 
   @override
   State<CrmDonutWithLegend> createState() => _CrmDonutWithLegendState();
@@ -236,15 +256,20 @@ class _CrmDonutWithLegendState extends State<CrmDonutWithLegend> {
             sectionsSpace: 3,
             pieTouchData: PieTouchData(
               touchCallback: (event, response) {
-                setState(() {
-                  if (!event.isInterestedForInteractions ||
-                      response?.touchedSection == null) {
-                    _touched = -1;
-                    return;
-                  }
-                  _touched =
-                      response!.touchedSection!.touchedSectionIndex;
-                });
+                if (!event.isInterestedForInteractions ||
+                    response?.touchedSection == null) {
+                  setState(() => _touched = -1);
+                  return;
+                }
+                final idx = response!.touchedSection!.touchedSectionIndex;
+                setState(() => _touched = idx);
+                // Un vrai tap (pas juste un survol) déclenche la navigation.
+                if (event is FlTapUpEvent &&
+                    widget.onSegmentTap != null &&
+                    idx >= 0 &&
+                    idx < widget.stats.length) {
+                  widget.onSegmentTap!(_s(widget.stats[idx]['statut']));
+                }
               },
             ),
             sections: widget.stats.asMap().entries.map((en) {
@@ -295,8 +320,9 @@ class _CrmDonutWithLegendState extends State<CrmDonutWithLegend> {
         final pct   = total == 0 ? 0.0 : cnt / total * 100;
         final color = widget.colorOf(_s(s['statut']));
         final hit   = i == _touched;
+        final clickable = widget.onSegmentTap != null;
 
-        return AnimatedContainer(
+        final row = AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           margin: const EdgeInsets.symmetric(vertical: 3),
           padding: EdgeInsets.symmetric(
@@ -339,6 +365,15 @@ class _CrmDonutWithLegendState extends State<CrmDonutWithLegend> {
                 fontFamily: 'InterTight', fontSize: 10, color: _kMuted)),
           ]),
         );
+
+        if (!clickable) return row;
+        return MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => widget.onSegmentTap!(_s(s['statut'])),
+            child: row,
+          ),
+        );
       }).toList(),
     );
 
@@ -364,10 +399,13 @@ class CrmStatusBars extends StatefulWidget {
     super.key,
     required this.stats,
     required this.colorOf,
+    this.onBarTap,
   });
 
   final List<Map<String, dynamic>> stats;
   final Color Function(String s)   colorOf;
+  // Clic sur une barre → ouvre la liste des projets filtrée sur ce statut.
+  final void Function(String statut)? onBarTap;
 
   @override
   State<CrmStatusBars> createState() => _CrmStatusBarsState();
@@ -419,7 +457,7 @@ class _CrmStatusBarsState extends State<CrmStatusBars>
             curve: Interval(start, 1.0, curve: Curves.easeOutCubic),
           ).value;
 
-          return Padding(
+          final bar = Padding(
             padding: const EdgeInsets.only(bottom: 14),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // Ligne étiquette
@@ -500,6 +538,15 @@ class _CrmStatusBarsState extends State<CrmStatusBars>
                 ),
               ),
             ]),
+          );
+
+          if (widget.onBarTap == null) return bar;
+          return MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => widget.onBarTap!(_s(s['statut'])),
+              child: bar,
+            ),
           );
         }).toList(),
       ),
@@ -819,7 +866,7 @@ class _Metric extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: 12),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Expanded(child: Text(label,
+        Expanded(child: Text(AppLocalizations.of(context).translate(label),
           style: const TextStyle(fontFamily: 'InterTight', fontSize: 12,
               fontWeight: FontWeight.w500, color: _kText))),
         Text('${pct.toStringAsFixed(0)}%',
@@ -854,3 +901,163 @@ Widget _empty(String msg) => Center(
         fontWeight: FontWeight.w500)),
     ])),
 );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. CrmFamilyDiameterChart — bar chart interactif, toggle Famille/Diamètre
+//    (Répartition par famille / Répartition par diamètre — dashboard user)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum CrmFamilyDiameterMode { family, diameter }
+
+class CrmFamilyDiameterChart extends StatefulWidget {
+  const CrmFamilyDiameterChart({
+    super.key,
+    required this.familyStats,
+    required this.diameterStats,
+    this.onFamilyTap,
+    this.onDiameterTap,
+  });
+
+  // [{family: 'PROBAR', count: 42}, {family: 'PROMESH', count: 18}]
+  final List<Map<String, dynamic>> familyStats;
+  // [{diameter: 4, count: 12}, ...] — déjà trié numériquement par l'appelant.
+  final List<Map<String, dynamic>> diameterStats;
+  final void Function(String family)?  onFamilyTap;
+  final void Function(int diameter)?   onDiameterTap;
+
+  @override
+  State<CrmFamilyDiameterChart> createState() => _CrmFamilyDiameterChartState();
+}
+
+class _CrmFamilyDiameterChartState extends State<CrmFamilyDiameterChart> {
+  CrmFamilyDiameterMode _mode = CrmFamilyDiameterMode.family;
+
+  static const Map<String, Color> _familyColors = {
+    'PROBAR': Color(0xFF4F46E5),
+    'PROMESH': Color(0xFF14B8A6),
+  };
+  static const Color _diameterColor = Color(0xFF0284C7);
+
+  @override
+  Widget build(BuildContext context) {
+    final isFamily = _mode == CrmFamilyDiameterMode.family;
+    final stats    = isFamily ? widget.familyStats : widget.diameterStats;
+    final clickable = isFamily ? widget.onFamilyTap != null : widget.onDiameterTap != null;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        _modeChip('Par famille', CrmFamilyDiameterMode.family),
+        const SizedBox(width: 8),
+        _modeChip('Par diamètre', CrmFamilyDiameterMode.diameter),
+      ]),
+      const SizedBox(height: 20),
+      SizedBox(
+        height: 220,
+        child: stats.isEmpty
+            ? _empty('Aucune donnée')
+            : MouseRegion(
+                cursor: clickable ? SystemMouseCursors.click : SystemMouseCursors.basic,
+                child: _buildChart(stats, isFamily),
+              ),
+      ),
+    ]);
+  }
+
+  Widget _modeChip(String label, CrmFamilyDiameterMode mode) {
+    final selected = _mode == mode;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: () => setState(() => _mode = mode),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF4F46E5) : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(AppLocalizations.of(context).translate(label), style: TextStyle(
+            fontFamily: 'InterTight', fontSize: 12, fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : _kMuted,
+          )),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChart(List<Map<String, dynamic>> stats, bool isFamily) {
+    final maxCnt = stats.fold<double>(0, (m, e) => _n(e['count']) > m ? _n(e['count']) : m);
+
+    return BarChart(
+      BarChartData(
+        maxY: maxCnt <= 0 ? 1 : maxCnt * 1.25,
+        alignment: BarChartAlignment.spaceAround,
+        gridData: const FlGridData(show: false),
+        borderData: FlBorderData(show: false),
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (_) => const Color(0xFF0F172A),
+            getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
+              rod.toY.toInt().toString(),
+              const TextStyle(
+                color: Colors.white, fontFamily: 'InterTight',
+                fontSize: 12, fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          touchCallback: (event, response) {
+            if (event is! FlTapUpEvent) return;
+            final idx = response?.spot?.touchedBarGroupIndex;
+            if (idx == null || idx < 0 || idx >= stats.length) return;
+            final s = stats[idx];
+            if (isFamily) {
+              widget.onFamilyTap?.call(_s(s['family']));
+            } else {
+              widget.onDiameterTap?.call(_n(s['diameter']).toInt());
+            }
+          },
+        ),
+        titlesData: FlTitlesData(
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              getTitlesWidget: (value, meta) {
+                final i = value.toInt();
+                if (i < 0 || i >= stats.length) return const SizedBox.shrink();
+                final s = stats[i];
+                final label = isFamily ? _s(s['family']) : 'Ø${_n(s['diameter']).toInt()}';
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(label, style: const TextStyle(
+                    fontFamily: 'InterTight', fontSize: 11,
+                    fontWeight: FontWeight.w600, color: _kMuted,
+                  )),
+                );
+              },
+            ),
+          ),
+        ),
+        barGroups: stats.asMap().entries.map((en) {
+          final i     = en.key;
+          final s     = en.value;
+          final cnt   = _n(s['count']);
+          final color = isFamily
+              ? (_familyColors[_s(s['family'])] ?? _kMuted)
+              : _diameterColor;
+          return BarChartGroupData(x: i, barRods: [
+            BarChartRodData(
+              toY: cnt,
+              color: color,
+              width: 26,
+              borderRadius: BorderRadius.circular(6),
+            ),
+          ]);
+        }).toList(),
+      ),
+    );
+  }
+}

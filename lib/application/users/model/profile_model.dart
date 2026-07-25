@@ -74,4 +74,8 @@ final List experiences;
       avatarUrl: avatarUrl ?? this.avatarUrl,
     );
   }
+
+  @override
+  String toString() => 'ProfileModel(name: $name, email: $email, phone: $phone, '
+      'country: $country, birthday: $birthday, address: $address, avatarUrl: $avatarUrl)';
 }

@@ -25,11 +25,13 @@ class ArchiveRequestService {
     required String projectId,
     required String subject,
     required String message,
+    String type = 'DESARCHIVAGE',
   }) async {
     final body = {
       'projectId': projectId,
       'subject':   subject,
       'message':   message,
+      'type':      type,
     };
     // ignore: avoid_print
     print('ARCHIVE REQUEST BODY = $body');
@@ -132,9 +134,47 @@ class ArchiveRequestService {
   }
 
   // ── PUT /archive-requests/:id/reject ──────────────────────────────────────
-  Future<void> reject(String requestId) async {
-    await ApiClient.instance.dio
-        .put('/archive-requests/$requestId/reject');
+  Future<void> reject(String requestId, {String? reason}) async {
+    await ApiClient.instance.dio.put(
+      '/archive-requests/$requestId/reject',
+      data: reason == null ? null : {'reason': reason},
+    );
+  }
+
+  // ── DELETE /archive-requests/:id ───────────────────────────────────────────
+  Future<void> deleteRequest(String requestId) async {
+    await ApiClient.instance.dio.delete('/archive-requests/$requestId');
+  }
+
+  // ── GET /archive-requests/stats ────────────────────────────────────────────
+  Future<Map<String, int>> fetchStats() async {
+    try {
+      final res = await ApiClient.instance.dio.get('/archive-requests/stats');
+      final data = _unwrap(res.data);
+      return {
+        'pending':      (data['pending'] ?? 0) as int,
+        'archivage':    (data['archivage'] ?? 0) as int,
+        'desarchivage': (data['desarchivage'] ?? 0) as int,
+        'approved':     (data['approved'] ?? 0) as int,
+        'rejected':     (data['rejected'] ?? 0) as int,
+      };
+    } catch (_) {
+      return {
+        'pending': 0, 'archivage': 0, 'desarchivage': 0, 'approved': 0, 'rejected': 0,
+      };
+    }
+  }
+
+  // ── GET /archive-requests/pending-count ────────────────────────────────────
+  Future<int> fetchPendingCount() async {
+    try {
+      final res = await ApiClient.instance.dio.get('/archive-requests/pending-count');
+      final data = res.data;
+      if (data is Map && data['count'] is num) return (data['count'] as num).toInt();
+      return 0;
+    } catch (_) {
+      return 0;
+    }
   }
 
   // ── Parse helpers ──────────────────────────────────────────────────────────
