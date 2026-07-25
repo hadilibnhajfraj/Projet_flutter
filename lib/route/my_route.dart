@@ -36,7 +36,6 @@ import 'package:dash_master_toolkit/others/components/view/toast_screen.dart';
 
 import 'package:dash_master_toolkit/pages/auth/view/forgot_password_screen.dart';
 import 'package:dash_master_toolkit/pages/auth/view/reset_password_screen.dart';
-import 'package:dash_master_toolkit/pages/auth/view/mfa_verification_screen.dart';
 import 'package:dash_master_toolkit/pages/auth/view/sign_in_screen.dart';
 import 'package:dash_master_toolkit/pages/auth/view/sign_up_screen.dart';
 
@@ -230,7 +229,6 @@ static const clientsProfileScreen = '/users/client';
   static const signUpScreen = '/authentication/signup';
   static const forgotPasswordScreen = '/authentication/forgot_password';
   static const resetPasswordScreen = '/authentication/reset_password';
-  static const mfaVerificationScreen = '/authentication/mfa';
   static const commercialSelectionScreen = '/authentication/select-commercial';
     static const  applicateurProjectsScreen = "/users/applicateur";
   static const  revendeurProjectsScreen = "/users/revendeur";
@@ -255,12 +253,7 @@ static const clientsProfileScreen = '/users/client';
       final isAuthRoute = loc == signInScreen ||
           loc == signUpScreen ||
           loc == forgotPasswordScreen ||
-          loc == resetPasswordScreen ||
-          // Le MFA se déroule APRÈS mot de passe correct mais AVANT toute
-          // session ouverte (pas d'accessToken tant que /auth/mfa/verify
-          // n'a pas réussi) — doit donc rester accessible sans être connecté,
-          // exactement comme les autres écrans d'authentification.
-          loc == mfaVerificationScreen;
+          loc == resetPasswordScreen;
 
       // ── Non connecté sur route protégée → login ─────────────────────────
       if (!loggedIn && !isAuthRoute) return signInScreen;
@@ -356,24 +349,6 @@ static const clientsProfileScreen = '/users/client';
             token: state.uri.queryParameters['token'],
           ),
         ),
-      ),
-      GoRoute(
-        path: mfaVerificationScreen,
-        // challengeToken passé via `extra` (jamais dans l'URL — c'est un
-        // secret à courte durée de vie, pas une donnée à laisser dans
-        // l'historique du navigateur). Accès direct sans passer par
-        // sign_in_screen (extra absent) → retour au login.
-        redirect: (context, state) => state.extra is Map ? null : signInScreen,
-        pageBuilder: (context, state) {
-          final extra = state.extra as Map;
-          return NoTransitionPage<void>(
-            child: MfaVerificationScreen(
-              email: (extra['email'] ?? '').toString(),
-              challengeToken: (extra['challengeToken'] ?? '').toString(),
-              expiresInSeconds: (extra['expiresInSeconds'] as int?) ?? 600,
-            ),
-          );
-        },
       ),
       // ── Sélection commercial (hors AppShell, obligatoire pour role=commercial)
       GoRoute(

@@ -52,21 +52,6 @@ class SignInScreenState extends State<SignInScreen> {
       // Appelé dans tous les cas (même si
       // context n'est plus monté).
       authService.triggerRefresh();
-    } on MfaRequiredException catch (e) {
-      // Mot de passe correct mais second facteur requis (voir
-      // services/mfa.service.js côté backend) — aucune session n'est
-      // ouverte, on bascule vers l'écran de code à 6 chiffres. Le
-      // challengeToken passe par `extra` (jamais dans l'URL, voir
-      // my_route.dart) — jamais persisté côté client au-delà de cet écran.
-      if (!context.mounted) return;
-      context.push(
-        MyRoute.mfaVerificationScreen,
-        extra: {
-          'email': controller.userNameController.text.trim(),
-          'challengeToken': e.challengeToken,
-          'expiresInSeconds': e.expiresInSeconds,
-        },
-      );
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

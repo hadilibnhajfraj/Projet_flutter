@@ -156,18 +156,6 @@ Future<List<String>> getUserNames() async {
         throw Exception(msg);
       }
 
-      // MFA requis — mot de passe correct, mais aucune session n'est
-      // ouverte tant que /auth/mfa/verify n'a pas réussi (voir
-      // MfaRequiredException). Ne PAS nettoyer la session ici : il n'y en a
-      // pas encore, et _cleanupSession() du bloc catch générique ferait
-      // double emploi sans effet de bord.
-      if (res.data is Map && res.data['mfaRequired'] == true) {
-        throw MfaRequiredException(
-          challengeToken: res.data['challengeToken'] as String,
-          expiresInSeconds: (res.data['expiresInSeconds'] as num?)?.toInt() ?? 600,
-        );
-      }
-
       final token = res.data['accessToken'] as String?;
       if (token == null || token.isEmpty) {
         throw Exception('accessToken manquant');
@@ -175,8 +163,6 @@ Future<List<String>> getUserNames() async {
 
       await _persistSession(token: token, user: res.data['user']);
       if (!silentNotify) notifyListeners();
-    } on MfaRequiredException {
-      rethrow;
     } on DioException catch (e) {
       final data = e.response?.data;
       final msg = (data is Map && data['message'] != null)
