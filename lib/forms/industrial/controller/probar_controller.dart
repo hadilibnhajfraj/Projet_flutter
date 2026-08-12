@@ -52,8 +52,14 @@ class ProbarController extends GetxController {
   final Rxn<TimeOfDay> selectedHeureFin = Rxn<TimeOfDay>();
   final operateur = TextEditingController();
 
-  // ── Module Rendement ───────────────────────────────────────────────────
+  // ── Module Rendement (Output) — formulaire ProBar à 2 champs obligatoires :
+  // quantité produite (en mètres, jamais en m²) et diamètre. `productionM2`
+  // (nom historique conservé) alimente `quantiteProduite` côté backend ;
+  // `diameterController` est un champ nouveau, sans colonne dédiée, stocké
+  // dans le JSON compact `description` (clé `dia`) — voir
+  // `_buildComplexDataJson()`/`_loadComplexFromCompactJson()`.
   final productionM2 = TextEditingController();
+  final diameterController = TextEditingController();
 
   // ── Module Personnel ───────────────────────────────────────────────────
   final responsable1 = TextEditingController();
@@ -247,7 +253,11 @@ class ProbarController extends GetxController {
   Map<String, dynamic> _processControlRaw = {};
 
   // ── Complétude des sections ────────────────────────────────────────────
-  bool get rendementSaved => productionM2.text.trim().isNotEmpty;
+  // Module Output = formulaire ProBar à 2 champs obligatoires (quantité en
+  // mètres + diamètre — voir probar_rendement_screen.dart). Les 2 doivent
+  // être renseignés pour considérer le module complet.
+  bool get rendementSaved =>
+      productionM2.text.trim().isNotEmpty && diameterController.text.trim().isNotEmpty;
 
   bool get personnelSaved => [
         responsable1,
@@ -348,7 +358,7 @@ class ProbarController extends GetxController {
 
   List<String> getValidationErrors() {
     final errors = <String>[];
-    if (!rendementSaved) errors.add('Rendement — Production M² manquante');
+    if (!rendementSaved) errors.add('Rendement — Quantité en mètres ou Diamètre manquant');
     if (!personnelSaved) errors.add('Personnel — Au moins un agent doit être renseigné');
     if (!isControleMachineComplete()) errors.add('Contrôle Machine — Champs manquants');
     const slots = ['L1', 'L2', 'L3', 'L4'];
@@ -478,6 +488,7 @@ class ProbarController extends GetxController {
     selectedHeureFin.value = null;
     operateur.clear();
     productionM2.clear();
+    diameterController.clear();
     responsable1.clear();
     responsable2.clear();
     operateur1.clear();
@@ -575,6 +586,7 @@ class ProbarController extends GetxController {
   void _loadComplexFromCompactJson(Map<String, dynamic> d) {
     heureDebut.text = d['hd']?.toString() ?? '';
     heureFin.text = d['hf']?.toString() ?? '';
+    diameterController.text = d['dia']?.toString() ?? '';
 
     final p = (d['p'] as Map?)?.cast<String, dynamic>() ?? {};
     responsable1.text = p['r1']?.toString() ?? '';
@@ -772,6 +784,7 @@ class ProbarController extends GetxController {
     return jsonEncode({
       if (heureDebut.text.trim().isNotEmpty) 'hd': heureDebut.text.trim(),
       if (heureFin.text.trim().isNotEmpty) 'hf': heureFin.text.trim(),
+      if (diameterController.text.trim().isNotEmpty) 'dia': diameterController.text.trim(),
       if (personnel.isNotEmpty) 'p': personnel,
       if (descriptionNonConformite.text.trim().isNotEmpty) 'dnc': descriptionNonConformite.text.trim(),
       if (actionsCorrectives.text.trim().isNotEmpty) 'ac': actionsCorrectives.text.trim(),
@@ -820,6 +833,7 @@ class ProbarController extends GetxController {
     heureFin.dispose();
     operateur.dispose();
     productionM2.dispose();
+    diameterController.dispose();
     responsable1.dispose();
     responsable2.dispose();
     operateur1.dispose();

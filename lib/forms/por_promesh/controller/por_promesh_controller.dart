@@ -290,7 +290,13 @@ class PorPromeshController extends GetxController {
   // écrans-module de la session, ces getters reflètent toujours l'état le
   // plus récent dès qu'on atteint le dernier écran, sans appel réseau.
 
-  bool get rendementSaved => productionM2.text.trim().isNotEmpty;
+  // Module Rendement = formulaire ProMesh à 3 champs obligatoires (taille
+  // de maille, quantité m², diamètre — voir rendement_screen.dart). Les 3
+  // doivent être renseignés pour considérer le module complet.
+  bool get rendementSaved =>
+      diametreMaille1.text.trim().isNotEmpty &&
+      productionM2.text.trim().isNotEmpty &&
+      diametreMaille2.text.trim().isNotEmpty;
 
   bool get personnelSaved => [
         responsable1,
@@ -632,7 +638,14 @@ class PorPromeshController extends GetxController {
   }
 
   void loadFromModel(PorPromeshModel m, {String? id}) {
-    recordId = id ?? m.id;
+    // `id ?? m.id` ne suffit pas : un appelant peut passer une chaîne VIDE
+    // (ex. `ficheId` absent du query param, `state.uri.queryParameters['ficheId']
+    // ?? ''` côté routing) plutôt que `null` — `??` ne bascule que sur
+    // `null`, jamais sur `''`. `recordId` restait alors bloqué à `''`
+    // pour toute la session (le controller est `permanent: true`), et
+    // saveDraft() prenait la branche "update" avec un id vide, d'où
+    // "PUT /por-promesh/" (404) au lieu de POST /por-promesh (création).
+    recordId = (id != null && id.isNotEmpty) ? id : m.id;
     status.value = m.status;
     isLocked.value = m.isLocked;
     lastUpdatedAt.value = DateTime.tryParse(m.updatedAt ?? '');
@@ -815,7 +828,13 @@ class PorPromeshController extends GetxController {
   /// Saves as draft (no full-form validation) — safe to call any time.
   Future<PorPromeshModel> saveDraft() async {
     final model = buildModel(forStatus: 'draft');
-    final saved = recordId == null
+    // Filet de sécurité : `recordId` vide (jamais censé arriver après le
+    // correctif de loadFromModel ci-dessus, mais sans risque de régression
+    // future) doit créer une nouvelle fiche (POST /por-promesh), jamais
+    // tenter PUT /por-promesh/<vide> — cause exacte du "Cannot PUT
+    // /por-promesh/" (404).
+    final hasRecordId = recordId != null && recordId!.isNotEmpty;
+    final saved = !hasRecordId
         ? await PorPromeshService.instance.create(model)
         : await PorPromeshService.instance.update(recordId!, model);
     recordId = saved.id ?? recordId;

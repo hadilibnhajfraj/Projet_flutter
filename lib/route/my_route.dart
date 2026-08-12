@@ -72,6 +72,8 @@ import 'package:dash_master_toolkit/application/users/view/commercial_timeline_s
 import 'package:dash_master_toolkit/application/users/view/add_commercial_action_screen.dart';
 import 'package:dash_master_toolkit/dashboard/commercial_contacts/view/commercial_contacts_kpi_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_list_screen.dart';
+import 'package:dash_master_toolkit/production_records/view/production_records_screen.dart';
+import 'package:dash_master_toolkit/production_records/view/production_summary_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_detail_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_dashboard_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_historique_screen.dart';
@@ -171,6 +173,8 @@ class MyRoute {
   static const productionRoot = '/production';
   static const productionPromeshRoot = '/production/promesh';
   static const productionProbarRoot = '/production/probar';
+  static const productionRecordsScreen = '/production/records';
+  static const productionSummaryScreen = '/production/summary';
   static const probarFormScreen = '/production/probar/form';
   static const melangeRoot = '/melange';
   static const melangeFormScreen = '/melange/form';
@@ -1090,6 +1094,22 @@ GoRoute(
                         const NoTransitionPage(child: ProbarFormScreen()),
                   ),
                 ],
+              ),
+              // "Fiches de production" — vue centralisée PROMESH + PROBAR
+              // (voir productionRecordsScreen). Hérite du même redirect
+              // (canViewPorPromesh) que le reste de productionRoot.
+              GoRoute(
+                path: 'records',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: ProductionRecordsScreen()),
+              ),
+              // "Production Summary" — récapitulatif PROBAR/PROMESH groupé
+              // par diamètre (voir productionSummaryScreen). Même redirect
+              // héritée (canViewPorPromesh) que le reste de productionRoot.
+              GoRoute(
+                path: 'summary',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: ProductionSummaryScreen()),
               ),
             ],
           ),

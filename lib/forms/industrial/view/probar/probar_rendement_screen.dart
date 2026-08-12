@@ -30,6 +30,9 @@ class _ProbarRendementScreenState extends State<ProbarRendementScreen> {
   late final ProbarController c;
   bool _loading = true;
   bool _saving = false;
+  // Valide les 2 champs du formulaire ProBar (quantité en mètres, diamètre)
+  // — voir _save()/_saveAndReturnToModules().
+  final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
@@ -56,6 +59,10 @@ class _ProbarRendementScreenState extends State<ProbarRendementScreen> {
 
   Future<void> _save() async {
     if (_saving) return;
+    // Enregistrement de brouillon : affiche les erreurs de validation le cas
+    // échéant (retour visuel immédiat) mais n'empêche jamais la sauvegarde —
+    // même convention que les autres écrans-module.
+    _formKey.currentState?.validate();
     setState(() => _saving = true);
     try {
       await c.saveDraft();
@@ -85,6 +92,9 @@ class _ProbarRendementScreenState extends State<ProbarRendementScreen> {
   // dans le ProbarController singleton).
   Future<void> _saveAndReturnToModules() async {
     if (_saving) return;
+    // "Suivant" valide d'abord les 2 champs ProBar — aucune sauvegarde ni
+    // navigation si le formulaire est invalide.
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() => _saving = true);
     try {
       await c.saveDraft();
@@ -116,7 +126,7 @@ class _ProbarRendementScreenState extends State<ProbarRendementScreen> {
       nextLabel: AppLocalizations.of(context).translate('Suivant'),
       nextIcon: Icons.arrow_forward_rounded,
       controller: c,
-      child: _RendementBody(c: c),
+      child: Form(key: _formKey, child: _RendementBody(c: c)),
     );
   }
 }
@@ -136,76 +146,159 @@ class _RendementBody extends StatelessWidget {
               .translate('Saisissez la quantité produite en m² pour ce poste.'),
           style: tInter(fontSize: 13, color: kCrmTextSub)),
       const SizedBox(height: 28),
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(
-          color: kCrmSurface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: kProbarColor.withOpacity(0.3), width: 1.4),
-          boxShadow: [
-            BoxShadow(color: kProbarColor.withOpacity(0.12), blurRadius: 24, offset: const Offset(0, 10)),
+      _ProbarOutputFieldsCard(c: c),
+    ]);
+  }
+}
+
+String? _requiredPositiveNumberValidator(BuildContext context, String? value) {
+  if (value == null || value.trim().isEmpty) {
+    return AppLocalizations.of(context).translate('Champ requis');
+  }
+  final parsed = double.tryParse(value.trim().replaceAll(',', '.'));
+  if (parsed == null || parsed <= 0) {
+    return AppLocalizations.of(context).translate('Doit être un nombre supérieur à 0');
+  }
+  return null;
+}
+
+/// Formulaire Output ProBar (2 champs) — remplace l'ancien "Quantité
+/// produite" (une seule mesure géante en m²). Réutilise le mécanisme de
+/// sauvegarde existant du contrôleur ProBar (aucune nouvelle API) :
+///   • Quantité en mètres → `c.productionM2` (champ Rendement historique,
+///     déjà sauvegardé/rechargé via `quantiteProduite`).
+///   • Diamètre           → `c.diameterController` (nouveau, stocké dans le
+///     JSON compact `description`, clé `dia` — voir ProbarController).
+class _ProbarOutputFieldsCard extends StatelessWidget {
+  final ProbarController c;
+  const _ProbarOutputFieldsCard({required this.c});
+
+  static const double _mobileBreakpoint = 760;
+
+  @override
+  Widget build(BuildContext context) {
+    // Ordre d'affichage demandé : Diamètre → Quantité (aucun changement de
+    // valeur/unité/validation/placeholder/icône/nom de champ backend —
+    // uniquement l'ordre des _ProbarOutputField dans cette liste).
+    final fields = <Widget>[
+      _ProbarOutputField(
+        icon: Icons.circle_outlined,
+        label: 'Diamètre',
+        controller: c.diameterController,
+        hintKey: 'Ex: 12',
+        suffixText: AppLocalizations.of(context).translate('mm'),
+        validator: (v) => _requiredPositiveNumberValidator(context, v),
+      ),
+      _ProbarOutputField(
+        icon: Icons.straighten_rounded,
+        label: 'Quantité en mètres pour ProBar',
+        controller: c.productionM2,
+        hintKey: 'Ex: 1250',
+        suffixText: AppLocalizations.of(context).translate('m'),
+        validator: (v) => _requiredPositiveNumberValidator(context, v),
+      ),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: kCrmSurface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: kProbarColor.withOpacity(0.3), width: 1.4),
+        boxShadow: [
+          BoxShadow(color: kProbarColor.withOpacity(0.12), blurRadius: 24, offset: const Offset(0, 10)),
+        ],
+      ),
+      child: LayoutBuilder(builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < _mobileBreakpoint;
+        if (isNarrow) {
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (var i = 0; i < fields.length; i++) ...[
+              if (i > 0) const SizedBox(height: 22),
+              fields[i],
+            ],
+          ]);
+        }
+        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          for (var i = 0; i < fields.length; i++) ...[
+            if (i > 0) const SizedBox(width: 20),
+            Expanded(child: fields[i]),
           ],
+        ]);
+      }),
+    );
+  }
+}
+
+/// Un champ Output ProBar — icône dans un bloc orange clair, label + étoile
+/// rouge (obligatoire), champ de saisie avec placeholder et suffixe d'unité.
+class _ProbarOutputField extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final TextEditingController controller;
+  final String hintKey;
+  final String suffixText;
+  final String? Function(String?) validator;
+
+  const _ProbarOutputField({
+    required this.icon,
+    required this.label,
+    required this.controller,
+    required this.hintKey,
+    required this.suffixText,
+    required this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(color: kProbarColor.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
+          child: Icon(icon, color: kProbarColor, size: 20),
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              width: 64, height: 64,
-              decoration: BoxDecoration(
-                  color: kProbarColor.withOpacity(0.12), borderRadius: BorderRadius.circular(18)),
-              child: const Icon(Icons.speed_rounded, size: 36, color: kProbarColor),
-            ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(AppLocalizations.of(context).translate('Quantité produite'),
-                    style: tInter(fontSize: 20, fontWeight: FontWeight.w900, color: kCrmText)),
-                const SizedBox(height: 2),
-                Text(AppLocalizations.of(context).translate('Production de ce poste'),
-                    style: tInter(fontSize: 13, color: kCrmTextSub)),
-              ]),
-            ),
-          ]),
-          const SizedBox(height: 28),
-          TextField(
-            controller: c.productionM2,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
-            textAlign: TextAlign.center,
-            style: tInter(fontSize: 52, fontWeight: FontWeight.w900, color: kProbarColor),
-            decoration: InputDecoration(
-              isDense: true,
-              border: InputBorder.none,
-              hintText: '0',
-              hintStyle: tInter(fontSize: 52, fontWeight: FontWeight.w900, color: kCrmBorder),
-              suffixText: 'm²',
-              suffixStyle: tInter(fontSize: 26, fontWeight: FontWeight.w800, color: kCrmTextSub),
+        const SizedBox(width: 10),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              text: AppLocalizations.of(context).translate(label),
+              style: tInter(fontSize: 13.5, fontWeight: FontWeight.w800, color: kCrmText),
+              children: [
+                TextSpan(text: ' *', style: tInter(fontSize: 13.5, fontWeight: FontWeight.w800, color: kCrmDanger)),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Center(
-              child: Text(AppLocalizations.of(context).translate('Exemple : 1250 m²'),
-                  style: tInter(fontSize: 12.5, color: kCrmTextSub))),
-          const SizedBox(height: 12),
-          AnimatedBuilder(
-            animation: c.productionM2,
-            builder: (context, _) {
-              final val = double.tryParse(c.productionM2.text.replaceAll(',', '.'));
-              if (val == null) return const SizedBox.shrink();
-              return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                    color: kCrmSuccess.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-                child: Row(children: [
-                  const Icon(Icons.check_circle_rounded, color: kCrmSuccess, size: 18),
-                  const SizedBox(width: 8),
-                  Text('$val m² ${AppLocalizations.of(context).translate('saisi')}',
-                      style: tInter(fontSize: 14, fontWeight: FontWeight.w700, color: kCrmSuccess)),
-                ]),
-              );
-            },
-          ),
-        ]),
+        ),
+      ]),
+      const SizedBox(height: 10),
+      TextFormField(
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
+        style: tInter(fontSize: 17, fontWeight: FontWeight.w800, color: kProbarColor),
+        validator: validator,
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          filled: true,
+          fillColor: kCrmBg,
+          hintText: AppLocalizations.of(context).translate(hintKey),
+          hintStyle: tInter(fontSize: 14, fontWeight: FontWeight.w600, color: kCrmTextSub),
+          suffixText: suffixText,
+          suffixStyle: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmTextSub),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: kCrmBorder)),
+          enabledBorder:
+              OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: kCrmBorder)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: kProbarColor, width: 1.6)),
+          errorBorder:
+              OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: kCrmDanger)),
+          focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: kCrmDanger, width: 1.6)),
+        ),
       ),
     ]);
   }

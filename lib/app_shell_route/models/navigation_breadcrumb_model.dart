@@ -29,6 +29,16 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
       parentRoute: 'Dashboard',
       childRoute: 'Project Validation',
     ),
+    // Sans cette entrée, le fallback route→titre (voir
+    // app_shell.dart#_fallbackBreadcrumb) dérive le titre du dernier
+    // segment d'URL ("summary" → "Summary"), ce qui affichait "Summary"
+    // juste au-dessus du propre titre "Production Summary" de l'écran —
+    // lu comme un doublon/chevauchement.
+    MyRoute.productionSummaryScreen: NavigationBreadcrumbModel(
+      title: 'Production Summary',
+      parentRoute: 'Production',
+      childRoute: 'Production Summary',
+    ),
      MyRoute.projectTimeline: NavigationBreadcrumbModel(
       title: 'TimeLine',
       parentRoute: 'TimeLine',

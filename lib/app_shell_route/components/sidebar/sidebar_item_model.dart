@@ -409,6 +409,18 @@ List<GroupedMenuModel> buildIndustrialGroups() => [
             accentColor:    kProbarColor,
             submenus:       _machineSubmenus(MyRoute.productionProbarRoot),
           ),
+          SidebarItemModel(
+            name:           'Fiches de production',
+            icon:           Icons.receipt_long_outlined,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: MyRoute.productionRecordsScreen,
+          ),
+          SidebarItemModel(
+            name:           'Production Summary',
+            icon:           Icons.summarize_outlined,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: MyRoute.productionSummaryScreen,
+          ),
         ],
       ),
       GroupedMenuModel(
