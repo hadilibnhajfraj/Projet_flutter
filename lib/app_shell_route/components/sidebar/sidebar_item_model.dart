@@ -150,7 +150,9 @@ List<GroupedMenuModel> buildGroupedMenus({
   required bool isCommercial,
   required bool isAccueil,
   bool isLogistiqueAchat = false,
+  bool isFinance = false,
   bool canViewPorPromesh = false,
+  bool canViewFinance = false,
   bool hideIndustrialDashboard = false,
   bool hideHrAndRecuperables = false,
   bool isRestrictedAdmin = false,
@@ -163,6 +165,12 @@ List<GroupedMenuModel> buildGroupedMenus({
   // congé ou une autorisation de sortie, quel que soit son rôle.
   if (isLogistiqueAchat) {
     return [...buildIndustrialGroups(), buildHrGroup(), buildRecuperableGroup()];
+  }
+
+  // ── ESPACE DÉDIÉ — finance_probar ────────────────────────────────────────
+  // Même principe que ci-dessus : uniquement le menu FINANCE, rien du CRM.
+  if (isFinance) {
+    return [buildFinanceGroup()];
   }
 
   // ── ACCUEIL ─────────────────────────────────────────────────────────────
@@ -265,6 +273,7 @@ List<GroupedMenuModel> buildGroupedMenus({
     ),
 
     if (canViewPorPromesh && !isRestrictedAdmin) ...buildIndustrialGroups(),
+    if (canViewFinance && !isRestrictedAdmin) buildFinanceGroup(),
 
     if (isAdmin && !hideIndustrialDashboard && !isRestrictedAdmin)
       GroupedMenuModel(
@@ -462,6 +471,50 @@ List<GroupedMenuModel> buildIndustrialGroups() => [
         ],
       ),
     ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODULE FINANCE PROBAR
+// ─────────────────────────────────────────────────────────────────────────────
+GroupedMenuModel buildFinanceGroup() => GroupedMenuModel(
+      name: 'FINANCE',
+      menus: [
+        SidebarItemModel(
+          name:           'Dashboard',
+          icon:           Icons.dashboard_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.financeDashboardScreen,
+          accentColor:    kFinanceColor,
+        ),
+        SidebarItemModel(
+          name:           'Inflow of raw materials',
+          icon:           Icons.inventory_2_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.financeInflowRawMaterialsScreen,
+          accentColor:    kFinanceColor,
+        ),
+        SidebarItemModel(
+          name:           'Shipment of products to the customers',
+          icon:           Icons.local_shipping_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.financeCustomerShipmentsScreen,
+          accentColor:    kFinanceColor,
+        ),
+        SidebarItemModel(
+          name:           'Factured shipments - by facture',
+          icon:           Icons.receipt_long_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.financeFacturedShipmentsScreen,
+          accentColor:    kFinanceColor,
+        ),
+        SidebarItemModel(
+          name:           'Paid factures',
+          icon:           Icons.verified_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.financePaidInvoicesScreen,
+          accentColor:    kFinanceColor,
+        ),
+      ],
+    );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MODULE RH — DEMANDES (congé / autorisation de sortie)

@@ -105,6 +105,15 @@ bool get canManageHrRequests {
   final e = (userEmail ?? '').toLowerCase().trim();
   return r == 'admin' || r == 'superadmin' || r == 'superadmin2' || e == 'manegerofficecbi@gmail.com';
 }
+
+// Accès au module FINANCE PROBAR — rôle dédié finance_probar + les mêmes
+// tiers admin que canViewPorPromesh. Portée séparée (pas de réutilisation
+// de canViewPorPromesh) : Finance est son propre espace, pas un sous-module
+// industriel.
+bool get canViewFinance {
+  final r = (userRole ?? '').toLowerCase().trim();
+  return r == 'admin' || r == 'superadmin' || r == 'superadmin2' || r == 'finance_probar';
+}
   // ---------------- SIGNUP ----------------
   Future<void> signup({required String email, required String password}) async {
     await ApiClient.instance.dio.post('/auth/signup', data: {

@@ -96,6 +96,11 @@ import 'package:dash_master_toolkit/forms/hr/view/hr_conge_form_screen.dart';
 import 'package:dash_master_toolkit/forms/hr/view/hr_sortie_form_screen.dart';
 import 'package:dash_master_toolkit/forms/hr/view/hr_detail_screen.dart';
 import 'package:dash_master_toolkit/forms/hr/view/hr_admin_profile_screen.dart';
+import 'package:dash_master_toolkit/forms/finance/view/finance_dashboard_screen.dart';
+import 'package:dash_master_toolkit/forms/finance/view/finance_inflow_raw_materials_screen.dart';
+import 'package:dash_master_toolkit/forms/finance/view/finance_customer_shipments_screen.dart';
+import 'package:dash_master_toolkit/forms/finance/view/finance_factured_shipments_screen.dart';
+import 'package:dash_master_toolkit/forms/finance/view/finance_paid_invoices_screen.dart';
 import 'package:dash_master_toolkit/forms/recuperables/view/recuperable_fiche_screen.dart';
 import 'package:dash_master_toolkit/forms/recuperables/view/recuperable_history_screen.dart';
 import 'package:dash_master_toolkit/forms/recuperables/view/recuperable_detail_screen.dart';
@@ -183,6 +188,17 @@ class MyRoute {
   static const maintenanceRoot = '/maintenance';
   static const maintenanceFormScreen = '/maintenance/form';
   static const maintenanceHistoriqueScreen = '/maintenance/historique';
+
+  // ── Module FINANCE PROBAR — espace dédié (finance_probar / admin) ────────
+  // Volontairement PAS dans industrialRoutePrefixes : Finance est son propre
+  // scope de permission (canViewFinance), pas un sous-module industriel.
+  static const financeRoot = '/finance';
+  static const financeDashboardScreen = '/finance/dashboard';
+  static const financeInflowRawMaterialsScreen = '/finance/inflow-raw-materials';
+  static const financeCustomerShipmentsScreen = '/finance/customer-shipments';
+  static const financeFacturedShipmentsScreen = '/finance/factured-shipments';
+  static const financePaidInvoicesScreen = '/finance/paid-invoices';
+
   static const industrialRoutePrefixes = [
     porPromeshRoot,
     productionRoot,
@@ -277,6 +293,15 @@ static const clientsProfileScreen = '/users/client';
           return porPromeshDashboardScreen;
         }
 
+        // ── Espace dédié finance_probar ──────────────────────────────────
+        // Même logique que responsable_logistique_achat ci-dessus, mais
+        // scope séparé (Finance n'est pas un sous-module industriel) :
+        // uniquement les routes /finance/*.
+        final isOnFinanceRoute = loc == financeRoot || loc.startsWith('$financeRoot/');
+        if (role == 'finance_probar' && !isAuthRoute && !isOnFinanceRoute) {
+          return financeDashboardScreen;
+        }
+
         // ── Connecté sur auth route ou racine → dashboard ─────────────────
         // La sélection du commercial (@probardistribution.com) est gérée
         // exclusivement dans sign_in_screen.dart après un login réussi.
@@ -285,6 +310,9 @@ static const clientsProfileScreen = '/users/client';
           print('ROLE = $role');
           if (role == 'responsable_logistique_achat') {
             return porPromeshDashboardScreen;
+          }
+          if (role == 'finance_probar') {
+            return financeDashboardScreen;
           }
           if (role == 'commercial') {
             debugPrint('REDIRECTION → $commercialContactsKpiUsers');
@@ -1162,6 +1190,40 @@ GoRoute(
                     newFicheLabel: 'Nouvelle demande',
                   ),
                 ),
+              ),
+            ],
+          ),
+
+          // ── MODULE FINANCE PROBAR — espace dédié (finance_probar / admin) ─
+          GoRoute(
+            path: financeRoot,
+            redirect: (context, state) =>
+                AuthService().canViewFinance ? null : dashboard,
+            routes: [
+              GoRoute(
+                path: 'dashboard',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: FinanceProbarDashboardScreen()),
+              ),
+              GoRoute(
+                path: 'inflow-raw-materials',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: FinanceInflowRawMaterialsScreen()),
+              ),
+              GoRoute(
+                path: 'customer-shipments',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: FinanceCustomerShipmentsScreen()),
+              ),
+              GoRoute(
+                path: 'factured-shipments',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: FinanceFacturedShipmentsScreen()),
+              ),
+              GoRoute(
+                path: 'paid-invoices',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: FinancePaidInvoicesScreen()),
               ),
             ],
           ),

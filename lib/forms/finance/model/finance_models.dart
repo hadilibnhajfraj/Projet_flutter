@@ -1,0 +1,725 @@
+// lib/forms/finance/model/finance_models.dart
+//
+// Modèles "Finance PROBAR" — mirrors GET/POST /finance/* (backend :
+// Backend Master/src/modules/finance/). Un seul fichier pour l'ensemble du
+// module (document/shipment/invoice/payment/dashboard), même convention que
+// production_summary_model.dart.
+
+double? _toDouble(dynamic v) {
+  if (v == null) return null;
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v.replaceAll(',', '.'));
+  return null;
+}
+
+int _toInt(dynamic v) {
+  if (v == null) return 0;
+  if (v is num) return v.toInt();
+  if (v is String) return int.tryParse(v) ?? 0;
+  return 0;
+}
+
+class FinanceUserRef {
+  final String? id;
+  final String? email;
+  const FinanceUserRef({this.id, this.email});
+
+  factory FinanceUserRef.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const FinanceUserRef();
+    return FinanceUserRef(id: json['id']?.toString(), email: json['email']?.toString());
+  }
+}
+
+class FinanceCustomerRef {
+  final int? id;
+  final String? raisonSociale;
+  final String? matriculeFiscal;
+  final String? contact;
+  const FinanceCustomerRef({this.id, this.raisonSociale, this.matriculeFiscal, this.contact});
+
+  factory FinanceCustomerRef.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const FinanceCustomerRef();
+    return FinanceCustomerRef(
+      id: json['id'] == null ? null : _toInt(json['id']),
+      raisonSociale: json['raisonSociale']?.toString(),
+      matriculeFiscal: json['matriculeFiscal']?.toString(),
+      contact: json['contact']?.toString(),
+    );
+  }
+
+  String get displayName => (raisonSociale ?? '').trim().isNotEmpty ? raisonSociale! : 'Client #$id';
+}
+
+// ── DOCUMENT (Inflow of raw materials + pièces jointes shipment/invoice) ──
+
+class FinanceDocumentModel {
+  final String id;
+  final String module; // INFLOW_RAW_MATERIALS | SHIPMENT | INVOICE | PAYMENT
+  final String? entityId;
+  final String originalName;
+  final String fileUrl;
+  final String mimeType;
+  final int fileSize;
+  final String status; // PENDING | VALIDATED | REJECTED
+  final FinanceUserRef? uploader;
+  final String? createdAt;
+
+  const FinanceDocumentModel({
+    required this.id,
+    required this.module,
+    this.entityId,
+    required this.originalName,
+    required this.fileUrl,
+    required this.mimeType,
+    this.fileSize = 0,
+    this.status = 'PENDING',
+    this.uploader,
+    this.createdAt,
+  });
+
+  factory FinanceDocumentModel.fromJson(Map<String, dynamic> json) {
+    return FinanceDocumentModel(
+      id: (json['id'] ?? '').toString(),
+      module: (json['module'] ?? '').toString(),
+      entityId: json['entityId']?.toString(),
+      originalName: (json['originalName'] ?? '').toString(),
+      fileUrl: (json['fileUrl'] ?? '').toString(),
+      mimeType: (json['mimeType'] ?? '').toString(),
+      fileSize: _toInt(json['fileSize']),
+      status: (json['status'] ?? 'PENDING').toString(),
+      uploader: json['uploader'] is Map ? FinanceUserRef.fromJson(Map<String, dynamic>.from(json['uploader'] as Map)) : null,
+      createdAt: json['createdAt']?.toString(),
+    );
+  }
+
+  String get extension {
+    final dot = originalName.lastIndexOf('.');
+    return dot == -1 ? '' : originalName.substring(dot + 1).toLowerCase();
+  }
+
+  bool get isPdf => mimeType == 'application/pdf' || extension == 'pdf';
+  bool get isImage => mimeType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].contains(extension);
+}
+
+// ── SHIPMENT ────────────────────────────────────────────────────────────
+
+class FinanceProductLine {
+  final String designation;
+  final double quantity;
+  final String unit;
+  const FinanceProductLine({this.designation = '', this.quantity = 0, this.unit = ''});
+
+  factory FinanceProductLine.fromJson(Map<String, dynamic> json) {
+    return FinanceProductLine(
+      designation: (json['designation'] ?? '').toString(),
+      quantity: _toDouble(json['quantity']) ?? 0,
+      unit: (json['unit'] ?? '').toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'designation': designation, 'quantity': quantity, 'unit': unit};
+}
+
+class FinanceInvoiceRefLite {
+  final String id;
+  final String invoiceNumber;
+  const FinanceInvoiceRefLite({required this.id, required this.invoiceNumber});
+
+  factory FinanceInvoiceRefLite.fromJson(Map<String, dynamic> json) {
+    return FinanceInvoiceRefLite(
+      id: (json['id'] ?? '').toString(),
+      invoiceNumber: (json['invoiceNumber'] ?? '').toString(),
+    );
+  }
+}
+
+// Ligne produit d'un Bon de Livraison extraite par OCR — toutes les valeurs
+// restent nullable : une case vide dans l'UI signifie "non détecté", jamais
+// une valeur inventée.
+class FinanceShipmentItemModel {
+  final String id;
+  final String? reference;
+  final String? designation;
+  final String? unit;
+  final String? diameter;
+  final String? meshSize;
+  final double? quantity;
+
+  const FinanceShipmentItemModel({
+    this.id = '',
+    this.reference,
+    this.designation,
+    this.unit,
+    this.diameter,
+    this.meshSize,
+    this.quantity,
+  });
+
+  factory FinanceShipmentItemModel.fromJson(Map<String, dynamic> json) {
+    return FinanceShipmentItemModel(
+      id: (json['id'] ?? '').toString(),
+      reference: json['reference']?.toString(),
+      designation: json['designation']?.toString(),
+      unit: json['unit']?.toString(),
+      diameter: json['diameter']?.toString(),
+      meshSize: json['meshSize']?.toString(),
+      quantity: _toDouble(json['quantity']),
+    );
+  }
+}
+
+class FinanceShipmentModel {
+  final String id;
+  final String reference;
+  final String? customerReference;
+  final int customerId;
+  final FinanceCustomerRef? customer;
+  // Instantané client/livraison lu sur le Bon de Livraison (OCR) — distinct
+  // de `customer` (jamais résolu automatiquement vers un client existant).
+  final String? customerName;
+  final String? customerPhone;
+  final String? customerAddress;
+  final String? customerGovernorate;
+  final String? customerTaxId;
+  final String? customerCode;
+  final String? customerHeadOfficeAddress;
+  final String? truckRegistration;
+  final String? truckManufacturer;
+  final String? driverName;
+  final String? deliveryAddress;
+  final String? shipmentDate;
+  final List<FinanceProductLine> products;
+  final double? totalQuantity;
+  final double totalAmount;
+  final String? deliveryInfo;
+  final String status; // DRAFT | PREPARED | SHIPPED | DELIVERED | CANCELLED | NEEDS_REVIEW
+  final double? ocrConfidence;
+  final List<FinanceInvoiceRefLite> invoices;
+  final List<FinanceShipmentItemModel> items;
+  final FinanceUserRef? creator;
+  final List<FinanceDocumentModel> documents;
+  final String? createdAt;
+
+  const FinanceShipmentModel({
+    required this.id,
+    required this.reference,
+    this.customerReference,
+    required this.customerId,
+    this.customer,
+    this.customerName,
+    this.customerPhone,
+    this.customerAddress,
+    this.customerGovernorate,
+    this.customerTaxId,
+    this.customerCode,
+    this.customerHeadOfficeAddress,
+    this.truckRegistration,
+    this.truckManufacturer,
+    this.driverName,
+    this.deliveryAddress,
+    this.shipmentDate,
+    this.products = const [],
+    this.totalQuantity,
+    this.totalAmount = 0,
+    this.deliveryInfo,
+    this.status = 'DRAFT',
+    this.ocrConfidence,
+    this.invoices = const [],
+    this.items = const [],
+    this.creator,
+    this.documents = const [],
+    this.createdAt,
+  });
+
+  bool get needsReview => status == 'NEEDS_REVIEW';
+
+  factory FinanceShipmentModel.fromJson(Map<String, dynamic> json) {
+    return FinanceShipmentModel(
+      id: (json['id'] ?? '').toString(),
+      reference: (json['reference'] ?? '').toString(),
+      customerReference: json['customerReference']?.toString(),
+      customerId: _toInt(json['customerId']),
+      customer: json['customer'] is Map ? FinanceCustomerRef.fromJson(Map<String, dynamic>.from(json['customer'] as Map)) : null,
+      customerName: json['customerName']?.toString(),
+      customerPhone: json['customerPhone']?.toString(),
+      customerAddress: json['customerAddress']?.toString(),
+      customerGovernorate: json['customerGovernorate']?.toString(),
+      customerTaxId: json['customerTaxId']?.toString(),
+      customerCode: json['customerCode']?.toString(),
+      customerHeadOfficeAddress: json['customerHeadOfficeAddress']?.toString(),
+      truckRegistration: json['truckRegistration']?.toString(),
+      truckManufacturer: json['truckManufacturer']?.toString(),
+      driverName: json['driverName']?.toString(),
+      deliveryAddress: json['deliveryAddress']?.toString(),
+      shipmentDate: json['shipmentDate']?.toString(),
+      products: (json['products'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => FinanceProductLine.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      totalQuantity: _toDouble(json['totalQuantity']),
+      totalAmount: _toDouble(json['totalAmount']) ?? 0,
+      deliveryInfo: json['deliveryInfo']?.toString(),
+      status: (json['status'] ?? 'DRAFT').toString(),
+      ocrConfidence: _toDouble(json['ocrConfidence']),
+      invoices: (json['invoices'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => FinanceInvoiceRefLite.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      items: (json['items'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => FinanceShipmentItemModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      creator: json['creator'] is Map ? FinanceUserRef.fromJson(Map<String, dynamic>.from(json['creator'] as Map)) : null,
+      documents: (json['documents'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => FinanceDocumentModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      createdAt: json['createdAt']?.toString(),
+    );
+  }
+}
+
+// ── INVOICE / PAYMENT ──────────────────────────────────────────────────
+
+class FinancePaymentModel {
+  final String id;
+  final String invoiceId;
+  final double amount;
+  final String? paidDate;
+  final String? method;
+  final String? reference;
+  // Champs spécifiques Chèque/Traite (§REGISTER PAYMENT) — NULL pour les
+  // modes qui ne les nécessitent pas (Carte bancaire/Espèce).
+  final String? chequeNumber;
+  final String? bankName;
+  final String? chequeDate;
+  final String? billOfExchangeNumber;
+  final String? dueDate;
+  // Document justificatif du paiement (module "PAYMENT") — référence souple
+  // FinanceDocument, jamais une association Sequelize directe.
+  final List<FinanceDocumentModel> documents;
+  final String? createdAt;
+
+  const FinancePaymentModel({
+    required this.id,
+    required this.invoiceId,
+    this.amount = 0,
+    this.paidDate,
+    this.method,
+    this.reference,
+    this.chequeNumber,
+    this.bankName,
+    this.chequeDate,
+    this.billOfExchangeNumber,
+    this.dueDate,
+    this.documents = const [],
+    this.createdAt,
+  });
+
+  factory FinancePaymentModel.fromJson(Map<String, dynamic> json) {
+    return FinancePaymentModel(
+      id: (json['id'] ?? '').toString(),
+      invoiceId: (json['invoiceId'] ?? '').toString(),
+      amount: _toDouble(json['amount']) ?? 0,
+      paidDate: json['paidDate']?.toString(),
+      method: json['method']?.toString(),
+      reference: json['reference']?.toString(),
+      chequeNumber: json['chequeNumber']?.toString(),
+      bankName: json['bankName']?.toString(),
+      chequeDate: json['chequeDate']?.toString(),
+      billOfExchangeNumber: json['billOfExchangeNumber']?.toString(),
+      dueDate: json['dueDate']?.toString(),
+      documents: (json['documents'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => FinanceDocumentModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      createdAt: json['createdAt']?.toString(),
+    );
+  }
+}
+
+class FinanceShipmentRef {
+  final String id;
+  final String reference;
+  const FinanceShipmentRef({required this.id, required this.reference});
+
+  factory FinanceShipmentRef.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const FinanceShipmentRef(id: '', reference: '');
+    return FinanceShipmentRef(id: (json['id'] ?? '').toString(), reference: (json['reference'] ?? '').toString());
+  }
+}
+
+// Ligne de facture extraite par OCR (§ Invoice items) — toutes les valeurs
+// restent nullable : une case vide dans l'UI signifie "non détecté", jamais
+// une valeur inventée.
+class FinanceInvoiceItemModel {
+  final String id;
+  final String? reference;
+  final String? designation;
+  final String? unit;
+  final String? diameter;
+  final String? meshSize;
+  final double? quantity;
+  final double? unitPriceHT;
+  final double? rms;
+  final double? amountHT;
+  final double? tax1;
+  final double? tax2;
+
+  const FinanceInvoiceItemModel({
+    this.id = '',
+    this.reference,
+    this.designation,
+    this.unit,
+    this.diameter,
+    this.meshSize,
+    this.quantity,
+    this.unitPriceHT,
+    this.rms,
+    this.amountHT,
+    this.tax1,
+    this.tax2,
+  });
+
+  factory FinanceInvoiceItemModel.fromJson(Map<String, dynamic> json) {
+    return FinanceInvoiceItemModel(
+      id: (json['id'] ?? '').toString(),
+      reference: json['reference']?.toString(),
+      designation: json['designation']?.toString(),
+      unit: json['unit']?.toString(),
+      diameter: json['diameter']?.toString(),
+      meshSize: json['meshSize']?.toString(),
+      quantity: _toDouble(json['quantity']),
+      unitPriceHT: _toDouble(json['unitPriceHT']),
+      rms: _toDouble(json['rms']),
+      amountHT: _toDouble(json['amountHT']),
+      tax1: _toDouble(json['tax1']),
+      tax2: _toDouble(json['tax2']),
+    );
+  }
+}
+
+// Ligne du bloc fiscal (Code/Base/Taux/Taxe, §STRUCTURE DES TAXES) — nombre
+// de lignes dynamique, `rate`/`amount` restent nullable (ex. TFV sans taux
+// ni montant imprimés sur le document), jamais une valeur inventée.
+class FinanceInvoiceTaxModel {
+  final String id;
+  final int sortOrder;
+  final String? code;
+  final double? base;
+  final double? rate;
+  final double? amount;
+
+  const FinanceInvoiceTaxModel({this.id = '', this.sortOrder = 0, this.code, this.base, this.rate, this.amount});
+
+  factory FinanceInvoiceTaxModel.fromJson(Map<String, dynamic> json) {
+    return FinanceInvoiceTaxModel(
+      id: (json['id'] ?? '').toString(),
+      sortOrder: _toInt(json['sortOrder']),
+      code: json['code']?.toString(),
+      base: _toDouble(json['base']),
+      rate: _toDouble(json['rate']),
+      amount: _toDouble(json['amount']),
+    );
+  }
+}
+
+class FinanceInvoiceModel {
+  final String id;
+  final String invoiceNumber;
+  final String? reference;
+  final String? shipmentId;
+  final FinanceShipmentRef? shipment;
+  final int customerId;
+  final FinanceCustomerRef? customer;
+  // Instantané client lu sur le document (OCR) — distinct de `customer`
+  // (jamais résolu automatiquement vers un client existant en base).
+  final String? customerName;
+  final String? customerPhone;
+  final String? customerAddress;
+  final String? customerGovernorate;
+  final String? customerTaxId;
+  final String? customerCode;
+  final String? invoiceDate;
+  final double amount;
+  final double tax;
+  final double total;
+  // Totaux/règlement additionnels lus sur le document (§CORRIGER
+  // L'EXTRACTION DES FACTURES) — jamais recalculés, extraits verbatim.
+  final double? downPayment;
+  final double? netToPay;
+  final String? paymentCondition;
+  final String? paymentDate;
+  final String? paymentMethod;
+  final String? amountInWords;
+  final double? ocrConfidence;
+  final List<FinanceInvoiceTaxModel> taxes;
+  final List<FinancePaymentModel> payments;
+  final List<FinanceInvoiceItemModel> items;
+  final List<FinanceDocumentModel> documents;
+  final FinanceUserRef? creator;
+  final String? createdAt;
+
+  const FinanceInvoiceModel({
+    required this.id,
+    required this.invoiceNumber,
+    this.reference,
+    this.shipmentId,
+    this.shipment,
+    required this.customerId,
+    this.customer,
+    this.customerName,
+    this.customerPhone,
+    this.customerAddress,
+    this.customerGovernorate,
+    this.customerTaxId,
+    this.customerCode,
+    this.invoiceDate,
+    this.amount = 0,
+    this.tax = 0,
+    this.total = 0,
+    this.downPayment,
+    this.netToPay,
+    this.paymentCondition,
+    this.paymentDate,
+    this.paymentMethod,
+    this.amountInWords,
+    this.ocrConfidence,
+    this.taxes = const [],
+    this.payments = const [],
+    this.items = const [],
+    this.documents = const [],
+    this.creator,
+    this.createdAt,
+  });
+
+  factory FinanceInvoiceModel.fromJson(Map<String, dynamic> json) {
+    return FinanceInvoiceModel(
+      id: (json['id'] ?? '').toString(),
+      invoiceNumber: (json['invoiceNumber'] ?? '').toString(),
+      reference: json['reference']?.toString(),
+      shipmentId: json['shipmentId']?.toString(),
+      shipment: json['shipment'] is Map ? FinanceShipmentRef.fromJson(Map<String, dynamic>.from(json['shipment'] as Map)) : null,
+      customerId: _toInt(json['customerId']),
+      customer: json['customer'] is Map ? FinanceCustomerRef.fromJson(Map<String, dynamic>.from(json['customer'] as Map)) : null,
+      customerName: json['customerName']?.toString(),
+      customerPhone: json['customerPhone']?.toString(),
+      customerAddress: json['customerAddress']?.toString(),
+      customerGovernorate: json['customerGovernorate']?.toString(),
+      customerTaxId: json['customerTaxId']?.toString(),
+      customerCode: json['customerCode']?.toString(),
+      invoiceDate: json['invoiceDate']?.toString(),
+      amount: _toDouble(json['amount']) ?? 0,
+      tax: _toDouble(json['tax']) ?? 0,
+      total: _toDouble(json['total']) ?? 0,
+      downPayment: _toDouble(json['downPayment']),
+      netToPay: _toDouble(json['netToPay']),
+      paymentCondition: json['paymentCondition']?.toString(),
+      paymentDate: json['paymentDate']?.toString(),
+      paymentMethod: json['paymentMethod']?.toString(),
+      amountInWords: json['amountInWords']?.toString(),
+      ocrConfidence: _toDouble(json['ocrConfidence']),
+      taxes: (json['taxes'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => FinanceInvoiceTaxModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      payments: (json['payments'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => FinancePaymentModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      items: (json['items'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => FinanceInvoiceItemModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      documents: (json['documents'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => FinanceDocumentModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      creator: json['creator'] is Map ? FinanceUserRef.fromJson(Map<String, dynamic>.from(json['creator'] as Map)) : null,
+      createdAt: json['createdAt']?.toString(),
+    );
+  }
+}
+
+// ── PURCHASE ORDER (Inflow of raw materials — Bon de Commande, lu par OCR) ──
+
+class FinancePurchaseOrderItemModel {
+  final String id;
+  final String? reference;
+  final String? designation;
+  final String? unit;
+  final double? quantity;
+  final double? unitPriceHT;
+  final double? amountHT;
+
+  const FinancePurchaseOrderItemModel({
+    this.id = '',
+    this.reference,
+    this.designation,
+    this.unit,
+    this.quantity,
+    this.unitPriceHT,
+    this.amountHT,
+  });
+
+  factory FinancePurchaseOrderItemModel.fromJson(Map<String, dynamic> json) {
+    return FinancePurchaseOrderItemModel(
+      id: (json['id'] ?? '').toString(),
+      reference: json['reference']?.toString(),
+      designation: json['designation']?.toString(),
+      unit: json['unit']?.toString(),
+      quantity: _toDouble(json['quantity']),
+      unitPriceHT: _toDouble(json['unitPriceHT']),
+      amountHT: _toDouble(json['amountHT']),
+    );
+  }
+}
+
+class FinancePurchaseOrderModel {
+  final String id;
+  final String? orderNumber;
+  final String? orderDate;
+  final int? customerId;
+  final FinanceCustomerRef? customer;
+  // Instantané client lu sur le document (OCR) — distinct de `customer`
+  // (jamais résolu automatiquement vers un client existant en base).
+  final String? customerCode;
+  final String? customerName;
+  final String? customerAddress;
+  final String? deliveryAddress;
+  final double? totalHT;
+  final double? ocrConfidence;
+  // EXTRACTED | NEEDS_REVIEW | OCR_FAILED — voir
+  // purchaseOrderFieldExtraction.service.js. Un bon OCR_FAILED n'a aucune
+  // donnée fiable (numéro/client/produits/total tous null) : ne jamais
+  // l'afficher comme un Purchase Order valide (§CORRIGER LES PROBLÈMES
+  // ACTUELS DU MODULE FINANCE) — voir `isExtractionFailed` ci-dessous.
+  final String status;
+  final List<FinancePurchaseOrderItemModel> items;
+  final List<FinanceDocumentModel> documents;
+  final FinanceUserRef? creator;
+  final String? createdAt;
+
+  const FinancePurchaseOrderModel({
+    required this.id,
+    this.orderNumber,
+    this.orderDate,
+    this.customerId,
+    this.customer,
+    this.customerCode,
+    this.customerName,
+    this.customerAddress,
+    this.deliveryAddress,
+    this.totalHT,
+    this.ocrConfidence,
+    this.status = 'NEEDS_REVIEW',
+    this.items = const [],
+    this.documents = const [],
+    this.creator,
+    this.createdAt,
+  });
+
+  factory FinancePurchaseOrderModel.fromJson(Map<String, dynamic> json) {
+    return FinancePurchaseOrderModel(
+      id: (json['id'] ?? '').toString(),
+      orderNumber: json['orderNumber']?.toString(),
+      orderDate: json['orderDate']?.toString(),
+      customerId: json['customerId'] == null ? null : _toInt(json['customerId']),
+      customer: json['customer'] is Map ? FinanceCustomerRef.fromJson(Map<String, dynamic>.from(json['customer'] as Map)) : null,
+      customerCode: json['customerCode']?.toString(),
+      customerName: json['customerName']?.toString(),
+      customerAddress: json['customerAddress']?.toString(),
+      deliveryAddress: json['deliveryAddress']?.toString(),
+      totalHT: _toDouble(json['totalHT']),
+      ocrConfidence: _toDouble(json['ocrConfidence']),
+      status: (json['status'] ?? 'NEEDS_REVIEW').toString(),
+      items: (json['items'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => FinancePurchaseOrderItemModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      documents: (json['documents'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => FinanceDocumentModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
+      creator: json['creator'] is Map ? FinanceUserRef.fromJson(Map<String, dynamic>.from(json['creator'] as Map)) : null,
+      createdAt: json['createdAt']?.toString(),
+    );
+  }
+
+  // Aucune donnée fiable extraite (numéro absent) — c'est un document dont
+  // l'OCR a échoué, pas un Purchase Order exploitable. Basé sur `orderNumber`
+  // plutôt que sur `status` seul : un bon EXTRACTED/NEEDS_REVIEW avec un
+  // numéro réel reste un vrai Purchase Order même si d'autres champs
+  // manquent (jamais tout-ou-rien).
+  bool get isExtractionFailed => status == 'OCR_FAILED' || (orderNumber == null || orderNumber!.isEmpty);
+
+  String get displayCustomerName {
+    if ((customerName ?? '').isNotEmpty) return customerName!;
+    if (customer != null) return customer!.displayName;
+    return '—';
+  }
+}
+
+// ── DASHBOARD ───────────────────────────────────────────────────────────
+
+class FinanceDashboardModel {
+  final int rawMaterialDocuments;
+  final int shipments;
+  final int facturedShipments;
+  final int paidInvoices;
+  final double totalInvoicedAmount;
+  final double totalPaidAmount;
+  final double outstandingAmount;
+
+  const FinanceDashboardModel({
+    this.rawMaterialDocuments = 0,
+    this.shipments = 0,
+    this.facturedShipments = 0,
+    this.paidInvoices = 0,
+    this.totalInvoicedAmount = 0,
+    this.totalPaidAmount = 0,
+    this.outstandingAmount = 0,
+  });
+
+  factory FinanceDashboardModel.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const FinanceDashboardModel();
+    return FinanceDashboardModel(
+      rawMaterialDocuments: _toInt(json['rawMaterialDocuments']),
+      shipments: _toInt(json['shipments']),
+      facturedShipments: _toInt(json['facturedShipments']),
+      paidInvoices: _toInt(json['paidInvoices']),
+      totalInvoicedAmount: _toDouble(json['totalInvoicedAmount']) ?? 0,
+      totalPaidAmount: _toDouble(json['totalPaidAmount']) ?? 0,
+      outstandingAmount: _toDouble(json['outstandingAmount']) ?? 0,
+    );
+  }
+}
+
+// Format professionnel des grands nombres — même convention que
+// production_summary_model.dart#formatProductionNumber.
+String formatFinanceNumber(double value) {
+  if (!value.isFinite) return '0';
+  final isNegative = value < 0;
+  final absValue = value.abs();
+  final intPart = absValue.truncate();
+  final decimals = absValue - intPart;
+  final intStr = intPart.toString();
+  final grouped = StringBuffer();
+  for (var i = 0; i < intStr.length; i++) {
+    if (i > 0 && (intStr.length - i) % 3 == 0) grouped.write(' ');
+    grouped.write(intStr[i]);
+  }
+  var result = grouped.toString();
+  if (decimals > 0.001) {
+    var decStr = decimals.toStringAsFixed(2).substring(2);
+    decStr = decStr.replaceFirst(RegExp(r'0$'), '');
+    if (decStr.isNotEmpty) result += ',$decStr';
+  }
+  return isNegative ? '-$result' : result;
+}
+
+String formatFinanceFileSize(int bytes) {
+  if (bytes <= 0) return '0 KB';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}

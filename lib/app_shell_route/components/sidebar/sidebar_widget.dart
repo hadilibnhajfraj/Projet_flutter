@@ -8,6 +8,7 @@ import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart
     show kPromeshColor, kProbarColor, kMelangeColor, kMaintenanceColor;
 import 'package:dash_master_toolkit/forms/hr/theme/hr_theme.dart' show kHrColor;
 import 'package:dash_master_toolkit/forms/recuperables/theme/recuperable_theme.dart' show kRecuperableColor;
+import 'package:dash_master_toolkit/forms/finance/theme/finance_theme.dart' show kFinanceColor;
 
 part 'sidebar_item_model.dart';
 
@@ -32,8 +33,10 @@ class SideBarWidget extends StatelessWidget {
     final isCommercial = role == 'commercial';
     final isAccueil    = role == 'accueil';
     final isLogistiqueAchat = role == 'responsable_logistique_achat';
+    final isFinance = role == 'finance_probar';
     final canViewCommercialKpi = auth.canViewCommercialKpi;
     final canViewPorPromesh = auth.canViewPorPromesh;
+    final canViewFinance = auth.canViewFinance;
     final hideIndustrialDashboard = auth.hideIndustrialDashboard;
     final email = (auth.userEmail ?? '').toLowerCase().trim();
 
@@ -69,7 +72,9 @@ class SideBarWidget extends StatelessWidget {
       isCommercial: isCommercial,
       isAccueil:    isAccueil,
       isLogistiqueAchat: isLogistiqueAchat,
+      isFinance: isFinance,
       canViewPorPromesh: canViewPorPromesh,
+      canViewFinance: canViewFinance,
       hideIndustrialDashboard: hideIndustrialDashboard,
       hideHrAndRecuperables: hideHrAndRecuperables,
       isRestrictedAdmin: isRestrictedAdmin,
