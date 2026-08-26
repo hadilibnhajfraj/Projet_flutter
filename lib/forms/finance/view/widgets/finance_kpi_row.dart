@@ -69,7 +69,7 @@ class FinanceKpiRow extends StatelessWidget {
     ];
 
     if (loading) {
-      return KpiSkeletonGrid(count: cards.length, crossAxisCount: columns);
+      return KpiSkeletonGrid(count: cards.length);
     }
     return _responsiveCardGrid(cards, columns);
   }

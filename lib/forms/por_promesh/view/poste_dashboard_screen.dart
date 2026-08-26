@@ -348,7 +348,7 @@ class _PosteDashboardScreenState extends State<PosteDashboardScreen> {
 
   Widget _buildKpiGrid(bool isMobile) {
     if (_loading) {
-      return KpiSkeletonGrid(crossAxisCount: isMobile ? 2 : 3);
+      return const KpiSkeletonGrid(count: 6);
     }
     final cards = [
       KpiStatCard(
@@ -382,15 +382,7 @@ class _PosteDashboardScreenState extends State<PosteDashboardScreen> {
           label: 'Opérateurs présents',
           color: kPersonnelColor),
     ];
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: isMobile ? 2 : 3,
-      mainAxisSpacing: 14,
-      crossAxisSpacing: 14,
-      childAspectRatio: isMobile ? 1.3 : 1.6,
-      children: cards,
-    );
+    return kpiStatGrid(cards);
   }
 
   // ── GRAPHIQUES ────────────────────────────────────────────────────────

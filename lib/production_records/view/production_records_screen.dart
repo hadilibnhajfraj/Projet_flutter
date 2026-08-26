@@ -274,9 +274,8 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
 
   Widget _buildStatsRow(BuildContext context, bool isMobile) {
     final t = AppLocalizations.of(context);
-    final crossAxisCount = isMobile ? 2 : 5;
     if (_loading && _pageData.statistics.total == 0) {
-      return KpiSkeletonGrid(count: 5, crossAxisCount: crossAxisCount);
+      return const KpiSkeletonGrid(count: 5);
     }
     final s = _pageData.statistics;
     final cards = [
@@ -286,15 +285,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
       KpiStatCard(icon: Icons.calendar_view_week_rounded, value: '${s.thisWeek}', label: t.translate('Cette semaine'), color: kCrmInfo),
       KpiStatCard(icon: Icons.calendar_month_rounded, value: '${s.thisMonth}', label: t.translate('Ce mois'), color: kCrmSuccess),
     ];
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: crossAxisCount,
-      mainAxisSpacing: 14,
-      crossAxisSpacing: 14,
-      childAspectRatio: isMobile ? 1.3 : 1.5,
-      children: cards,
-    );
+    return kpiStatGrid(cards);
   }
 
   // ── KPI INDUSTRIELS (Quantité / Diamètre / Taille de maille) ──────────
@@ -356,22 +347,12 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
         ),
     ];
 
-    final crossAxisCount = isMobile ? 2 : cards.length.clamp(1, 5);
-
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(t.translate('Totaux de production'), style: tInter(fontSize: 13.5, fontWeight: FontWeight.w800, color: kCrmText)),
       const SizedBox(height: 4),
       Text(t.translate('Fiches validées uniquement'), style: tInter(fontSize: 11.5, color: kCrmTextSub)),
       const SizedBox(height: 12),
-      GridView.count(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: crossAxisCount,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 14,
-        childAspectRatio: isMobile ? 1.3 : 1.5,
-        children: cards,
-      ),
+      kpiStatGrid(cards),
     ]);
   }
 

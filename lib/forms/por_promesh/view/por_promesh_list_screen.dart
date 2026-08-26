@@ -336,8 +336,7 @@ class _PorPromeshListScreenState extends State<PorPromeshListScreen> {
   // ── KPI ───────────────────────────────────────────────────────────────
 
   Widget _buildKpiRow(bool isMobile) {
-    final crossAxisCount = isMobile ? 2 : 4;
-    if (_loadingStats) return KpiSkeletonGrid(count: 7, crossAxisCount: crossAxisCount);
+    if (_loadingStats) return const KpiSkeletonGrid(count: 7);
 
     final production = _stats.fichesCount == 0 ? 0.0 : _stats.productionTotale / _stats.fichesCount;
     final cards = [
@@ -364,15 +363,7 @@ class _PorPromeshListScreenState extends State<PorPromeshListScreen> {
           label: 'Machines actives',
           color: kCrmSuccess),
     ];
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: crossAxisCount,
-      mainAxisSpacing: 14,
-      crossAxisSpacing: 14,
-      childAspectRatio: isMobile ? 1.3 : 1.5,
-      children: cards,
-    );
+    return kpiStatGrid(cards);
   }
 
   // ── RECHERCHE + FILTRES ───────────────────────────────────────────────

@@ -268,39 +268,31 @@ class _ProbarPosteDashboardScreenState extends State<ProbarPosteDashboardScreen>
 
                 // KPI
                 if (!_loading) ...[
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: isMobile ? 2 : 4,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: isMobile ? 1.3 : 1.5,
-                    children: [
-                      KpiStatCard(
-                          icon: Icons.description_outlined,
-                          value: _totalFiches.toString(),
-                          label: loc.translate('Fiches créées'),
-                          color: kProbarColor),
-                      KpiStatCard(
-                          icon: Icons.check_circle_outline_rounded,
-                          value: _fichesValidees.toString(),
-                          label: loc.translate('Fiches validées'),
-                          color: kCrmSuccess),
-                      KpiStatCard(
-                          icon: Icons.edit_note_rounded,
-                          value: _fichesBrouillon.toString(),
-                          label: loc.translate('Brouillons'),
-                          color: kCrmWarning),
-                      KpiStatCard(
-                          icon: Icons.warning_amber_rounded,
-                          value: _nonConformites.toString(),
-                          label: loc.translate('Non-conformités'),
-                          color: kCrmDanger),
-                    ],
-                  ),
+                  kpiStatGrid([
+                    KpiStatCard(
+                        icon: Icons.description_outlined,
+                        value: _totalFiches.toString(),
+                        label: loc.translate('Fiches créées'),
+                        color: kProbarColor),
+                    KpiStatCard(
+                        icon: Icons.check_circle_outline_rounded,
+                        value: _fichesValidees.toString(),
+                        label: loc.translate('Fiches validées'),
+                        color: kCrmSuccess),
+                    KpiStatCard(
+                        icon: Icons.edit_note_rounded,
+                        value: _fichesBrouillon.toString(),
+                        label: loc.translate('Brouillons'),
+                        color: kCrmWarning),
+                    KpiStatCard(
+                        icon: Icons.warning_amber_rounded,
+                        value: _nonConformites.toString(),
+                        label: loc.translate('Non-conformités'),
+                        color: kCrmDanger),
+                  ]),
                   const SizedBox(height: 24),
                 ] else ...[
-                  KpiSkeletonGrid(crossAxisCount: isMobile ? 2 : 4),
+                  const KpiSkeletonGrid(count: 4),
                   const SizedBox(height: 24),
                 ],
 

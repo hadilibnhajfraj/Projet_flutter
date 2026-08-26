@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
+import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart' show kpiStatGrid;
 
 /// Bloc rectangulaire qui pulse entre deux gris — brique de base de tous les
 /// skeletons ci-dessous.
@@ -55,41 +56,36 @@ class _ShimmerBoxState extends State<ShimmerBox> with SingleTickerProviderStateM
   }
 }
 
-/// Skeleton d'une grille de cartes KPI (Dashboard du poste).
+/// Skeleton d'une grille de cartes KPI (Dashboard du poste). Même grille
+/// responsive que les cartes réelles (kpiStatGrid, industrial_theme.dart) —
+/// jamais de GridView/childAspectRatio fixe, qui peut devenir plus petit que
+/// le contenu réel et déborder (RenderFlex overflow).
 class KpiSkeletonGrid extends StatelessWidget {
   final int count;
-  final int crossAxisCount;
 
-  const KpiSkeletonGrid({super.key, this.count = 6, this.crossAxisCount = 3});
+  const KpiSkeletonGrid({super.key, this.count = 6});
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: crossAxisCount,
-      mainAxisSpacing: 14,
-      crossAxisSpacing: 14,
-      childAspectRatio: 1.6,
-      children: List.generate(
-        count,
-        (_) => Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: kCrmSurface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: kCrmBorder),
-          ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const ShimmerBox(width: 44, height: 44, borderRadius: BorderRadius.all(Radius.circular(12))),
-            const Spacer(),
-            const ShimmerBox(width: 70, height: 22),
-            const SizedBox(height: 6),
-            const ShimmerBox(width: 100, height: 12),
-          ]),
+    return kpiStatGrid(List.generate(
+      count,
+      (_) => Container(
+        constraints: const BoxConstraints(minHeight: 120),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: kCrmSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: kCrmBorder),
         ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const ShimmerBox(width: 44, height: 44, borderRadius: BorderRadius.all(Radius.circular(12))),
+          const Spacer(),
+          const ShimmerBox(width: 70, height: 22),
+          const SizedBox(height: 6),
+          const ShimmerBox(width: 100, height: 12),
+        ]),
       ),
-    );
+    ));
   }
 }
 

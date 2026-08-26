@@ -530,12 +530,18 @@ class SidebarMenuItem extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Badge — "Demandes" (Administration) affiche le compte
-                  // "en attente" en direct (GetX), les autres tuiles gardent
-                  // leur badge statique figé au build.
+                  // Badge — "Demandes" (Administration) affiche le NOMBRE
+                  // TOTAL de demandes chargées (requests.length, en direct
+                  // via GetX), pas seulement celles "en attente" : sinon ce
+                  // badge affiche un chiffre plus petit que ce que l'utilisateur
+                  // vient de voir dans la liste (ex: 10 demandes chargées,
+                  // 1 seule encore "pending" → badge affichait "1" au lieu de
+                  // "10"). Le détail "X en attente / Y au total" reste visible
+                  // dans l'en-tête de la page Demandes elle-même. Les autres
+                  // tuiles gardent leur badge statique figé au build.
                   if (menuTile.navigationPath == MyRoute.archiveRequestsScreen)
                     Obx(() {
-                      final count = ArchiveRequestProvider.to.pendingCount;
+                      final count = ArchiveRequestProvider.to.requests.length;
                       if (count == 0) return const SizedBox.shrink();
                       return _Badge(count: count, selected: isSelected);
                     })

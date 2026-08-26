@@ -157,6 +157,45 @@ class KpiStatCard extends StatelessWidget {
   }
 }
 
+/// Nombre de colonnes d'une grille de KpiStatCard pour une largeur donnée.
+/// Paliers pensés pour desktop large/moyen, tablette et mobile (voir demande
+/// "5-6 colonnes en grand desktop, 3-4 en moyen, 2 en tablette, 1 en petit").
+int kpiGridColumns(double width) {
+  if (width < 640) return 1;
+  if (width < 950) return 2;
+  if (width < 1250) return 3;
+  if (width < 1550) return 4;
+  if (width < 1850) return 5;
+  return 6;
+}
+
+/// Grille responsive de KpiStatCard (ou de leurs skeletons).
+///
+/// Contrairement à GridView.count/childAspectRatio (ratio de cellule FIXE,
+/// qui peut devenir plus petit que le contenu réel d'une carte et provoquer
+/// un RenderFlex overflow — voir industrial_theme.dart#KpiStatCard), cette
+/// grille mesure la hauteur réelle du contenu (IntrinsicHeight) et l'applique
+/// à toute la ligne : largeur et hauteur toujours cohérentes, jamais de
+/// débordement possible, quelle que soit la largeur de fenêtre.
+Widget kpiStatGrid(List<Widget> cards, {double gap = 14}) {
+  if (cards.isEmpty) return const SizedBox.shrink();
+  return LayoutBuilder(builder: (context, constraints) {
+    final columns = kpiGridColumns(constraints.maxWidth).clamp(1, cards.length);
+    final rows = <Widget>[];
+    for (int i = 0; i < cards.length; i += columns) {
+      final rowItems = cards.skip(i).take(columns).toList();
+      final rowChildren = <Widget>[];
+      for (int j = 0; j < columns; j++) {
+        if (j > 0) rowChildren.add(SizedBox(width: gap));
+        rowChildren.add(Expanded(child: j < rowItems.length ? rowItems[j] : const SizedBox.shrink()));
+      }
+      rows.add(IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: rowChildren)));
+      if (i + columns < cards.length) rows.add(SizedBox(height: gap));
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
+  });
+}
+
 /// Carte KPI éditable (icône + label + champ numérique) — utilisée par le
 /// module Rendement pour saisir des chiffres sans ressembler à un formulaire
 /// dense.

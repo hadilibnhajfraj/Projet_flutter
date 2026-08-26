@@ -508,6 +508,11 @@ class _AdminRequestsBodyState extends State<_AdminRequestsBody> {
   // ── KPI cards ────────────────────────────────────────────────────────────
   Widget _kpiRow() {
     final stats = widget.provider.stats;
+    // Pas de champ "total" côté /archive-requests/stats — dérivé directement
+    // de la liste déjà chargée (requests.length), jamais recalculé à partir
+    // d'une autre KPI (voir REQUEST COUNT dans les logs : doit correspondre
+    // exactement à ce total).
+    final total = widget.provider.requests.length;
     final pending = stats['pending'] ?? widget.provider.pendingCount;
     final archivage = stats['archivage'] ?? widget.provider.archivageCount;
     final desarchivage = stats['desarchivage'] ?? widget.provider.desarchivageCount;
@@ -515,6 +520,7 @@ class _AdminRequestsBodyState extends State<_AdminRequestsBody> {
     final rejected = stats['rejected'] ?? widget.provider.rejectedCount;
 
     final cards = [
+      _KpiData('Total', total, kCrmPrimary, Icons.inbox_rounded),
       _KpiData('En attente', pending, const Color(0xFFD97706), Icons.schedule_rounded),
       _KpiData('Archivage', archivage, const Color(0xFF64748B), Icons.archive_rounded),
       _KpiData('Désarchivage', desarchivage, const Color(0xFF8B5CF6), Icons.unarchive_rounded),
@@ -523,16 +529,14 @@ class _AdminRequestsBodyState extends State<_AdminRequestsBody> {
     ];
 
     return LayoutBuilder(builder: (context, constraints) {
-      final isNarrow = constraints.maxWidth < 760;
+      final columns = constraints.maxWidth < 560
+          ? 2
+          : (constraints.maxWidth < 900 ? 3 : cards.length);
+      final width = (constraints.maxWidth - 12 * (columns - 1)) / columns;
       return Wrap(
         spacing: 12,
         runSpacing: 12,
-        children: cards.map((c) {
-          final width = isNarrow
-              ? (constraints.maxWidth - 12) / 2
-              : (constraints.maxWidth - 12 * 4) / 5;
-          return SizedBox(width: width, child: _kpiCard(c));
-        }).toList(),
+        children: cards.map((c) => SizedBox(width: width, child: _kpiCard(c))).toList(),
       );
     });
   }
