@@ -2,8 +2,16 @@
 //
 // Carte "fiche historique" du module MÉLANGE — même pattern visuel que
 // PROBAR (_ProbarFicheCard) / POR PROMESH (_PorPromeshCard) : icône + infos
-// à gauche, badge de statut + actions (Voir / Modifier / Supprimer /
-// Export PDF) à droite. Desktop = carte horizontale, mobile = infos empilées.
+// à gauche, badge de statut + actions (Voir / Modifier / Supprimer) à
+// droite. Desktop = carte horizontale, mobile = infos empilées.
+//
+// §MODIFICATION — HISTORIQUE FICHES MÉLANGE : la fiche simplifiée ne
+// contient plus que Date/Heure début/Heure fin/Quantité/PROMESH/Déchet/
+// Opérateur/Statut/Date de création — Total, Ravitaillements, Consommation,
+// Zone (anciens champs du tableau industriel / données calculées de
+// l'ancien formulaire) ne sont plus affichés ici. Ces colonnes restent en
+// base (utilisées par d'autres modules / anciennes fiches) — seul
+// l'affichage dans CET historique est retiré.
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -33,7 +41,6 @@ class MelangeHistoryCard extends StatelessWidget {
   final VoidCallback onView;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  final VoidCallback onExportPdf;
 
   const MelangeHistoryCard({
     super.key,
@@ -41,7 +48,6 @@ class MelangeHistoryCard extends StatelessWidget {
     required this.onView,
     required this.onEdit,
     required this.onDelete,
-    required this.onExportPdf,
   });
 
   @override
@@ -56,7 +62,11 @@ class MelangeHistoryCard extends StatelessWidget {
     final status = MelangeHistoryStatus.of(model);
     final dateLabel = _formatDate(model.dateFiche);
     final createdLabel = _formatDateTime(model.createdAt);
-    final updatedLabel = _formatDateTime(model.updatedAt);
+    // §MODIFICATION — FICHE MÉLANGE : préfère les colonnes structurées
+    // (model.heureDebut/heureFin) — repli sur le résumé (melangeData) pour
+    // les fiches créées avant ce ticket.
+    final heureDebut = (model.heureDebut?.isNotEmpty == true) ? model.heureDebut : summary.heureDebut;
+    final heureFin = (model.heureFin?.isNotEmpty == true) ? model.heureFin : summary.heureFin;
 
     final infoContent = Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
       Row(children: [
@@ -70,27 +80,30 @@ class MelangeHistoryCard extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text(dateLabel, style: tInter(fontSize: 15, fontWeight: FontWeight.w800, color: kCrmText)),
-            if ((summary.heureDebut ?? '').isNotEmpty || (summary.heureFin ?? '').isNotEmpty)
-              Text('${summary.heureDebut?.isNotEmpty == true ? summary.heureDebut : '—'} → ${summary.heureFin?.isNotEmpty == true ? summary.heureFin : '—'}',
+            if ((heureDebut ?? '').isNotEmpty || (heureFin ?? '').isNotEmpty)
+              Text('${heureDebut?.isNotEmpty == true ? heureDebut : '—'} → ${heureFin?.isNotEmpty == true ? heureFin : '—'}',
                   style: tInter(fontSize: 12, color: kCrmTextSub)),
           ]),
         ),
       ]),
       const SizedBox(height: 12),
+      // §MODIFICATION — HISTORIQUE FICHES MÉLANGE : uniquement Opérateur/
+      // PROMESH/Quantité/Déchet — Zone/Total/Ravitaillements/Consommations
+      // (anciens champs calculés) retirés.
       Wrap(spacing: 16, runSpacing: 8, children: [
         if ((model.operateur ?? '').isNotEmpty) _chip(Icons.person_outline_rounded, model.operateur!),
-        if ((summary.zone ?? '').isNotEmpty) _chip(Icons.place_outlined, summary.zone!),
-        _chip(Icons.monitor_weight_outlined,
-            '${AppLocalizations.of(context).translate('Total')} : ${summary.totalMelangeKg.toStringAsFixed(1)} ${AppLocalizations.of(context).translate('Kg')}'),
-        _chip(Icons.local_shipping_outlined,
-            '${AppLocalizations.of(context).translate('Ravitaillements')} : ${summary.nbRavitaillements}'),
-        _chip(Icons.science_outlined,
-            '${AppLocalizations.of(context).translate('Consommations')} : ${summary.nbConsommations}'),
+        if ((model.promesh ?? '').isNotEmpty) _chip(Icons.factory_outlined, model.promesh!),
+        if (model.quantiteProduite != null)
+          _chip(Icons.scale_outlined,
+              '${AppLocalizations.of(context).translate('Quantité')} : ${model.quantiteProduite}'),
+        // §MODIFICATION — HISTORIQUE FICHES MÉLANGE : Déchet est une valeur
+        // texte libre — affichée telle quelle, jamais transformée/parsée.
+        if ((model.dechet ?? '').isNotEmpty)
+          _chip(Icons.qr_code_2_outlined, '${AppLocalizations.of(context).translate('Déchet')} : ${model.dechet}'),
       ]),
       const SizedBox(height: 8),
       Text(
-        '${AppLocalizations.of(context).translate('Créée le')} ${createdLabel ?? '—'}'
-        '${(updatedLabel != null && updatedLabel != createdLabel) ? ' · ${AppLocalizations.of(context).translate('Modifiée le')} $updatedLabel' : ''}',
+        '${AppLocalizations.of(context).translate('Créée le')} ${createdLabel ?? '—'}',
         style: tInter(fontSize: 11, color: kCrmTextSub),
       ),
     ]);
@@ -112,11 +125,6 @@ class MelangeHistoryCard extends StatelessWidget {
         tooltip: AppLocalizations.of(context).translate('Modifier'),
         icon: const Icon(Icons.edit_outlined, size: 18, color: kCrmInfo),
         onPressed: onEdit,
-      ),
-      IconButton(
-        tooltip: AppLocalizations.of(context).translate('Exporter PDF'),
-        icon: const Icon(Icons.picture_as_pdf_outlined, size: 18, color: kCrmSecondary),
-        onPressed: onExportPdf,
       ),
       IconButton(
         tooltip: AppLocalizations.of(context).translate('Supprimer'),

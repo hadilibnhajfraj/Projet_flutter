@@ -34,6 +34,10 @@ class SideBarWidget extends StatelessWidget {
     final isAccueil    = role == 'accueil';
     final isLogistiqueAchat = role == 'responsable_logistique_achat';
     final isFinance = role == 'finance_probar';
+    // §MODIFICATION — INTERFACE PRODUCTION DE DENNISREDFEATHER : espace dédié
+    // combinant Production (comme isLogistiqueAchat) + Finance (comme
+    // isFinance) — jamais le CRM/Administration/User Management.
+    final isFinanceProduction = role == 'finance_production';
     final canViewCommercialKpi = auth.canViewCommercialKpi;
     final canViewPorPromesh = auth.canViewPorPromesh;
     final canViewFinance = auth.canViewFinance;
@@ -62,6 +66,7 @@ class SideBarWidget extends StatelessWidget {
       isAccueil:           isAccueil,
       isCommercial:        isCommercial,
       isLogistiqueAchat:   isLogistiqueAchat,
+      isFinanceProduction: isFinanceProduction,
       canViewCommercialKpi: canViewCommercialKpi,
       canViewPorPromesh:   canViewPorPromesh,
       hideIndustrialDashboard: hideIndustrialDashboard,
@@ -73,6 +78,7 @@ class SideBarWidget extends StatelessWidget {
       isAccueil:    isAccueil,
       isLogistiqueAchat: isLogistiqueAchat,
       isFinance: isFinance,
+      isFinanceProduction: isFinanceProduction,
       canViewPorPromesh: canViewPorPromesh,
       canViewFinance: canViewFinance,
       hideIndustrialDashboard: hideIndustrialDashboard,

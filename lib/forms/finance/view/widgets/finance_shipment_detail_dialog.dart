@@ -91,6 +91,7 @@ class _ShipmentDetailBodyState extends State<_ShipmentDetailBody> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   _sectionTitle(t.translate('Shipment details')),
                   _grid([
+                    if ((s.shipmentNumber ?? '').isNotEmpty) (t.translate('Shipment #'), s.shipmentNumber!),
                     (t.translate('Delivery number'), s.reference),
                     (t.translate('Delivery date'), _dateFmt(s.shipmentDate)),
                     if ((s.customerReference ?? '').isNotEmpty) (t.translate('Reference'), s.customerReference!),

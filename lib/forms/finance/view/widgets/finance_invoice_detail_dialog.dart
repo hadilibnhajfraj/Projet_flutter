@@ -21,7 +21,7 @@ import 'finance_invoice_items_table.dart';
 import 'finance_preview_dialog.dart';
 import 'finance_upload_dropzone.dart';
 
-const List<String> kFinancePaymentMethods = ['Carte bancaire', 'Espèce', 'Chèque', 'Traite'];
+const List<String> kFinancePaymentMethods = ['Virement', 'Versement', 'Chèque', 'Traite'];
 
 Future<void> showFinanceInvoiceDetail(BuildContext context, FinanceInvoiceModel preview, {VoidCallback? onChanged}) {
   return showDialog(
@@ -67,30 +67,26 @@ class _InvoiceDetailBodyState extends State<_InvoiceDetailBody> {
 
   Future<void> _registerPayment() async {
     final inv = _invoice ?? widget.preview;
-    final remaining = inv.total - inv.payments.fold(0.0, (s, p) => s + p.amount);
+    // Si l'OCR a déjà détecté un mode de règlement sur la facture, il est
+    // pré-sélectionné dans le dropdown (§3) — l'utilisateur n'a rien à
+    // saisir sauf s'il veut le changer.
+    final preselected = kFinancePaymentMethods.contains(inv.paymentMethod) ? inv.paymentMethod : null;
     final result = await showDialog<_PaymentInput>(
       context: context,
-      builder: (_) => _RegisterPaymentDialog(suggestedAmount: remaining > 0 ? remaining : inv.total),
+      builder: (_) => _RegisterPaymentDialog(preselectedMethod: preselected),
     );
     if (result == null) return;
     try {
-      await FinanceService.instance.registerPayment(
-        inv.id,
-        amount: result.amount,
-        paidDate: DateFormat('yyyy-MM-dd').format(result.date),
-        method: result.method,
-        reference: result.reference,
-        chequeNumber: result.chequeNumber,
-        bankName: result.bankName,
-        chequeDate: result.chequeDate == null ? null : DateFormat('yyyy-MM-dd').format(result.chequeDate!),
-        billOfExchangeNumber: result.billOfExchangeNumber,
-        dueDate: result.dueDate == null ? null : DateFormat('yyyy-MM-dd').format(result.dueDate!),
-        document: result.document,
-      );
+      // Formulaire minimal (§2) : seuls method + document sont envoyés — le
+      // backend déduit amount (total de la facture) et paidDate (date de
+      // règlement déjà extraite par l'OCR) et passe la facture en PAID.
+      await FinanceService.instance.registerPayment(inv.id, method: result.method, document: result.document);
       // Recalcule le montant payé/reste à payer et actualise l'affichage de
-      // la facture (§13) — la même réponse renvoyée par registerPayment
+      // la facture (§6) — la même réponse renvoyée par registerPayment
       // suffit, mais on repasse par _load() pour rester cohérent avec le
       // reste du dialog (invoice complète + documents) en un seul chemin.
+      // `onChanged` fait aussi réapparaître automatiquement la facture dans
+      // Paid Factures (rechargement de la liste appelante).
       widget.onChanged?.call();
       await _load();
     } catch (e) {
@@ -145,11 +141,14 @@ class _InvoiceDetailBodyState extends State<_InvoiceDetailBody> {
                   FinanceInvoiceItemsTable(items: inv.items),
                   const SizedBox(height: 20),
                   _sectionTitle(t.translate('Totaux')),
+                  // "Down payment" retiré de l'affichage (§MODIFICATION —
+                  // FACTURED SHIPMENTS — SUPPRIMER DOWN PAYMENT) — la donnée
+                  // reste extraite/enregistrée en base (inv.downPayment),
+                  // seulement plus affichée ici.
                   _grid([
                     (t.translate('Subtotal HT'), formatFinanceNumber(inv.amount)),
                     (t.translate('Tax'), formatFinanceNumber(inv.tax)),
                     (t.translate('Total TTC'), formatFinanceNumber(inv.total)),
-                    if (inv.downPayment != null) (t.translate('Down payment'), formatFinanceNumber(inv.downPayment!)),
                     if (inv.netToPay != null) (t.translate('Net to pay'), formatFinanceNumber(inv.netToPay!)),
                   ]),
                   if (inv.taxes.isNotEmpty) ...[
@@ -322,18 +321,15 @@ class _PaymentHistoryList extends StatelessWidget {
                     ]),
                   ],
                   if (p.documents.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      onPressed: () => showFinanceDocumentPreview(context, p.documents.first),
-                      icon: const Icon(Icons.visibility_outlined, size: 14),
-                      label: Text(t.translate('View'), style: tInter(fontSize: 11.5, fontWeight: FontWeight.w700)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: kCrmPrimary,
-                        side: const BorderSide(color: kCrmBorder),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
+                    const SizedBox(height: 10),
+                    // Après upload, le justificatif est listé avec Document
+                    // name/File type/File size/Upload date/Uploaded by/View
+                    // (§4) — même widget que la section "Documents" de la
+                    // facture, jamais une liste réinventée.
+                    FinanceDocumentsTable(
+                      documents: p.documents,
+                      onView: (doc) => showFinanceDocumentPreview(context, doc),
+                      showStatus: false,
                     ),
                   ],
                 ]),
@@ -360,65 +356,29 @@ class _PaymentHistoryList extends StatelessWidget {
 }
 
 class _PaymentInput {
-  final double amount;
-  final DateTime date;
   final String method;
-  final String? reference;
-  final String? chequeNumber;
-  final String? bankName;
-  final DateTime? chequeDate;
-  final String? billOfExchangeNumber;
-  final DateTime? dueDate;
-  final FinancePickedFile? document;
-  const _PaymentInput({
-    required this.amount,
-    required this.date,
-    required this.method,
-    this.reference,
-    this.chequeNumber,
-    this.bankName,
-    this.chequeDate,
-    this.billOfExchangeNumber,
-    this.dueDate,
-    this.document,
-  });
+  final FinancePickedFile document;
+  const _PaymentInput({required this.method, required this.document});
 }
 
+// Formulaire minimal (§2 : "Le formulaire doit être minimal") — UNIQUEMENT
+// Payment method (dropdown fermé à 4 valeurs, pré-sélectionné si l'OCR a
+// déjà détecté un mode sur la facture) + Supporting document (obligatoire,
+// vérifié avant l'enregistrement). Aucun montant, aucune date, aucune
+// référence, aucun numéro de chèque/traite/banque : ces informations ne
+// doivent jamais bloquer l'enregistrement (§5).
 class _RegisterPaymentDialog extends StatefulWidget {
-  final double suggestedAmount;
-  const _RegisterPaymentDialog({required this.suggestedAmount});
+  final String? preselectedMethod;
+  const _RegisterPaymentDialog({this.preselectedMethod});
 
   @override
   State<_RegisterPaymentDialog> createState() => _RegisterPaymentDialogState();
 }
 
 class _RegisterPaymentDialogState extends State<_RegisterPaymentDialog> {
-  late final _amount = TextEditingController(text: widget.suggestedAmount.toStringAsFixed(2));
-  final _reference = TextEditingController();
-  final _chequeNumber = TextEditingController();
-  final _bankName = TextEditingController();
-  final _billOfExchangeNumber = TextEditingController();
-  String _method = kFinancePaymentMethods.first;
-  DateTime _date = DateTime.now();
-  DateTime? _methodDate; // Cheque date (Chèque) ou Due date (Traite) selon le mode.
+  late String _method = widget.preselectedMethod ?? kFinancePaymentMethods.first;
   FinancePickedFile? _document;
-
-  bool get _needsDocument => _method == 'Chèque' || _method == 'Traite';
-
-  @override
-  void dispose() {
-    _amount.dispose();
-    _reference.dispose();
-    _chequeNumber.dispose();
-    _bankName.dispose();
-    _billOfExchangeNumber.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickDate(DateTime initial, ValueChanged<DateTime> onPicked) async {
-    final picked = await showDatePicker(context: context, initialDate: initial, firstDate: DateTime(2020), lastDate: DateTime(2100));
-    if (picked != null) setState(() => onPicked(picked));
-  }
+  bool _showDocumentError = false;
 
   @override
   Widget build(BuildContext context) {
@@ -429,21 +389,7 @@ class _RegisterPaymentDialogState extends State<_RegisterPaymentDialog> {
         width: 420,
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TextField(
-              controller: _amount,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(labelText: '${t.translate('Amount')} *', border: const OutlineInputBorder()),
-            ),
-            const SizedBox(height: 12),
-            InkWell(
-              onTap: () => _pickDate(_date, (d) => _date = d),
-              child: InputDecorator(
-                decoration: InputDecoration(labelText: t.translate('Payment date'), border: const OutlineInputBorder()),
-                child: Text(DateFormat('dd/MM/yyyy').format(_date)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Dropdown FERMÉ — EXACTEMENT ces 4 valeurs (§9), jamais un champ
+            // Dropdown FERMÉ — EXACTEMENT ces 4 valeurs (§3), jamais un champ
             // libre.
             DropdownButtonFormField<String>(
               initialValue: _method,
@@ -451,72 +397,40 @@ class _RegisterPaymentDialogState extends State<_RegisterPaymentDialog> {
               items: kFinancePaymentMethods.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
               onChanged: (v) {
                 if (v == null) return;
-                setState(() {
-                  _method = v;
-                  _methodDate = null;
-                  _document = null;
-                });
+                setState(() => _method = v);
               },
             ),
-            const SizedBox(height: 12),
-            TextField(controller: _reference, decoration: InputDecoration(labelText: t.translate('Payment reference'), border: const OutlineInputBorder())),
-            if (_method == 'Chèque') ...[
-              const SizedBox(height: 16),
-              TextField(controller: _chequeNumber, decoration: InputDecoration(labelText: t.translate('Cheque number'), border: const OutlineInputBorder())),
-              const SizedBox(height: 12),
-              TextField(controller: _bankName, decoration: InputDecoration(labelText: t.translate('Bank name'), border: const OutlineInputBorder())),
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: () => _pickDate(_methodDate ?? DateTime.now(), (d) => _methodDate = d),
-                child: InputDecorator(
-                  decoration: InputDecoration(labelText: t.translate('Cheque date'), border: const OutlineInputBorder()),
-                  child: Text(_methodDate == null ? '—' : DateFormat('dd/MM/yyyy').format(_methodDate!)),
-                ),
+            const SizedBox(height: 18),
+            Text(t.translate('Supporting document'), style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: kCrmText)),
+            const SizedBox(height: 10),
+            if (_document != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(color: kCrmBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: kCrmBorder)),
+                child: Row(children: [
+                  const Icon(Icons.description_outlined, size: 16, color: kFinanceColor),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(_document!.filename, style: tInter(fontSize: 12, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis)),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 16),
+                    onPressed: () => setState(() => _document = null),
+                  ),
+                ]),
+              )
+            else
+              FinanceUploadDropzone(
+                onFilesSelected: (files) {
+                  if (files.isNotEmpty) {
+                    setState(() {
+                      _document = files.first;
+                      _showDocumentError = false;
+                    });
+                  }
+                },
               ),
-            ],
-            if (_method == 'Traite') ...[
-              const SizedBox(height: 16),
-              TextField(
-                controller: _billOfExchangeNumber,
-                decoration: InputDecoration(labelText: t.translate('Bill of exchange number'), border: const OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(controller: _bankName, decoration: InputDecoration(labelText: t.translate('Bank name'), border: const OutlineInputBorder())),
-              const SizedBox(height: 12),
-              InkWell(
-                onTap: () => _pickDate(_methodDate ?? DateTime.now(), (d) => _methodDate = d),
-                child: InputDecorator(
-                  decoration: InputDecoration(labelText: t.translate('Due date'), border: const OutlineInputBorder()),
-                  child: Text(_methodDate == null ? '—' : DateFormat('dd/MM/yyyy').format(_methodDate!)),
-                ),
-              ),
-            ],
-            if (_needsDocument) ...[
-              const SizedBox(height: 16),
-              Text(t.translate('Supporting document'), style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: kCrmText)),
-              const SizedBox(height: 4),
-              Text(t.translate('Document required for this payment method'), style: tInter(fontSize: 11, color: kCrmTextSub)),
-              const SizedBox(height: 10),
-              if (_document != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(color: kCrmBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: kCrmBorder)),
-                  child: Row(children: [
-                    const Icon(Icons.description_outlined, size: 16, color: kFinanceColor),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(_document!.filename, style: tInter(fontSize: 12, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis)),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 16),
-                      onPressed: () => setState(() => _document = null),
-                    ),
-                  ]),
-                )
-              else
-                FinanceUploadDropzone(
-                  onFilesSelected: (files) {
-                    if (files.isNotEmpty) setState(() => _document = files.first);
-                  },
-                ),
+            if (_showDocumentError) ...[
+              const SizedBox(height: 8),
+              Text(t.translate('Document required for this payment method'), style: tInter(fontSize: 11.5, color: kCrmDanger)),
             ],
           ]),
         ),
@@ -525,23 +439,14 @@ class _RegisterPaymentDialogState extends State<_RegisterPaymentDialog> {
         TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(t.translate('Annuler'))),
         ElevatedButton(
           onPressed: () {
-            final amount = double.tryParse(_amount.text.replaceAll(',', '.'));
-            if (amount == null || amount <= 0) return;
-            Navigator.of(context).pop(_PaymentInput(
-              amount: amount,
-              date: _date,
-              method: _method,
-              reference: _reference.text.trim().isEmpty ? null : _reference.text.trim(),
-              chequeNumber: _method == 'Chèque' && _chequeNumber.text.trim().isNotEmpty ? _chequeNumber.text.trim() : null,
-              bankName: (_method == 'Chèque' || _method == 'Traite') && _bankName.text.trim().isNotEmpty ? _bankName.text.trim() : null,
-              chequeDate: _method == 'Chèque' ? _methodDate : null,
-              billOfExchangeNumber: _method == 'Traite' && _billOfExchangeNumber.text.trim().isNotEmpty ? _billOfExchangeNumber.text.trim() : null,
-              dueDate: _method == 'Traite' ? _methodDate : null,
-              document: _needsDocument ? _document : null,
-            ));
+            if (_document == null) {
+              setState(() => _showDocumentError = true);
+              return;
+            }
+            Navigator.of(context).pop(_PaymentInput(method: _method, document: _document!));
           },
           style: ElevatedButton.styleFrom(backgroundColor: kFinanceColor, foregroundColor: Colors.white),
-          child: Text(t.translate('Confirmer')),
+          child: Text(t.translate('Register payment')),
         ),
       ],
     );

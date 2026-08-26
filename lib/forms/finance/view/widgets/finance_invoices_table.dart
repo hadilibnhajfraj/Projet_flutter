@@ -13,6 +13,7 @@ import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 import '../../model/finance_models.dart';
+import 'finance_preview_dialog.dart';
 
 enum FinanceInvoiceTableMode { factured, paid }
 
@@ -69,11 +70,15 @@ class FinanceInvoicesTable extends StatelessWidget {
                 DataColumn(label: Text(t.translate('Tax')), numeric: true),
                 DataColumn(label: Text(t.translate('Total')), numeric: true),
               ] else ...[
-                DataColumn(label: Text(t.translate('Invoice amount')), numeric: true),
-                DataColumn(label: Text(t.translate('Paid amount')), numeric: true),
-                DataColumn(label: Text(t.translate('Payment date'))),
+                // Colonnes minimales requises pour Paid Factures (§9) :
+                // Payment method/Payment date/Amount HT/Tax/Total TTC/
+                // Payment document (View).
                 DataColumn(label: Text(t.translate('Payment method'))),
-                DataColumn(label: Text(t.translate('Reference'))),
+                DataColumn(label: Text(t.translate('Payment date'))),
+                DataColumn(label: Text(t.translate('Amount HT')), numeric: true),
+                DataColumn(label: Text(t.translate('Tax')), numeric: true),
+                DataColumn(label: Text(t.translate('Total TTC')), numeric: true),
+                DataColumn(label: Text(t.translate('Payment document'))),
               ],
               DataColumn(label: Text(t.translate('Actions'))),
             ],
@@ -94,11 +99,12 @@ class FinanceInvoicesTable extends StatelessWidget {
                       DataCell(Text(formatFinanceNumber(inv.tax))),
                       DataCell(Text(formatFinanceNumber(inv.total))),
                     ] else ...[
-                      DataCell(Text(formatFinanceNumber(inv.total))),
-                      DataCell(Text(formatFinanceNumber(_paidAmount(inv)))),
-                      DataCell(Text(_dateFmt(_lastPayment(inv)?.paidDate))),
                       DataCell(Text(_lastPayment(inv)?.method ?? '—')),
-                      DataCell(Text(_lastPayment(inv)?.reference ?? '—')),
+                      DataCell(Text(_dateFmt(_lastPayment(inv)?.paidDate))),
+                      DataCell(Text(formatFinanceNumber(inv.amount))),
+                      DataCell(Text(formatFinanceNumber(inv.tax))),
+                      DataCell(Text(formatFinanceNumber(inv.total))),
+                      DataCell(_paymentDocumentCell(context, inv)),
                     ],
                     DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
                       Tooltip(
@@ -161,7 +167,26 @@ class FinanceInvoicesTable extends StatelessWidget {
     return Icons.insert_drive_file_outlined;
   }
 
-  double _paidAmount(FinanceInvoiceModel inv) => inv.payments.fold(0.0, (sum, p) => sum + p.amount);
+  // Justificatif du paiement (§9 : "Le justificatif doit être consultable
+  // avec 'View'") — celui du DERNIER paiement enregistré, pas les documents
+  // de la facture elle-même (colonne "Documents" ci-dessus, inchangée).
+  Widget _paymentDocumentCell(BuildContext context, FinanceInvoiceModel inv) {
+    final t = AppLocalizations.of(context);
+    final doc = _lastPayment(inv)?.documents.firstOrNull;
+    if (doc == null) return Text('—', style: tInter(fontSize: 12.5, color: kCrmTextSub));
+    return OutlinedButton.icon(
+      onPressed: () => showFinanceDocumentPreview(context, doc),
+      icon: const Icon(Icons.visibility_outlined, size: 14),
+      label: Text(t.translate('View'), style: tInter(fontSize: 12, fontWeight: FontWeight.w700)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: kCrmPrimary,
+        side: const BorderSide(color: kCrmBorder),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
 
   FinancePaymentModel? _lastPayment(FinanceInvoiceModel inv) {
     if (inv.payments.isEmpty) return null;

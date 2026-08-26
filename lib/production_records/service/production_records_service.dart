@@ -21,6 +21,7 @@ class ProductionRecordsService {
     String? endDate,
     String? machineId,
     String? poste,
+    String? createdBy,
     String? search,
     String sort = 'date_desc',
     int page = 1,
@@ -36,6 +37,10 @@ class ProductionRecordsService {
       if (endDate != null && endDate.isNotEmpty) 'endDate': endDate,
       if (machineId != null && machineId.isNotEmpty) 'machineId': machineId,
       if (poste != null && poste.isNotEmpty) 'poste': poste,
+      // §MODIFICATION — ADMIN > PRODUCTION RECORDS — FILTRE PAR UTILISATEUR :
+      // "all" = pas de filtre (dropdown "All users", §12 Reset), jamais
+      // envoyé comme id utilisateur littéral.
+      if (createdBy != null && createdBy.isNotEmpty && createdBy != 'all') 'createdBy': createdBy,
       if (search != null && search.isNotEmpty) 'search': search,
     };
 
@@ -67,6 +72,17 @@ class ProductionRecordsService {
     return ProductionRecordFilters.fromJson(data);
   }
 
+  // §MODIFICATION — ADMIN > PRODUCTION RECORDS — FILTRE PAR UTILISATEUR (§3) :
+  // alimente le dropdown "All users" — jamais codé en dur côté Flutter.
+  Future<List<ProductionRecordCreator>> fetchCreators() async {
+    final res = await ApiClient.instance.dio.get('$_basePath/creators');
+    final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    return (body['data'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => ProductionRecordCreator.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
   // Détail complet — forme hétérogène selon le type (voir
   // productionRecords.dto.js#buildPromeshDetail/buildProbarDetail), gardée
   // en Map brute plutôt qu'aplatie dans un modèle typé unique : les deux
@@ -86,6 +102,7 @@ class ProductionRecordsService {
     String? endDate,
     String? machineId,
     String? poste,
+    String? createdBy,
     String? diameter,
     String? status,
   }) async {
@@ -96,6 +113,7 @@ class ProductionRecordsService {
       if (endDate != null && endDate.isNotEmpty) 'endDate': endDate,
       if (machineId != null && machineId.isNotEmpty) 'machineId': machineId,
       if (poste != null && poste.isNotEmpty) 'poste': poste,
+      if (createdBy != null && createdBy.isNotEmpty && createdBy != 'all') 'createdBy': createdBy,
       if (diameter != null && diameter.isNotEmpty) 'diameter': diameter,
       // Contrairement à `type`/`period` ci-dessus, "all" est ici une valeur
       // FONCTIONNELLE distincte du défaut backend ("validee" si absent, voir

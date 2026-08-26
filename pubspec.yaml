@@ -79,6 +79,11 @@ dependencies:
   font_awesome_flutter: ^10.7.0
   jwt_decoder: ^2.0.1
   excel: ^2.1.0
+  # Déjà résolu comme dépendance transitive d'`excel` (zip/xlsx) — déclaré
+  # explicitement car finance_customer_shipments_screen.dart l'utilise
+  # directement pour patcher le XML du classeur (figer l'en-tête + filtres
+  # Excel, non supportés nativement par excel ^2.1.0).
+  archive: ^3.6.1
 
   dio: ^5.7.0
   device_info_plus: ^11.2.2

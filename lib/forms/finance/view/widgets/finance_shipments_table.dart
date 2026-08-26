@@ -1,10 +1,20 @@
 // lib/forms/finance/view/widgets/finance_shipments_table.dart
 //
-// Table "Shipment of products to the customers" (§7) : Shipment # / Customer
-// / Shipment date / Reference / Quantity / Amount / Status / Invoice /
-// Actions. "Shipment #" = identifiant court dérivé de l'UUID (aucun champ
-// dédié côté backend), "Reference" = FinanceShipmentModel.reference (le
-// champ métier saisi par l'utilisateur).
+// Table "Customer Shipments" (§MODIFICATION — CUSTOMER SHIPMENTS), UNE LIGNE
+// PAR PRODUIT (pas une ligne par bon) : Shipment #/Delivery number/Delivery
+// date/Customer code/Customer/Customer tax ID/Head office address/Delivery
+// address/Reference/Designation/Unit/Diameter/Mesh size/Quantity/Actions.
+// Alimentée UNIQUEMENT par les données déjà extraites/enregistrées (aucun
+// nouvel OCR ici) — voir CustomerShipmentRow, construite côté écran par
+// aplatissement shipment × items.
+//
+// "Shipment #" = identifiant métier généré par l'application
+// (FinanceShipmentModel.shipmentNumber, format "SH-00001") — jamais confondu
+// avec "Delivery number" (FinanceShipmentModel.reference, le numéro de BL
+// LU sur le document, ou un repli SHIP-{année}-NNNNNN si l'OCR est peu
+// fiable) ni avec "Customer code" (§2 : trois informations indépendantes).
+// Les lignes d'un même Shipment sont regroupées visuellement par alternance
+// de fond (§4).
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -13,22 +23,39 @@ import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 import '../../model/finance_models.dart';
+import '../../theme/finance_theme.dart';
+
+// Une ligne produit rattachée à SON Customer Shipment — les actions
+// (View/Delete) restent au niveau du bon, jamais au niveau de la ligne
+// produit.
+class CustomerShipmentRow {
+  final FinanceShipmentModel shipment;
+  final FinanceShipmentItemModel item;
+  const CustomerShipmentRow({required this.shipment, required this.item});
+}
 
 class FinanceShipmentsTable extends StatelessWidget {
-  final List<FinanceShipmentModel> shipments;
+  final List<CustomerShipmentRow> rows;
   final ValueChanged<FinanceShipmentModel> onView;
   final ValueChanged<FinanceShipmentModel>? onDelete;
 
-  const FinanceShipmentsTable({super.key, required this.shipments, required this.onView, this.onDelete});
+  const FinanceShipmentsTable({super.key, required this.rows, required this.onView, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    if (shipments.isEmpty) {
+    if (rows.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 30),
         child: Center(child: Text(t.translate('Aucune donnée pour ces filtres'), style: tInter(fontSize: 13, color: kCrmTextSub))),
       );
+    }
+
+    // Index de groupe par Shipment (ordre de première apparition) — sert
+    // uniquement à alterner le fond (§4), jamais à réordonner `rows`.
+    final groupIndex = <String, int>{};
+    for (final r in rows) {
+      groupIndex.putIfAbsent(r.shipment.id, () => groupIndex.length);
     }
 
     return Container(
@@ -47,39 +74,64 @@ class FinanceShipmentsTable extends StatelessWidget {
             headingRowHeight: 44,
             dataRowMinHeight: 52,
             dataRowMaxHeight: 56,
-            columnSpacing: 22,
+            columnSpacing: 18,
             columns: [
               DataColumn(label: Text(t.translate('Shipment #'))),
+              DataColumn(label: Text(t.translate('Delivery number'))),
+              DataColumn(label: Text(t.translate('Delivery date'))),
+              DataColumn(label: Text(t.translate('Customer code'))),
               DataColumn(label: Text(t.translate('Customer'))),
-              DataColumn(label: Text(t.translate('Shipment date'))),
+              DataColumn(label: Text(t.translate('Customer tax ID'))),
+              DataColumn(label: Text(t.translate('Head office address'))),
+              DataColumn(label: Text(t.translate('Delivery address'))),
               DataColumn(label: Text(t.translate('Reference'))),
-              DataColumn(label: Text(t.translate('Documents'))),
+              DataColumn(label: Text(t.translate('Designation'))),
+              DataColumn(label: Text(t.translate('Unit'))),
+              DataColumn(label: Text(t.translate('Diameter'))),
+              DataColumn(label: Text(t.translate('Mesh size'))),
               DataColumn(label: Text(t.translate('Quantity')), numeric: true),
-              DataColumn(label: Text(t.translate('Amount')), numeric: true),
-              DataColumn(label: Text(t.translate('Invoice'))),
               DataColumn(label: Text(t.translate('Actions'))),
             ],
             rows: [
-              for (final s in shipments)
+              for (final r in rows)
                 DataRow(
-                  color: WidgetStateProperty.resolveWith(
-                      (states) => states.contains(WidgetState.hovered) ? kCrmPrimary.withOpacity(0.04) : null),
-                  onSelectChanged: (_) => onView(s),
+                  color: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.hovered)) return kCrmPrimary.withOpacity(0.04);
+                    return groupIndex[r.shipment.id]!.isEven ? kCrmSurface : kCrmBg;
+                  }),
+                  onSelectChanged: (_) => onView(r.shipment),
                   cells: [
-                    DataCell(Text('#${s.id.length >= 8 ? s.id.substring(0, 8).toUpperCase() : s.id}',
-                        style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmText))),
-                    DataCell(Text(_customerDisplay(s))),
-                    DataCell(Text(_dateFmt(s.shipmentDate))),
-                    DataCell(Text(s.reference)),
-                    DataCell(_documentsCell(context, s)),
-                    DataCell(Text(s.totalQuantity == null ? '—' : formatFinanceNumber(s.totalQuantity!))),
-                    DataCell(Text(formatFinanceNumber(s.totalAmount))),
-                    DataCell(_invoiceCell(context, s)),
+                    DataCell(Text(r.shipment.shipmentNumber ?? '—', style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: kFinanceColor))),
+                    DataCell(Text(r.shipment.reference, style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmText))),
+                    DataCell(Text(_dateFmt(r.shipment.shipmentDate))),
+                    DataCell(Text(r.shipment.customerCode ?? '—')),
+                    DataCell(Text(_customerDisplay(r.shipment))),
+                    DataCell(Text(r.shipment.customerTaxId ?? '—')),
+                    DataCell(ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 200),
+                      child: Text(r.shipment.customerHeadOfficeAddress ?? '—', maxLines: 2, overflow: TextOverflow.ellipsis),
+                    )),
+                    DataCell(ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 200),
+                      child: Text(r.shipment.deliveryAddress ?? '—', maxLines: 2, overflow: TextOverflow.ellipsis),
+                    )),
+                    DataCell(Text(r.item.reference ?? '—')),
+                    DataCell(ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 220),
+                      child: Text(r.item.designation ?? '—', maxLines: 2, overflow: TextOverflow.ellipsis),
+                    )),
+                    // §CORRECTION EXTRACTION — SÉPARATION UNITÉ / DIAMÈTRE :
+                    // jamais `r.item.unit`/`r.item.diameter` bruts — voir
+                    // FinanceShipmentItemModel.displayUnit/displayDiameter.
+                    DataCell(Text(r.item.displayUnit ?? '—')),
+                    DataCell(Text(r.item.displayDiameter ?? '—')),
+                    DataCell(Text(r.item.meshSize ?? '—')),
+                    DataCell(Text(r.item.quantity == null ? '—' : formatFinanceNumber(r.item.quantity!))),
                     DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
                       Tooltip(
                         message: t.translate('View'),
                         child: OutlinedButton.icon(
-                          onPressed: () => onView(s),
+                          onPressed: () => onView(r.shipment),
                           icon: const Icon(Icons.visibility_outlined, size: 15),
                           label: Text(t.translate('View'), style: tInter(fontSize: 12, fontWeight: FontWeight.w700)),
                           style: OutlinedButton.styleFrom(
@@ -96,7 +148,7 @@ class FinanceShipmentsTable extends StatelessWidget {
                         IconButton(
                           tooltip: t.translate('Delete'),
                           icon: const Icon(Icons.delete_outline_rounded, size: 18, color: kCrmDanger),
-                          onPressed: () => onDelete!(s),
+                          onPressed: () => onDelete!(r.shipment),
                         ),
                       ],
                     ])),
@@ -113,40 +165,6 @@ class FinanceShipmentsTable extends StatelessWidget {
     if (s.customer != null) return s.customer!.displayName;
     if ((s.customerName ?? '').isNotEmpty) return s.customerName!;
     return '—';
-  }
-
-  Widget _documentsCell(BuildContext context, FinanceShipmentModel s) {
-    final t = AppLocalizations.of(context);
-    if (s.documents.isEmpty) return Text('—', style: tInter(fontSize: 12.5, color: kCrmTextSub));
-    final first = s.documents.first;
-    final extra = s.documents.length - 1;
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(_docIcon(first), size: 15, color: kCrmPrimary),
-      const SizedBox(width: 6),
-      ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 150),
-        child: Text(first.originalName, maxLines: 1, overflow: TextOverflow.ellipsis, style: tInter(fontSize: 12.5, color: kCrmText)),
-      ),
-      if (extra > 0) ...[
-        const SizedBox(width: 4),
-        Text('+$extra ${t.translate('more')}', style: tInter(fontSize: 11, color: kCrmTextSub)),
-      ],
-    ]);
-  }
-
-  IconData _docIcon(FinanceDocumentModel doc) {
-    if (doc.isPdf) return Icons.picture_as_pdf_outlined;
-    if (doc.isImage) return Icons.image_outlined;
-    if (['xls', 'xlsx', 'csv'].contains(doc.extension)) return Icons.grid_on_outlined;
-    if (['doc', 'docx'].contains(doc.extension)) return Icons.description_outlined;
-    return Icons.insert_drive_file_outlined;
-  }
-
-  Widget _invoiceCell(BuildContext context, FinanceShipmentModel s) {
-    final t = AppLocalizations.of(context);
-    if (s.invoices.isEmpty) return Text('—', style: tInter(fontSize: 12.5, color: kCrmTextSub));
-    if (s.invoices.length == 1) return Text(s.invoices.first.invoiceNumber);
-    return Text('${s.invoices.length} ${t.translate('invoice(s)')}');
   }
 
   String _dateFmt(String? iso) {

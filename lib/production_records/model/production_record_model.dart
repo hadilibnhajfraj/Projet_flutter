@@ -55,6 +55,22 @@ class ProductionRecordModel {
   bool get isProbar => type == 'probar';
   bool get isPromesh => type == 'promesh';
 
+  // §MODIFICATION — ADMIN > PRODUCTION RECORDS — FILTRE PAR UTILISATEUR :
+  // §8 tableau ("production_1" de préférence, email au survol/détail) — la
+  // traduction de "Unknown" (§15, anciennes fiches sans créateur connu)
+  // reste à la charge du widget (accès à AppLocalizations), jamais figée en
+  // dur ici.
+  String? get creatorEmail => creator?['email'];
+
+  // Partie locale de l'email ("production_1") — `null` si aucun créateur
+  // connu, jamais un nom inventé (§15).
+  String? get creatorShortLabel {
+    final email = creatorEmail;
+    if (email == null || email.isEmpty) return null;
+    final at = email.indexOf('@');
+    return at > 0 ? email.substring(0, at) : email;
+  }
+
   static double? _toDouble(dynamic v) {
     if (v == null) return null;
     if (v is num) return v.toDouble();
@@ -207,6 +223,38 @@ class ProductionTotals {
       probar: json['probar'] is Map ? ProductionTotalsSide.fromJson(Map<String, dynamic>.from(json['probar'] as Map)) : null,
       promesh: json['promesh'] is Map ? ProductionTotalsSide.fromJson(Map<String, dynamic>.from(json['promesh'] as Map)) : null,
     );
+  }
+}
+
+// §MODIFICATION — ADMIN > PRODUCTION RECORDS — FILTRE PAR UTILISATEUR (§3) :
+// mirrors GET /production-records/creators — alimente le dropdown "All
+// users", jamais codé en dur. `name` reste `null` quand l'utilisateur n'a
+// pas de profil renseigné — l'affichage retombe alors sur la partie locale
+// de l'email (voir displayLabel), jamais une valeur inventée côté backend.
+class ProductionRecordCreator {
+  final String id;
+  final String email;
+  final String role;
+  final String? name;
+
+  const ProductionRecordCreator({required this.id, required this.email, this.role = '', this.name});
+
+  factory ProductionRecordCreator.fromJson(Map<String, dynamic> json) {
+    return ProductionRecordCreator(
+      id: (json['id'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      role: (json['role'] ?? '').toString(),
+      name: (json['name'] as String?)?.trim().isEmpty == true ? null : json['name']?.toString(),
+    );
+  }
+
+  // "Khalil Zribi" si un nom est renseigné, sinon la partie locale de
+  // l'email ("production_1") — jamais l'email complet en double avec
+  // lui-même dans l'UI (voir §3 "Nom complet — email").
+  String get displayLabel {
+    if (name != null && name!.trim().isNotEmpty) return name!.trim();
+    final at = email.indexOf('@');
+    return at > 0 ? email.substring(0, at) : email;
   }
 }
 

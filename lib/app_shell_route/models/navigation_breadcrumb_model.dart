@@ -44,6 +44,14 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
       parentRoute: 'TimeLine',
       childRoute: 'TimeLine',
     ),
+    // §MODIFICATION — DÉTAILS FICHE MÉLANGE : sans cette entrée, le
+    // fallback route→titre dérive "Detail" du segment d'URL "detail" (et le
+    // traduit en anglais selon la langue active) — toujours "Détails" ici.
+    MyRoute.melangeDetailScreen: NavigationBreadcrumbModel(
+      title: 'Détails',
+      parentRoute: 'Melange',
+      childRoute: 'Détails',
+    ),
     MyRoute.dashboardFinanceAdmin: NavigationBreadcrumbModel(
       title: 'Dashboard',
       parentRoute: 'Dashboard',

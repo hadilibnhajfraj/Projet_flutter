@@ -62,8 +62,9 @@ class FinanceInvoiceItemsTable extends StatelessWidget {
                     constraints: const BoxConstraints(maxWidth: 220),
                     child: Text(it.designation ?? '—', maxLines: 2, overflow: TextOverflow.ellipsis),
                   )),
-                  DataCell(Text(it.unit ?? '—')),
-                  DataCell(Text(it.diameter ?? '—')),
+                  // §CORRECTION EXTRACTION — SÉPARATION UNITÉ / DIAMÈTRE.
+                  DataCell(Text(it.displayUnit ?? '—')),
+                  DataCell(Text(it.displayDiameter ?? '—')),
                   DataCell(Text(it.meshSize ?? '—')),
                   DataCell(Text(it.quantity == null ? '—' : formatFinanceNumber(it.quantity!))),
                   DataCell(Text(it.unitPriceHT == null ? '—' : formatFinanceNumber(it.unitPriceHT!))),

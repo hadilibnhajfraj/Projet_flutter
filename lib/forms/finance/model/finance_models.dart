@@ -19,6 +19,61 @@ int _toInt(dynamic v) {
   return 0;
 }
 
+// §CORRECTION EXTRACTION — SÉPARATION UNITÉ / DIAMÈTRE : utilitaire CENTRAL
+// (§11 "une seule logique") — appelé par FinanceShipmentItemModel/
+// FinanceInvoiceItemModel.displayUnit/displayDiameter, eux-mêmes consommés
+// PARTOUT (tableau, détail, export Excel) au lieu du champ brut `unit`/
+// `diameter` — jamais de logique de séparation dupliquée ailleurs.
+//
+// Certains documents impriment "Unité" et "Diam."/"Maille" comme deux
+// colonnes DISTINCTES (cas normal, déjà géré par l'extraction positionnelle
+// existante) ; d'autres — ou un repli OCR moins fiable — les fusionnent en
+// une seule valeur ("M² 10", "ML 04"). Cette fonction ne fait qu'un
+// DERNIER FILET DE SÉCURITÉ à l'affichage : si `diameter` est déjà rempli,
+// rien n'est retouché (§6/§8) ; sinon, seule une unité RECONNUE suivie d'un
+// nombre pur est séparée (§7) — jamais un designation/reference contenant un
+// chiffre n'est confondu avec un diamètre (§2 "ne jamais inventer").
+const List<String> kFinanceKnownUnits = [
+  'M²', 'M2', 'ML', 'KG', 'LITRE', 'L', 'TONNE', 'PIECE', 'PCS', 'UNITE', 'UNITÉ', 'MILLILITRE', 'MILLILITR',
+];
+
+final RegExp _kFinanceMergedUnitPattern = RegExp(r'^([A-Za-zÀ-ÿ²0-9]+)\s+(\d+)$');
+
+class FinanceNormalizedUnit {
+  final String? unit;
+  final String? diameter;
+  const FinanceNormalizedUnit(this.unit, this.diameter);
+}
+
+FinanceNormalizedUnit normalizeFinanceUnit(String? rawUnit, String? rawDiameter) {
+  final unit = rawUnit?.trim();
+  final diameter = rawDiameter?.trim();
+
+  // §6/§8 : le document (ou la DB) a déjà des valeurs séparées — ne jamais
+  // essayer de re-parser/reconstruire, utiliser telles quelles.
+  if (diameter != null && diameter.isNotEmpty) {
+    return FinanceNormalizedUnit(unit, diameter);
+  }
+  if (unit == null || unit.isEmpty) {
+    return FinanceNormalizedUnit(unit, diameter);
+  }
+
+  final match = _kFinanceMergedUnitPattern.firstMatch(unit);
+  if (match != null) {
+    final candidateUnit = match.group(1)!;
+    // §4 : le diamètre capturé n'est JAMAIS reformaté — "04" reste "04",
+    // jamais converti en "4".
+    final candidateDiameter = match.group(2)!;
+    if (kFinanceKnownUnits.contains(candidateUnit.toUpperCase())) {
+      return FinanceNormalizedUnit(candidateUnit, candidateDiameter);
+    }
+  }
+
+  // Rien à séparer (unité inconnue devant le nombre, ou pas de nombre du
+  // tout) — valeur renvoyée telle quelle, jamais un diamètre inventé.
+  return FinanceNormalizedUnit(unit, diameter);
+}
+
 class FinanceUserRef {
   final String? id;
   final String? email;
@@ -54,44 +109,59 @@ class FinanceCustomerRef {
 
 class FinanceDocumentModel {
   final String id;
-  final String module; // INFLOW_RAW_MATERIALS | SHIPMENT | INVOICE | PAYMENT
+  final String module; // INFLOW_RAW_MATERIALS | SHIPMENT | INVOICE | PAYMENT | OTHER
   final String? entityId;
   final String originalName;
+  // §MODIFICATION — FINANCE > OTHER : nom d'affichage modifiable par
+  // l'utilisateur (§7/§19) — le backend retombe déjà sur `originalName`
+  // quand absent, donc toujours non-null ici.
+  final String displayName;
   final String fileUrl;
   final String mimeType;
   final int fileSize;
   final String status; // PENDING | VALIDATED | REJECTED
   final FinanceUserRef? uploader;
   final String? createdAt;
+  final String? updatedAt;
 
   const FinanceDocumentModel({
     required this.id,
     required this.module,
     this.entityId,
     required this.originalName,
+    required this.displayName,
     required this.fileUrl,
     required this.mimeType,
     this.fileSize = 0,
     this.status = 'PENDING',
     this.uploader,
     this.createdAt,
+    this.updatedAt,
   });
 
   factory FinanceDocumentModel.fromJson(Map<String, dynamic> json) {
+    final originalName = (json['originalName'] ?? '').toString();
     return FinanceDocumentModel(
       id: (json['id'] ?? '').toString(),
       module: (json['module'] ?? '').toString(),
       entityId: json['entityId']?.toString(),
-      originalName: (json['originalName'] ?? '').toString(),
+      originalName: originalName,
+      displayName: (json['displayName'] ?? originalName).toString(),
       fileUrl: (json['fileUrl'] ?? '').toString(),
       mimeType: (json['mimeType'] ?? '').toString(),
       fileSize: _toInt(json['fileSize']),
       status: (json['status'] ?? 'PENDING').toString(),
       uploader: json['uploader'] is Map ? FinanceUserRef.fromJson(Map<String, dynamic>.from(json['uploader'] as Map)) : null,
       createdAt: json['createdAt']?.toString(),
+      updatedAt: json['updatedAt']?.toString(),
     );
   }
 
+  // Toujours dérivée d'`originalName` (jamais `displayName`) — le fichier
+  // PHYSIQUE et son type réel ne changent jamais au renommage (§7/§19) ;
+  // dériver de `displayName` casserait la détection PDF/image si
+  // l'utilisateur renomme sans conserver l'extension (ex. "Contrat" sans
+  // ".pdf").
   String get extension {
     final dot = originalName.lastIndexOf('.');
     return dot == -1 ? '' : originalName.substring(dot + 1).toLowerCase();
@@ -166,10 +236,20 @@ class FinanceShipmentItemModel {
       quantity: _toDouble(json['quantity']),
     );
   }
+
+  // Toujours utiliser ces deux getters à l'affichage/export — jamais `unit`/
+  // `diameter` bruts (§9-11).
+  String? get displayUnit => normalizeFinanceUnit(unit, diameter).unit;
+  String? get displayDiameter => normalizeFinanceUnit(unit, diameter).diameter;
 }
 
 class FinanceShipmentModel {
   final String id;
+  // Identifiant métier généré INCONDITIONNELLEMENT par l'application
+  // (§MODIFICATION — CUSTOMER SHIPMENTS), format "SH-00001" — distinct de
+  // `reference` ci-dessous (numéro de BL LU sur le document, ou un repli
+  // auto-généré quand l'OCR est peu fiable) et de `customerCode`.
+  final String? shipmentNumber;
   final String reference;
   final String? customerReference;
   final int customerId;
@@ -202,6 +282,7 @@ class FinanceShipmentModel {
 
   const FinanceShipmentModel({
     required this.id,
+    this.shipmentNumber,
     required this.reference,
     this.customerReference,
     required this.customerId,
@@ -236,6 +317,7 @@ class FinanceShipmentModel {
   factory FinanceShipmentModel.fromJson(Map<String, dynamic> json) {
     return FinanceShipmentModel(
       id: (json['id'] ?? '').toString(),
+      shipmentNumber: json['shipmentNumber']?.toString(),
       reference: (json['reference'] ?? '').toString(),
       customerReference: json['customerReference']?.toString(),
       customerId: _toInt(json['customerId']),
@@ -397,6 +479,11 @@ class FinanceInvoiceItemModel {
       tax2: _toDouble(json['tax2']),
     );
   }
+
+  // Toujours utiliser ces deux getters à l'affichage/export — jamais `unit`/
+  // `diameter` bruts (§9-11).
+  String? get displayUnit => normalizeFinanceUnit(unit, diameter).unit;
+  String? get displayDiameter => normalizeFinanceUnit(unit, diameter).diameter;
 }
 
 // Ligne du bloc fiscal (Code/Base/Taux/Taxe, §STRUCTURE DES TAXES) — nombre
@@ -577,6 +664,11 @@ class FinancePurchaseOrderItemModel {
 
 class FinancePurchaseOrderModel {
   final String id;
+  // Identifiant métier généré par l'application (§IDENTIFICATION DES
+  // DIFFÉRENTS PURCHASE ORDERS), format "PO-00001" — distinct de
+  // `orderNumber` (champ OCR, nullable, non-unique). Un seul par Purchase
+  // Order, jamais par ligne produit.
+  final String? poNumber;
   final String? orderNumber;
   final String? orderDate;
   final int? customerId;
@@ -602,6 +694,7 @@ class FinancePurchaseOrderModel {
 
   const FinancePurchaseOrderModel({
     required this.id,
+    this.poNumber,
     this.orderNumber,
     this.orderDate,
     this.customerId,
@@ -622,6 +715,7 @@ class FinancePurchaseOrderModel {
   factory FinancePurchaseOrderModel.fromJson(Map<String, dynamic> json) {
     return FinancePurchaseOrderModel(
       id: (json['id'] ?? '').toString(),
+      poNumber: json['poNumber']?.toString(),
       orderNumber: json['orderNumber']?.toString(),
       orderDate: json['orderDate']?.toString(),
       customerId: json['customerId'] == null ? null : _toInt(json['customerId']),
@@ -662,36 +756,104 @@ class FinancePurchaseOrderModel {
 
 // ── DASHBOARD ───────────────────────────────────────────────────────────
 
+// Finance Alerts (§10) — uniquement des compteurs réellement calculés côté
+// backend (COUNT filtré sur 7 jours / statut), jamais un texte statique.
+class FinanceDashboardAlertsModel {
+  final int unpaidInvoices;
+  final int newPurchaseOrdersThisWeek;
+  final int newShipmentsThisWeek;
+  final int recentDocumentsCount;
+
+  const FinanceDashboardAlertsModel({
+    this.unpaidInvoices = 0,
+    this.newPurchaseOrdersThisWeek = 0,
+    this.newShipmentsThisWeek = 0,
+    this.recentDocumentsCount = 0,
+  });
+
+  factory FinanceDashboardAlertsModel.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const FinanceDashboardAlertsModel();
+    return FinanceDashboardAlertsModel(
+      unpaidInvoices: _toInt(json['unpaidInvoices']),
+      newPurchaseOrdersThisWeek: _toInt(json['newPurchaseOrdersThisWeek']),
+      newShipmentsThisWeek: _toInt(json['newShipmentsThisWeek']),
+      recentDocumentsCount: _toInt(json['recentDocumentsCount']),
+    );
+  }
+}
+
+// KPI du Finance Dashboard (§4) — tous calculés dynamiquement côté backend
+// (COUNT/SUM/GROUP BY), jamais de valeur statique côté frontend.
 class FinanceDashboardModel {
-  final int rawMaterialDocuments;
-  final int shipments;
-  final int facturedShipments;
+  final int purchaseOrders;
+  final int customerShipments;
+  final int invoices;
   final int paidInvoices;
-  final double totalInvoicedAmount;
-  final double totalPaidAmount;
-  final double outstandingAmount;
+  final double totalPurchases;
+  final double totalInvoiced;
+  final double totalPaid;
+  final double outstanding;
+  final FinanceDashboardAlertsModel alerts;
 
   const FinanceDashboardModel({
-    this.rawMaterialDocuments = 0,
-    this.shipments = 0,
-    this.facturedShipments = 0,
+    this.purchaseOrders = 0,
+    this.customerShipments = 0,
+    this.invoices = 0,
     this.paidInvoices = 0,
-    this.totalInvoicedAmount = 0,
-    this.totalPaidAmount = 0,
-    this.outstandingAmount = 0,
+    this.totalPurchases = 0,
+    this.totalInvoiced = 0,
+    this.totalPaid = 0,
+    this.outstanding = 0,
+    this.alerts = const FinanceDashboardAlertsModel(),
   });
 
   factory FinanceDashboardModel.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const FinanceDashboardModel();
     return FinanceDashboardModel(
-      rawMaterialDocuments: _toInt(json['rawMaterialDocuments']),
-      shipments: _toInt(json['shipments']),
-      facturedShipments: _toInt(json['facturedShipments']),
+      purchaseOrders: _toInt(json['purchaseOrders']),
+      customerShipments: _toInt(json['customerShipments']),
+      invoices: _toInt(json['invoices']),
       paidInvoices: _toInt(json['paidInvoices']),
-      totalInvoicedAmount: _toDouble(json['totalInvoicedAmount']) ?? 0,
-      totalPaidAmount: _toDouble(json['totalPaidAmount']) ?? 0,
-      outstandingAmount: _toDouble(json['outstandingAmount']) ?? 0,
+      totalPurchases: _toDouble(json['totalPurchases']) ?? 0,
+      totalInvoiced: _toDouble(json['totalInvoiced']) ?? 0,
+      totalPaid: _toDouble(json['totalPaid']) ?? 0,
+      outstanding: _toDouble(json['outstanding']) ?? 0,
+      alerts: json['alerts'] is Map ? FinanceDashboardAlertsModel.fromJson(Map<String, dynamic>.from(json['alerts'] as Map)) : const FinanceDashboardAlertsModel(),
     );
+  }
+}
+
+// "Financial Overview" (§5) — un point de la série mensuelle Purchase
+// Orders/Invoices/Paid Invoices, agrégé côté backend.
+class FinanceMonthlyPointModel {
+  final String month; // "YYYY-MM"
+  final double purchaseOrders;
+  final double invoices;
+  final double paidInvoices;
+
+  const FinanceMonthlyPointModel({
+    required this.month,
+    this.purchaseOrders = 0,
+    this.invoices = 0,
+    this.paidInvoices = 0,
+  });
+
+  factory FinanceMonthlyPointModel.fromJson(Map<String, dynamic> json) {
+    return FinanceMonthlyPointModel(
+      month: (json['month'] ?? '').toString(),
+      purchaseOrders: _toDouble(json['purchaseOrders']) ?? 0,
+      invoices: _toDouble(json['invoices']) ?? 0,
+      paidInvoices: _toDouble(json['paidInvoices']) ?? 0,
+    );
+  }
+
+  // "Janvier"/"Février"/... (§5) — libellé du mois pour l'axe du graphique.
+  String monthLabel(List<String> monthNames) {
+    final parts = month.split('-');
+    if (parts.length != 2) return month;
+    final idx = int.tryParse(parts[1]);
+    if (idx == null || idx < 1 || idx > 12) return month;
+    return monthNames[idx - 1];
   }
 }
 

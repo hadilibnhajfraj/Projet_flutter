@@ -48,9 +48,33 @@ class FinanceService {
 
   // ── DASHBOARD ────────────────────────────────────────────────────────
 
-  Future<FinanceDashboardModel> fetchDashboard() async {
-    final res = await ApiClient.instance.dio.get('$_basePath/dashboard');
+  // Filtres optionnels (§11) — appliqués côté backend (COUNT/SUM/GROUP BY
+  // filtrés, §16-17), jamais recalculés côté client.
+  Future<FinanceDashboardModel> fetchDashboard({
+    String? startDate,
+    String? endDate,
+    String? customer,
+    String? paymentMethod,
+  }) async {
+    final res = await ApiClient.instance.dio.get(
+      '$_basePath/dashboard',
+      queryParameters: _cleanParams({'startDate': startDate, 'endDate': endDate, 'customer': customer, 'paymentMethod': paymentMethod}),
+    );
     return FinanceDashboardModel.fromJson(_unwrapObject(res.data));
+  }
+
+  Future<List<FinanceMonthlyPointModel>> fetchDashboardMonthly({
+    String? startDate,
+    String? endDate,
+    String? customer,
+    String? paymentMethod,
+  }) async {
+    final res = await ApiClient.instance.dio.get(
+      '$_basePath/dashboard/monthly',
+      queryParameters: _cleanParams({'startDate': startDate, 'endDate': endDate, 'customer': customer, 'paymentMethod': paymentMethod}),
+    );
+    final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    return (body['data'] as List? ?? []).whereType<Map>().map((e) => FinanceMonthlyPointModel.fromJson(Map<String, dynamic>.from(e))).toList();
   }
 
   // ── INFLOW OF RAW MATERIALS (Bon de Commande, lu par OCR à l'upload) ────
@@ -111,6 +135,72 @@ class FinanceService {
 
   Future<void> deleteRawMaterial(String id) async {
     await ApiClient.instance.dio.delete('$_basePath/raw-materials/$id');
+  }
+
+  // ── FINANCE > OTHER (stockage documentaire pur — aucun OCR/extraction) ──
+
+  Future<FinancePagedResult<FinanceDocumentModel>> fetchOtherDocuments({
+    String? search,
+    String? type,
+    String? startDate,
+    String? endDate,
+    int page = 1,
+    int pageSize = 50,
+  }) async {
+    final res = await ApiClient.instance.dio.get(
+      '$_basePath/other-documents',
+      queryParameters: {
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+        ..._cleanParams({'search': search, 'type': type, 'startDate': startDate, 'endDate': endDate}),
+      },
+    );
+    final body = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
+    final items = (body['data'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => FinanceDocumentModel.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+    return FinancePagedResult(
+      items: items,
+      count: _toInt(body['count']),
+      page: _toInt(body['page']) == 0 ? page : _toInt(body['page']),
+      pageSize: _toInt(body['pageSize']) == 0 ? pageSize : _toInt(body['pageSize']),
+    );
+  }
+
+  // "Upload Document"/"Scan Document" (§4-5) — un simple dépôt de fichier,
+  // AUCUN OCR/extraction déclenché côté serveur (voir
+  // finance.service.js#uploadOtherDocument) — le backend renvoie
+  // immédiatement le document enregistré, pas de séquence "Reading.../
+  // Extracting..." comme pour Invoice/Shipment/Purchase Order.
+  Future<FinanceDocumentModel> uploadOtherDocument(
+    FinancePickedFile file, {
+    ValueChanged<double>? onProgress,
+  }) async {
+    final formData = FormData.fromMap({
+      'file': MultipartFile.fromBytes(file.bytes, filename: file.filename),
+    });
+    final res = await ApiClient.instance.dio.post(
+      '$_basePath/other-documents',
+      data: formData,
+      onSendProgress: onProgress == null
+          ? null
+          : (sent, total) {
+              if (total > 0) onProgress(sent / total);
+            },
+    );
+    return FinanceDocumentModel.fromJson(_unwrapObject(res.data));
+  }
+
+  // §7/§12/§19 : modifie UNIQUEMENT le nom d'affichage — jamais le fichier
+  // physique ni son URL.
+  Future<FinanceDocumentModel> renameOtherDocument(String id, String displayName) async {
+    final res = await ApiClient.instance.dio.patch('$_basePath/other-documents/$id', data: {'displayName': displayName});
+    return FinanceDocumentModel.fromJson(_unwrapObject(res.data));
+  }
+
+  Future<void> deleteOtherDocument(String id) async {
+    await ApiClient.instance.dio.delete('$_basePath/other-documents/$id');
   }
 
   // Aperçu — récupère les octets bruts du fichier (utilisé par le viewer
@@ -332,34 +422,27 @@ class FinanceService {
     return list.whereType<Map>().map((e) => FinanceInvoiceModel.fromJson(Map<String, dynamic>.from(e))).toList();
   }
 
-  // "Register payment" (§9-13) — `method` est désormais REQUIS (dropdown
-  // fermé à 4 valeurs, voir PAYMENT_METHODS côté backend), et un document
-  // justificatif optionnel (Chèque/Traite) peut être joint en même temps que
-  // le paiement, d'où un envoi multipart systématique (même principe que
-  // uploadInvoice) plutôt qu'un JSON simple.
+  // "Register payment" (§MODIFIER LE WORKFLOW PAYMENT / PAID FACTURES) —
+  // formulaire minimal : `method` (dropdown fermé à 4 valeurs, voir
+  // PAYMENT_METHODS côté backend) + `document` (justificatif, obligatoire —
+  // vérifié côté service) sont les SEULS champs collectés par l'UI.
+  // amount/paidDate ne sont plus saisis manuellement — le backend les déduit
+  // (montant total de la facture, date de règlement déjà extraite par
+  // l'OCR) quand ils sont absents, d'où un envoi multipart systématique
+  // (même principe que uploadInvoice) plutôt qu'un JSON simple.
   Future<FinanceInvoiceModel> registerPayment(
     String invoiceId, {
-    required double amount,
-    required String paidDate,
     required String method,
-    String? reference,
-    String? chequeNumber,
-    String? bankName,
-    String? chequeDate,
-    String? billOfExchangeNumber,
-    String? dueDate,
     FinancePickedFile? document,
+    double? amount,
+    String? paidDate,
+    String? reference,
   }) async {
     final formData = FormData.fromMap({
-      'amount': amount,
-      'paidDate': paidDate,
       'method': method,
+      if (amount != null) 'amount': amount,
+      if (paidDate != null && paidDate.isNotEmpty) 'paidDate': paidDate,
       if (reference != null && reference.isNotEmpty) 'reference': reference,
-      if (chequeNumber != null && chequeNumber.isNotEmpty) 'chequeNumber': chequeNumber,
-      if (bankName != null && bankName.isNotEmpty) 'bankName': bankName,
-      if (chequeDate != null && chequeDate.isNotEmpty) 'chequeDate': chequeDate,
-      if (billOfExchangeNumber != null && billOfExchangeNumber.isNotEmpty) 'billOfExchangeNumber': billOfExchangeNumber,
-      if (dueDate != null && dueDate.isNotEmpty) 'dueDate': dueDate,
       if (document != null) 'document': MultipartFile.fromBytes(document.bytes, filename: document.filename),
     });
     final res = await ApiClient.instance.dio.post('$_basePath/invoices/$invoiceId/payments', data: formData);

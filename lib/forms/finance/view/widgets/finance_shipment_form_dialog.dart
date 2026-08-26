@@ -103,8 +103,19 @@ class _FinanceShipmentFormState extends State<_FinanceShipmentForm> {
       _progress = 0;
     });
 
+    // §CORRECTION — BUG LIFECYCLE CUSTOMER SHIPMENTS : le `try/catch`
+    // n'enveloppe plus QUE le véritable appel réseau — une fois qu'il a
+    // réussi, le Shipment existe déjà en base quoi qu'il arrive ensuite
+    // côté UI (fermeture du dialog, SnackBar...). Avant ce correctif, une
+    // exception de cycle de vie survenue APRÈS la création réelle (ex. lookup
+    // d'ancêtre sur un `context` en cours de démontage pendant la fermeture
+    // du dialog) tombait dans ce MÊME `catch`, ce qui aurait pu, en plus de
+    // l'exception non interceptée observée, afficher à tort un message
+    // d'erreur alors que l'upload avait réussi — jamais un succès ET une
+    // erreur pour la même opération.
+    final FinanceShipmentModel shipment;
     try {
-      final shipment = await FinanceService.instance.createShipment(
+      shipment = await FinanceService.instance.createShipment(
         documents: _staged.map((f) => f.picked).toList(),
         onProgress: (p) {
           if (!mounted) return;
@@ -131,23 +142,9 @@ class _FinanceShipmentFormState extends State<_FinanceShipmentForm> {
           });
         },
       );
-      if (!mounted) return;
-
-      // "Document analyzed successfully" — état bref mais visible avant de
-      // fermer, pour que les étapes annoncées soient réellement perceptibles.
-      setState(() => _stage = _UploadStage.analyzed);
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (!mounted) return;
-
-      final t = AppLocalizations.of(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${t.translate('Shipment created successfully')} — ${shipment.reference}'),
-          backgroundColor: kCrmSuccess,
-        ),
-      );
-      Navigator.of(context).pop(shipment);
     } catch (e) {
+      // Seule une VRAIE erreur réseau/upload arrive ici (§"une exception UI
+      // après confirmation API ne doit pas être considérée comme un échec").
       if (!mounted) return;
       final t = AppLocalizations.of(context);
       setState(() {
@@ -155,7 +152,29 @@ class _FinanceShipmentFormState extends State<_FinanceShipmentForm> {
         _stage = _UploadStage.idle;
         _error = '${t.translate('Erreur')} : $e';
       });
+      return;
     }
+
+    // À partir d'ici, l'API a RÉUSSI — le Shipment existe déjà en base.
+    if (!mounted) return;
+
+    // "Document analyzed successfully" — état bref mais visible avant de
+    // fermer, pour que les étapes annoncées soient réellement perceptibles.
+    setState(() => _stage = _UploadStage.analyzed);
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+
+    // §CORRECTION — le dialog ne notifie plus lui-même le succès (même via
+    // `SafeSnack.messengerKey` — la ScaffoldMessengerState de ce GlobalKey
+    // reste en pratique liée à la même passe de build que le `Navigator.pop`
+    // ci-dessous, donc au même risque de fenêtre d'instabilité pendant la
+    // fermeture du dialog). Le Shipment créé est simplement RENVOYÉ à
+    // l'appelant via `pop(shipment)` — c'est l'ÉCRAN parent
+    // (finance_customer_shipments_screen.dart#_openNewShipment), dont le
+    // `context` est stable et n'est jamais démonté par cette opération, qui
+    // affiche la notification UNE FOIS le dialog entièrement fermé (voir
+    // son commentaire pour le détail).
+    Navigator.of(context).pop(shipment);
   }
 
   String? _stageLabel(AppLocalizations t) {

@@ -120,10 +120,6 @@ class _MelangeDetailsScreenState extends State<MelangeDetailsScreen> {
     }
   }
 
-  void _exportPdf() => ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(AppLocalizations.of(context).translate('Export PDF — fonctionnalité à venir')),
-      duration: const Duration(seconds: 2)));
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -161,18 +157,23 @@ class _MelangeDetailsScreenState extends State<MelangeDetailsScreen> {
               const SizedBox(height: 20),
 
               Wrap(spacing: 10, runSpacing: 10, children: [
+                // §MODIFICATION — FICHE MÉLANGE : bouton "Retour" explicite
+                // (en plus de la flèche de retour du bandeau du haut).
+                _ActionBtn(
+                  label: 'Retour',
+                  icon: Icons.arrow_back_rounded,
+                  color: kCrmTextSub,
+                  onTap: () => context.go(MyRoute.melangeHistoriqueScreen),
+                ),
                 _ActionBtn(
                   label: 'Modifier',
                   icon: Icons.edit_outlined,
                   color: kMelangeColor,
                   onTap: _loading ? null : () => context.go('${MyRoute.melangeFormScreen}?id=${widget.id}'),
                 ),
-                _ActionBtn(
-                  label: 'Exporter PDF',
-                  icon: Icons.picture_as_pdf_outlined,
-                  color: kCrmDanger,
-                  onTap: _loading ? null : _exportPdf,
-                ),
+                // §MODIFICATION — DÉTAILS FICHE MÉLANGE : "Export PDF" retiré
+                // (fonctionnalité non implémentée — ne jamais laisser un
+                // bouton visible pour une action qui ne fait rien).
                 _ActionBtn(
                   label: _deleting ? 'Suppression…' : 'Supprimer',
                   icon: Icons.delete_outline_rounded,
@@ -290,38 +291,60 @@ class _RecordDetail extends StatelessWidget {
     final totGl = totA + totB + totC + totGC + totPC;
     String fmt(double v) => v == 0 ? '—' : v.toStringAsFixed(2);
 
+    // §MODIFICATION — FICHE MÉLANGE : les fiches créées via le formulaire
+    // simplifié n'ont plus AUCUNE de ces données legacy — ces sections ne
+    // doivent donc plus apparaître pour elles (widget tree, pas juste
+    // masqué). Seules les anciennes fiches qui en possèdent réellement
+    // continuent de les afficher (ne jamais casser leur consultation).
+    bool hasRow(dynamic raw) => raw is Map && _rowHasValue(Map<String, dynamic>.from(raw));
+    final hasRavitaillement = ravLignesRaw.any(hasRow);
+    final hasConsommation = cso.any(hasRow);
+    final hasRapport = rapLignesRaw.any(hasRow);
+    final hasChuteFibre = chute.values.any((v) => (v ?? '').toString().trim().isNotEmpty);
+    final hasRemarquesSignature =
+        (data['remarques']?.toString() ?? '').isNotEmpty || (data['signature']?.toString() ?? '').isNotEmpty;
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Wrap(spacing: 8, runSpacing: 8, children: [
         _Badge(status.label, status.color),
       ]),
       const SizedBox(height: 20),
 
-      // ── Informations générales ──────────────────────────────────────────
-      _Section(title: 'Informations générales', icon: Icons.info_outline_rounded, color: kMelangeColor),
+      // ── Fiche MÉLANGE — §MODIFICATION — FICHE MÉLANGE : grille minimale
+      // exacte (Date/Heure début/Heure fin/Quantité/PROMESH/Déchet/
+      // Opérateur/Créée le/Statut) — préfère les colonnes structurées
+      // (record.heureDebut/heureFin) — repli sur melangeData pour les
+      // fiches créées avant ce ticket.
+      _Section(title: 'Fiche MÉLANGE', icon: Icons.info_outline_rounded, color: kMelangeColor),
       _InfoGrid(rows: [
         ('Date', record.dateFiche ?? '-'),
-        ('Heure début', data['heureDebut']?.toString() ?? '-'),
-        ('Heure fin', data['heureFin']?.toString() ?? '-'),
+        ('Heure début', record.heureDebut ?? data['heureDebut']?.toString() ?? '-'),
+        ('Heure fin', record.heureFin ?? data['heureFin']?.toString() ?? '-'),
+        ('Quantité', record.quantiteProduite?.toString() ?? '-'),
+        ('PROMESH', record.promesh ?? '-'),
+        ('Déchet', (record.dechet ?? '').isNotEmpty ? record.dechet! : '-'),
         ('Opérateur', record.operateur ?? '-'),
-        ('Zone', rapport?['zone']?.toString() ?? '-'),
-        if ((data['remarqueGen']?.toString() ?? '').isNotEmpty) ('Remarque générale', data['remarqueGen'].toString()),
-        ('Date création', _fmtDateTime(record.createdAt)),
-        ('Dernière modification', _fmtDateTime(record.updatedAt)),
+        ('Créée le', _fmtDateTime(record.createdAt)),
+        ('Statut', status.label),
       ]),
       const SizedBox(height: 20),
 
-      // ── Suivi journalier — Ravitaillement ───────────────────────────────
-      _Section(title: 'Suivi Journalier — Ravitaillement', icon: Icons.local_shipping_outlined, color: kMelangeColor),
-      _RavitaillementTable(lignes: ravLignesRaw),
-      const SizedBox(height: 20),
+      // ── Sections legacy — uniquement si l'ancienne fiche possède
+      // réellement ces données (jamais pour une fiche créée avec le
+      // formulaire simplifié) ─────────────────────────────────────────────
+      if (hasRavitaillement) ...[
+        _Section(title: 'Suivi Journalier — Ravitaillement', icon: Icons.local_shipping_outlined, color: kMelangeColor),
+        _RavitaillementTable(lignes: ravLignesRaw),
+        const SizedBox(height: 20),
+      ],
 
-      // ── Consommation chimique ───────────────────────────────────────────
-      _Section(title: 'Consommation Produit Chimique', icon: Icons.science_outlined, color: kMelangeColor),
-      _ConsommationTable(lignes: cso),
-      const SizedBox(height: 20),
+      if (hasConsommation) ...[
+        _Section(title: 'Consommation Produit Chimique', icon: Icons.science_outlined, color: kMelangeColor),
+        _ConsommationTable(lignes: cso),
+        const SizedBox(height: 20),
+      ],
 
-      // ── Remarques & Signature ───────────────────────────────────────────
-      if ((data['remarques']?.toString() ?? '').isNotEmpty || (data['signature']?.toString() ?? '').isNotEmpty) ...[
+      if (hasRemarquesSignature) ...[
         _Section(title: 'Remarques & Signature', icon: Icons.draw_outlined, color: kMelangeColor),
         _InfoGrid(rows: [
           if ((data['remarques']?.toString() ?? '').isNotEmpty) ('Remarques', data['remarques'].toString()),
@@ -330,57 +353,61 @@ class _RecordDetail extends StatelessWidget {
         const SizedBox(height: 20),
       ],
 
-      // ── Rapport journalier de mélange ───────────────────────────────────
-      _Section(title: 'Rapport Journalier de Mélange', icon: Icons.receipt_long_outlined, color: kMelangeColor),
-      _InfoGrid(rows: [
-        ('Date', rapport?['date']?.toString() ?? '-'),
-        ('Zone', rapport?['zone']?.toString() ?? '-'),
-        ('Opérateur', rapport?['operateur']?.toString() ?? '-'),
-        ('Heure début', rapport?['heureDebut']?.toString() ?? '-'),
-        ('Heure fin', rapport?['heureFin']?.toString() ?? '-'),
-      ]),
-      const SizedBox(height: 12),
-      _RapportTable(lignes: rapLignesRaw),
-      const SizedBox(height: 16),
+      if (hasRapport) ...[
+        _Section(title: 'Rapport Journalier de Mélange', icon: Icons.receipt_long_outlined, color: kMelangeColor),
+        _InfoGrid(rows: [
+          ('Date', rapport?['date']?.toString() ?? '-'),
+          ('Zone', rapport?['zone']?.toString() ?? '-'),
+          ('Opérateur', rapport?['operateur']?.toString() ?? '-'),
+          ('Heure début', rapport?['heureDebut']?.toString() ?? '-'),
+          ('Heure fin', rapport?['heureFin']?.toString() ?? '-'),
+        ]),
+        const SizedBox(height: 12),
+        _RapportTable(lignes: rapLignesRaw),
+        const SizedBox(height: 16),
+      ],
 
-      // ── Totaux + chute fibre ─────────────────────────────────────────────
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Expanded(
-          child: _Card(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(AppLocalizations.of(context).translate('Totaux'), style: tInter(fontSize: 13, fontWeight: FontWeight.w800, color: kCrmText)),
-              const SizedBox(height: 10),
-              _TotRow('TOTAL H', fmt(totH), const Color(0xFF6366F1)),
-              _TotRow('TOTAL A', fmt(totA), const Color(0xFF3B82F6)),
-              _TotRow('TOTAL B', fmt(totB), const Color(0xFF8B5CF6)),
-              _TotRow('TOTAL C', fmt(totC), const Color(0xFFF59E0B)),
-              _TotRow('TOTAL C Grande Cuillère', fmt(totGC), const Color(0xFF06B6D4)),
-              _TotRow('TOTAL D Petite Cuillère', fmt(totPC), const Color(0xFF84CC16)),
-              const Divider(height: 16, color: Color(0xFFE2E8F0)),
-              _TotRow('T.GLOBAL DE MÉLANGE', fmt(totGl), kMelangeColor, bold: true),
-            ]),
-          ),
-        ),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 180,
-          child: _Card(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(AppLocalizations.of(context).translate('N° chute fibre'), style: tInter(fontSize: 13, fontWeight: FontWeight.w800, color: kCrmText)),
-              const SizedBox(height: 10),
-              for (final l in _kLines) ...[
-                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                  Text(l, style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmTextSub)),
-                  Text(chute[l]?.toString().isNotEmpty == true ? chute[l].toString() : '—',
-                      style: tInter(fontSize: 13, fontWeight: FontWeight.w700, color: kCrmText)),
+      if (hasRapport || hasChuteFibre) ...[
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (hasRapport)
+            Expanded(
+              child: _Card(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(AppLocalizations.of(context).translate('Totaux'), style: tInter(fontSize: 13, fontWeight: FontWeight.w800, color: kCrmText)),
+                  const SizedBox(height: 10),
+                  _TotRow('TOTAL H', fmt(totH), const Color(0xFF6366F1)),
+                  _TotRow('TOTAL A', fmt(totA), const Color(0xFF3B82F6)),
+                  _TotRow('TOTAL B', fmt(totB), const Color(0xFF8B5CF6)),
+                  _TotRow('TOTAL C', fmt(totC), const Color(0xFFF59E0B)),
+                  _TotRow('TOTAL C Grande Cuillère', fmt(totGC), const Color(0xFF06B6D4)),
+                  _TotRow('TOTAL D Petite Cuillère', fmt(totPC), const Color(0xFF84CC16)),
+                  const Divider(height: 16, color: Color(0xFFE2E8F0)),
+                  _TotRow('T.GLOBAL DE MÉLANGE', fmt(totGl), kMelangeColor, bold: true),
                 ]),
-                if (l != _kLines.last) const SizedBox(height: 8),
-              ],
-            ]),
-          ),
-        ),
-      ]),
-      const SizedBox(height: 20),
+              ),
+            ),
+          if (hasRapport && hasChuteFibre) const SizedBox(width: 12),
+          if (hasChuteFibre)
+            SizedBox(
+              width: hasRapport ? 180 : double.infinity,
+              child: _Card(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(AppLocalizations.of(context).translate('N° chute fibre'), style: tInter(fontSize: 13, fontWeight: FontWeight.w800, color: kCrmText)),
+                  const SizedBox(height: 10),
+                  for (final l in _kLines) ...[
+                    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                      Text(l, style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmTextSub)),
+                      Text(chute[l]?.toString().isNotEmpty == true ? chute[l].toString() : '—',
+                          style: tInter(fontSize: 13, fontWeight: FontWeight.w700, color: kCrmText)),
+                    ]),
+                    if (l != _kLines.last) const SizedBox(height: 8),
+                  ],
+                ]),
+              ),
+            ),
+        ]),
+        const SizedBox(height: 20),
+      ],
     ]);
   }
 }
@@ -622,8 +649,12 @@ class _InfoGrid extends StatelessWidget {
                   i == rows.length - 1 ? const BorderRadius.vertical(bottom: Radius.circular(12)) : BorderRadius.zero,
               border: i < rows.length - 1 ? const Border(bottom: BorderSide(color: kCrmBorder)) : null,
             ),
+            // §MODIFICATION — DÉTAILS FICHE MÉLANGE : labels toujours en
+            // français sur cette page (jamais traduits vers EN/RU quand la
+            // langue de l'appli change — voir le ticket "traduire tous les
+            // labels en français").
             child: Row(children: [
-              Expanded(flex: 2, child: Text(AppLocalizations.of(context).translate(rows[i].$1), style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmTextSub))),
+              Expanded(flex: 2, child: Text(rows[i].$1, style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmTextSub))),
               Expanded(flex: 3, child: Text(rows[i].$2, style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmText))),
             ]),
           ),

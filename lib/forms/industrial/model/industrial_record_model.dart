@@ -21,6 +21,13 @@ class IndustrialRecordModel {
   final String? description;
   final String? observations;
 
+  // §MODIFICATION — FICHE MÉLANGE : champs structurés dédiés (null pour
+  // PROBAR/MAINTENANCE). heureDebut/heureFin au format HH:mm.
+  final String? heureDebut;
+  final String? heureFin;
+  final String? promesh; // 'PROMESH #1'..'PROMESH #4'
+  final String? dechet;
+
   // Champ dédié au module MÉLANGE : stocke le JSON complet du formulaire
   // (ravitaillement, consommation, rapport journalier, chute fibre…).
   // null pour PROBAR et MAINTENANCE, et null aussi dans les vues LISTE
@@ -53,6 +60,10 @@ class IndustrialRecordModel {
     this.urgence,
     this.description,
     this.observations,
+    this.heureDebut,
+    this.heureFin,
+    this.promesh,
+    this.dechet,
     this.melangeData,
     this.melangeSummary,
     this.statut = 'enregistree',
@@ -93,6 +104,10 @@ class IndustrialRecordModel {
       urgence: json['urgence']?.toString(),
       description: json['description']?.toString(),
       observations: json['observations']?.toString(),
+      heureDebut: json['heureDebut']?.toString(),
+      heureFin: json['heureFin']?.toString(),
+      promesh: json['promesh']?.toString(),
+      dechet: json['dechet']?.toString(),
       melangeData: _toNullableJsonMap(json['melangeData']),
       melangeSummary: _toNullableJsonMap(json['melangeSummary']),
       statut: (json['statut'] ?? 'enregistree').toString(),
@@ -116,6 +131,10 @@ class IndustrialRecordModel {
         'urgence': urgence,
         'description': description,
         'observations': observations,
+        if (heureDebut != null) 'heureDebut': heureDebut,
+        if (heureFin != null) 'heureFin': heureFin,
+        if (promesh != null) 'promesh': promesh,
+        if (dechet != null) 'dechet': dechet,
         if (melangeData != null) 'melangeData': melangeData,
         'statut': statut,
       };

@@ -85,6 +85,7 @@ class _PurchaseOrderDetailBodyState extends State<_PurchaseOrderDetailBody> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   _sectionTitle(t.translate('Purchase order details')),
                   _grid([
+                    if ((order.poNumber ?? '').isNotEmpty) (t.translate('PO #'), order.poNumber!),
                     (t.translate('Order number'), order.orderNumber ?? '—'),
                     (t.translate('Customer'), order.displayCustomerName),
                     (t.translate('Order date'), _dateFmt(order.orderDate)),

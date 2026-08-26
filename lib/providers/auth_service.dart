@@ -58,10 +58,17 @@ bool get canViewCommercialKpi {
 }
 
 // Accès au module POR PROMESH :
-// uniquement admin, superadmin, superadmin2 et responsable_logistique_achat.
+// admin, superadmin, superadmin2, responsable_logistique_achat, et
+// finance_production (§MODIFICATION — INTERFACE PRODUCTION DE
+// DENNISREDFEATHER : même accès Production que responsable_logistique_achat,
+// en plus de Finance).
 bool get canViewPorPromesh {
   final r = (userRole ?? '').toLowerCase().trim();
-  return r == 'admin' || r == 'superadmin' || r == 'superadmin2' || r == 'responsable_logistique_achat';
+  return r == 'admin' ||
+      r == 'superadmin' ||
+      r == 'superadmin2' ||
+      r == 'responsable_logistique_achat' ||
+      r == 'finance_production';
 }
 
 // Comptes pour lesquels le "Dashboard Industriel" ne doit jamais être
@@ -109,10 +116,15 @@ bool get canManageHrRequests {
 // Accès au module FINANCE PROBAR — rôle dédié finance_probar + les mêmes
 // tiers admin que canViewPorPromesh. Portée séparée (pas de réutilisation
 // de canViewPorPromesh) : Finance est son propre espace, pas un sous-module
-// industriel.
+// industriel. finance_production (§MODIFICATION — INTERFACE PRODUCTION DE
+// DENNISREDFEATHER) conserve ce même accès Finance en plus de Production.
 bool get canViewFinance {
   final r = (userRole ?? '').toLowerCase().trim();
-  return r == 'admin' || r == 'superadmin' || r == 'superadmin2' || r == 'finance_probar';
+  return r == 'admin' ||
+      r == 'superadmin' ||
+      r == 'superadmin2' ||
+      r == 'finance_probar' ||
+      r == 'finance_production';
 }
   // ---------------- SIGNUP ----------------
   Future<void> signup({required String email, required String password}) async {

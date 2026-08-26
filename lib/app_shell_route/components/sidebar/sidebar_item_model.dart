@@ -76,13 +76,18 @@ List<SidebarItemModel> buildTopMenus({
   required bool isCommercial,
   required bool canViewCommercialKpi,
   bool isLogistiqueAchat = false,
+  bool isFinanceProduction = false,
   bool canViewPorPromesh = false,
   bool hideIndustrialDashboard = false,
   bool isRestrictedAdmin = false,
 }) {
   // Espace dédié module industriel : un seul tile "Dashboard" (cartes KPI),
   // pas le Dashboard CRM (KPI Projets, etc.) qui ne concerne pas ce rôle.
-  if (isLogistiqueAchat) {
+  // finance_production (§MODIFICATION — INTERFACE PRODUCTION DE
+  // DENNISREDFEATHER) reçoit le même Dashboard Production que
+  // responsable_logistique_achat — Finance reste accessible via son propre
+  // groupe de menu (buildFinanceGroup), pas via ce Dashboard.
+  if (isLogistiqueAchat || isFinanceProduction) {
     return [
       SidebarItemModel(
         name:           'Dashboard',
@@ -151,6 +156,7 @@ List<GroupedMenuModel> buildGroupedMenus({
   required bool isAccueil,
   bool isLogistiqueAchat = false,
   bool isFinance = false,
+  bool isFinanceProduction = false,
   bool canViewPorPromesh = false,
   bool canViewFinance = false,
   bool hideIndustrialDashboard = false,
@@ -171,6 +177,17 @@ List<GroupedMenuModel> buildGroupedMenus({
   // Même principe que ci-dessus : uniquement le menu FINANCE, rien du CRM.
   if (isFinance) {
     return [buildFinanceGroup()];
+  }
+
+  // ── ESPACE DÉDIÉ — finance_production (§MODIFICATION — INTERFACE
+  // PRODUCTION DE DENNISREDFEATHER) ────────────────────────────────────────
+  // Réutilise EXACTEMENT les mêmes groupes que responsable_logistique_achat
+  // pour la Production (PROMESH/PROBAR/Fiches/Summary/Mélange/Maintenance)
+  // + EXACTEMENT le même groupe FINANCE que finance_probar — jamais de
+  // structure différente/dupliquée. Ni RH ni Récupérables ni CRM/
+  // Administration (non demandés par ce ticket).
+  if (isFinanceProduction) {
+    return [...buildIndustrialGroups(), buildFinanceGroup()];
   }
 
   // ── ACCUEIL ─────────────────────────────────────────────────────────────
@@ -511,6 +528,15 @@ GroupedMenuModel buildFinanceGroup() => GroupedMenuModel(
           icon:           Icons.verified_outlined,
           sidebarItemType: SidebarItemType.tile,
           navigationPath: MyRoute.financePaidInvoicesScreen,
+          accentColor:    kFinanceColor,
+        ),
+        // §MODIFICATION — FINANCE > OTHER — SCAN SIMPLE DE DOCUMENTS :
+        // stockage documentaire pur (aucun OCR/extraction).
+        SidebarItemModel(
+          name:           'Other',
+          icon:           Icons.folder_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.financeOtherDocumentsScreen,
           accentColor:    kFinanceColor,
         ),
       ],

@@ -101,6 +101,7 @@ import 'package:dash_master_toolkit/forms/finance/view/finance_inflow_raw_materi
 import 'package:dash_master_toolkit/forms/finance/view/finance_customer_shipments_screen.dart';
 import 'package:dash_master_toolkit/forms/finance/view/finance_factured_shipments_screen.dart';
 import 'package:dash_master_toolkit/forms/finance/view/finance_paid_invoices_screen.dart';
+import 'package:dash_master_toolkit/forms/finance/view/finance_other_documents_screen.dart';
 import 'package:dash_master_toolkit/forms/recuperables/view/recuperable_fiche_screen.dart';
 import 'package:dash_master_toolkit/forms/recuperables/view/recuperable_history_screen.dart';
 import 'package:dash_master_toolkit/forms/recuperables/view/recuperable_detail_screen.dart';
@@ -198,6 +199,7 @@ class MyRoute {
   static const financeCustomerShipmentsScreen = '/finance/customer-shipments';
   static const financeFacturedShipmentsScreen = '/finance/factured-shipments';
   static const financePaidInvoicesScreen = '/finance/paid-invoices';
+  static const financeOtherDocumentsScreen = '/finance/other';
 
   static const industrialRoutePrefixes = [
     porPromeshRoot,
@@ -206,6 +208,18 @@ class MyRoute {
     maintenanceRoot,
     hrRoot,
     recuperableRoot,
+  ];
+
+  // §MODIFICATION — INTERFACE PRODUCTION DE DENNISREDFEATHER : scope dédié au
+  // rôle finance_production — union de tout le module industriel Production
+  // (comme responsable_logistique_achat, MAIS sans RH ni Récupérables, non
+  // demandés par ce ticket) + Finance (comme finance_probar).
+  static const financeProductionRoutePrefixes = [
+    porPromeshRoot,
+    productionRoot,
+    melangeRoot,
+    maintenanceRoot,
+    financeRoot,
   ];
 
   // ── Module RH — Demandes (congé / autorisation de sortie) ────────────────
@@ -302,6 +316,19 @@ static const clientsProfileScreen = '/users/client';
           return financeDashboardScreen;
         }
 
+        // ── Espace dédié finance_production (§MODIFICATION — INTERFACE
+        // PRODUCTION DE DENNISREDFEATHER) ─────────────────────────────────
+        // Même logique de verrouillage que ci-dessus, mais scope élargi :
+        // Production (comme responsable_logistique_achat) ET Finance
+        // (comme finance_probar) — jamais le CRM/Administration.
+        final isOnFinanceProductionRoute = financeProductionRoutePrefixes
+            .any((p) => loc == p || loc.startsWith('$p/'));
+        if (role == 'finance_production' &&
+            !isAuthRoute &&
+            !isOnFinanceProductionRoute) {
+          return porPromeshDashboardScreen;
+        }
+
         // ── Connecté sur auth route ou racine → dashboard ─────────────────
         // La sélection du commercial (@probardistribution.com) est gérée
         // exclusivement dans sign_in_screen.dart après un login réussi.
@@ -313,6 +340,9 @@ static const clientsProfileScreen = '/users/client';
           }
           if (role == 'finance_probar') {
             return financeDashboardScreen;
+          }
+          if (role == 'finance_production') {
+            return porPromeshDashboardScreen;
           }
           if (role == 'commercial') {
             debugPrint('REDIRECTION → $commercialContactsKpiUsers');
@@ -1224,6 +1254,11 @@ GoRoute(
                 path: 'paid-invoices',
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: FinancePaidInvoicesScreen()),
+              ),
+              GoRoute(
+                path: 'other',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: FinanceOtherDocumentsScreen()),
               ),
             ],
           ),

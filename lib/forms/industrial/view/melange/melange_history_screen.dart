@@ -193,13 +193,6 @@ class _MelangeHistoryScreenState extends State<MelangeHistoryScreen> {
     }
   }
 
-  void _exportPdf(IndustrialRecordModel item) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(AppLocalizations.of(context).translate('Export PDF — fonctionnalité à venir')),
-      duration: const Duration(seconds: 2),
-    ));
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -319,7 +312,6 @@ class _MelangeHistoryScreenState extends State<MelangeHistoryScreen> {
                             onView: () => context.go('${MyRoute.melangeDetailScreen}?id=${m.id}'),
                             onEdit: () => context.go('${MyRoute.melangeFormScreen}?id=${m.id}'),
                             onDelete: () => _delete(m),
-                            onExportPdf: () => _exportPdf(m),
                           ),
                         );
                       },

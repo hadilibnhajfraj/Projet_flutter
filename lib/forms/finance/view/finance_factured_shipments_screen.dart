@@ -8,6 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'package:dash_master_toolkit/application/common/safe_snack.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
@@ -34,6 +35,11 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
   DateTime? _endDate;
   List<FinanceInvoiceModel> _invoices = const [];
   int _count = 0;
+  // §CORRECTION — SUPPRESSION FINANCE : empêche deux requêtes DELETE
+  // simultanées sur la même facture (double-clic rapide sur 🗑) — un id déjà
+  // en cours de suppression est ignoré silencieusement plutôt que de
+  // déclencher un second appel réseau.
+  final Set<String> _deletingIds = {};
 
   @override
   void initState() {
@@ -104,26 +110,36 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
       ),
     );
     if (confirmed != true) return;
+    if (_deletingIds.contains(inv.id)) return; // suppression déjà en cours pour cette facture
+    _deletingIds.add(inv.id);
     try {
       await FinanceService.instance.deleteInvoice(inv.id);
       if (!mounted) return;
+      // La ligne n'est retirée QUE si le backend a confirmé la suppression
+      // (aucune exception ci-dessus) — jamais un simple retrait optimiste.
       setState(() {
         _invoices = _invoices.where((i) => i.id != inv.id).toList();
         _count = _count > 0 ? _count - 1 : 0;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
+      SafeSnack.messengerKey.currentState?.showSnackBar(
         SnackBar(content: Text(t.translate('Invoice deleted successfully')), backgroundColor: kCrmSuccess),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('${t.translate('Erreur')} : $e'), backgroundColor: kCrmDanger));
+      SafeSnack.messengerKey.currentState
+          ?.showSnackBar(SnackBar(content: Text('${t.translate('Erreur')} : $e'), backgroundColor: kCrmDanger));
+    } finally {
+      _deletingIds.remove(inv.id);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
+    // "Paid" retiré (§MODIFIER LE WORKFLOW PAYMENT / PAID FACTURES, §8) —
+    // une facture payée n'appartient plus à cette liste (elle apparaît
+    // automatiquement dans Paid Factures dès l'enregistrement du paiement),
+    // ce filtre n'y renverrait donc plus jamais de résultat.
     const statuses = [
       (null, 'Toutes'),
       ('EXTRACTED', 'Extracted'),
@@ -131,7 +147,6 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
       ('OCR_FAILED', 'OCR failed'),
       ('ISSUED', 'Issued'),
       ('PARTIALLY_PAID', 'Partially paid'),
-      ('PAID', 'Paid'),
       ('OVERDUE', 'Overdue'),
       ('CANCELLED', 'Cancelled'),
     ];

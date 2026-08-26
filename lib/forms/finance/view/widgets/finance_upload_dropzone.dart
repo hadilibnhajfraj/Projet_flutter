@@ -80,6 +80,16 @@ class _FinanceUploadDropzoneState extends State<FinanceUploadDropzone> {
   }
 
   void _handleDragOver(html.MouseEvent event) {
+    // §CORRECTION URGENTE — ERREUR FLUTTER LORS DE L'UPLOAD D'UNE FACTURE :
+    // ces handlers sont abonnés à `html.window` (portée PAGE ENTIÈRE, pas au
+    // widget) pour toute la durée de vie du State — `dispose()` désabonne,
+    // mais un événement déjà en file d'attente au moment où le widget passe
+    // par `deactivate()` (retiré de l'arbre, ex. fermeture du dialog "Upload
+    // invoice") peut encore s'exécuter avant que `dispose()` ne tourne. Sans
+    // ce garde, `setState()`/`_zoneRect()` (qui interroge le RenderObject de
+    // ce widget) tomberait exactement sur "Looking up a deactivated widget's
+    // ancestor is unsafe".
+    if (!mounted) return;
     // Nécessaire pour autoriser le "drop" — un navigateur refuse l'événement
     // drop si dragover n'appelle pas preventDefault().
     event.preventDefault();
@@ -88,6 +98,7 @@ class _FinanceUploadDropzoneState extends State<FinanceUploadDropzone> {
   }
 
   Future<void> _handleDrop(html.MouseEvent event) async {
+    if (!mounted) return;
     event.preventDefault();
     final over = _isOverZone(event);
     if (_dragOver) setState(() => _dragOver = false);
@@ -99,9 +110,14 @@ class _FinanceUploadDropzoneState extends State<FinanceUploadDropzone> {
     final picked = <FinancePickedFile>[];
     for (final file in files) {
       final bytes = await _readFileBytes(file);
+      // Le dialog parent peut avoir été fermé pendant la lecture asynchrone
+      // d'un des fichiers déposés (FileReader) — jamais notifier le parent
+      // via `widget.onFilesSelected` après démontage.
+      if (!mounted) return;
       if (bytes != null) picked.add(FinancePickedFile(bytes: bytes, filename: file.name));
     }
-    if (picked.isNotEmpty) widget.onFilesSelected(picked);
+    if (picked.isEmpty) return;
+    _notifyFilesSelected(picked);
   }
 
   Future<Uint8List?> _readFileBytes(html.File file) {
@@ -117,18 +133,47 @@ class _FinanceUploadDropzoneState extends State<FinanceUploadDropzone> {
   }
 
   Future<void> _browseFiles() async {
+    // Le sélecteur de fichiers natif du navigateur reste ouvert un temps
+    // INDÉTERMINÉ (contrôlé par l'utilisateur) — exactement le genre d'écart
+    // asynchrone pendant lequel le dialog "Upload invoice" englobant peut
+    // avoir été fermé (bouton Annuler/X, ou l'utilisateur a navigué
+    // ailleurs). Sans ce garde, `widget.onFilesSelected(picked)` déclenche
+    // `setState()` côté parent (_FinanceInvoiceUploadFormState) sur un State
+    // démonté → "Looking up a deactivated widget's ancestor is unsafe" /
+    // "setState() called after dispose()".
     final result = await FilePicker.platform.pickFiles(
       withData: true,
       allowMultiple: true,
       type: FileType.custom,
       allowedExtensions: kFinanceAllowedExtensions,
     );
+    if (!mounted) return;
     if (result == null) return;
     final picked = result.files
         .where((f) => f.bytes != null)
         .map((f) => FinancePickedFile(bytes: f.bytes!, filename: f.name))
         .toList();
-    if (picked.isNotEmpty) widget.onFilesSelected(picked);
+    if (picked.isEmpty) return;
+    _notifyFilesSelected(picked);
+  }
+
+  // §CORRECTION — BUG LIFECYCLE DU POPUP "UPLOAD INVOICE" : le retour du
+  // sélecteur de fichiers natif du navigateur (fermeture de la fenêtre OS,
+  // le focus qui revient sur l'onglet) arrive dans un micro-tâche qui peut
+  // chevaucher une passe de build/layout Flutter encore en cours — appeler
+  // `widget.onFilesSelected` (qui déclenche un `setState()` insérant pour la
+  // toute première fois la liste "Supporting documents", avec ses nouveaux
+  // `IconButton`/`Tooltip`) exactement à ce moment est ce qui produit
+  // "Looking up a deactivated widget's ancestor is unsafe / the state of the
+  // widget's element tree is no longer stable". Reporter l'appel après la
+  // fin du frame en cours (`addPostFrameCallback`) laisse l'arbre se
+  // stabiliser avant d'y insérer de nouveaux widgets — revérifier `mounted`
+  // à l'intérieur du callback, le widget ayant pu être démonté entre-temps.
+  void _notifyFilesSelected(List<FinancePickedFile> picked) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      widget.onFilesSelected(picked);
+    });
   }
 
   @override

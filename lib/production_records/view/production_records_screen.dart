@@ -18,6 +18,7 @@ import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/widgets/shimmer_box.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 import '../model/production_record_model.dart';
 import '../service/production_records_service.dart';
@@ -60,6 +61,12 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
   DateTime? _customEnd;
   String? _machineFilter;
   String? _posteFilter;
+  // §MODIFICATION — ADMIN > PRODUCTION RECORDS — FILTRE PAR UTILISATEUR :
+  // `null` = "All users". Le dropdown lui-même n'est affiché que pour un
+  // rôle Admin (§10) — pour les autres rôles ce filtre n'a aucun effet
+  // (déjà owner-scoped côté backend), donc jamais affiché pour eux.
+  String? _createdBy;
+  List<ProductionRecordCreator> _creators = const [];
   String _search = '';
   Timer? _searchDebounce;
 
@@ -72,10 +79,13 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
   ProductionRecordPage _pageData = const ProductionRecordPage();
   ProductionRecordFilters _filters = const ProductionRecordFilters();
 
+  bool get _isAdmin => AuthService().isAdmin;
+
   @override
   void initState() {
     super.initState();
     _loadFilters();
+    if (_isAdmin) _loadCreators();
     _loadList();
   }
 
@@ -108,6 +118,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
         endDate: _period == 'custom' && _customEnd != null ? DateFormat('yyyy-MM-dd').format(_customEnd!) : null,
         machineId: _machineFilter,
         poste: _posteFilter,
+        createdBy: _createdBy,
         search: _search,
         sort: '${_sortField}_${_sortAsc ? 'asc' : 'desc'}',
         page: _page,
@@ -123,7 +134,20 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
     }
   }
 
-  Future<void> _refreshAll() => Future.wait([_loadFilters(), _loadList()]);
+  // §MODIFICATION — ADMIN > PRODUCTION RECORDS — FILTRE PAR UTILISATEUR (§3) :
+  // best-effort — si l'appel échoue, le dropdown retombe simplement sur
+  // "All users" uniquement (même tolérance que _loadFilters).
+  Future<void> _loadCreators() async {
+    try {
+      final creators = await ProductionRecordsService.instance.fetchCreators();
+      if (!mounted) return;
+      setState(() => _creators = creators);
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  Future<void> _refreshAll() => Future.wait([_loadFilters(), if (_isAdmin) _loadCreators(), _loadList()]);
 
   void _onFilterChanged() {
     _page = 1;
@@ -144,6 +168,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
       _customEnd = null;
       _machineFilter = null;
       _posteFilter = null;
+      _createdBy = null; // §12 : "Created by" -> "All users"
       _search = '';
       _sortField = 'date';
       _sortAsc = false;
@@ -470,6 +495,23 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
               _onFilterChanged();
             }),
           ),
+          // §MODIFICATION — ADMIN > PRODUCTION RECORDS — FILTRE PAR
+          // UTILISATEUR (§2/§10) : "All users" — visible UNIQUEMENT pour un
+          // rôle Admin (les autres rôles sont déjà owner-scoped côté
+          // backend, ce filtre n'aurait aucun effet pour eux).
+          if (_isAdmin)
+            _dropdown<String?>(
+              icon: Icons.person_outline_rounded,
+              value: _createdBy,
+              items: [
+                (null, t.translate('All users')),
+                for (final c in _creators) (c.id, c.displayLabel),
+              ],
+              onChanged: (v) => setState(() {
+                _createdBy = v;
+                _onFilterChanged();
+              }),
+            ),
           _dropdown<String>(
             icon: Icons.sort_rounded,
             value: _sortField,
@@ -740,6 +782,39 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
+// §MODIFICATION — ADMIN > PRODUCTION RECORDS — FILTRE PAR UTILISATEUR (§8) :
+// partie locale de l'email affichée dans le tableau ("production_1"),
+// email complet au survol (Tooltip) — jamais l'inverse (l'email complet en
+// double dans une cellule déjà étroite). §15 : "Unknown" pour une fiche sans
+// créateur connu (données historiques), jamais un nom inventé.
+class _CreatorCell extends StatelessWidget {
+  final String? shortLabel;
+  final String? email;
+  const _CreatorCell({required this.shortLabel, required this.email});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    if (shortLabel == null) {
+      return Text(t.translate('Unknown'), style: tInter(fontSize: 12.5, color: kCrmTextSub));
+    }
+    return Tooltip(
+      message: email ?? shortLabel!,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.person_outline_rounded, size: 13, color: kCrmTextSub),
+        const SizedBox(width: 5),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 140),
+          child: Text(shortLabel!,
+              style: tInter(fontSize: 12.5, fontWeight: FontWeight.w600, color: kCrmText),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ),
+      ]),
+    );
+  }
+}
+
 // ── BOUTON "VOIR" (seule action de la ligne) ──────────────────────────
 
 class _ViewButton extends StatelessWidget {
@@ -790,6 +865,9 @@ class _RecordTable extends StatelessWidget {
       DataColumn(label: Text(t.translate('Quantité')), numeric: true),
       DataColumn(label: Text(t.translate('Diamètre')), numeric: true),
       DataColumn(label: Text(t.translate('Statut'))),
+      // §MODIFICATION — ADMIN > PRODUCTION RECORDS — FILTRE PAR UTILISATEUR
+      // (§8) : "production_1" de préférence, email complet au survol.
+      DataColumn(label: Text(t.translate('Created by'))),
       DataColumn(label: Text('Actions')),
     ];
 
@@ -833,6 +911,7 @@ class _RecordTable extends StatelessWidget {
                     DataCell(Text(item.quantite == null ? '—' : '${item.quantite} ${item.quantiteUnite}')),
                     DataCell(Text(item.diametre == null || item.diametre!.isEmpty ? '—' : '${item.diametre} ${item.diametreUnite}')),
                     DataCell(_StatusBadge(statut: item.statut)),
+                    DataCell(_CreatorCell(shortLabel: item.creatorShortLabel, email: item.creatorEmail)),
                     DataCell(_ViewButton(onTap: () => onView(item))),
                   ],
                 ),
@@ -884,6 +963,9 @@ class _RecordCard extends StatelessWidget {
                 '${item.machine == null ? '—' : 'Machine ${item.machine}'} · ${item.poste == 'matin' ? t.translate('Matin') : (item.poste == 'nuit' ? t.translate('Nuit') : '—')}'),
             _row(Icons.event_outlined, '${item.date ?? '—'}${item.heureDebut != null ? ' · ${item.heureDebut}' : ''}'),
             if (item.operateur != null) _row(Icons.person_outline_rounded, item.operateur!),
+            // §MODIFICATION — ADMIN > PRODUCTION RECORDS — FILTRE PAR
+            // UTILISATEUR (§8) — cohérence avec le tableau desktop.
+            _row(Icons.badge_outlined, '${t.translate('Created by')} : ${item.creatorShortLabel ?? t.translate('Unknown')}'),
             const SizedBox(height: 10),
             Row(children: [
               Icon(Icons.speed_rounded, size: 13, color: color),
@@ -1147,7 +1229,10 @@ class _RecordDetailDrawerState extends State<_RecordDetailDrawer> {
       (t.translate('Statut'), t.translate((d['statut'] ?? widget.preview.statut) == 'validee' ? 'Validée' : 'Brouillon')),
       (t.translate('Créé le'), _dateFmt(d['createdAt'], withTime: true)),
       (t.translate('Date de modification'), _dateFmt(d['updatedAt'], withTime: true)),
-      (t.translate('Utilisateur créateur'), _s((d['creator'] as Map?)?['email'])),
+      // §MODIFICATION — ADMIN > PRODUCTION RECORDS — FILTRE PAR UTILISATEUR
+      // (§9/§15) : "Unknown" explicite pour une fiche historique sans
+      // créateur connu — jamais un simple "—" ambigu ni un nom inventé.
+      (t.translate('Created by'), _sOrNull((d['creator'] as Map?)?['email']) ?? t.translate('Unknown')),
     ];
     return _SectionCard(icon: Icons.badge_outlined, title: t.translate('Informations générales'), color: kCrmPrimary, child: _grid(rows, twoCol));
   }
