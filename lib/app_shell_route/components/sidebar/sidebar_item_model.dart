@@ -28,6 +28,18 @@ class SidebarItemModel {
   // Couleur d'accent par module (PROMESH/PROBAR/MÉLANGE/MAINTENANCE) —
   // remplace l'indigo par défaut sur la tuile sélectionnée/icône quand défini.
   final Color?           accentColor;
+  // §MODIFICATION CRM — SOUS-MENU IMPORT SUR CHAQUE MENU FINANCE (§8) : rendu
+  // "sous-menu" (indentation, icône/texte plus petits) pour une simple
+  // `SidebarItemType.tile` — DÉLIBÉRÉMENT PAS `SidebarItemType.submenu` :
+  // ce type transforme le clic sur la tuile PARENTE en simple
+  // ouverture/fermeture (voir `_buildTile`/`onSubmenuTap` ci-dessous), ce qui
+  // aurait cassé la navigation directe existante de "Inflow of raw
+  // materials"/"Shipment"/"Factured shipments"/"Paid factures" (1 clic → 2
+  // clics, changement de comportement explicitement refusé). `isSubItem`
+  // garde donc une tuile INDÉPENDANTE, cliquable directement comme les
+  // autres (même `_isSelected`/`_handleNavigation` que toute tuile), avec
+  // uniquement un style visuel de sous-élément.
+  final bool             isSubItem;
 
   SidebarItemModel({
     required this.name,
@@ -38,6 +50,7 @@ class SidebarItemModel {
     this.isPage  = false,
     this.badge,
     this.accentColor,
+    this.isSubItem = false,
   }) : assert(
           sidebarItemType != SidebarItemType.submenu ||
               (submenus?.isNotEmpty ?? false),
@@ -509,12 +522,33 @@ GroupedMenuModel buildFinanceGroup() => GroupedMenuModel(
           navigationPath: MyRoute.financeInflowRawMaterialsScreen,
           accentColor:    kFinanceColor,
         ),
+        // §MODIFICATION CRM — SOUS-MENU IMPORT SUR CHAQUE MENU FINANCE :
+        // tuile indépendante au rendu "sous-menu" (voir isSubItem) — jamais
+        // un `SidebarItemType.submenu` (aurait cassé le clic direct sur
+        // "Inflow of raw materials" ci-dessus, voir le commentaire sur
+        // `isSubItem` dans sidebar_item_model.dart).
+        SidebarItemModel(
+          name:           'Import',
+          icon:           Icons.upload_file_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.financeInflowRawMaterialsImportScreen,
+          accentColor:    kFinanceColor,
+          isSubItem:      true,
+        ),
         SidebarItemModel(
           name:           'Shipment of products to the customers',
           icon:           Icons.local_shipping_outlined,
           sidebarItemType: SidebarItemType.tile,
           navigationPath: MyRoute.financeCustomerShipmentsScreen,
           accentColor:    kFinanceColor,
+        ),
+        SidebarItemModel(
+          name:           'Import',
+          icon:           Icons.upload_file_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.financeCustomerShipmentsImportScreen,
+          accentColor:    kFinanceColor,
+          isSubItem:      true,
         ),
         SidebarItemModel(
           name:           'Factured shipments - by facture',
@@ -524,21 +558,34 @@ GroupedMenuModel buildFinanceGroup() => GroupedMenuModel(
           accentColor:    kFinanceColor,
         ),
         SidebarItemModel(
+          name:           'Import',
+          icon:           Icons.upload_file_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.financeFacturedShipmentsImportScreen,
+          accentColor:    kFinanceColor,
+          isSubItem:      true,
+        ),
+        SidebarItemModel(
           name:           'Paid factures',
           icon:           Icons.verified_outlined,
           sidebarItemType: SidebarItemType.tile,
           navigationPath: MyRoute.financePaidInvoicesScreen,
           accentColor:    kFinanceColor,
         ),
-        // §MODIFICATION — FINANCE > OTHER — SCAN SIMPLE DE DOCUMENTS :
-        // stockage documentaire pur (aucun OCR/extraction).
         SidebarItemModel(
-          name:           'Other',
-          icon:           Icons.folder_outlined,
+          name:           'Import',
+          icon:           Icons.upload_file_outlined,
           sidebarItemType: SidebarItemType.tile,
-          navigationPath: MyRoute.financeOtherDocumentsScreen,
+          navigationPath: MyRoute.financePaidInvoicesImportScreen,
           accentColor:    kFinanceColor,
+          isSubItem:      true,
         ),
+        // §MODIFICATION — SUPPRESSION "OTHER" DU SIDEBAR FINANCE : "Other" et
+        // son sous-menu "Import" retirés du menu à la demande explicite du
+        // ticket — voir my_route.dart pour la suppression des routes
+        // correspondantes (/finance/other, /finance/other/import). Les
+        // autres menus Finance (Inflow/Shipment/Factured/Paid) et leurs
+        // Import respectifs sont inchangés.
       ],
     );
 

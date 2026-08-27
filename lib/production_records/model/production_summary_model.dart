@@ -1,11 +1,15 @@
 // lib/production_records/model/production_summary_model.dart
 //
-// "Production Summary" — tableau récapitulatif PROBAR/PROMESH groupé par
-// Diamètre (+ Taille de maille pour PROMESH). Mirrors GET
-// /production-records/summary (backend :
+// "Production Summary" — même jeu de fiches que "Production records" (une
+// ligne par fiche PROBAR/PROMESH, voir production_record_model.dart), pas
+// une agrégation. Mirrors GET /production-records/summary (backend :
 // modules/production-records/services/productionRecords.service.js#getProductionSummary).
-// Aucune donnée dupliquée : agrégation en lecture seule des fiches
-// existantes, calculée côté PostgreSQL (SUM/GROUP BY), jamais en Flutter.
+// Aucune donnée dupliquée : lecture seule des fiches existantes, `rows`
+// réutilise directement ProductionRecordModel (même DTO backend que
+// "Fiches de production" — normalizePromesh/normalizeProbar), jamais un
+// second schéma parallèle.
+
+import 'production_record_model.dart';
 
 double _toDouble(dynamic v) {
   if (v == null) return 0;
@@ -21,94 +25,29 @@ int _toInt(dynamic v) {
   return 0;
 }
 
-/// Une ligne au sein d'un groupe Diamètre — PROMESH uniquement (une ligne
-/// par Taille de maille). PROBAR n'a pas de sous-lignes (voir §8 : "PROBAR,
-/// supprimer complètement la notion de Cell size").
-class ProductionSummaryRow {
-  final String? meshSize;
-  final double quantity;
-  final int records;
-
-  const ProductionSummaryRow({this.meshSize, this.quantity = 0, this.records = 0});
-
-  factory ProductionSummaryRow.fromJson(Map<String, dynamic> json) {
-    return ProductionSummaryRow(
-      meshSize: json['meshSize']?.toString(),
-      quantity: _toDouble(json['quantity']),
-      records: _toInt(json['records']),
-    );
-  }
-}
-
-/// Un groupe Diamètre — `rows` est vide pour PROBAR (Diameter + Quantity
-/// uniquement), rempli pour PROMESH (une ligne par Taille de maille sous ce
-/// diamètre, voir §1/§3 du cahier des charges).
-class ProductionSummaryGroup {
-  final String? diameter; // null = diamètre non renseigné sur la fiche
-  final List<ProductionSummaryRow> rows;
-  final double diameterTotal;
-  final int records;
-
-  const ProductionSummaryGroup({
-    this.diameter,
-    this.rows = const [],
-    this.diameterTotal = 0,
-    this.records = 0,
-  });
-
-  // Forme PROMESH (backend) : { diameter, rows:[{meshSize,quantity,records}], diameterTotal, records }
-  factory ProductionSummaryGroup.fromPromeshJson(Map<String, dynamic> json) {
-    return ProductionSummaryGroup(
-      diameter: json['diameter']?.toString(),
-      rows: (json['rows'] as List? ?? [])
-          .whereType<Map>()
-          .map((e) => ProductionSummaryRow.fromJson(Map<String, dynamic>.from(e)))
-          .toList(),
-      diameterTotal: _toDouble(json['diameterTotal']),
-      records: _toInt(json['records']),
-    );
-  }
-
-  // Forme PROBAR (backend) : { diameter, quantity, records } — pas de sous-lignes.
-  factory ProductionSummaryGroup.fromProbarJson(Map<String, dynamic> json) {
-    return ProductionSummaryGroup(
-      diameter: json['diameter']?.toString(),
-      rows: const [],
-      diameterTotal: _toDouble(json['quantity']),
-      records: _toInt(json['records']),
-    );
-  }
-
-  bool get hasMeshSizeRows => rows.isNotEmpty;
-}
-
-/// Un tableau complet (PROMESH ou PROBAR) — groupes + total général.
+/// Un tableau complet (PROMESH ou PROBAR) — fiches individuelles + total général.
 class ProductionSummaryTable {
-  final List<ProductionSummaryGroup> groups;
+  final List<ProductionRecordModel> rows;
   final double grandTotal;
   final String unit;
   final int totalRecords;
-  final int diameterCount;
 
   const ProductionSummaryTable({
-    this.groups = const [],
+    this.rows = const [],
     this.grandTotal = 0,
     this.unit = '',
     this.totalRecords = 0,
-    this.diameterCount = 0,
   });
 
   factory ProductionSummaryTable.fromJson(Map<String, dynamic> json, {required bool isPromesh}) {
     return ProductionSummaryTable(
-      groups: (json['groups'] as List? ?? [])
+      rows: (json['rows'] as List? ?? [])
           .whereType<Map>()
-          .map((e) => Map<String, dynamic>.from(e))
-          .map((e) => isPromesh ? ProductionSummaryGroup.fromPromeshJson(e) : ProductionSummaryGroup.fromProbarJson(e))
+          .map((e) => ProductionRecordModel.fromJson(Map<String, dynamic>.from(e)))
           .toList(),
       grandTotal: _toDouble(json['grandTotal']),
       unit: (json['unit'] ?? '').toString(),
       totalRecords: _toInt(json['totalRecords']),
-      diameterCount: _toInt(json['diameterCount']),
     );
   }
 }
@@ -122,6 +61,29 @@ class ProductionSummaryTable {
 String formatCellSize(Object? value) {
   final s = value?.toString() ?? '';
   return s.replaceAll('/', 'X').replaceAll('*', 'X');
+}
+
+// Machine PROMESH — la colonne `machine` en base ne contient que le numéro
+// ("1".."4", voir route /production/promesh/machine/<n>), jamais le libellé
+// complet : ce formateur ajoute uniquement le préfixe d'affichage "PROMESH ",
+// il n'invente jamais une valeur absente (machine vide/null -> "—").
+// Tolère aussi une valeur déjà préfixée (ex. donnée historique "PROMESH 4")
+// sans la doubler.
+String formatPromeshMachineLabel(String? machine) {
+  final v = (machine ?? '').trim();
+  if (v.isEmpty) return '—';
+  if (v.toUpperCase().startsWith('PROMESH')) return v.toUpperCase();
+  return 'PROMESH $v';
+}
+
+// Vrai uniquement si la fiche provient réellement de la machine PROMESH 4
+// (valeur de la colonne `machine`, jamais déduite de la position de la ligne
+// ni d'aucun autre champ) — accepte "4" (forme actuellement enregistrée) et
+// "PROMESH 4"/"PROMESH4" (au cas où une fiche future/historique stockerait
+// déjà le libellé complet).
+bool isPromesh4Machine(String? machine) {
+  final v = (machine ?? '').trim().toUpperCase().replaceAll(' ', '');
+  return v == '4' || v == 'PROMESH4';
 }
 
 // Format professionnel des grands nombres : "1250" -> "1 250" (séparateur

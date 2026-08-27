@@ -215,12 +215,16 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
               // 2. Filtres (Type + Période + Diamètre + Machine + Statut + Reset)
               _buildFiltersCard(context),
               const SizedBox(height: 22),
-              // 3. KPI
-              _buildKpiRow(context, isMobile),
-              const SizedBox(height: 26),
+              // 3. KPI + tableaux — state machine loading/success/empty/error
+              // (§7 : une erreur réseau/API ne doit JAMAIS afficher "Number
+              // of records = 0" comme si la base était vide — le KPI row
+              // n'est donc rendu QUE hors erreur, jamais en même temps que
+              // le message d'erreur).
               if (_error != null)
                 _buildError(context)
               else ...[
+                _buildKpiRow(context, isMobile),
+                const SizedBox(height: 26),
                 if (_loading && promesh == null && probar == null)
                   _buildTablesSkeleton()
                 else ...[
@@ -299,7 +303,12 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
   // les deux tableaux, jamais superposé au reste du contenu.
   Widget _buildExportBar(BuildContext context) {
     final t = AppLocalizations.of(context);
-    final hasData = _summary.promesh != null || _summary.probar != null;
+    // §11 : jamais d'export possible tant que le dernier chargement a échoué
+    // — même si un précédent filtre avait chargé des données avec succès
+    // (`_summary` garde alors sa dernière valeur connue, volontairement pas
+    // effacée pour l'affichage), exporter ces données périmées pendant qu'une
+    // erreur est affichée serait trompeur.
+    final hasData = _error == null && (_summary.promesh != null || _summary.probar != null);
     Widget btn(IconData icon, String label, VoidCallback? onTap) => OutlinedButton.icon(
           onPressed: (_exporting || !hasData) ? null : onTap,
           icon: Icon(icon, size: 16),
@@ -514,10 +523,10 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
   // ci-dessous mesure la hauteur réelle du contenu (IntrinsicHeight) et
   // l'applique à toute la ligne (stretch) — largeur et hauteur toujours
   // identiques, jamais de débordement possible.
-  // "Number of diameters" volontairement retiré des KPI (demande explicite)
-  // — le regroupement par diamètre et le filtre Diamètre restent inchangés
-  // (voir ProductionSummaryTable.diameterCount, toujours calculé côté
-  // backend et toujours exposé dans le modèle, simplement plus affiché ici).
+  // KPI calculés à partir des MÊMES lignes que le tableau ci-dessous
+  // (promesh.grandTotal/probar.grandTotal/totalRecords — voir
+  // ProductionSummaryTable) : jamais une valeur recalculée séparément,
+  // jamais hardcodée.
   Widget _buildKpiRow(BuildContext context, bool isMobile) {
     final t = AppLocalizations.of(context);
     final promesh = _summary.promesh;
@@ -571,17 +580,27 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
     );
   }
 
+  // §7 : un échec réseau/API affiche un message clair + Retry — jamais un
+  // KPI "0" ou une liste vide qui laisserait croire que la base ne contient
+  // aucune fiche (voir le if (_error != null) dans build()).
   Widget _buildError(BuildContext context) {
+    final t = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.error_outline_rounded, color: kCrmDanger, size: 36),
-          const SizedBox(height: 8),
-          Text('${AppLocalizations.of(context).translate('Erreur de chargement :')} $_error',
-              textAlign: TextAlign.center, style: tInter(fontSize: 13, color: kCrmTextSub)),
-          const SizedBox(height: 12),
-          OutlinedButton(onPressed: _load, child: Text(AppLocalizations.of(context).translate('Réessayer'))),
+          const Icon(Icons.cloud_off_rounded, color: kCrmDanger, size: 36),
+          const SizedBox(height: 10),
+          Text(t.translate('Impossible de charger les données de production.'),
+              textAlign: TextAlign.center, style: tInter(fontSize: 14, fontWeight: FontWeight.w700, color: kCrmText)),
+          const SizedBox(height: 4),
+          Text(_error ?? '', textAlign: TextAlign.center, style: tInter(fontSize: 11.5, color: kCrmTextSub)),
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: _load,
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            label: Text(t.translate('Réessayer')),
+          ),
         ]),
       ),
     );
@@ -659,10 +678,14 @@ class _ProductionSection extends StatelessWidget {
 
 // ── TABLEAU RÉCAPITULATIF (un par type — PROMESH ou PROBAR) ────────────
 //
-// Style "rapport ERP" : bordures propres, lignes de production groupées par
-// diamètre (sans sous-total intermédiaire — retiré sur demande explicite),
-// total de la section très visible en bas. Pagination locale par groupes de
-// diamètres quand il y en a beaucoup.
+// Style "rapport ERP" : une ligne par fiche réelle (id/date/machine/
+// diamètre/cell size/quantité — voir ProductionRecordModel, même modèle que
+// "Fiches de production", aucun champ inventé), total de la section très
+// visible en bas. Une fiche PROMESH machine 4 (valeur réelle de la colonne
+// `machine`, jamais la position de la ligne — voir isPromesh4Machine) est
+// mise en évidence sur toute la ligne. Pagination locale par fiches quand il
+// y en a beaucoup — l'export (Excel/PDF) utilise toujours `widget.table.rows`
+// en entier, jamais seulement la page actuellement affichée.
 class _SummaryTableCard extends StatefulWidget {
   final Color color;
   final ProductionSummaryTable table;
@@ -681,36 +704,42 @@ class _SummaryTableCard extends StatefulWidget {
 }
 
 class _SummaryTableCardState extends State<_SummaryTableCard> {
-  static const _groupsPerPage = 8;
+  static const _rowsPerPage = 15;
   int _page = 0;
 
-  static const _flexDiameter = 3;
-  static const _flexMesh = 4;
+  static const _flexIndex = 1;
+  static const _flexDate = 3;
+  static const _flexMachine = 3;
+  static const _flexDiameter = 2;
+  static const _flexMesh = 3;
   static const _flexQty = 3;
+
+  static const _promesh4Bg = Color(0xFFFEF3C7); // amber-100 — distinct du bleu PROMESH, lisible
+  static const _promesh4Border = Color(0xFFF59E0B); // kCrmWarning
 
   @override
   void didUpdateWidget(covariant _SummaryTableCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Filtres changés → les groupes affichés ne correspondent plus forcément
+    // Filtres changés → les fiches affichées ne correspondent plus forcément
     // à la page courante ; on revient toujours en page 1 pour éviter une
     // page vide.
-    if (oldWidget.table.groups != widget.table.groups) _page = 0;
+    if (oldWidget.table.rows != widget.table.rows) _page = 0;
   }
 
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    final groups = widget.table.groups;
-    final totalPages = groups.isEmpty ? 1 : ((groups.length + _groupsPerPage - 1) ~/ _groupsPerPage);
+    final rows = widget.table.rows;
+    final totalPages = rows.isEmpty ? 1 : ((rows.length + _rowsPerPage - 1) ~/ _rowsPerPage);
     final page = _page.clamp(0, totalPages - 1);
-    final pageGroups = groups.skip(page * _groupsPerPage).take(_groupsPerPage).toList();
-    final showPagination = groups.length > _groupsPerPage;
+    final pageRows = rows.skip(page * _rowsPerPage).take(_rowsPerPage).toList();
+    final showPagination = rows.length > _rowsPerPage;
 
     return Container(
       decoration: BoxDecoration(color: kCrmSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: kCrmBorder)),
       clipBehavior: Clip.antiAlias,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (groups.isEmpty)
+        if (rows.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 26),
             child: Center(child: Text(t.translate('Aucune donnée pour ces filtres'), style: tInter(fontSize: 12.5, color: kCrmTextSub))),
@@ -726,16 +755,18 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
           // laissant un grand espace vide entre les KPI et les boutons
           // d'export. `LayoutBuilder` + `SizedBox(width: ...)` donne une
           // largeur réellement bornée (au moins la largeur disponible, plus
-          // si nécessaire sur mobile pour permettre le défilement).
+          // si nécessaire sur mobile pour permettre le défilement — jamais
+          // de hauteur fixe trop petite, chaque ligne garde sa hauteur
+          // intrinsèque).
           LayoutBuilder(builder: (context, constraints) {
-            final tableWidth = constraints.maxWidth < 480 ? 480.0 : constraints.maxWidth;
+            final tableWidth = constraints.maxWidth < 620 ? 620.0 : constraints.maxWidth;
             return SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: SizedBox(
                 width: tableWidth,
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   _headerRow(t),
-                  for (final g in pageGroups) ..._groupRows(t, g),
+                  for (int i = 0; i < pageRows.length; i++) _dataRow(t, page * _rowsPerPage + i + 1, pageRows[i]),
                   _grandTotalRow(t),
                 ]),
               ),
@@ -751,6 +782,9 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
       color: kCrmBg,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       child: Row(children: [
+        Expanded(flex: _flexIndex, child: Text('#', style: _headStyle)),
+        Expanded(flex: _flexDate, child: Text(t.translate('Date production'), style: _headStyle)),
+        if (widget.isPromesh) Expanded(flex: _flexMachine, child: Text(t.translate('Machine'), style: _headStyle)),
         Expanded(flex: _flexDiameter, child: Text(t.translate('Diameter'), style: _headStyle)),
         if (widget.isPromesh) Expanded(flex: _flexMesh, child: Text(t.translate('Cell size'), style: _headStyle)),
         Expanded(flex: _flexQty, child: Text('${t.translate('Quantity')} (${widget.table.unit})', style: _headStyle, textAlign: TextAlign.right)),
@@ -760,58 +794,62 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
 
   static final _headStyle = tInter(fontSize: 11, fontWeight: FontWeight.w800, color: kCrmTextSub, letterSpacing: 0.3);
 
-  List<Widget> _groupRows(AppLocalizations t, ProductionSummaryGroup g) {
-    final diameterLabel = (g.diameter == null || g.diameter!.isEmpty) ? t.translate('Non renseigné') : g.diameter!;
-    final rows = <Widget>[];
+  Widget _dataRow(AppLocalizations t, int index, ProductionRecordModel r) {
+    final isPromesh4 = widget.isPromesh && isPromesh4Machine(r.machine);
+    final dateLabel = _formatProductionDate(r.date);
+    final diameterLabel = (r.diametre == null || r.diametre!.isEmpty) ? t.translate('Non renseigné') : '${r.diametre} mm';
+    final meshLabel = (r.tailleMaille == null || r.tailleMaille!.isEmpty) ? t.translate('Non renseigné') : formatCellSize(r.tailleMaille!);
+    final qtyLabel = '${formatProductionNumber(r.quantite ?? 0)} ${widget.table.unit}';
 
-    if (widget.isPromesh) {
-      for (final r in g.rows) {
-        final meshLabel = (r.meshSize == null || r.meshSize!.isEmpty) ? t.translate('Non renseigné') : formatCellSize(r.meshSize!);
-        rows.add(_dataRow([
-          (diameterLabel, _flexDiameter, TextAlign.left, false),
-          (meshLabel, _flexMesh, TextAlign.left, false),
-          ('${formatProductionNumber(r.quantity)} ${widget.table.unit}', _flexQty, TextAlign.right, false),
-        ]));
-      }
-    } else {
-      // PROBAR : Diameter + Quantity uniquement (aucune notion de Cell size)
-      // — même somme de flex que _headerRow (qui omet la colonne Cell size
-      // quand isPromesh est faux) pour que les colonnes restent alignées.
-      rows.add(_dataRow([
-        (diameterLabel, _flexDiameter, TextAlign.left, false),
-        ('${formatProductionNumber(g.diameterTotal)} ${widget.table.unit}', _flexQty, TextAlign.right, false),
-      ]));
-    }
-    // Pas de sous-total "TOTAL Ø x" (retiré sur demande explicite) — les
-    // lignes de production restent groupées par diamètre (voir le tri
-    // backend), seul l'affichage du sous-total intermédiaire disparaît.
-    // Le total général (_grandTotalRow) reste inchangé.
-    return rows;
-  }
+    final textStyle = tInter(fontSize: 12.5, fontWeight: isPromesh4 ? FontWeight.w700 : FontWeight.w500, color: kCrmText);
 
-  Widget _dataRow(List<(String, int, TextAlign, bool)> cells) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: kCrmBorder, width: 0.6))),
+      decoration: BoxDecoration(
+        color: isPromesh4 ? _promesh4Bg : null,
+        border: Border(
+          bottom: const BorderSide(color: kCrmBorder, width: 0.6),
+          left: isPromesh4 ? const BorderSide(color: _promesh4Border, width: 3) : BorderSide.none,
+        ),
+      ),
       child: Row(children: [
-        for (int i = 0; i < cells.length; i++)
+        Expanded(flex: _flexIndex, child: Text('$index', style: textStyle)),
+        Expanded(flex: _flexDate, child: Text(dateLabel, style: textStyle)),
+        if (widget.isPromesh)
           Expanded(
-            flex: cells[i].$2,
-            child: Text(cells[i].$1,
-                textAlign: cells[i].$3,
-                style: tInter(fontSize: 12.5, fontWeight: cells[i].$4 ? FontWeight.w700 : FontWeight.w500, color: kCrmText)),
+            flex: _flexMachine,
+            child: isPromesh4 ? _promesh4Badge(r.machine) : Text(formatPromeshMachineLabel(r.machine), style: textStyle),
           ),
+        Expanded(flex: _flexDiameter, child: Text(diameterLabel, style: textStyle)),
+        if (widget.isPromesh) Expanded(flex: _flexMesh, child: Text(meshLabel, style: textStyle)),
+        Expanded(flex: _flexQty, child: Text(qtyLabel, textAlign: TextAlign.right, style: textStyle)),
       ]),
     );
   }
 
+  // Badge coloré pour la machine PROMESH 4 (§3 : "le badge Machine peut
+  // également être coloré") — même couleur que la mise en évidence de ligne
+  // (_promesh4Border), texte toujours parfaitement lisible.
+  Widget _promesh4Badge(String? machine) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: _promesh4Border,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(formatPromeshMachineLabel(machine),
+          style: tInter(fontSize: 11.5, fontWeight: FontWeight.w800, color: Colors.white)),
+    );
+  }
+
   Widget _grandTotalRow(AppLocalizations t) {
+    final leadingFlex = _flexIndex + _flexDate + (widget.isPromesh ? _flexMachine : 0) + _flexDiameter + (widget.isPromesh ? _flexMesh : 0);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(color: widget.color),
       child: Row(children: [
         Expanded(
-          flex: _flexDiameter + (widget.isPromesh ? _flexMesh : 0),
+          flex: leadingFlex,
           child: Text(t.translate(widget.grandTotalLabelKey).toUpperCase(),
               style: tInter(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 0.4)),
         ),
@@ -842,4 +880,16 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
       ]),
     );
   }
+}
+
+// Date réelle de production (jamais la date du jour) — le champ `date` du
+// modèle vient de PorPromesh.dateProduction / IndustrialRecord.dateFiche
+// (voir productionRecords.dto.js), au format ISO "yyyy-MM-dd" côté API.
+// Affichage standardisé "dd/MM/yyyy" — même format que le reste du module
+// Production (voir production_records_screen.dart).
+String _formatProductionDate(String? isoDate) {
+  if (isoDate == null || isoDate.isEmpty) return '—';
+  final parsed = DateTime.tryParse(isoDate);
+  if (parsed == null) return isoDate;
+  return DateFormat('dd/MM/yyyy').format(parsed);
 }

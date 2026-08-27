@@ -127,9 +127,17 @@ class SideBarWidget extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Top menus (Dashboard)
-                        ...topMenus.map((menu) {
+                        ...topMenus.asMap().entries.map((entry) {
+                          final menu = entry.value;
                           final sel = _isSelected(context, menu);
+                          // §MODIFICATION CRM — SOUS-MENU IMPORT SUR CHAQUE
+                          // MENU FINANCE (§13) : clé unique par tuile (chemin
+                          // de navigation quand il existe, sinon position
+                          // dans la liste) — plusieurs tuiles "Import"
+                          // partagent le même `name`, jamais le même
+                          // `navigationPath`.
                           return Padding(
+                            key: ValueKey('top-${menu.navigationPath ?? entry.key}'),
                             padding: const EdgeInsets.only(bottom: 4),
                             child: SidebarMenuItem(
                               iconOnly:       iconOnly,
@@ -149,6 +157,7 @@ class SideBarWidget extends StatelessWidget {
                           if (visibleMenus.isEmpty) return const SizedBox.shrink();
 
                           return Column(
+                            key: ValueKey('group-${group.name}'),
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // Group label
@@ -163,10 +172,16 @@ class SideBarWidget extends StatelessWidget {
                               else
                                 const SizedBox(height: 12),
 
-                              // Menu items
-                              ...visibleMenus.map((menu) {
+                              // Menu items — clé unique par tuile (voir le
+                              // commentaire sur topMenus ci-dessus) :
+                              // plusieurs tuiles "Import" du groupe FINANCE
+                              // partagent le même `name`, jamais le même
+                              // `navigationPath`.
+                              ...visibleMenus.asMap().entries.map((entry) {
+                                final menu = entry.value;
                                 final sel = _isSelected(context, menu);
                                 return Padding(
+                                  key: ValueKey('${group.name}-${menu.navigationPath ?? entry.key}'),
                                   padding: const EdgeInsets.only(bottom: 4),
                                   child: SidebarMenuItem(
                                     iconOnly:        iconOnly,
@@ -484,10 +499,11 @@ class SidebarMenuItem extends StatelessWidget {
     final lang = AppLocalizations.of(context);
     final accent = menuTile.accentColor ?? _kPrimary;
     final accentL = menuTile.accentColor?.withOpacity(0.8) ?? _kPrimaryL;
+    final isSub = menuTile.isSubItem;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      height: 56,
+      height: isSub ? 42 : 56,
       decoration: BoxDecoration(
         gradient: isSelected
             ? LinearGradient(
@@ -506,14 +522,17 @@ class SidebarMenuItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           hoverColor: isSelected ? Colors.transparent : _kHoverBg,
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: iconOnly ? 0 : 14),
+            padding: EdgeInsets.only(
+              left: iconOnly ? 0 : (isSub ? 30 : 14),
+              right: iconOnly ? 0 : 14,
+            ),
             child: Row(
               mainAxisAlignment: iconOnly ? MainAxisAlignment.center : MainAxisAlignment.start,
               children: [
                 // Icon
                 Icon(
                   menuTile.icon,
-                  size: 20,
+                  size: isSub ? 16 : 20,
                   color: isSelected ? Colors.white : (menuTile.accentColor ?? _kTextSub),
                 ),
                 if (!iconOnly) ...[
@@ -524,9 +543,9 @@ class SidebarMenuItem extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: isSub ? 12 : 13,
                         fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: isSelected ? Colors.white : _kTextDark,
+                        color: isSelected ? Colors.white : (isSub ? _kTextSub : _kTextDark),
                       ),
                     ),
                   ),

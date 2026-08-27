@@ -19,6 +19,7 @@ import 'package:intl/intl.dart';
 
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/widgets/responsive_dialog_box.dart';
 
 import '../../model/finance_models.dart';
 import '../../service/finance_service.dart';
@@ -34,7 +35,7 @@ Future<FinanceShipmentModel?> showNewShipmentDialog(BuildContext context) {
     barrierDismissible: false,
     builder: (_) => const Dialog(
       insetPadding: EdgeInsets.all(24),
-      child: SizedBox(width: 720, height: 620, child: _FinanceShipmentForm()),
+      child: ResponsiveDialogBox(width: 720, height: 620, child: _FinanceShipmentForm()),
     ),
   );
 }

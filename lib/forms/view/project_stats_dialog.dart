@@ -107,10 +107,15 @@ List<String> getStages() {
   Widget build(BuildContext context) {
 
     final stages = getStages();
+    // §RESPONSIVE — MISSION CRM RESPONSIVE (§15/§17) : 650px forcé débordait
+    // sur mobile (Dialog par défaut réserve 40px d'insetPadding de chaque
+    // côté) — borné à la largeur écran réellement disponible, inchangé sur
+    // desktop/tablette où 650px tient toujours.
+    final dialogWidth = (MediaQuery.sizeOf(context).width - 80).clamp(0, 650).toDouble();
 
     return Dialog(
       child: Container(
-        width: 650,
+        width: dialogWidth,
         padding: const EdgeInsets.all(20),
 
         child: loading

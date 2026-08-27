@@ -20,6 +20,7 @@ import 'package:printing/printing.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/utils/por_promesh_pdf_theme.dart';
 
+import '../model/production_record_model.dart';
 import '../model/production_summary_model.dart';
 import '../service/production_records_service.dart';
 
@@ -156,45 +157,58 @@ class ProductionSummaryExportService {
         pw.Text(value, style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: _pdfText)),
       ]);
 
+  static const _pdfPromesh4Bg = PdfColor.fromInt(0xFFFEF3C7);
+
   List<pw.Widget> _pdfSection(String label, PdfColor color, ProductionSummaryTable table, {required bool isPromesh}) {
-    final flexDiameter = 3, flexMesh = 4, flexQty = 3;
+    final flexIndex = 1, flexDate = 3, flexMachine = 3, flexDiameter = 2, flexMesh = 3, flexQty = 3;
 
     pw.Widget headerRow() => pw.Container(
           color: _pdfBg,
           padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: pw.Row(children: [
+            pw.Expanded(flex: flexIndex, child: pw.Text('#', style: _pdfHeadStyle)),
+            pw.Expanded(flex: flexDate, child: pw.Text('Date production', style: _pdfHeadStyle)),
+            if (isPromesh) pw.Expanded(flex: flexMachine, child: pw.Text('Machine', style: _pdfHeadStyle)),
             pw.Expanded(flex: flexDiameter, child: pw.Text('Diameter', style: _pdfHeadStyle)),
             if (isPromesh) pw.Expanded(flex: flexMesh, child: pw.Text('Cell size', style: _pdfHeadStyle)),
             pw.Expanded(flex: flexQty, child: pw.Text('Quantity (${table.unit})', style: _pdfHeadStyle, textAlign: pw.TextAlign.right)),
           ]),
         );
 
-    pw.Widget dataRow(String colA, String? colB, String colC, {bool bold = false}) => pw.Container(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-          decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: _pdfBorder, width: 0.5))),
-          child: pw.Row(children: [
-            pw.Expanded(
-                flex: flexDiameter,
-                child: pw.Text(colA, style: pw.TextStyle(fontSize: 8.5, color: _pdfText, fontWeight: bold ? pw.FontWeight.bold : null))),
-            if (isPromesh)
-              pw.Expanded(
-                  flex: flexMesh,
-                  child: pw.Text(colB ?? '', style: pw.TextStyle(fontSize: 8.5, color: _pdfText, fontWeight: bold ? pw.FontWeight.bold : null))),
-            pw.Expanded(
-              flex: flexQty,
-              child: pw.Text(colC, textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 8.5, color: _pdfText, fontWeight: bold ? pw.FontWeight.bold : null)),
-            ),
-          ]),
-        );
+    pw.Widget dataRow(int index, ProductionRecordModel r) {
+      final isPromesh4 = isPromesh && isPromesh4Machine(r.machine);
+      final style = pw.TextStyle(fontSize: 8.5, color: _pdfText, fontWeight: isPromesh4 ? pw.FontWeight.bold : null);
+      final dateLabel = _pdfFormatDate(r.date);
+      final diameterLabel = (r.diametre == null || r.diametre!.isEmpty) ? 'Non renseigné' : '${r.diametre} mm';
+      final meshLabel = (r.tailleMaille == null || r.tailleMaille!.isEmpty) ? 'Non renseigné' : formatCellSize(r.tailleMaille!);
+      final qtyLabel = '${formatProductionNumber(r.quantite ?? 0)} ${table.unit}';
+
+      return pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: pw.BoxDecoration(
+          color: isPromesh4 ? _pdfPromesh4Bg : null,
+          border: const pw.Border(bottom: pw.BorderSide(color: _pdfBorder, width: 0.5)),
+        ),
+        child: pw.Row(children: [
+          pw.Expanded(flex: flexIndex, child: pw.Text('$index', style: style)),
+          pw.Expanded(flex: flexDate, child: pw.Text(dateLabel, style: style)),
+          if (isPromesh) pw.Expanded(flex: flexMachine, child: pw.Text(formatPromeshMachineLabel(r.machine), style: style)),
+          pw.Expanded(flex: flexDiameter, child: pw.Text(diameterLabel, style: style)),
+          if (isPromesh) pw.Expanded(flex: flexMesh, child: pw.Text(meshLabel, style: style)),
+          pw.Expanded(flex: flexQty, child: pw.Text(qtyLabel, textAlign: pw.TextAlign.right, style: style)),
+        ]),
+      );
+    }
 
     final grandTotalLabel = isPromesh ? 'TOTAL PROMESH' : 'TOTAL PROBAR';
+    final leadingFlex = flexIndex + flexDate + (isPromesh ? flexMachine : 0) + flexDiameter + (isPromesh ? flexMesh : 0);
     pw.Widget grandTotalRow() => pw.Container(
           color: color,
           padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 9),
           margin: const pw.EdgeInsets.only(top: 2),
           child: pw.Row(children: [
             pw.Expanded(
-              flex: flexDiameter + (isPromesh ? flexMesh : 0),
+              flex: leadingFlex,
               child: pw.Text(grandTotalLabel, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
             ),
             pw.Expanded(
@@ -205,21 +219,9 @@ class ProductionSummaryExportService {
           ]),
         );
 
-    // Lignes de production groupées par diamètre, sans sous-total
-    // intermédiaire (retiré sur demande explicite) — seul le total de
-    // section (grandTotalRow ci-dessous) reste affiché.
-    final rows = <pw.Widget>[];
-    for (final g in table.groups) {
-      final diameterLabel = (g.diameter == null || g.diameter!.isEmpty) ? 'Non renseigné' : g.diameter!;
-      if (isPromesh) {
-        for (final r in g.rows) {
-          final meshLabel = (r.meshSize == null || r.meshSize!.isEmpty) ? 'Non renseigné' : formatCellSize(r.meshSize!);
-          rows.add(dataRow(diameterLabel, meshLabel, '${formatProductionNumber(r.quantity)} ${table.unit}'));
-        }
-      } else {
-        rows.add(dataRow(diameterLabel, null, '${formatProductionNumber(g.diameterTotal)} ${table.unit}'));
-      }
-    }
+    // Une ligne par fiche réelle (table.rows — même jeu de données que
+    // l'écran et que "Fiches de production"), jamais recalculé.
+    final rows = <pw.Widget>[for (int i = 0; i < table.rows.length; i++) dataRow(i + 1, table.rows[i])];
 
     return [
       pw.Container(
@@ -246,6 +248,15 @@ class ProductionSummaryExportService {
   }
 
   static final _pdfHeadStyle = pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: _pdfTextSub);
+
+  // Date réelle de production ("yyyy-MM-dd" côté API) — jamais la date du
+  // jour — voir _formatProductionDate côté écran, même règle.
+  String _pdfFormatDate(String? isoDate) {
+    if (isoDate == null || isoDate.isEmpty) return '—';
+    final parsed = DateTime.tryParse(isoDate);
+    if (parsed == null) return isoDate;
+    return DateFormat('dd/MM/yyyy').format(parsed);
+  }
 
   // ════════════════════════════════════════════════════════════════════
   // EXCEL
@@ -285,7 +296,8 @@ class ProductionSummaryExportService {
 
       final bytes = excelFile.encode();
       if (bytes == null) throw Exception('Échec de la génération du fichier Excel');
-      _downloadBytes(bytes, 'production-summary-${DateTime.now().millisecondsSinceEpoch}.xlsx');
+      final fileName = 'Production_Summary_${DateFormat('yyyy-MM-dd').format(DateTime.now())}.xlsx';
+      _downloadBytes(bytes, fileName);
     } catch (e, stackTrace) {
       debugPrint('[ProductionSummary] Excel export error: $e');
       debugPrintStack(stackTrace: stackTrace);
@@ -359,6 +371,8 @@ class ProductionSummaryExportService {
   // d'empiler plusieurs sections dans une seule et même feuille (voir
   // commentaire de exportExcel ci-dessus sur pourquoi on ne crée jamais de
   // feuille annexe).
+  static const _xlPromesh4Bg = '#FEF3C7';
+
   int _writeExcelSection(
     xl.Sheet sheet,
     int startRow,
@@ -368,10 +382,14 @@ class ProductionSummaryExportService {
     ({String? start, String? end}) dateRange, {
     required bool isPromesh,
   }) {
-    final lastCol = isPromesh ? 2 : 1;
+    // Colonnes PROMESH : #, Date production, Machine, Diamètre, Cell size, Quantity
+    // Colonnes PROBAR  : #, Date production, Diamètre, Quantity
+    final lastCol = isPromesh ? 5 : 3;
 
     int row = startRow;
     row = _mergedTitle(sheet, row, lastCol, 'Production Summary — $sectionLabel', isPromesh ? '#2563EB' : '#F97316');
+    row = _kv(sheet, row, 'Exported on', DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()));
+    row = _kv(sheet, row, 'Exported by', AuthService().displayName);
     if (dateRange.start != null) row = _kv(sheet, row, 'Start date', dateRange.start!);
     if (dateRange.end != null) row = _kv(sheet, row, 'End date', dateRange.end!);
     if (ctx.machineLabel != null) row = _kv(sheet, row, 'Machine', ctx.machineLabel!);
@@ -379,12 +397,12 @@ class ProductionSummaryExportService {
     row++;
 
     // En-têtes — seule la colonne Quantity porte l'unité (m/m²) dans son
-    // TITRE ; les cellules elles-mêmes contiennent des valeurs NUMÉRIQUES
-    // pures (ni séparateur de milliers, ni unité, ni chaîne formatée —
-    // demande explicite, voir _numericCell).
+    // TITRE ; les cellules Quantity elles-mêmes contiennent des valeurs
+    // NUMÉRIQUES pures (ni séparateur de milliers, ni unité, ni chaîne
+    // formatée — demande explicite, voir _numericCell).
     final headers = isPromesh
-        ? ['Diameter', 'Cell size', 'Quantity (${table.unit})']
-        : ['Diameter', 'Quantity (${table.unit})'];
+        ? ['#', 'Date production', 'Machine', 'Diameter', 'Cell size', 'Quantity (${table.unit})']
+        : ['#', 'Date production', 'Diameter', 'Quantity (${table.unit})'];
     for (int c = 0; c < headers.length; c++) {
       sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: c, rowIndex: row))
         ..value = headers[c]
@@ -392,27 +410,56 @@ class ProductionSummaryExportService {
     }
     row++;
 
-    // Lignes de production groupées par diamètre, sans sous-total
-    // intermédiaire (retiré sur demande explicite) — seul le total de
-    // section ("TOTAL PROMESH"/"TOTAL PROBAR" ci-dessous) reste affiché.
-    for (final g in table.groups) {
-      final diameterLabel = (g.diameter == null || g.diameter!.isEmpty) ? 'Non renseigné' : g.diameter!;
+    // Une ligne par fiche réelle (table.rows — même jeu de données que
+    // l'écran et que "Fiches de production"), jamais recalculé. La ligne
+    // PROMESH machine 4 (valeur réelle du champ `machine`, jamais la
+    // position) est mise en évidence sur toute la ligne (§11).
+    for (int i = 0; i < table.rows.length; i++) {
+      final r = table.rows[i];
+      final isPromesh4 = isPromesh && isPromesh4Machine(r.machine);
+      final highlight = isPromesh4 ? xl.CellStyle(bold: true, backgroundColorHex: _xlPromesh4Bg) : null;
+      final dateLabel = _pdfFormatDate(r.date);
+      final diameterLabel = (r.diametre == null || r.diametre!.isEmpty) ? 'Non renseigné' : r.diametre!;
+
+      int col = 0;
+      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
+        ..value = i + 1
+        ..cellStyle = highlight;
+      col++;
+      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
+        ..value = dateLabel
+        ..cellStyle = highlight;
+      col++;
       if (isPromesh) {
-        for (final r in g.rows) {
-          final meshLabel = (r.meshSize == null || r.meshSize!.isEmpty) ? 'Non renseigné' : formatCellSize(r.meshSize!);
-          sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = diameterLabel;
-          sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = meshLabel;
-          sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row)).value = _numericCell(r.quantity);
-          row++;
-        }
-      } else {
-        sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row)).value = diameterLabel;
-        sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row)).value = _numericCell(g.diameterTotal);
-        row++;
+        sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
+          ..value = formatPromeshMachineLabel(r.machine)
+          ..cellStyle = highlight;
+        col++;
       }
+      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
+        ..value = diameterLabel
+        ..cellStyle = highlight;
+      col++;
+      if (isPromesh) {
+        final meshLabel = (r.tailleMaille == null || r.tailleMaille!.isEmpty) ? 'Non renseigné' : formatCellSize(r.tailleMaille!);
+        sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
+          ..value = meshLabel
+          ..cellStyle = highlight;
+        col++;
+      }
+      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
+        ..value = _numericCell(r.quantite ?? 0)
+        ..cellStyle = highlight;
+      row++;
     }
 
     row++;
+    if (lastCol > 0) {
+      sheet.merge(
+        xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row),
+        xl.CellIndex.indexByColumnRow(columnIndex: lastCol - 1, rowIndex: row),
+      );
+    }
     sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
       ..value = isPromesh ? 'TOTAL PROMESH' : 'TOTAL PROBAR'
       ..cellStyle = xl.CellStyle(bold: true, fontSize: 13, backgroundColorHex: isPromesh ? '#2563EB' : '#F97316', fontColorHex: '#FFFFFF');
@@ -420,9 +467,9 @@ class ProductionSummaryExportService {
       ..value = _numericCell(table.grandTotal)
       ..cellStyle = xl.CellStyle(bold: true, fontSize: 13, backgroundColorHex: isPromesh ? '#2563EB' : '#F97316', fontColorHex: '#FFFFFF');
 
-    sheet.setColWidth(0, 26);
-    sheet.setColWidth(1, 22);
-    if (isPromesh) sheet.setColWidth(2, 20);
+    for (int c = 0; c <= lastCol; c++) {
+      sheet.setColAutoFit(c);
+    }
 
     return row + 1;
   }

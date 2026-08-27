@@ -461,8 +461,11 @@ Future<void> _loadContacts({
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
               title: const Text("Affecter des contacts"),
               content: SizedBox(
-                width: 560,
-                height: 520,
+                // §RESPONSIVE — MISSION CRM RESPONSIVE (§15/§17) : borné à la
+                // taille écran disponible (AlertDialog réserve 40px/24px
+                // d'insetPadding par défaut) — inchangé sur desktop/tablette.
+                width: (MediaQuery.sizeOf(context).width - 80).clamp(0, 560).toDouble(),
+                height: (MediaQuery.sizeOf(context).height - 48).clamp(0, 520).toDouble(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1108,7 +1111,10 @@ Future<void> _showRelanceDialog(CommercialContact contact) async {
             ),
             title: Text("Follow-up - ${contact.fullName}"),
             content: SizedBox(
-              width: 520,
+              // §RESPONSIVE — MISSION CRM RESPONSIVE (§15/§17) : borné à la
+              // largeur écran disponible (AlertDialog réserve 40px
+              // d'insetPadding par défaut) — inchangé sur desktop/tablette.
+              width: (MediaQuery.sizeOf(context).width - 80).clamp(0, 520).toDouble(),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1390,7 +1396,10 @@ final projects = (contact.projects.isEmpty
             return Dialog(
               insetPadding: const EdgeInsets.all(20),
               child: Container(
-                width: 900,
+                // §RESPONSIVE — MISSION CRM RESPONSIVE (§15/§17) : borné à la
+                // largeur écran disponible (insetPadding 20px de chaque côté)
+                // — inchangé sur desktop/tablette où 900px tient toujours.
+                width: (MediaQuery.sizeOf(context).width - 40).clamp(0, 900).toDouble(),
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,

@@ -209,7 +209,10 @@ void initState() {
           style: const TextStyle(color: kTextDark, fontWeight: FontWeight.w900),
         ),
         content: SizedBox(
-          width: 520,
+          // §RESPONSIVE — MISSION CRM RESPONSIVE (§15/§17) : borné à la
+          // largeur écran disponible (AlertDialog réserve 40px d'insetPadding
+          // de chaque côté par défaut) — inchangé sur desktop/tablette.
+          width: (MediaQuery.sizeOf(context).width - 80).clamp(0, 520).toDouble(),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -358,7 +361,10 @@ class _CustomDatePickerDialogState extends State<_CustomDatePickerDialog> {
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: SizedBox(
-        width: 640,
+        // §RESPONSIVE — MISSION CRM RESPONSIVE (§15/§17) : borné à la largeur
+        // écran disponible (Dialog réserve 40px d'insetPadding de chaque côté
+        // par défaut) — inchangé sur desktop/tablette.
+        width: (MediaQuery.sizeOf(context).width - 80).clamp(0, 640).toDouble(),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -509,7 +515,10 @@ class _CustomTimePickerDialogState extends State<_CustomTimePickerDialog> {
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: SizedBox(
-        width: 520,
+        // §RESPONSIVE — MISSION CRM RESPONSIVE (§15/§17) : borné à la largeur
+        // écran disponible (Dialog réserve 40px d'insetPadding de chaque côté
+        // par défaut) — inchangé sur desktop/tablette.
+        width: (MediaQuery.sizeOf(context).width - 80).clamp(0, 520).toDouble(),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(

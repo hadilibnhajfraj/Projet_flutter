@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/widgets/responsive_dialog_box.dart';
 
 import '../../model/finance_models.dart';
 import '../../service/finance_service.dart';
@@ -23,7 +24,7 @@ Future<void> showFinancePurchaseOrderDetail(BuildContext context, FinancePurchas
     context: context,
     builder: (_) => Dialog(
       insetPadding: const EdgeInsets.all(24),
-      child: SizedBox(width: 800, height: 680, child: _PurchaseOrderDetailBody(preview: preview)),
+      child: ResponsiveDialogBox(width: 800, height: 680, child: _PurchaseOrderDetailBody(preview: preview)),
     ),
   );
 }

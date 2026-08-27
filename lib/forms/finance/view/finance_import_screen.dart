@@ -1,17 +1,27 @@
-// lib/forms/finance/view/finance_other_documents_screen.dart
+// lib/forms/finance/view/finance_import_screen.dart
 //
-// "Finance > Other" (§MODIFICATION — FINANCE > OTHER — SCAN SIMPLE DE
-// DOCUMENTS) — stockage documentaire PUR : scanner/uploader un document,
-// le consulter, le renommer, le supprimer.
+// "Import" — sous-menu ajouté sous chaque page Finance (MODIFICATION CRM —
+// AJOUTER UN SOUS-MENU IMPORT À CHAQUE MENU FINANCE). §PRIORITÉ ABSOLUE du
+// ticket : réutiliser EXACTEMENT le même code/composant/logique/UI/upload
+// que le module "Other" existant (scan/upload de document, Drag & Drop,
+// Browse files, aucun OCR/extraction/mapping/création automatique de
+// Purchase Order/Shipment/Invoice — voir finance.service.js#uploadOtherDocument/
+// uploadImportDocument) — jamais une seconde implémentation d'upload.
 //
-// IMPORTANT (§1/§14) : AUCUNE extraction automatique — pas d'OCR/IA/mapping,
-// pas de création automatique de Purchase Order/Shipment/Invoice. Le
-// fichier est simplement enregistré comme document (voir
-// finance.service.js#uploadOtherDocument, qui n'appelle jamais invoiceOcr/
-// deliveryNoteOcr/purchaseOrderFieldExtraction/invoiceFieldExtraction).
-// Réutilise le système FinanceDocument existant (§13) — `module: "OTHER"` —
-// et les widgets déjà en place (FinanceUploadDropzone, showFinanceDocument
-// Preview) plutôt que d'en recréer.
+// Ce widget EST ce composant commun unique (`FinanceImportScreen`,
+// paramétré par `FinanceImportModule` — voir §2/§12 du ticket), utilisé pour
+// les 5 destinations :
+//   - Other                    → module: FinanceImportModule.other
+//   - Inflow of raw materials  → module: FinanceImportModule.rawMaterials
+//   - Shipment of products     → module: FinanceImportModule.shipments
+//   - Factured shipments       → module: FinanceImportModule.facturedShipments
+//   - Paid factures            → module: FinanceImportModule.paidInvoices
+// Chaque module transmet son propre `apiSegment` (voir finance.routes.js) —
+// le backend range chaque document sous le bon `module` FinanceDocument
+// (`entityId` toujours NULL, jamais mélangé avec les pièces jointes réelles
+// des Purchase Order/Shipment/Invoice existants ni entre les 5 destinations
+// — voir migration 20260827000100 pour Paid factures/Factured shipments,
+// qui partagent sinon la même table `finance_invoices`).
 
 import 'dart:html' as html;
 
@@ -31,29 +41,73 @@ import 'widgets/finance_preview_dialog.dart';
 import 'widgets/finance_upload_dropzone.dart';
 
 // Chargement en une fois + filtrage/pagination CÔTÉ CLIENT — même convention
-// que les 3 autres écrans de liste Finance (Inflow of raw materials/
-// Customer Shipments/Factured Shipments) : aucun aller-retour réseau
+// que les autres écrans de liste Finance : aucun aller-retour réseau
 // supplémentaire pendant la recherche/le filtrage.
 const int _kFetchAllPageSize = 2000;
 const int _kRowsPerPage = 50;
 
 const List<String> _kFileTypes = ['PDF', 'IMAGE', 'WORD', 'EXCEL', 'OTHER'];
 
-class FinanceOtherDocumentsScreen extends StatefulWidget {
-  const FinanceOtherDocumentsScreen({super.key});
+/// Les 5 destinations qui exposent ce composant commun — voir le header de
+/// ce fichier. Ajouter un module ici + son entrée dans [FinanceImportModuleX]
+/// suffit à brancher un nouveau sous-menu "Import", jamais besoin de
+/// dupliquer l'écran.
+enum FinanceImportModule { rawMaterials, shipments, facturedShipments, paidInvoices, other }
 
-  @override
-  State<FinanceOtherDocumentsScreen> createState() => _FinanceOtherDocumentsScreenState();
+extension FinanceImportModuleX on FinanceImportModule {
+  /// Segment d'API — voir les routes dédiées dans finance.routes.js.
+  /// "other-documents" (module Other, route déjà existante, INCHANGÉE) vs.
+  /// "xxx/import" pour les 4 nouveaux sous-menus.
+  String get apiSegment => switch (this) {
+        FinanceImportModule.rawMaterials => 'raw-materials/import',
+        FinanceImportModule.shipments => 'shipments/import',
+        FinanceImportModule.facturedShipments => 'invoices/import',
+        FinanceImportModule.paidInvoices => 'paid-invoices/import',
+        FinanceImportModule.other => 'other-documents',
+      };
+
+  /// Titre affiché en haut de l'écran (§18 du ticket) — "Other" garde son
+  /// titre d'origine, inchangé (même écran qu'avant ce ticket).
+  String get pageTitle => switch (this) {
+        FinanceImportModule.rawMaterials => 'Import — Inflow of raw materials',
+        FinanceImportModule.shipments => 'Import — Shipment of products',
+        FinanceImportModule.facturedShipments => 'Import — Factured shipments',
+        FinanceImportModule.paidInvoices => 'Import — Paid factures',
+        FinanceImportModule.other => 'Other Documents',
+      };
+
+  String get pageDescription => switch (this) {
+        FinanceImportModule.other => 'Scan and store documents without automatic data extraction.',
+        _ => 'Scan and store documents for this section without automatic data extraction.',
+      };
+
+  /// Préfixe du fichier Excel exporté (§17 — n'affecte pas Export CSV/Excel
+  /// des autres écrans de liste Finance, uniquement celui de CET écran).
+  String get exportFilePrefix => switch (this) {
+        FinanceImportModule.rawMaterials => 'inflow-raw-materials-import',
+        FinanceImportModule.shipments => 'shipment-import',
+        FinanceImportModule.facturedShipments => 'factured-shipments-import',
+        FinanceImportModule.paidInvoices => 'paid-invoices-import',
+        FinanceImportModule.other => 'other-documents',
+      };
 }
 
-class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScreen> {
+class FinanceImportScreen extends StatefulWidget {
+  final FinanceImportModule module;
+  const FinanceImportScreen({super.key, required this.module});
+
+  @override
+  State<FinanceImportScreen> createState() => _FinanceImportScreenState();
+}
+
+class _FinanceImportScreenState extends State<FinanceImportScreen> {
   bool _loading = true;
   bool _uploading = false;
   bool _exporting = false;
   String? _error;
   List<FinanceDocumentModel> _documents = const [];
-  // Empêche deux requêtes DELETE simultanées sur le même document
-  // (double-clic rapide sur 🗑, même garde que les 3 autres écrans Finance).
+  // Empêche deux requêtes DELETE simultanées sur le même document (double-clic
+  // rapide sur 🗑, même garde que les autres écrans Finance).
   final Set<String> _deletingIds = {};
 
   String _search = '';
@@ -61,6 +115,8 @@ class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScree
   DateTime? _startDate;
   DateTime? _endDate;
   int _page = 1;
+
+  String get _apiSegment => widget.module.apiSegment;
 
   @override
   void initState() {
@@ -74,7 +130,7 @@ class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScree
       _error = null;
     });
     try {
-      final page = await FinanceService.instance.fetchOtherDocuments(pageSize: _kFetchAllPageSize);
+      final page = await FinanceService.instance.fetchImportDocuments(_apiSegment, pageSize: _kFetchAllPageSize);
       if (!mounted) return;
       setState(() => _documents = page.items);
     } catch (e) {
@@ -113,7 +169,6 @@ class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScree
     final term = _search.trim().toLowerCase();
     return _documents.where((d) {
       if (term.isNotEmpty) {
-        // §15 : displayName/originalName/file type/uploaded by.
         final haystack = [d.displayName, d.originalName, _fileTypeOf(d), d.uploader?.email]
             .where((v) => v != null)
             .map((v) => v!.toLowerCase())
@@ -151,17 +206,17 @@ class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScree
     });
   }
 
-  // §4-6 : Upload Document / Scan Document — un simple dépôt de fichier,
-  // enregistré tel quel dès la sélection (pas d'étape "Upload" séparée
-  // puisqu'il n'y a rien à extraire/valider avant l'envoi, contrairement
-  // aux modals Invoice/Shipment qui, eux, lisent le document).
+  // Upload Document / Scan Document — un simple dépôt de fichier, enregistré
+  // tel quel dès la sélection (pas d'étape "Upload" séparée puisqu'il n'y a
+  // rien à extraire/valider avant l'envoi) — EXACTEMENT le comportement
+  // "Other" (voir header du fichier).
   Future<void> _handleFilesSelected(List<FinancePickedFile> files) async {
     setState(() => _uploading = true);
     var successCount = 0;
     String? lastError;
     for (final file in files) {
       try {
-        await FinanceService.instance.uploadOtherDocument(file);
+        await FinanceService.instance.uploadImportDocument(_apiSegment, file);
         successCount++;
       } catch (e) {
         lastError = e.toString();
@@ -188,12 +243,12 @@ class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScree
     }
   }
 
-  // §9 : PDF → viewer existant, image → affichage direct, autres formats →
+  // PDF → viewer existant, image → affichage direct, autres formats →
   // téléchargement — comportement déjà fourni par showFinanceDocumentPreview
   // (réutilisé tel quel, jamais recréé).
   Future<void> _handleView(FinanceDocumentModel doc) => showFinanceDocumentPreview(context, doc);
 
-  // §7/§12/§19 : modifie UNIQUEMENT displayName.
+  // Modifie UNIQUEMENT displayName.
   Future<void> _handleRename(FinanceDocumentModel doc) async {
     final t = AppLocalizations.of(context);
     final controller = TextEditingController(text: doc.displayName);
@@ -221,7 +276,7 @@ class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScree
     if (newName == null || newName.isEmpty || newName == doc.displayName) return;
 
     try {
-      final updated = await FinanceService.instance.renameOtherDocument(doc.id, newName);
+      final updated = await FinanceService.instance.renameImportDocument(_apiSegment, doc.id, newName);
       if (!mounted) return;
       setState(() => _documents = [for (final d in _documents) if (d.id == doc.id) updated else d]);
       SafeSnack.messengerKey.currentState?.showSnackBar(
@@ -235,8 +290,8 @@ class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScree
     }
   }
 
-  // §10 : suppression réelle (DB + fichier physique, voir
-  // finance.service.js#deleteOtherDocument) — jamais un simple retrait
+  // Suppression réelle (DB + fichier physique, voir
+  // finance.service.js#deleteImportDocument) — jamais un simple retrait
   // optimiste, la ligne n'est retirée qu'après confirmation backend.
   Future<void> _handleDelete(FinanceDocumentModel doc) async {
     final t = AppLocalizations.of(context);
@@ -262,7 +317,7 @@ class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScree
     if (_deletingIds.contains(doc.id)) return;
     _deletingIds.add(doc.id);
     try {
-      await FinanceService.instance.deleteOtherDocument(doc.id);
+      await FinanceService.instance.deleteImportDocument(_apiSegment, doc.id);
       if (!mounted) return;
       setState(() => _documents = _documents.where((d) => d.id != doc.id).toList());
       SafeSnack.messengerKey.currentState?.showSnackBar(
@@ -278,13 +333,14 @@ class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScree
     }
   }
 
-  // §17 : uniquement les métadonnées (jamais le contenu binaire du document).
+  // Uniquement les métadonnées (jamais le contenu binaire du document) —
+  // §17 : n'affecte jamais les Export CSV/Excel des autres écrans Finance.
   Future<void> _exportExcel() async {
     setState(() => _exporting = true);
     try {
       final rows = _filtered;
       final excelFile = xl.Excel.createExcel();
-      const sheetName = 'Other Documents';
+      const sheetName = 'Import';
       final sheet = excelFile[sheetName];
       excelFile.setDefaultSheet(sheetName);
 
@@ -318,7 +374,7 @@ class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScree
 
       final bytes = excelFile.encode();
       if (bytes == null) throw Exception('Échec de la génération du fichier Excel');
-      final fileName = 'other-documents-${DateFormat('yyyy-MM-dd').format(DateTime.now())}.xlsx';
+      final fileName = '${widget.module.exportFilePrefix}-${DateFormat('yyyy-MM-dd').format(DateTime.now())}.xlsx';
       _downloadBytes(bytes, fileName, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 
       if (!mounted) return;
@@ -365,36 +421,51 @@ class _FinanceOtherDocumentsScreenState extends State<FinanceOtherDocumentsScree
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(color: kFinanceColor.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.folder_outlined, size: 22, color: kFinanceColor),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(t.translate('Other Documents'), style: tInter(fontSize: 21, fontWeight: FontWeight.w800, color: kCrmText)),
-                    const SizedBox(height: 2),
-                    Text(t.translate('Scan and store documents without automatic data extraction.'),
-                        style: tInter(fontSize: 12.5, color: kCrmTextSub)),
-                  ]),
-                ),
-                ElevatedButton.icon(
+              // §16 : Row + Wrap — le bouton Export passe sous le titre sur
+              // mobile plutôt que de forcer une largeur trop étroite (voir
+              // aussi §RESPONSIVE — MISSION CRM RESPONSIVE, même règle que
+              // les autres écrans Finance).
+              LayoutBuilder(builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 560;
+                final header = Row(children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(color: kFinanceColor.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
+                    child: const Icon(Icons.folder_outlined, size: 22, color: kFinanceColor),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(t.translate(widget.module.pageTitle),
+                          style: tInter(fontSize: 21, fontWeight: FontWeight.w800, color: kCrmText)),
+                      const SizedBox(height: 2),
+                      Text(t.translate(widget.module.pageDescription), style: tInter(fontSize: 12.5, color: kCrmTextSub)),
+                    ]),
+                  ),
+                ]);
+                final exportBtn = ElevatedButton.icon(
                   onPressed: _exporting || filteredRows.isEmpty ? null : _exportExcel,
                   icon: _exporting
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.file_download_outlined, size: 18),
                   label: Text(t.translate('Export Excel')),
                   style: ElevatedButton.styleFrom(backgroundColor: kFinanceColor, foregroundColor: Colors.white),
-                ),
-              ]),
+                );
+                if (isNarrow) {
+                  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    header,
+                    const SizedBox(height: 12),
+                    SizedBox(width: double.infinity, child: exportBtn),
+                  ]);
+                }
+                return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: header), exportBtn]);
+              }),
               const SizedBox(height: 22),
               FinanceUploadDropzone(onFilesSelected: _handleFilesSelected, busy: _uploading),
               const SizedBox(height: 26),
-              // ── Recherche + filtres (§15-16) ────────────────────────────
+              // ── Recherche + filtres ──────────────────────────────────────
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(color: kCrmSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: kCrmBorder)),

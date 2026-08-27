@@ -101,7 +101,7 @@ import 'package:dash_master_toolkit/forms/finance/view/finance_inflow_raw_materi
 import 'package:dash_master_toolkit/forms/finance/view/finance_customer_shipments_screen.dart';
 import 'package:dash_master_toolkit/forms/finance/view/finance_factured_shipments_screen.dart';
 import 'package:dash_master_toolkit/forms/finance/view/finance_paid_invoices_screen.dart';
-import 'package:dash_master_toolkit/forms/finance/view/finance_other_documents_screen.dart';
+import 'package:dash_master_toolkit/forms/finance/view/finance_import_screen.dart';
 import 'package:dash_master_toolkit/forms/recuperables/view/recuperable_fiche_screen.dart';
 import 'package:dash_master_toolkit/forms/recuperables/view/recuperable_history_screen.dart';
 import 'package:dash_master_toolkit/forms/recuperables/view/recuperable_detail_screen.dart';
@@ -199,7 +199,15 @@ class MyRoute {
   static const financeCustomerShipmentsScreen = '/finance/customer-shipments';
   static const financeFacturedShipmentsScreen = '/finance/factured-shipments';
   static const financePaidInvoicesScreen = '/finance/paid-invoices';
-  static const financeOtherDocumentsScreen = '/finance/other';
+  // Sous-menu "Import" (MODIFICATION CRM — AJOUTER UN SOUS-MENU IMPORT À
+  // CHAQUE MENU FINANCE) — un par page Finance, voir sidebar_item_model.dart
+  // (buildGroupedMenus) et finance_import_screen.dart. "Other" et son Import
+  // ont été retirés du menu (§MODIFICATION — SUPPRESSION "OTHER" DU SIDEBAR
+  // FINANCE) — routes/constantes supprimées avec eux.
+  static const financeInflowRawMaterialsImportScreen = '/finance/inflow-raw-materials/import';
+  static const financeCustomerShipmentsImportScreen = '/finance/customer-shipments/import';
+  static const financeFacturedShipmentsImportScreen = '/finance/factured-shipments/import';
+  static const financePaidInvoicesImportScreen = '/finance/paid-invoices/import';
 
   static const industrialRoutePrefixes = [
     porPromeshRoot,
@@ -1239,27 +1247,62 @@ GoRoute(
                 path: 'inflow-raw-materials',
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: FinanceInflowRawMaterialsScreen()),
+                routes: [
+                  // Sous-menu "Import" (MODIFICATION CRM — AJOUTER UN
+                  // SOUS-MENU IMPORT À CHAQUE MENU FINANCE) — hérite du même
+                  // redirect (`canViewFinance`) que le reste de l'arbre
+                  // `financeRoot` ci-dessus, jamais contourné par URL directe.
+                  GoRoute(
+                    path: 'import',
+                    pageBuilder: (context, state) => const NoTransitionPage(
+                      child: FinanceImportScreen(module: FinanceImportModule.rawMaterials),
+                    ),
+                  ),
+                ],
               ),
               GoRoute(
                 path: 'customer-shipments',
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: FinanceCustomerShipmentsScreen()),
+                routes: [
+                  GoRoute(
+                    path: 'import',
+                    pageBuilder: (context, state) => const NoTransitionPage(
+                      child: FinanceImportScreen(module: FinanceImportModule.shipments),
+                    ),
+                  ),
+                ],
               ),
               GoRoute(
                 path: 'factured-shipments',
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: FinanceFacturedShipmentsScreen()),
+                routes: [
+                  GoRoute(
+                    path: 'import',
+                    pageBuilder: (context, state) => const NoTransitionPage(
+                      child: FinanceImportScreen(module: FinanceImportModule.facturedShipments),
+                    ),
+                  ),
+                ],
               ),
               GoRoute(
                 path: 'paid-invoices',
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: FinancePaidInvoicesScreen()),
+                routes: [
+                  GoRoute(
+                    path: 'import',
+                    pageBuilder: (context, state) => const NoTransitionPage(
+                      child: FinanceImportScreen(module: FinanceImportModule.paidInvoices),
+                    ),
+                  ),
+                ],
               ),
-              GoRoute(
-                path: 'other',
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: FinanceOtherDocumentsScreen()),
-              ),
+              // §MODIFICATION — SUPPRESSION "OTHER" DU SIDEBAR FINANCE :
+              // routes /finance/other et /finance/other/import retirées
+              // (menu "Other" supprimé — voir sidebar_item_model.dart). Les
+              // autres routes Finance ci-dessus sont inchangées.
             ],
           ),
 

@@ -383,6 +383,42 @@ class _SuiviJournalier extends StatelessWidget {
       // des TextEditingController (le texte affiché se met à jour tout
       // seul) — ce setState ne sert qu'à rafraîchir l'icône/le style du
       // champ juste après un choix, sans remonter d'état au parent.
+      //
+      // §RESPONSIVE — MISSION CRM RESPONSIVE (§12) : Heure début/Heure fin et
+      // Quantité/PROMESH passent de 2 colonnes (Row+Expanded) à 1 colonne
+      // empilée en dessous de 700px — un champ par ligne, comme demandé pour
+      // mobile, tout en gardant le layout desktop/tablette à 2 colonnes.
+      final heureDebutField = TextField(
+        controller: heureDebut,
+        readOnly: true,
+        onTap: () => _pickTime(context, heureDebut).then((_) => setLocalState(() {})),
+        decoration: _dec(context, 'Heure début', Icons.schedule_rounded, required: true),
+        style: tInter(fontSize: 14, color: kCrmText),
+      );
+      final heureFinField = TextField(
+        controller: heureFin,
+        readOnly: true,
+        onTap: () => _pickTime(context, heureFin).then((_) => setLocalState(() {})),
+        decoration: _dec(context, 'Heure fin', Icons.schedule_rounded, required: true),
+        style: tInter(fontSize: 14, color: kCrmText),
+      );
+      final quantiteField = TextField(
+        controller: quantite,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+        decoration: _dec(context, 'Quantité', Icons.scale_outlined, required: true),
+        style: tInter(fontSize: 14, color: kCrmText),
+      );
+      final promeshField = DropdownButtonFormField<String>(
+        initialValue: promesh,
+        items: [
+          for (final v in kMelangePromeshValues) DropdownMenuItem(value: v, child: Text(v)),
+        ],
+        onChanged: onPromeshChanged,
+        decoration: _dec(context, 'PROMESH', Icons.factory_outlined, required: true),
+        style: tInter(fontSize: 14, color: kCrmText),
+      );
+
       return SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -391,79 +427,58 @@ class _SuiviJournalier extends StatelessWidget {
 
           // ── Date / Heure début-fin / Quantité-PROMESH / Déchet /
           // Opérateur — ordre exact du mockup ────────────────────────────
-          _Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TextField(
-              controller: date,
-              readOnly: true,
-              onTap: () => _pickDate(context).then((_) => setLocalState(() {})),
-              decoration: _dec(context, 'Date', Icons.calendar_today_rounded, required: true),
-              style: tInter(fontSize: 14, color: kCrmText),
-            ),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: heureDebut,
-                  readOnly: true,
-                  onTap: () => _pickTime(context, heureDebut).then((_) => setLocalState(() {})),
-                  decoration: _dec(context, 'Heure début', Icons.schedule_rounded, required: true),
-                  style: tInter(fontSize: 14, color: kCrmText),
-                ),
+          _Card(child: LayoutBuilder(builder: (context, constraints) {
+            final isMobile = constraints.maxWidth < 500;
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              TextField(
+                controller: date,
+                readOnly: true,
+                onTap: () => _pickDate(context).then((_) => setLocalState(() {})),
+                decoration: _dec(context, 'Date', Icons.calendar_today_rounded, required: true),
+                style: tInter(fontSize: 14, color: kCrmText),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: heureFin,
-                  readOnly: true,
-                  onTap: () => _pickTime(context, heureFin).then((_) => setLocalState(() {})),
-                  decoration: _dec(context, 'Heure fin', Icons.schedule_rounded, required: true),
-                  style: tInter(fontSize: 14, color: kCrmText),
-                ),
+              const SizedBox(height: 12),
+              if (isMobile) ...[
+                heureDebutField,
+                const SizedBox(height: 12),
+                heureFinField,
+              ] else
+                Row(children: [
+                  Expanded(child: heureDebutField),
+                  const SizedBox(width: 12),
+                  Expanded(child: heureFinField),
+                ]),
+              const SizedBox(height: 12),
+              if (isMobile) ...[
+                quantiteField,
+                const SizedBox(height: 12),
+                promeshField,
+              ] else
+                Row(children: [
+                  Expanded(child: quantiteField),
+                  const SizedBox(width: 12),
+                  Expanded(child: promeshField),
+                ]),
+              const SizedBox(height: 12),
+              // §MODIFICATION — FICHE MÉLANGE : renommé depuis "Échantillon".
+              TextField(
+                controller: dechet,
+                decoration: _dec(context, 'Déchet', Icons.delete_outline_rounded),
+                style: tInter(fontSize: 14, color: kCrmText),
               ),
-            ]),
-            const SizedBox(height: 12),
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: quantite,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-                  decoration: _dec(context, 'Quantité', Icons.scale_outlined, required: true),
-                  style: tInter(fontSize: 14, color: kCrmText),
-                ),
+              const SizedBox(height: 12),
+              // §MODIFICATION — FICHE MÉLANGE : Opérateur — lecture seule,
+              // jamais un champ modifiable. Toujours l'utilisateur connecté
+              // (voir _MelangeFormScreenState.initState/_loadForEdit).
+              TextField(
+                controller: operateur,
+                readOnly: true,
+                enabled: false,
+                decoration: _dec(context, 'Opérateur', Icons.lock_outline_rounded),
+                style: tInter(fontSize: 14, color: kCrmText),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: DropdownButtonFormField<String>(
-                  initialValue: promesh,
-                  items: [
-                    for (final v in kMelangePromeshValues) DropdownMenuItem(value: v, child: Text(v)),
-                  ],
-                  onChanged: onPromeshChanged,
-                  decoration: _dec(context, 'PROMESH', Icons.factory_outlined, required: true),
-                  style: tInter(fontSize: 14, color: kCrmText),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 12),
-            // §MODIFICATION — FICHE MÉLANGE : renommé depuis "Échantillon".
-            TextField(
-              controller: dechet,
-              decoration: _dec(context, 'Déchet', Icons.delete_outline_rounded),
-              style: tInter(fontSize: 14, color: kCrmText),
-            ),
-            const SizedBox(height: 12),
-            // §MODIFICATION — FICHE MÉLANGE : Opérateur — lecture seule,
-            // jamais un champ modifiable. Toujours l'utilisateur connecté
-            // (voir _MelangeFormScreenState.initState/_loadForEdit).
-            TextField(
-              controller: operateur,
-              readOnly: true,
-              enabled: false,
-              decoration: _dec(context, 'Opérateur', Icons.lock_outline_rounded),
-              style: tInter(fontSize: 14, color: kCrmText),
-            ),
-          ])),
+            ]);
+          })),
           const SizedBox(height: 20),
         ]),
       );

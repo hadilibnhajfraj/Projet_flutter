@@ -137,9 +137,19 @@ class FinanceService {
     await ApiClient.instance.dio.delete('$_basePath/raw-materials/$id');
   }
 
-  // ── FINANCE > OTHER (stockage documentaire pur — aucun OCR/extraction) ──
+  // ── FINANCE > OTHER + sous-menu "Import" des 4 autres pages Finance ─────
+  // (§MODIFICATION CRM — AJOUTER UN SOUS-MENU IMPORT À CHAQUE MENU FINANCE) :
+  // stockage documentaire pur, AUCUN OCR/extraction, EXACTEMENT le même
+  // pipeline pour les 5 modules — seul `apiSegment` change ("other-documents"
+  // pour Other, "raw-materials/import"/"shipments/import"/"invoices/import"/
+  // "paid-invoices/import" pour les 4 nouveaux sous-menus, voir
+  // finance.routes.js côté backend). fetchOtherDocuments/uploadOtherDocument/
+  // renameOtherDocument/deleteOtherDocument restent exportées à l'identique
+  // (enveloppes figées sur "other-documents") — jamais une seconde
+  // implémentation d'upload.
 
-  Future<FinancePagedResult<FinanceDocumentModel>> fetchOtherDocuments({
+  Future<FinancePagedResult<FinanceDocumentModel>> fetchImportDocuments(
+    String apiSegment, {
     String? search,
     String? type,
     String? startDate,
@@ -148,7 +158,7 @@ class FinanceService {
     int pageSize = 50,
   }) async {
     final res = await ApiClient.instance.dio.get(
-      '$_basePath/other-documents',
+      '$_basePath/$apiSegment',
       queryParameters: {
         'page': page.toString(),
         'pageSize': pageSize.toString(),
@@ -170,10 +180,11 @@ class FinanceService {
 
   // "Upload Document"/"Scan Document" (§4-5) — un simple dépôt de fichier,
   // AUCUN OCR/extraction déclenché côté serveur (voir
-  // finance.service.js#uploadOtherDocument) — le backend renvoie
+  // finance.service.js#uploadImportDocument) — le backend renvoie
   // immédiatement le document enregistré, pas de séquence "Reading.../
   // Extracting..." comme pour Invoice/Shipment/Purchase Order.
-  Future<FinanceDocumentModel> uploadOtherDocument(
+  Future<FinanceDocumentModel> uploadImportDocument(
+    String apiSegment,
     FinancePickedFile file, {
     ValueChanged<double>? onProgress,
   }) async {
@@ -181,7 +192,7 @@ class FinanceService {
       'file': MultipartFile.fromBytes(file.bytes, filename: file.filename),
     });
     final res = await ApiClient.instance.dio.post(
-      '$_basePath/other-documents',
+      '$_basePath/$apiSegment',
       data: formData,
       onSendProgress: onProgress == null
           ? null
@@ -194,14 +205,32 @@ class FinanceService {
 
   // §7/§12/§19 : modifie UNIQUEMENT le nom d'affichage — jamais le fichier
   // physique ni son URL.
-  Future<FinanceDocumentModel> renameOtherDocument(String id, String displayName) async {
-    final res = await ApiClient.instance.dio.patch('$_basePath/other-documents/$id', data: {'displayName': displayName});
+  Future<FinanceDocumentModel> renameImportDocument(String apiSegment, String id, String displayName) async {
+    final res = await ApiClient.instance.dio.patch('$_basePath/$apiSegment/$id', data: {'displayName': displayName});
     return FinanceDocumentModel.fromJson(_unwrapObject(res.data));
   }
 
-  Future<void> deleteOtherDocument(String id) async {
-    await ApiClient.instance.dio.delete('$_basePath/other-documents/$id');
+  Future<void> deleteImportDocument(String apiSegment, String id) async {
+    await ApiClient.instance.dio.delete('$_basePath/$apiSegment/$id');
   }
+
+  Future<FinancePagedResult<FinanceDocumentModel>> fetchOtherDocuments({
+    String? search,
+    String? type,
+    String? startDate,
+    String? endDate,
+    int page = 1,
+    int pageSize = 50,
+  }) =>
+      fetchImportDocuments('other-documents', search: search, type: type, startDate: startDate, endDate: endDate, page: page, pageSize: pageSize);
+
+  Future<FinanceDocumentModel> uploadOtherDocument(FinancePickedFile file, {ValueChanged<double>? onProgress}) =>
+      uploadImportDocument('other-documents', file, onProgress: onProgress);
+
+  Future<FinanceDocumentModel> renameOtherDocument(String id, String displayName) =>
+      renameImportDocument('other-documents', id, displayName);
+
+  Future<void> deleteOtherDocument(String id) => deleteImportDocument('other-documents', id);
 
   // Aperçu — récupère les octets bruts du fichier (utilisé par le viewer
   // PDF/image), en réutilisant la même session Dio (donc les mêmes en-têtes

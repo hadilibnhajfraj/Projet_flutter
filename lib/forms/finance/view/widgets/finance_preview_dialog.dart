@@ -20,6 +20,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 import 'package:dash_master_toolkit/providers/api_client.dart';
+import 'package:dash_master_toolkit/widgets/responsive_dialog_box.dart';
 
 import '../../model/finance_models.dart';
 import '../../service/finance_service.dart';
@@ -30,7 +31,7 @@ Future<void> showFinanceDocumentPreview(BuildContext context, FinanceDocumentMod
     barrierDismissible: true,
     builder: (_) => Dialog(
       insetPadding: const EdgeInsets.all(24),
-      child: SizedBox(
+      child: ResponsiveDialogBox(
         width: 900,
         height: 700,
         child: _FinancePreviewBody(doc: doc),
@@ -144,7 +145,7 @@ Future<void> showLocalFilePreview(BuildContext context, {required Uint8List byte
     barrierDismissible: true,
     builder: (_) => Dialog(
       insetPadding: const EdgeInsets.all(24),
-      child: SizedBox(width: 900, height: 700, child: _LocalPreviewBody(bytes: bytes, filename: filename)),
+      child: ResponsiveDialogBox(width: 900, height: 700, child: _LocalPreviewBody(bytes: bytes, filename: filename)),
     ),
   );
 }

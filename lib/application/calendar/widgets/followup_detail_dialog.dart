@@ -215,7 +215,11 @@ class _FollowupDetailDialogState extends State<_FollowupDetailDialog> {
         ],
       ),
       content: SizedBox(
-        width: 460,
+        // §RESPONSIVE — MISSION CRM RESPONSIVE (§15/§17) : 460px forcé
+        // débordait sur mobile (AlertDialog réserve 40px d'insetPadding de
+        // chaque côté par défaut) — borné à la largeur écran disponible,
+        // inchangé sur desktop/tablette où 460px tient toujours.
+        width: (MediaQuery.sizeOf(context).width - 80).clamp(0, 460).toDouble(),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
