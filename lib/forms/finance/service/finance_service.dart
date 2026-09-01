@@ -137,6 +137,45 @@ class FinanceService {
     await ApiClient.instance.dio.delete('$_basePath/raw-materials/$id');
   }
 
+  // §MODIFICATION — INFLOW RAW MATERIALS : "Order date" éditable directement
+  // depuis le tableau — corrige une date que l'OCR n'a pas trouvée ou a mal
+  // lue. Format "AAAA-MM-JJ" uniquement (jamais `.toIso8601String()`, qui
+  // inclurait une heure locale ambiguë) — évite tout décalage d'un jour lié
+  // au fuseau horaire (§5 du ticket), revalidé de toute façon côté serveur
+  // (§4/§12 — jamais fait confiance à la seule validation Flutter).
+  Future<FinancePurchaseOrderModel> updateRawMaterialOrderDate(String id, DateTime newDate) async {
+    final formatted =
+        '${newDate.year.toString().padLeft(4, '0')}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}';
+    final res = await ApiClient.instance.dio.patch('$_basePath/raw-materials/$id', data: {'orderDate': formatted});
+    return FinancePurchaseOrderModel.fromJson(_unwrapObject(res.data));
+  }
+
+  // §MODIFICATION — SCAN DOCUMENTS (INCLUDE IMPORT) : PLUSIEURS DOCUMENTS PAR
+  // LIGNE (2026-09-01) — ajoute N document(s) supplémentaire(s) à UN bon de
+  // commande déjà EXISTANT (jamais un nouveau bon créé, contrairement à
+  // uploadRawMaterial ci-dessus qui, lui, lit le fichier par OCR et crée
+  // toujours un nouveau bon). Même pattern multipart "documents" (liste) que
+  // createShipment/uploadInvoice — un seul POST envoie tous les fichiers.
+  Future<FinancePurchaseOrderModel> addRawMaterialDocuments(String orderId, List<FinancePickedFile> files) async {
+    final formData = FormData.fromMap({
+      'documents': files.map((f) => MultipartFile.fromBytes(f.bytes, filename: f.filename)).toList(),
+    });
+    final res = await ApiClient.instance.dio.post(
+      '$_basePath/raw-materials/$orderId/documents',
+      data: formData,
+      options: Options(sendTimeout: const Duration(seconds: 60), receiveTimeout: const Duration(seconds: 60)),
+    );
+    return FinancePurchaseOrderModel.fromJson(_unwrapObject(res.data));
+  }
+
+  // §9 du ticket : supprime UN SEUL document d'un bon de commande, jamais le
+  // bon de commande entier ni les autres documents qui lui sont rattachés
+  // (voir deleteRawMaterial ci-dessus pour la suppression complète).
+  Future<FinancePurchaseOrderModel> deleteRawMaterialDocument(String orderId, String documentId) async {
+    final res = await ApiClient.instance.dio.delete('$_basePath/raw-materials/$orderId/documents/$documentId');
+    return FinancePurchaseOrderModel.fromJson(_unwrapObject(res.data));
+  }
+
   // ── FINANCE > OTHER + sous-menu "Import" des 4 autres pages Finance ─────
   // (§MODIFICATION CRM — AJOUTER UN SOUS-MENU IMPORT À CHAQUE MENU FINANCE) :
   // stockage documentaire pur, AUCUN OCR/extraction, EXACTEMENT le même
@@ -311,6 +350,19 @@ class FinanceService {
     return FinanceShipmentModel.fromJson(_unwrapObject(res.data));
   }
 
+  // §MODIFICATION — CUSTOMER SHIPMENTS / SCAN : "Delivery date" éditable
+  // depuis la section "Documents requiring extraction" — corrige une date que
+  // l'OCR n'a pas trouvée ou a mal lue. Réutilise `updateShipment` ci-dessus
+  // (endpoint existant, aucun nouveau endpoint créé — §10 du ticket). Format
+  // "AAAA-MM-JJ" uniquement (même raisonnement que
+  // updateRawMaterialOrderDate ci-dessus — §11 du ticket, "éviter le
+  // décalage UTC"), revalidé de toute façon côté serveur.
+  Future<FinanceShipmentModel> updateShipmentDeliveryDate(String id, DateTime newDate) {
+    final formatted =
+        '${newDate.year.toString().padLeft(4, '0')}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}';
+    return updateShipment(id, {'shipmentDate': formatted});
+  }
+
   // Suppression réelle côté backend (shipment + produits + documents +
   // fichiers, transaction Sequelize) — jamais un simple retrait côté
   // frontend. Ne supprime jamais une facture liée (son shipmentId est mis à
@@ -401,6 +453,21 @@ class FinanceService {
     return FinanceInvoiceModel.fromJson(_unwrapObject(res.data));
   }
 
+  // §CORRECTION — FACTURED SHIPMENTS / PAID INVOICES (2026-09-01) : "Invoice
+  // date" éditable directement depuis le tableau "Sage Documents" — corrige
+  // une date que l'OCR n'a pas trouvée ou a mal lue. Réutilise le NOUVEL
+  // endpoint dédié PATCH /finance/invoices/:id (aucun endpoint existant ne
+  // permettait de modifier un champ de facture arbitraire — voir §13/§1 du
+  // ticket). Format "AAAA-MM-JJ" uniquement (même raisonnement que
+  // updateRawMaterialOrderDate/updateShipmentDeliveryDate — éviter le
+  // décalage UTC), revalidé de toute façon côté serveur.
+  Future<FinanceInvoiceModel> updateInvoiceDate(String id, DateTime newDate) async {
+    final formatted =
+        '${newDate.year.toString().padLeft(4, '0')}-${newDate.month.toString().padLeft(2, '0')}-${newDate.day.toString().padLeft(2, '0')}';
+    final res = await ApiClient.instance.dio.patch('$_basePath/invoices/$id', data: {'invoiceDate': formatted});
+    return FinanceInvoiceModel.fromJson(_unwrapObject(res.data));
+  }
+
   Future<FinanceInvoiceModel> createInvoice({
     required String invoiceNumber,
     String? shipmentId,
@@ -459,6 +526,13 @@ class FinanceService {
   // (montant total de la facture, date de règlement déjà extraite par
   // l'OCR) quand ils sont absents, d'où un envoi multipart systématique
   // (même principe que uploadInvoice) plutôt qu'un JSON simple.
+  // §CORRECTION — SIMPLIFICATION REGISTER PAYMENT (2026-08-31) :
+  // chequeNumber/bankName/chequeDate/billOfExchangeNumber/dueDate (ajoutés
+  // au ticket précédent) retirés — plus aucun appelant ne les envoie (§2 du
+  // ticket : "le formulaire doit rester minimal"). Restent acceptés par
+  // registerPaymentSchema côté backend (finance.validator.js, jamais
+  // modifié) si un futur appelant en a besoin — seule cette méthode ne les
+  // expose plus.
   Future<FinanceInvoiceModel> registerPayment(
     String invoiceId, {
     required String method,

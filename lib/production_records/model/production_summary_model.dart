@@ -31,12 +31,21 @@ class ProductionSummaryTable {
   final double grandTotal;
   final String unit;
   final int totalRecords;
+  // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS RECOVERABLES
+  // — total Waste (kg), mirrors `grandTotalWaste`/`wasteUnit` backend (voir
+  // productionRecords.service.js#buildPromeshSummary/buildProbarSummary) :
+  // somme des dates DISTINCTES du tableau, jamais une somme "par ligne"
+  // (double-compterait une date partagée par plusieurs lignes).
+  final double grandTotalWaste;
+  final String wasteUnit;
 
   const ProductionSummaryTable({
     this.rows = const [],
     this.grandTotal = 0,
     this.unit = '',
     this.totalRecords = 0,
+    this.grandTotalWaste = 0,
+    this.wasteUnit = 'kg',
   });
 
   factory ProductionSummaryTable.fromJson(Map<String, dynamic> json, {required bool isPromesh}) {
@@ -48,6 +57,8 @@ class ProductionSummaryTable {
       grandTotal: _toDouble(json['grandTotal']),
       unit: (json['unit'] ?? '').toString(),
       totalRecords: _toInt(json['totalRecords']),
+      grandTotalWaste: _toDouble(json['grandTotalWaste']),
+      wasteUnit: (json['wasteUnit'] ?? 'kg').toString(),
     );
   }
 }
@@ -74,6 +85,18 @@ String formatPromeshMachineLabel(String? machine) {
   if (v.isEmpty) return '—';
   if (v.toUpperCase().startsWith('PROMESH')) return v.toUpperCase();
   return 'PROMESH $v';
+}
+
+// §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS RECOVERABLES
+// (§2 du ticket — "Machine" affiché aussi pour PROBAR désormais) — même
+// convention que formatPromeshMachineLabel ci-dessus : la colonne `machine`
+// en base ne contient que le numéro, jamais le libellé complet ; tolère une
+// valeur déjà préfixée sans la doubler ; machine vide/null -> "—".
+String formatProbarMachineLabel(String? machine) {
+  final v = (machine ?? '').trim();
+  if (v.isEmpty) return '—';
+  if (v.toUpperCase().startsWith('PROBAR')) return v.toUpperCase();
+  return 'PROBAR $v';
 }
 
 // Vrai uniquement si la fiche provient réellement de la machine PROMESH 4

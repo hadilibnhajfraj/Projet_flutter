@@ -31,6 +31,7 @@ import 'package:dash_master_toolkit/localization/app_localizations.dart';
 import '../model/finance_models.dart';
 import '../service/finance_service.dart';
 import '../theme/finance_theme.dart';
+import 'widgets/finance_preview_dialog.dart';
 import 'widgets/finance_shipment_detail_dialog.dart';
 import 'widgets/finance_shipment_form_dialog.dart';
 import 'widgets/finance_shipments_table.dart';
@@ -59,8 +60,20 @@ class _FinanceCustomerShipmentsScreenState extends State<FinanceCustomerShipment
   // simultanées sur le même Shipment (double-clic rapide sur 🗑).
   final Set<String> _deletingIds = {};
 
+  // §CORRECTION — WORKFLOW OCR FINANCE (2026-08-31) : un Shipment ne doit
+  // JAMAIS apparaître à la fois dans le tableau principal ET dans "Scan"
+  // (§3/§7 du ticket — "un document ne doit jamais apparaître
+  // simultanément dans les deux états"). Même partition EXCLUSIVE que
+  // Inflow of raw materials (voir `_validOrders`/`_failedOrders` dans
+  // finance_inflow_raw_materials_screen.dart, la référence explicite du
+  // ticket) : `_validShipments` alimente le tableau principal,
+  // `_failedShipments` alimente "Scan" — jamais les deux à la fois pour un
+  // même Shipment.
+  List<FinanceShipmentModel> get _validShipments => _shipments.where((s) => !s.isExtractionFailed).toList();
+  List<FinanceShipmentModel> get _failedShipments => _shipments.where((s) => s.isExtractionFailed).toList();
+
   List<CustomerShipmentRow> get _allRows => [
-        for (final s in _shipments)
+        for (final s in _validShipments)
           for (final item in s.items) CustomerShipmentRow(shipment: s, item: item),
       ];
 
@@ -124,9 +137,36 @@ class _FinanceCustomerShipmentsScreenState extends State<FinanceCustomerShipment
         backgroundColor: kCrmSuccess,
       ),
     );
-    // "puis ouvrir/actualiser le Customer Shipment" — ouvre automatiquement
-    // la fiche du Shipment qui vient d'être lu par OCR.
+    // §CORRECTION — WORKFLOW OCR CUSTOMER SHIPMENTS (2026-08-31) : second
+    // garde `mounted` avant d'ouvrir la fiche détail — aucun `await` ne
+    // sépare ce point du précédent contrôle (ligne 123), donc `mounted` ne
+    // peut pas avoir changé entre les deux ; ajouté par prudence pour que
+    // cette méthode reste sûre même si un futur `await` est inséré entre
+    // les deux lignes ci-dessus. "puis ouvrir/actualiser le Customer
+    // Shipment" — ouvre automatiquement la fiche du Shipment qui vient
+    // d'être lu par OCR.
+    if (!mounted) return;
     showFinanceShipmentDetail(context, created, onChanged: _load);
+  }
+
+  // §MODIFICATION — CUSTOMER SHIPMENTS / SCAN : "Delivery date" éditable
+  // depuis la section "Documents requiring extraction" (§5-§8 du ticket). Le
+  // PUT réel se fait dans FinanceService (jamais un recalcul local) — ce
+  // screen ne fait que transmettre l'appel et appliquer le Shipment mis à
+  // jour renvoyé par le backend à `_shipments`, sans jamais recharger toute
+  // la liste (même principe que _saveOrderDate dans
+  // finance_inflow_raw_materials_screen.dart).
+  Future<FinanceShipmentModel> _saveDeliveryDate(String id, DateTime newDate) {
+    return FinanceService.instance.updateShipmentDeliveryDate(id, newDate);
+  }
+
+  void _applyUpdatedShipment(FinanceShipmentModel updated) {
+    if (!mounted) return;
+    setState(() => _shipments = [for (final s in _shipments) if (s.id == updated.id) updated else s]);
+    final t = AppLocalizations.of(context);
+    SafeSnack.messengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(t.translate('Date updated successfully')), backgroundColor: kCrmSuccess, duration: const Duration(seconds: 2)),
+    );
   }
 
   // Suppression réelle côté backend (§AJOUTER LA SUPPRESSION DES DOCUMENTS
@@ -433,6 +473,21 @@ class _FinanceCustomerShipmentsScreenState extends State<FinanceCustomerShipment
                   style: OutlinedButton.styleFrom(foregroundColor: kFinanceColor, side: const BorderSide(color: kFinanceColor)),
                 ),
                 const SizedBox(width: 10),
+                // §MODIFICATION — CUSTOMER SHIPMENTS / SCAN (§1-§3 du ticket) :
+                // "Scan document" ouvre EXACTEMENT le même mécanisme que
+                // "New shipment" (même `showNewShipmentDialog`, même OCR/
+                // upload/API/service — aucune deuxième implémentation). Les
+                // deux boutons mènent au même formulaire, qui contient déjà
+                // lui-même son propre bouton "Scan document" (capture caméra,
+                // voir FinanceUploadDropzone) — ce bouton de page donne juste
+                // un accès direct, plus visible, à ce même flux.
+                OutlinedButton.icon(
+                  onPressed: _openNewShipment,
+                  icon: const Icon(Icons.document_scanner_outlined, size: 18),
+                  label: Text(t.translate('Scan document')),
+                  style: OutlinedButton.styleFrom(foregroundColor: kFinanceColor, side: const BorderSide(color: kFinanceColor)),
+                ),
+                const SizedBox(width: 10),
                 ElevatedButton.icon(
                   onPressed: _openNewShipment,
                   icon: const Icon(Icons.add_rounded, size: 18),
@@ -443,7 +498,14 @@ class _FinanceCustomerShipmentsScreenState extends State<FinanceCustomerShipment
               const SizedBox(height: 22),
               Row(children: [
                 Expanded(
-                  child: Text('${filteredRows.length} ${t.translate('line(s)')}', style: tInter(fontSize: 16, fontWeight: FontWeight.w800, color: kCrmText)),
+                  // §CORRECTION — RENOMMAGE LIBELLÉS CUSTOMER SHIPMENTS
+                  // (2026-08-31, même principe que Inflow of raw materials) :
+                  // "N line(s)" → "Sage Documents" (libellé fixe) — la
+                  // logique de partition exclusive main table/Scan
+                  // (FinanceShipmentModel.isExtractionFailed, déjà basée sur
+                  // hasReliableReference) est inchangée, seul l'affichage
+                  // change.
+                  child: Text(t.translate('Sage Documents'), style: tInter(fontSize: 16, fontWeight: FontWeight.w800, color: kCrmText)),
                 ),
                 SizedBox(
                   width: 320,
@@ -470,12 +532,37 @@ class _FinanceCustomerShipmentsScreenState extends State<FinanceCustomerShipment
                 _buildError(t)
               else if (_loading)
                 const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Center(child: CircularProgressIndicator()))
-              else
+              else ...[
                 FinanceShipmentsTable(
                   rows: filteredRows,
                   onView: (s) => showFinanceShipmentDetail(context, s, onChanged: _load),
                   onDelete: _handleDelete,
+                  onDeliveryDateSave: _saveDeliveryDate,
+                  onDeliveryDateSaved: _applyUpdatedShipment,
                 ),
+                if (_failedShipments.isNotEmpty) ...[
+                  const SizedBox(height: 28),
+                  // §MODIFICATION UI — GESTION DES IMPORTS ET SCANS (2026-08-31,
+                  // §2/§6 du ticket) : titre de section renommé "Documents
+                  // requiring extraction" → "Scan" (renommage d'affichage
+                  // uniquement — mêmes Shipments que la table ci-dessus, §17
+                  // du ticket précédent : jamais retirés de
+                  // FinanceShipmentsTable, listés ici pour que l'utilisateur
+                  // corrige leur Delivery date).
+                  Text(t.translate('Scan Documents'), style: tInter(fontSize: 15, fontWeight: FontWeight.w800, color: kCrmText)),
+                  const SizedBox(height: 4),
+                  Text(t.translate('These files could not be read automatically. You can still view or delete them.'),
+                      style: tInter(fontSize: 12, color: kCrmTextSub)),
+                  const SizedBox(height: 10),
+                  _ShipmentsRequiringExtractionTable(
+                    shipments: _failedShipments,
+                    onView: (doc) => showFinanceDocumentPreview(context, doc),
+                    onDelete: (shipment) => _handleDelete(shipment),
+                    onDeliveryDateSave: _saveDeliveryDate,
+                    onDeliveryDateSaved: _applyUpdatedShipment,
+                  ),
+                ],
+              ],
             ]),
           ),
         ),
@@ -496,5 +583,156 @@ class _FinanceCustomerShipmentsScreenState extends State<FinanceCustomerShipment
         ]),
       ),
     );
+  }
+}
+
+// §MODIFICATION — CUSTOMER SHIPMENTS / SCAN : table dédiée à la section
+// "Documents requiring extraction" (§4/§5 du ticket) — Document name/File
+// type/File size/Upload date/Delivery date (éditable)/Uploaded by/Actions.
+// Même principe que `_ExportOrdersTable` dans
+// finance_inflow_raw_materials_screen.dart : opère sur `FinanceShipmentModel`
+// (jamais sur un `FinanceDocumentModel` isolé) précisément pour garder
+// l'accès à `shipment.shipmentDate` — LE MÊME champ, LA MÊME donnée
+// persistée que la table principale (§8 du ticket, "une seule source de
+// données"), jamais un deuxième modèle/une deuxième colonne PostgreSQL.
+class _ShipmentsRequiringExtractionTable extends StatelessWidget {
+  final List<FinanceShipmentModel> shipments;
+  final ValueChanged<FinanceDocumentModel> onView;
+  final ValueChanged<FinanceShipmentModel> onDelete;
+  final Future<FinanceShipmentModel> Function(String id, DateTime newDate) onDeliveryDateSave;
+  final ValueChanged<FinanceShipmentModel> onDeliveryDateSaved;
+
+  const _ShipmentsRequiringExtractionTable({
+    required this.shipments,
+    required this.onView,
+    required this.onDelete,
+    required this.onDeliveryDateSave,
+    required this.onDeliveryDateSaved,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    // Un shipment dont l'extraction a échoué peut, en théorie, n'avoir aucun
+    // document rattaché (upload interrompu) — jamais affiché dans ce cas
+    // plutôt que de deviner un nom de fichier.
+    final entries = [for (final s in shipments) if (s.documents.isNotEmpty) (shipment: s, doc: s.documents.first)];
+
+    if (entries.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 30),
+        child: Center(child: Text(t.translate('Aucun document'), style: tInter(fontSize: 13, color: kCrmTextSub))),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(color: kCrmSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: kCrmBorder)),
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTableTheme(
+          data: DataTableThemeData(
+            headingRowColor: WidgetStateProperty.all(kCrmBg),
+            headingTextStyle: tInter(fontSize: 11.5, fontWeight: FontWeight.w800, color: kCrmTextSub),
+            dataTextStyle: tInter(fontSize: 12.5, color: kCrmText),
+            dividerThickness: 1,
+          ),
+          child: DataTable(
+            headingRowHeight: 44,
+            dataRowMinHeight: 52,
+            dataRowMaxHeight: 56,
+            columnSpacing: 22,
+            columns: [
+              DataColumn(label: Text(t.translate('Document name'))),
+              DataColumn(label: Text(t.translate('File type'))),
+              DataColumn(label: Text(t.translate('File size'))),
+              DataColumn(label: Text(t.translate('Upload date'))),
+              DataColumn(label: Text(t.translate('Delivery date'))),
+              DataColumn(label: Text(t.translate('Uploaded by'))),
+              DataColumn(label: Text(t.translate('Actions'))),
+            ],
+            rows: [
+              for (final e in entries)
+                DataRow(
+                  color: WidgetStateProperty.resolveWith(
+                      (states) => states.contains(WidgetState.hovered) ? kCrmPrimary.withOpacity(0.04) : null),
+                  onSelectChanged: (_) => onView(e.doc),
+                  cells: [
+                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(_iconFor(e.doc), size: 16, color: kCrmPrimary),
+                      const SizedBox(width: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 220),
+                        child: Text(e.doc.originalName,
+                            style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmText),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ])),
+                    DataCell(Text(e.doc.extension.toUpperCase().isEmpty ? '—' : e.doc.extension.toUpperCase())),
+                    DataCell(Text(formatFinanceFileSize(e.doc.fileSize))),
+                    DataCell(Text(_dateTimeFmt(e.doc.createdAt))),
+                    // §MODIFICATION — CUSTOMER SHIPMENTS / SCAN : cellule
+                    // "Delivery date" éditable — `DeliveryDateCell` (défini
+                    // dans finance_shipments_table.dart, PUBLIQUE) est
+                    // désormais PARTAGÉE avec le tableau principal
+                    // ci-dessus (même mécanisme que OrderDateCell dans
+                    // finance_purchase_orders_table.dart) — jamais une
+                    // deuxième implémentation.
+                    DataCell(DeliveryDateCell(
+                      // §CORRECTION — CUSTOMER SHIPMENTS / DELIVERY DATE
+                      // (2026-08-31) : même renforcement de Key que dans
+                      // finance_shipments_table.dart (id + shipmentDate).
+                      key: ValueKey('delivery-date-${e.shipment.id}-${e.shipment.shipmentDate}'),
+                      shipment: e.shipment,
+                      onSave: onDeliveryDateSave,
+                      onSaved: onDeliveryDateSaved,
+                    )),
+                    DataCell(Text(e.doc.uploader?.email ?? '—')),
+                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                      Tooltip(
+                        message: t.translate('View'),
+                        child: OutlinedButton.icon(
+                          onPressed: () => onView(e.doc),
+                          icon: const Icon(Icons.visibility_outlined, size: 15),
+                          label: Text(t.translate('View'), style: tInter(fontSize: 12, fontWeight: FontWeight.w700)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: kCrmPrimary,
+                            side: const BorderSide(color: kCrmBorder),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: t.translate('Delete'),
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: kCrmDanger),
+                        onPressed: () => onDelete(e.shipment),
+                      ),
+                    ])),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _iconFor(FinanceDocumentModel doc) {
+    if (doc.isPdf) return Icons.picture_as_pdf_outlined;
+    if (doc.isImage) return Icons.image_outlined;
+    if (['xls', 'xlsx', 'csv'].contains(doc.extension)) return Icons.grid_on_outlined;
+    if (['doc', 'docx'].contains(doc.extension)) return Icons.description_outlined;
+    return Icons.insert_drive_file_outlined;
+  }
+
+  String _dateTimeFmt(String? iso) {
+    if (iso == null || iso.isEmpty) return '—';
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return DateFormat('dd/MM/yyyy HH:mm').format(d);
   }
 }

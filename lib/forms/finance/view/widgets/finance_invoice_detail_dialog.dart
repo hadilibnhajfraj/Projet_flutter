@@ -22,7 +22,14 @@ import 'finance_invoice_items_table.dart';
 import 'finance_preview_dialog.dart';
 import 'finance_upload_dropzone.dart';
 
-const List<String> kFinancePaymentMethods = ['Virement', 'Versement', 'Chèque', 'Traite'];
+// §CORRECTION — REGISTER PAYMENT DEPUIS SCAN DOCUMENTS (2026-08-31) :
+// "Carte bancaire"/"Espèce" ajoutés à la demande explicite du ticket — même
+// liste que PAYMENT_METHODS côté backend (finance.validator.js), jamais une
+// deuxième source de vérité. La valeur envoyée à l'API est le libellé
+// français lui-même (comme c'était déjà le cas), jamais un code technique
+// séparé — voir le commentaire de PAYMENT_METHODS côté backend pour le
+// raisonnement complet.
+const List<String> kFinancePaymentMethods = ['Carte bancaire', 'Espèce', 'Chèque', 'Virement', 'Traite'];
 
 Future<void> showFinanceInvoiceDetail(BuildContext context, FinanceInvoiceModel preview, {VoidCallback? onChanged}) {
   return showDialog(
@@ -72,15 +79,13 @@ class _InvoiceDetailBodyState extends State<_InvoiceDetailBody> {
     // pré-sélectionné dans le dropdown (§3) — l'utilisateur n'a rien à
     // saisir sauf s'il veut le changer.
     final preselected = kFinancePaymentMethods.contains(inv.paymentMethod) ? inv.paymentMethod : null;
-    final result = await showDialog<_PaymentInput>(
-      context: context,
-      builder: (_) => _RegisterPaymentDialog(preselectedMethod: preselected),
-    );
+    final result = await showRegisterPaymentDialog(context, preselectedMethod: preselected);
     if (result == null) return;
     try {
-      // Formulaire minimal (§2) : seuls method + document sont envoyés — le
-      // backend déduit amount (total de la facture) et paidDate (date de
-      // règlement déjà extraite par l'OCR) et passe la facture en PAID.
+      // Formulaire minimal (§2 du ticket) : seuls method + document sont
+      // envoyés — le backend déduit amount (total de la facture) et
+      // paidDate (date de règlement déjà extraite par l'OCR, sinon
+      // aujourd'hui) et passe la facture en PAID.
       await FinanceService.instance.registerPayment(inv.id, method: result.method, document: result.document);
       // Recalcule le montant payé/reste à payer et actualise l'affichage de
       // la facture (§6) — la même réponse renvoyée par registerPayment
@@ -356,30 +361,51 @@ class _PaymentHistoryList extends StatelessWidget {
   }
 }
 
-class _PaymentInput {
+// §CORRECTION — SIMPLIFICATION REGISTER PAYMENT (2026-08-31) : retour à un
+// formulaire MINIMAL (§1/§2 du ticket) — UNIQUEMENT method + document. Les
+// champs Payment date/Reference/Cheque number/Bank/Bill number/Due date
+// ajoutés au ticket précédent sont retirés à la demande explicite de
+// celui-ci ("le formulaire doit rester minimal") : aucun appelant ne les
+// envoyait de toute façon (le backend les déduit déjà du contexte — voir
+// finance.service.js#registerPayment, inchangé). `document` est nullable :
+// seul "Espèce" peut l'omettre (§1 du ticket).
+class PaymentInput {
   final String method;
-  final FinancePickedFile document;
-  const _PaymentInput({required this.method, required this.document});
+  final FinancePickedFile? document;
+  const PaymentInput({required this.method, this.document});
 }
 
-// Formulaire minimal (§2 : "Le formulaire doit être minimal") — UNIQUEMENT
-// Payment method (dropdown fermé à 4 valeurs, pré-sélectionné si l'OCR a
-// déjà détecté un mode sur la facture) + Supporting document (obligatoire,
-// vérifié avant l'enregistrement). Aucun montant, aucune date, aucune
-// référence, aucun numéro de chèque/traite/banque : ces informations ne
-// doivent jamais bloquer l'enregistrement (§5).
-class _RegisterPaymentDialog extends StatefulWidget {
+// §MODIFICATION — REGISTER PAYMENT DEPUIS SCAN DOCUMENTS : PUBLIQUE —
+// réutilisée à l'identique par la fiche facture (bouton "Register payment"
+// ci-dessus) ET par la section "Scan Documents (include export)" de
+// Factured Shipments (finance_factured_shipments_screen.dart) — un seul
+// dialogue, jamais une deuxième implémentation.
+Future<PaymentInput?> showRegisterPaymentDialog(BuildContext context, {String? preselectedMethod}) {
+  return showDialog<PaymentInput>(
+    context: context,
+    builder: (_) => RegisterPaymentDialog(preselectedMethod: preselectedMethod),
+  );
+}
+
+// Formulaire minimal (§1/§2/§13 du ticket) — UNIQUEMENT Payment method
+// (dropdown fermé à 5 valeurs, pré-sélectionné si l'OCR a déjà détecté un
+// mode sur la facture) + Payment document — la zone document n'est même
+// pas affichée pour "Espèce" (§1 : "NE PAS afficher la zone 'Payment
+// document'"), obligatoire pour les 4 autres modes.
+class RegisterPaymentDialog extends StatefulWidget {
   final String? preselectedMethod;
-  const _RegisterPaymentDialog({this.preselectedMethod});
+  const RegisterPaymentDialog({super.key, this.preselectedMethod});
 
   @override
-  State<_RegisterPaymentDialog> createState() => _RegisterPaymentDialogState();
+  State<RegisterPaymentDialog> createState() => RegisterPaymentDialogState();
 }
 
-class _RegisterPaymentDialogState extends State<_RegisterPaymentDialog> {
+class RegisterPaymentDialogState extends State<RegisterPaymentDialog> {
   late String _method = widget.preselectedMethod ?? kFinancePaymentMethods.first;
   FinancePickedFile? _document;
   bool _showDocumentError = false;
+
+  bool get _documentRequired => _method != 'Espèce';
 
   @override
   Widget build(BuildContext context) {
@@ -390,48 +416,59 @@ class _RegisterPaymentDialogState extends State<_RegisterPaymentDialog> {
         width: 420,
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // Dropdown FERMÉ — EXACTEMENT ces 4 valeurs (§3), jamais un champ
-            // libre.
+            // Dropdown FERMÉ — EXACTEMENT ces 5 valeurs (§1 du ticket),
+            // jamais un champ libre.
             DropdownButtonFormField<String>(
               initialValue: _method,
               decoration: InputDecoration(labelText: '${t.translate('Payment method')} *', border: const OutlineInputBorder()),
-              items: kFinancePaymentMethods.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+              items: kFinancePaymentMethods.map((m) => DropdownMenuItem(value: m, child: Text(t.translate(m)))).toList(),
               onChanged: (v) {
                 if (v == null) return;
-                setState(() => _method = v);
+                setState(() {
+                  _method = v;
+                  _showDocumentError = false;
+                  // §1 du ticket : passer à "Espèce" retire immédiatement un
+                  // document déjà sélectionné — jamais envoyé pour ce mode.
+                  if (!_documentRequired) _document = null;
+                });
               },
             ),
-            const SizedBox(height: 18),
-            Text(t.translate('Supporting document'), style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: kCrmText)),
-            const SizedBox(height: 10),
-            if (_document != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(color: kCrmBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: kCrmBorder)),
-                child: Row(children: [
-                  const Icon(Icons.description_outlined, size: 16, color: kFinanceColor),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(_document!.filename, style: tInter(fontSize: 12, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis)),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 16),
-                    onPressed: () => setState(() => _document = null),
-                  ),
-                ]),
-              )
-            else
-              FinanceUploadDropzone(
-                onFilesSelected: (files) {
-                  if (files.isNotEmpty) {
-                    setState(() {
-                      _document = files.first;
-                      _showDocumentError = false;
-                    });
-                  }
-                },
-              ),
-            if (_showDocumentError) ...[
-              const SizedBox(height: 8),
-              Text(t.translate('Document required for this payment method'), style: tInter(fontSize: 11.5, color: kCrmDanger)),
+            // §1 du ticket : zone document ENTIÈREMENT absente pour "Espèce"
+            // — pas seulement non-obligatoire.
+            if (_documentRequired) ...[
+              const SizedBox(height: 18),
+              Text('${t.translate('Payment document')} *', style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: kCrmText)),
+              const SizedBox(height: 10),
+              if (_document != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(color: kCrmBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: kCrmBorder)),
+                  child: Row(children: [
+                    const Icon(Icons.description_outlined, size: 16, color: kFinanceColor),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(_document!.filename, style: tInter(fontSize: 12, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis)),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 16),
+                      onPressed: () => setState(() => _document = null),
+                    ),
+                  ]),
+                )
+              else
+                FinanceUploadDropzone(
+                  onFilesSelected: (files) {
+                    if (files.isNotEmpty) {
+                      setState(() {
+                        _document = files.first;
+                        _showDocumentError = false;
+                      });
+                    }
+                  },
+                ),
+              if (_showDocumentError) ...[
+                const SizedBox(height: 8),
+                // §3 du ticket : message exact demandé.
+                Text(t.translate('Payment document is required.'), style: tInter(fontSize: 11.5, color: kCrmDanger)),
+              ],
             ],
           ]),
         ),
@@ -440,11 +477,13 @@ class _RegisterPaymentDialogState extends State<_RegisterPaymentDialog> {
         TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(t.translate('Annuler'))),
         ElevatedButton(
           onPressed: () {
-            if (_document == null) {
+            // §3/§10 du ticket : seul "Espèce" n'exige aucun justificatif —
+            // tous les autres modes conservent l'exigence existante.
+            if (_document == null && _documentRequired) {
               setState(() => _showDocumentError = true);
               return;
             }
-            Navigator.of(context).pop(_PaymentInput(method: _method, document: _document!));
+            Navigator.of(context).pop(PaymentInput(method: _method, document: _document));
           },
           style: ElevatedButton.styleFrom(backgroundColor: kFinanceColor, foregroundColor: Colors.white),
           child: Text(t.translate('Register payment')),

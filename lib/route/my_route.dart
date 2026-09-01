@@ -100,6 +100,7 @@ import 'package:dash_master_toolkit/forms/finance/view/finance_dashboard_screen.
 import 'package:dash_master_toolkit/forms/finance/view/finance_inflow_raw_materials_screen.dart';
 import 'package:dash_master_toolkit/forms/finance/view/finance_customer_shipments_screen.dart';
 import 'package:dash_master_toolkit/forms/finance/view/finance_factured_shipments_screen.dart';
+import 'package:dash_master_toolkit/forms/finance/view/finance_factured_shipments_export_screen.dart';
 import 'package:dash_master_toolkit/forms/finance/view/finance_paid_invoices_screen.dart';
 import 'package:dash_master_toolkit/forms/finance/view/finance_import_screen.dart';
 import 'package:dash_master_toolkit/forms/recuperables/view/recuperable_fiche_screen.dart';
@@ -207,6 +208,7 @@ class MyRoute {
   static const financeInflowRawMaterialsImportScreen = '/finance/inflow-raw-materials/import';
   static const financeCustomerShipmentsImportScreen = '/finance/customer-shipments/import';
   static const financeFacturedShipmentsImportScreen = '/finance/factured-shipments/import';
+  static const financeFacturedShipmentsExportScreen = '/finance/factured-shipments/export';
   static const financePaidInvoicesImportScreen = '/finance/paid-invoices/import';
 
   static const industrialRoutePrefixes = [
@@ -1248,15 +1250,25 @@ GoRoute(
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: FinanceInflowRawMaterialsScreen()),
                 routes: [
-                  // Sous-menu "Import" (MODIFICATION CRM — AJOUTER UN
-                  // SOUS-MENU IMPORT À CHAQUE MENU FINANCE) — hérite du même
-                  // redirect (`canViewFinance`) que le reste de l'arbre
-                  // `financeRoot` ci-dessus, jamais contourné par URL directe.
+                  // §MODIFICATION — INFLOW RAW MATERIALS : "Import" pointait
+                  // vers le composant générique sans OCR (FinanceImportScreen,
+                  // écrit vers /finance/raw-materials/import — un
+                  // FinanceDocument autonome, jamais un Purchase Order) —
+                  // DEUX sources de données indépendantes pour "Inflow of raw
+                  // materials" (§1/§9/§11 du ticket, explicitement interdit).
+                  // FinanceInflowRawMaterialsScreen contient DÉJÀ sa propre
+                  // zone d'upload (FinanceUploadDropzone) branchée sur le
+                  // VRAI pipeline OCR (POST /finance/raw-materials/upload —
+                  // voir finance_inflow_raw_materials_screen.dart), qui
+                  // alimente CETTE MÊME liste. "Import" pointe donc
+                  // maintenant vers CET écran — une seule route, un seul
+                  // écran, une seule source de vérité, jamais de liste
+                  // parallèle. Hérite du même redirect (`canViewFinance`) que
+                  // le reste de l'arbre `financeRoot` ci-dessus.
                   GoRoute(
                     path: 'import',
-                    pageBuilder: (context, state) => const NoTransitionPage(
-                      child: FinanceImportScreen(module: FinanceImportModule.rawMaterials),
-                    ),
+                    pageBuilder: (context, state) =>
+                        const NoTransitionPage(child: FinanceInflowRawMaterialsScreen()),
                   ),
                 ],
               ),
@@ -1278,11 +1290,27 @@ GoRoute(
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: FinanceFacturedShipmentsScreen()),
                 routes: [
+                  // §MODIFICATION — FACTURED SHIPMENTS : IMPORT SUR LA MÊME
+                  // PAGE (2026-08-31) : "Import" n'est plus une page séparée
+                  // (§1 du ticket) — la section "Import" (factures dont
+                  // l'OCR a échoué/est incomplet) est maintenant affichée
+                  // directement sur FinanceFacturedShipmentsScreen, sous le
+                  // tableau principal (voir
+                  // finance_factured_shipments_screen.dart). Cette route est
+                  // conservée (jamais supprimée — évite une "route
+                  // inexistante" pour un lien déjà partagé/mis en favori) et
+                  // pointe donc maintenant vers CE MÊME écran — même
+                  // principe que /finance/inflow-raw-materials/import
+                  // ci-dessus. "Export" (ticket précédent) est inchangé.
                   GoRoute(
                     path: 'import',
-                    pageBuilder: (context, state) => const NoTransitionPage(
-                      child: FinanceImportScreen(module: FinanceImportModule.facturedShipments),
-                    ),
+                    pageBuilder: (context, state) =>
+                        const NoTransitionPage(child: FinanceFacturedShipmentsScreen()),
+                  ),
+                  GoRoute(
+                    path: 'export',
+                    pageBuilder: (context, state) =>
+                        const NoTransitionPage(child: FinanceFacturedShipmentsExportScreen()),
                   ),
                 ],
               ),

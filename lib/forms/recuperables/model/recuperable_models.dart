@@ -63,6 +63,20 @@ class RecuperableFicheModel {
   final String? dateCloture;
   final String? createdBy;
   final String? creatorEmail;
+  // §MODIFICATION — FICHE RECOVERABLES PROCESSED SIMPLIFIÉE : remplace la
+  // saisie par diamètre pour toute NOUVELLE fiche — `null` pour une fiche
+  // créée avant ce ticket (voir `recuperables` ci-dessous, conservé
+  // uniquement pour l'affichage en lecture seule de ces anciennes fiches
+  // dans l'historique/le détail/les exports, jamais utilisé par le nouveau
+  // formulaire de saisie).
+  final double? waste;
+  // Champ hérité d'un ticket antérieur (formulaire combiné "Waste + Finished
+  // Product", retiré de l'UI depuis) — conservé pour ne rien supprimer,
+  // n'est plus alimenté par aucun écran. `finishedProduct` ci-dessous est la
+  // valeur "Finished Product" INDÉPENDANTE désormais utilisée par la fiche —
+  // jamais une somme avec `waste`.
+  final double? wasteFinishedProduct;
+  final double? finishedProduct;
   final List<RecuperableItemModel> recuperables;
   final String? createdAt;
   final String? updatedAt;
@@ -80,6 +94,9 @@ class RecuperableFicheModel {
     this.dateCloture,
     this.createdBy,
     this.creatorEmail,
+    this.waste,
+    this.wasteFinishedProduct,
+    this.finishedProduct,
     this.recuperables = const [],
     this.createdAt,
     this.updatedAt,
@@ -119,6 +136,10 @@ class RecuperableFicheModel {
       dateCloture: json['dateCloture']?.toString(),
       createdBy: json['createdBy']?.toString(),
       creatorEmail: creator is Map ? creator['email']?.toString() : null,
+      waste: json['waste'] == null ? null : RecuperableItemModel._toDouble(json['waste']),
+      wasteFinishedProduct:
+          json['wasteFinishedProduct'] == null ? null : RecuperableItemModel._toDouble(json['wasteFinishedProduct']),
+      finishedProduct: json['finishedProduct'] == null ? null : RecuperableItemModel._toDouble(json['finishedProduct']),
       recuperables: itemsRaw
           .whereType<Map>()
           .map((e) => RecuperableItemModel.fromJson(Map<String, dynamic>.from(e)))
@@ -129,8 +150,12 @@ class RecuperableFicheModel {
     );
   }
 
-  /// Payload "Enregistrer" — en-tête + tableau complet (jamais de champs
-  /// séparés par diamètre).
+  /// Payload "Enregistrer" — en-tête + `waste`/`finishedProduct`, deux
+  /// valeurs INDÉPENDANTES (§MODIFICATION — AJOUT FINISHED PRODUCT). Plus de
+  /// tableau par diamètre envoyé ici — `recuperables` reste dans ce modèle
+  /// uniquement pour la LECTURE des anciennes fiches (historique/détail/
+  /// exports), jamais pour l'enregistrement. `wasteFinishedProduct` (champ
+  /// combiné hérité) n'est plus envoyé — remplacé par `finishedProduct`.
   Map<String, dynamic> toSaveJson() => {
         'module': module,
         'machine': machine,
@@ -138,6 +163,7 @@ class RecuperableFicheModel {
         'poste': poste,
         'date': date,
         if ((operateur ?? '').trim().isNotEmpty) 'operateur': operateur,
-        'recuperables': recuperables.map((i) => i.toJson()).toList(),
+        'waste': waste ?? 0,
+        'finishedProduct': finishedProduct ?? 0,
       };
 }

@@ -713,6 +713,8 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   static const _flexDiameter = 2;
   static const _flexMesh = 3;
   static const _flexQty = 3;
+  // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS RECOVERABLES.
+  static const _flexWaste = 3;
 
   static const _promesh4Bg = Color(0xFFFEF3C7); // amber-100 — distinct du bleu PROMESH, lisible
   static const _promesh4Border = Color(0xFFF59E0B); // kCrmWarning
@@ -768,6 +770,11 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
                   _headerRow(t),
                   for (int i = 0; i < pageRows.length; i++) _dataRow(t, page * _rowsPerPage + i + 1, pageRows[i]),
                   _grandTotalRow(t),
+                  // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS
+                  // RECOVERABLES — deuxième ligne de total, sous TOTAL
+                  // PROMESH/PROBAR (§6/§7 du ticket), jamais fusionnée avec la
+                  // quantité (unités différentes, §8 : jamais mélangées).
+                  _grandTotalWasteRow(t),
                 ]),
               ),
             );
@@ -784,10 +791,14 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
       child: Row(children: [
         Expanded(flex: _flexIndex, child: Text('#', style: _headStyle)),
         Expanded(flex: _flexDate, child: Text(t.translate('Date production'), style: _headStyle)),
-        if (widget.isPromesh) Expanded(flex: _flexMachine, child: Text(t.translate('Machine'), style: _headStyle)),
+        // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS
+        // RECOVERABLES (§2) — "Machine" est désormais affiché pour PROBAR
+        // aussi, plus seulement PROMESH.
+        Expanded(flex: _flexMachine, child: Text(t.translate('Machine'), style: _headStyle)),
         Expanded(flex: _flexDiameter, child: Text(t.translate('Diameter'), style: _headStyle)),
         if (widget.isPromesh) Expanded(flex: _flexMesh, child: Text(t.translate('Cell size'), style: _headStyle)),
         Expanded(flex: _flexQty, child: Text('${t.translate('Quantity')} (${widget.table.unit})', style: _headStyle, textAlign: TextAlign.right)),
+        Expanded(flex: _flexWaste, child: Text('${t.translate('Waste')} (${widget.table.wasteUnit})', style: _headStyle, textAlign: TextAlign.right)),
       ]),
     );
   }
@@ -797,9 +808,16 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   Widget _dataRow(AppLocalizations t, int index, ProductionRecordModel r) {
     final isPromesh4 = widget.isPromesh && isPromesh4Machine(r.machine);
     final dateLabel = _formatProductionDate(r.date);
+    final machineLabel = widget.isPromesh ? formatPromeshMachineLabel(r.machine) : formatProbarMachineLabel(r.machine);
     final diameterLabel = (r.diametre == null || r.diametre!.isEmpty) ? t.translate('Non renseigné') : '${r.diametre} mm';
     final meshLabel = (r.tailleMaille == null || r.tailleMaille!.isEmpty) ? t.translate('Non renseigné') : formatCellSize(r.tailleMaille!);
     final qtyLabel = '${formatProductionNumber(r.quantite ?? 0)} ${widget.table.unit}';
+    // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS RECOVERABLES
+    // — `r.waste` vient directement du backend (jointure module+date sur
+    // Recuperables.waste, voir productionRecords.service.js#attachWaste),
+    // jamais recalculé ici à partir de Quantity/Diameter (§15). Absent → 0
+    // (§5, jamais null/undefined/NaN affiché).
+    final wasteLabel = '${r.waste.toStringAsFixed(2)} ${widget.table.wasteUnit}';
 
     final textStyle = tInter(fontSize: 12.5, fontWeight: isPromesh4 ? FontWeight.w700 : FontWeight.w500, color: kCrmText);
 
@@ -815,14 +833,14 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
       child: Row(children: [
         Expanded(flex: _flexIndex, child: Text('$index', style: textStyle)),
         Expanded(flex: _flexDate, child: Text(dateLabel, style: textStyle)),
-        if (widget.isPromesh)
-          Expanded(
-            flex: _flexMachine,
-            child: isPromesh4 ? _promesh4Badge(r.machine) : Text(formatPromeshMachineLabel(r.machine), style: textStyle),
-          ),
+        Expanded(
+          flex: _flexMachine,
+          child: isPromesh4 ? _promesh4Badge(r.machine) : Text(machineLabel, style: textStyle),
+        ),
         Expanded(flex: _flexDiameter, child: Text(diameterLabel, style: textStyle)),
         if (widget.isPromesh) Expanded(flex: _flexMesh, child: Text(meshLabel, style: textStyle)),
         Expanded(flex: _flexQty, child: Text(qtyLabel, textAlign: TextAlign.right, style: textStyle)),
+        Expanded(flex: _flexWaste, child: Text(wasteLabel, textAlign: TextAlign.right, style: textStyle)),
       ]),
     );
   }
@@ -843,7 +861,7 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   }
 
   Widget _grandTotalRow(AppLocalizations t) {
-    final leadingFlex = _flexIndex + _flexDate + (widget.isPromesh ? _flexMachine : 0) + _flexDiameter + (widget.isPromesh ? _flexMesh : 0);
+    final leadingFlex = _flexIndex + _flexDate + _flexMachine + _flexDiameter + (widget.isPromesh ? _flexMesh : 0);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(color: widget.color),
@@ -857,6 +875,35 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
           flex: _flexQty,
           child: Text('${formatProductionNumber(widget.table.grandTotal)} ${widget.table.unit}',
               textAlign: TextAlign.right, style: tInter(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+        ),
+        // Colonne Waste laissée vide sur cette ligne — son propre total
+        // s'affiche sur la ligne dédiée juste en dessous (_grandTotalWasteRow,
+        // §6/§7 : jamais mélangé avec Quantity, unités différentes).
+        Expanded(flex: _flexWaste, child: const SizedBox.shrink()),
+      ]),
+    );
+  }
+
+  // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS RECOVERABLES —
+  // "TOTAL WASTE", deuxième ligne sous TOTAL PROMESH/PROBAR. Valeur = somme
+  // des dates DISTINCTES du tableau (déjà calculée côté backend, voir
+  // `grandTotalWaste`) — jamais une somme "par ligne" côté client, qui
+  // doublonnerait une date partagée par plusieurs lignes de production.
+  Widget _grandTotalWasteRow(AppLocalizations t) {
+    final leadingFlex = _flexIndex + _flexDate + _flexMachine + _flexDiameter + (widget.isPromesh ? _flexMesh : 0) + _flexQty;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+      decoration: BoxDecoration(color: widget.color.withOpacity(0.85)),
+      child: Row(children: [
+        Expanded(
+          flex: leadingFlex,
+          child: Text(t.translate('TOTAL WASTE'),
+              style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: 0.4)),
+        ),
+        Expanded(
+          flex: _flexWaste,
+          child: Text('${widget.table.grandTotalWaste.toStringAsFixed(2)} ${widget.table.wasteUnit}',
+              textAlign: TextAlign.right, style: tInter(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
         ),
       ]),
     );

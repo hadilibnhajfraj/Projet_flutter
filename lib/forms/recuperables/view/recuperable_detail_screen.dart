@@ -1,10 +1,19 @@
 // lib/forms/recuperables/view/recuperable_detail_screen.dart
 //
-// Détail d'une fiche RÉCUPÉRABLES — informations générales, toutes les
-// lignes, totaux/statistiques, Imprimer/Export PDF/Export Excel. Les
-// boutons Modifier/Supprimer n'apparaissent que si la fiche est encore
-// "En cours" (le backend refuse de toute façon toute écriture après 6
-// jours — ceci n'est qu'un confort visuel, pas la source de vérité).
+// Détail d'une fiche RÉCUPÉRABLES — informations générales, totaux (Waste/
+// Finished Product), Imprimer/Export PDF/Export Excel. Les boutons Modifier/
+// Supprimer n'apparaissent que si la fiche est encore "En cours" (le backend
+// refuse de toute façon toute écriture après 6 jours — ceci n'est qu'un
+// confort visuel, pas la source de vérité).
+//
+// §MODIFICATION — CORRIGER LA PAGE "RECOVERABLES RECORD DETAIL" : la section
+// "RÉCUPÉRABLE TRAITÉ" (tableau des 12 diamètres) est SUPPRIMÉE de cet écran
+// — plus aucune trace de diamètre/ligne ici, pour une fiche ancienne comme
+// nouvelle (`_DiametreTableReadOnly`, supprimée, n'est plus utilisée nulle
+// part). Uniquement visuel : le backend, `recuperable_lignes` et les données
+// des anciennes fiches ne sont ni modifiés ni supprimés — simplement plus
+// affichés ici (voir aussi recuperable_pdf_service.dart/
+// recuperable_excel_service.dart, mêmes suppressions, mêmes garanties).
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -140,16 +149,21 @@ class _RecuperableDetailScreenState extends State<RecuperableDetailScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text(AppLocalizations.of(context).translate('Détail Fiche Récupérables'), style: tInter(fontSize: 17, fontWeight: FontWeight.w900, color: kCrmText)),
+                  child: Text(AppLocalizations.of(context).translate('Recoverables Record Detail'), style: tInter(fontSize: 17, fontWeight: FontWeight.w900, color: kCrmText)),
                 ),
-                if (statut != null)
+                if (statut != null && f != null)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(color: statut.color.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
                       Text(statut.emoji, style: const TextStyle(fontSize: 12)),
                       const SizedBox(width: 5),
-                      Text(AppLocalizations.of(context).translate(statut.label), style: tInter(fontSize: 11.5, fontWeight: FontWeight.w800, color: statut.color)),
+                      // §MODIFICATION — CORRIGER LA PAGE "RECOVERABLES RECORD
+                      // DETAIL" : libellé anglais, cohérent avec Recoverables
+                      // History — ne touche pas `recuperableStatutInfo`
+                      // (couleur/emoji partagés, inchangés).
+                      Text(AppLocalizations.of(context).translate(f.isOpen ? 'In progress' : 'Completed'),
+                          style: tInter(fontSize: 11.5, fontWeight: FontWeight.w800, color: statut.color)),
                     ]),
                   ),
               ]),
@@ -182,28 +196,35 @@ class _RecuperableDetailScreenState extends State<RecuperableDetailScreen> {
                 ]),
                 const SizedBox(height: 20),
 
-                _Section(title: 'Informations générales', icon: Icons.info_outline_rounded, color: kRecuperableColor),
+                _Section(title: 'General Information', icon: Icons.info_outline_rounded, color: kRecuperableColor),
                 _InfoGrid(rows: [
                   ('Module', f.module),
                   ('Date', _fmt(f.date)),
                   ('Machine', 'Machine ${f.machine}'),
-                  ('Ligne', f.ligne),
-                  ('Poste', f.posteLabel),
-                  ('Opérateur', (f.operateur ?? '').trim().isEmpty ? '-' : f.operateur!),
-                  ('Date création', _fmtDateTime(f.createdAt)),
-                  ('Clôture prévue', _fmt(f.dateCloture)),
+                  ('Line', f.ligne),
+                  ('Shift', f.posteLabel),
+                  ('Operator', (f.operateur ?? '').trim().isEmpty ? '-' : f.operateur!),
+                  ('Creation Date', _fmtDateTime(f.createdAt)),
+                  ('Status', AppLocalizations.of(context).translate(f.isOpen ? 'In progress' : 'Completed')),
                 ]),
                 const SizedBox(height: 20),
 
-                _Section(title: 'Totaux', icon: Icons.bar_chart_rounded, color: kRecuperableColor),
-                Wrap(spacing: 12, runSpacing: 12, children: [
-                  _statCard('Total Déchet', '${f.totalDechetKg.toStringAsFixed(2)} kg', kRecuperableColor, Icons.recycling_rounded),
-                  _statCard('Total Déchet + Produit fini', '${f.totalDechetProduitFiniKg.toStringAsFixed(2)} kg', kCrmPrimary, Icons.inventory_2_outlined),
-                ]),
-                const SizedBox(height: 20),
-
-                _Section(title: 'RÉCUPÉRABLE TRAITÉ', icon: Icons.grid_on_rounded, color: kRecuperableColor),
-                _DiametreTableReadOnly(fiche: f),
+                _Section(title: 'Totals', icon: Icons.bar_chart_rounded, color: kRecuperableColor),
+                // §MODIFICATION — CORRIGER LA PAGE "RECOVERABLES RECORD
+                // DETAIL" : deux blocs INDÉPENDANTS (`waste`/`finishedProduct`
+                // — jamais additionnés, jamais "Total Déchet + Produit fini"),
+                // `?? 0` couvre le `null` d'une fiche créée avant ce ticket.
+                // `LayoutBuilder` (jamais une largeur fixe) : côte à côte sur
+                // desktop/tablette, empilés si la largeur ne suffit pas.
+                LayoutBuilder(builder: (context, constraints) {
+                  final wasteCard = _statCard('Waste', '${(f.waste ?? 0).toStringAsFixed(2)} kg', kRecuperableColor, Icons.recycling_rounded);
+                  final finishedCard =
+                      _statCard('Finished Product', '${(f.finishedProduct ?? 0).toStringAsFixed(2)} kg', kCrmPrimary, Icons.inventory_2_outlined);
+                  final isNarrow = constraints.maxWidth < 420;
+                  return isNarrow
+                      ? Column(children: [wasteCard, const SizedBox(height: 12), finishedCard])
+                      : Row(children: [Expanded(child: wasteCard), const SizedBox(width: 12), Expanded(child: finishedCard)]);
+                }),
               ],
               const SizedBox(height: 20),
             ]),
@@ -215,7 +236,7 @@ class _RecuperableDetailScreenState extends State<RecuperableDetailScreen> {
 
   Widget _statCard(String label, String value, Color color, IconData icon) {
     return Container(
-      width: 200,
+      width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
@@ -326,76 +347,6 @@ class _InfoGrid extends StatelessWidget {
               Expanded(flex: 3, child: Text(rows[i].$2, style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmText))),
             ]),
           ),
-      ]),
-    );
-  }
-}
-
-/// Tableau fixe des 12 diamètres, strictement identique à celui de l'écran
-/// de saisie mais en lecture seule (Text au lieu de TextField).
-class _DiametreTableReadOnly extends StatelessWidget {
-  final RecuperableFicheModel fiche;
-  const _DiametreTableReadOnly({required this.fiche});
-
-  String _fmt(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(2);
-
-  @override
-  Widget build(BuildContext context) {
-    Widget headCell(String text) => Expanded(
-          child: Center(
-            child: Text(AppLocalizations.of(context).translate(text),
-                textAlign: TextAlign.center, style: tInter(fontSize: 11.5, fontWeight: FontWeight.w800, color: kCrmTextSub)),
-          ),
-        );
-
-    return Container(
-      decoration: BoxDecoration(
-        color: kCrmSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kCrmBorder),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      child: Column(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: const BoxDecoration(
-            color: kCrmBg,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            border: Border(bottom: BorderSide(color: kCrmBorder)),
-          ),
-          child: Row(children: [
-            const SizedBox(width: 70, child: Text('')),
-            headCell('Déchet (kg)'),
-            headCell('Déchet + Produit fini (kg)'),
-          ]),
-        ),
-        for (int i = 0; i < kRecuperableDiametres.length; i++) ...[
-          _row(kRecuperableDiametres[i], i.isOdd),
-        ],
-      ]),
-    );
-  }
-
-  Widget _row(String diametre, bool odd) {
-    final item = fiche.itemFor(diametre);
-    return Container(
-      color: odd ? kCrmBg.withOpacity(0.4) : Colors.transparent,
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(children: [
-        SizedBox(
-          width: 70,
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: kRecuperableColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-              child: Text('Ø$diametre', style: tInter(fontSize: 13, fontWeight: FontWeight.w900, color: kRecuperableColor)),
-            ),
-          ),
-        ),
-        Expanded(child: Center(child: Text(_fmt(item.dechetKg), style: tInter(fontSize: 14, fontWeight: FontWeight.w700, color: kCrmText)))),
-        Expanded(
-            child: Center(
-                child: Text(_fmt(item.dechetProduitFiniKg), style: tInter(fontSize: 14, fontWeight: FontWeight.w700, color: kCrmText)))),
       ]),
     );
   }

@@ -3,8 +3,13 @@
 // Export PDF client-side d'une fiche RÉCUPÉRABLES — même pattern que
 // por_promesh_pdf_service.dart (thème Roboto Unicode, page A4, pied de
 // page avec pagination), aucun document officiel de référence ici (rapport
-// interne, pas de mise en page imposée). Le tableau reflète la grille
-// fixe des 12 diamètres (Ø6 à Ø28).
+// interne, pas de mise en page imposée).
+//
+// §MODIFICATION — CORRIGER LA PAGE "RECOVERABLES RECORD DETAIL" : le tableau
+// des 12 diamètres (Ø6-Ø28) est supprimé de ce PDF — `Totaux` n'affiche plus
+// que `waste`/`finishedProduct` (jamais additionnés, `?? 0` pour une fiche
+// créée avant ce ticket). Uniquement ce document généré côté client est
+// modifié — aucune donnée backend touchée.
 
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -36,7 +41,7 @@ class RecuperablePdfService {
 
   Future<pw.Document> _buildDocument(RecuperableFicheModel f) async {
     final doc = pw.Document(theme: await robotoPdfTheme());
-    final statutLabel = f.isOpen ? 'En cours' : 'Terminée';
+    final statutLabel = f.isOpen ? 'In progress' : 'Completed';
 
     doc.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
@@ -44,33 +49,32 @@ class RecuperablePdfService {
       footer: (ctx) => pw.Text('Page ${ctx.pageNumber} / ${ctx.pagesCount}',
           style: pw.TextStyle(fontSize: 8, color: _pdfTextSub), textAlign: pw.TextAlign.center),
       build: (ctx) => [
-        pw.Text('Fiche Récupérables Traités', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: _pdfGreen)),
+        pw.Text('RECOVERABLES RECORD', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: _pdfGreen)),
         pw.SizedBox(height: 4),
         pw.Text('Référence : ${f.id ?? "-"}', style: const pw.TextStyle(fontSize: 9, color: _pdfTextSub)),
         pw.SizedBox(height: 16),
 
-        _sectionTitle('Informations générales'),
+        _sectionTitle('General Information'),
         _infoGrid([
           ('Module', f.module),
           ('Date', f.date),
           ('Machine', 'Machine ${f.machine}'),
-          ('Ligne', f.ligne),
-          ('Poste', f.posteLabel),
-          ('Opérateur', (f.operateur ?? '').trim().isEmpty ? '-' : f.operateur!),
-          ('Statut', statutLabel),
-          ('Date création', f.createdAt ?? '-'),
+          ('Line', f.ligne),
+          ('Shift', f.posteLabel),
+          ('Operator', (f.operateur ?? '').trim().isEmpty ? '-' : f.operateur!),
+          ('Creation Date', f.createdAt ?? '-'),
+          ('Status', statutLabel),
         ]),
         pw.SizedBox(height: 16),
 
-        _sectionTitle('Totaux'),
+        // §MODIFICATION — CORRIGER LA PAGE "RECOVERABLES RECORD DETAIL" :
+        // `waste`/`finishedProduct` uniquement — jamais additionnés, `?? 0`
+        // pour une fiche créée avant ce ticket. Plus de tableau de diamètres.
+        _sectionTitle('Totals'),
         _infoGrid([
-          ('Total Déchet', '${f.totalDechetKg.toStringAsFixed(2)} kg'),
-          ('Total Déchet + Produit fini', '${f.totalDechetProduitFiniKg.toStringAsFixed(2)} kg'),
+          ('Waste', '${(f.waste ?? 0).toStringAsFixed(2)} kg'),
+          ('Finished Product', '${(f.finishedProduct ?? 0).toStringAsFixed(2)} kg'),
         ]),
-        pw.SizedBox(height: 16),
-
-        _sectionTitle('RÉCUPÉRABLE TRAITÉ'),
-        _diametreTable(f),
 
         pw.SizedBox(height: 16),
         pw.Text('Généré le ${DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now())}',
@@ -106,42 +110,4 @@ class RecuperablePdfService {
     );
   }
 
-  String _fmt(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(2);
-
-  pw.Widget _diametreTable(RecuperableFicheModel f) {
-    const headers = ['Diamètre', 'Déchet (kg)', 'Déchet + Produit fini (kg)'];
-    return pw.Table(
-      border: pw.TableBorder.all(color: _pdfBorder, width: 0.5),
-      columnWidths: const {
-        0: pw.FlexColumnWidth(1),
-        1: pw.FlexColumnWidth(1.5),
-        2: pw.FlexColumnWidth(1.5),
-      },
-      children: [
-        pw.TableRow(
-          decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFF1F5F9)),
-          children: [
-            for (final h in headers)
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(6),
-                child: pw.Text(h, textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: _pdfText)),
-              ),
-          ],
-        ),
-        for (final d in kRecuperableDiametres)
-          pw.TableRow(children: [
-            _cell('Ø$d', bold: true),
-            _cell(_fmt(f.itemFor(d).dechetKg)),
-            _cell(_fmt(f.itemFor(d).dechetProduitFiniKg)),
-          ]),
-      ],
-    );
-  }
-
-  pw.Widget _cell(String text, {bool bold = false}) => pw.Padding(
-        padding: const pw.EdgeInsets.all(6),
-        child: pw.Text(text,
-            textAlign: pw.TextAlign.center,
-            style: pw.TextStyle(fontSize: 9, color: _pdfText, fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal)),
-      );
 }

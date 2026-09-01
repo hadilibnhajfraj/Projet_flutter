@@ -24,6 +24,7 @@ import 'package:intl/intl.dart';
 import 'package:dash_master_toolkit/application/common/safe_snack.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/widgets/responsive_dialog_box.dart';
 
 import '../model/finance_models.dart';
 import '../service/finance_service.dart';
@@ -201,6 +202,37 @@ class _FinanceInflowRawMaterialsScreenState extends State<FinanceInflowRawMateri
 
   Future<void> _handleView(FinancePurchaseOrderModel order) async {
     await showFinancePurchaseOrderDetail(context, order);
+  }
+
+  // §MODIFICATION — INFLOW RAW MATERIALS : "Order date" éditable directement
+  // depuis le tableau (§2/§6 du ticket). Le PATCH réel se fait dans
+  // FinanceService (jamais un recalcul local) — ce screen ne fait que
+  // transmettre l'appel et appliquer le Purchase Order mis à jour renvoyé
+  // par le backend à `_orders`, sans jamais recharger toute la liste
+  // (§6 : "éviter de recharger toute la page inutilement").
+  Future<FinancePurchaseOrderModel> _saveOrderDate(String id, DateTime newDate) {
+    return FinanceService.instance.updateRawMaterialOrderDate(id, newDate);
+  }
+
+  void _applyUpdatedOrder(FinancePurchaseOrderModel updated) {
+    if (!mounted) return;
+    setState(() => _orders = [for (final o in _orders) if (o.id == updated.id) updated else o]);
+    final t = AppLocalizations.of(context);
+    SafeSnack.messengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(t.translate('Date updated successfully')), backgroundColor: kCrmSuccess, duration: const Duration(seconds: 2)),
+    );
+  }
+
+  // §MODIFICATION — SCAN DOCUMENTS (INCLUDE IMPORT) : PLUSIEURS DOCUMENTS PAR
+  // LIGNE (2026-09-01) — même principe que `_applyUpdatedOrder` ci-dessus
+  // (met à jour `_orders` avec le bon de commande renvoyé par le backend,
+  // jamais un rechargement complet de la liste), mais SANS le message "Date
+  // updated successfully" (propre à l'édition de date) : l'ajout/la
+  // suppression d'un document affiche son propre message au bon endroit
+  // (voir _AddDocumentsDialogBody/_OrderDocumentsDialogBody plus bas).
+  void _applyUpdatedOrderSilently(FinancePurchaseOrderModel updated) {
+    if (!mounted) return;
+    setState(() => _orders = [for (final o in _orders) if (o.id == updated.id) updated else o]);
   }
 
   // Suppression réelle côté backend (§AJOUTER LA SUPPRESSION DES DOCUMENTS
@@ -594,34 +626,72 @@ class _FinanceInflowRawMaterialsScreenState extends State<FinanceInflowRawMateri
                 ]),
               ),
               const SizedBox(height: 18),
-              Text('${filteredRows.length} ${t.translate('line(s)')}', style: tInter(fontSize: 16, fontWeight: FontWeight.w800, color: kCrmText)),
+              // §CORRECTION — RENOMMAGE LIBELLÉS INFLOW (2026-08-31) :
+              // "N line(s)" → "Sage Documents" (libellé fixe, plus de
+              // compteur affiché) — renommage d'affichage UNIQUEMENT,
+              // `filteredRows`/le tableau en dessous restent inchangés.
+              Text(t.translate('Sage Documents'), style: tInter(fontSize: 16, fontWeight: FontWeight.w800, color: kCrmText)),
               const SizedBox(height: 14),
               if (_error != null)
                 _buildError(t)
               else if (_loading)
                 const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Center(child: CircularProgressIndicator()))
               else ...[
-                FinancePurchaseOrdersTable(rows: _pageRows, onView: _handleView, onDelete: _handleDelete),
+                FinancePurchaseOrdersTable(
+                  rows: _pageRows,
+                  onView: _handleView,
+                  onDelete: _handleDelete,
+                  onOrderDateSave: _saveOrderDate,
+                  onOrderDateSaved: _applyUpdatedOrder,
+                ),
                 if (filteredRows.length > _kRowsPerPage) ...[
                   const SizedBox(height: 14),
                   _buildPagination(t),
                 ],
                 if (_failedOrders.isNotEmpty) ...[
                   const SizedBox(height: 28),
-                  Text(t.translate('Documents requiring extraction'),
-                      style: tInter(fontSize: 15, fontWeight: FontWeight.w800, color: kCrmText)),
+                  // §CORRECTION — RENOMMAGE SECTION INFLOW (2026-08-31) :
+                  // libellé visuel "Export" → "Import" — renommage
+                  // d'affichage UNIQUEMENT (voir aussi le commentaire
+                  // "SECTION EXPORT" plus bas, qui documente toujours la
+                  // logique réelle inchangée : même liste `_failedOrders`,
+                  // bons dont l'OCR a échoué, rien retiré/supprimé/modifié
+                  // côté backend/API/Keys/sidebar/Export Excel).
+                  Text(t.translate('Scan Documents (include Import)'), style: tInter(fontSize: 15, fontWeight: FontWeight.w800, color: kCrmText)),
                   const SizedBox(height: 4),
                   Text(t.translate('These files could not be read automatically. You can still view or delete them.'),
                       style: tInter(fontSize: 12, color: kCrmTextSub)),
                   const SizedBox(height: 10),
-                  FinanceDocumentsTable(
-                    documents: [for (final o in _failedOrders) if (o.documents.isNotEmpty) o.documents.first],
+                  // §MODIFICATION — INFLOW RAW MATERIALS / SECTION EXPORT :
+                  // `_ExportOrdersTable` remplace `FinanceDocumentsTable` ici
+                  // UNIQUEMENT (ce widget générique reste inchangé, partagé
+                  // par Invoice/Shipment/Purchase Order detail — §13, "ne pas
+                  // modifier inutilement"). `_failedOrders` reste le MÊME
+                  // `FinancePurchaseOrderModel` que le tableau principal —
+                  // Order date est donc le MÊME champ, la MÊME donnée
+                  // persistée (§5 du ticket), éditée via `OrderDateCell`
+                  // (widget PARTAGÉ avec FinancePurchaseOrdersTable — jamais
+                  // une deuxième implémentation) + `_saveOrderDate`/
+                  // `_applyUpdatedOrder` (les MÊMES méthodes que le tableau
+                  // principal, qui mutent le MÊME `_orders` : modifier depuis
+                  // l'un des deux tableaux met donc IMMÉDIATEMENT à jour
+                  // l'autre, puisque tous deux sont de simples vues dérivées
+                  // de cette unique liste).
+                  _ExportOrdersTable(
+                    orders: _failedOrders,
                     onView: (doc) => showFinanceDocumentPreview(context, doc),
-                    onDelete: (doc) {
-                      final order = _failedOrders.firstWhere((o) => o.documents.isNotEmpty && o.documents.first.id == doc.id);
-                      _handleDelete(order);
-                    },
-                    showStatus: false,
+                    onDelete: (order) => _handleDelete(order),
+                    onOrderDateSave: _saveOrderDate,
+                    onOrderDateSaved: _applyUpdatedOrder,
+                    // §MODIFICATION — SCAN DOCUMENTS (INCLUDE IMPORT) :
+                    // PLUSIEURS DOCUMENTS PAR LIGNE (2026-09-01) — mêmes
+                    // méthodes `FinanceService` que ci-dessus, appliquées au
+                    // MÊME `_orders` via `_applyUpdatedOrderSilently` (donc
+                    // reflétées instantanément dans les DEUX tableaux, sans
+                    // jamais recharger toute la page — §14 du ticket).
+                    onAddDocuments: FinanceService.instance.addRawMaterialDocuments,
+                    onDeleteDocument: FinanceService.instance.deleteRawMaterialDocument,
+                    onOrderUpdated: _applyUpdatedOrderSilently,
                   ),
                 ],
               ],
@@ -703,5 +773,388 @@ class _FinanceInflowRawMaterialsScreenState extends State<FinanceInflowRawMateri
         ]),
       ),
     );
+  }
+}
+
+// §MODIFICATION — INFLOW RAW MATERIALS / SECTION EXPORT : table dédiée à la
+// section "Export" (ex-"Documents requiring extraction") — Document name/
+// File type/File size/Upload date/Order date (éditable)/Uploaded by/Actions
+// (§2/§8 du ticket). Opère sur `FinancePurchaseOrderModel` (jamais sur un
+// `FinanceDocumentModel` isolé comme `FinanceDocumentsTable`) précisément
+// pour garder l'accès à `order.orderDate` — LE MÊME champ, LA MÊME donnée
+// persistée que le tableau principal (§5) — jamais un deuxième modèle/une
+// deuxième table PostgreSQL. `FinanceDocumentsTable` (générique, partagée
+// avec les dialogues Invoice/Shipment/Purchase Order) n'est pas touchée.
+class _ExportOrdersTable extends StatelessWidget {
+  final List<FinancePurchaseOrderModel> orders;
+  final ValueChanged<FinanceDocumentModel> onView;
+  final ValueChanged<FinancePurchaseOrderModel> onDelete;
+  final Future<FinancePurchaseOrderModel> Function(String id, DateTime newDate) onOrderDateSave;
+  final ValueChanged<FinancePurchaseOrderModel> onOrderDateSaved;
+  // §MODIFICATION — SCAN DOCUMENTS (INCLUDE IMPORT) : PLUSIEURS DOCUMENTS PAR
+  // LIGNE (2026-09-01) — une ligne (un bon de commande) peut désormais avoir
+  // PLUSIEURS documents associés (jamais une nouvelle ligne créée, §5 du
+  // ticket) : `onAddDocuments` ajoute N fichier(s) au bon EXISTANT,
+  // `onDeleteDocument` supprime UN SEUL document sans toucher aux autres
+  // (§9), `onOrderUpdated` répercute le bon de commande à jour (renvoyé par
+  // le backend) dans `_orders` côté écran parent.
+  final Future<FinancePurchaseOrderModel> Function(String orderId, List<FinancePickedFile> files) onAddDocuments;
+  final Future<FinancePurchaseOrderModel> Function(String orderId, String documentId) onDeleteDocument;
+  final ValueChanged<FinancePurchaseOrderModel> onOrderUpdated;
+
+  const _ExportOrdersTable({
+    required this.orders,
+    required this.onView,
+    required this.onDelete,
+    required this.onOrderDateSave,
+    required this.onOrderDateSaved,
+    required this.onAddDocuments,
+    required this.onDeleteDocument,
+    required this.onOrderUpdated,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    // Un bon dont l'extraction a échoué peut, en théorie, n'avoir aucun
+    // document rattaché (upload interrompu) — jamais affiché dans ce cas
+    // plutôt que de deviner un nom de fichier.
+    final entries = [for (final o in orders) if (o.documents.isNotEmpty) (order: o, doc: o.documents.first)];
+
+    if (entries.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 30),
+        child: Center(child: Text(t.translate('Aucun document'), style: tInter(fontSize: 13, color: kCrmTextSub))),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(color: kCrmSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: kCrmBorder)),
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTableTheme(
+          data: DataTableThemeData(
+            headingRowColor: WidgetStateProperty.all(kCrmBg),
+            headingTextStyle: tInter(fontSize: 11.5, fontWeight: FontWeight.w800, color: kCrmTextSub),
+            dataTextStyle: tInter(fontSize: 12.5, color: kCrmText),
+            dividerThickness: 1,
+          ),
+          child: DataTable(
+            headingRowHeight: 44,
+            dataRowMinHeight: 52,
+            dataRowMaxHeight: 56,
+            columnSpacing: 22,
+            columns: [
+              DataColumn(label: Text(t.translate('Document name'))),
+              DataColumn(label: Text(t.translate('File type'))),
+              DataColumn(label: Text(t.translate('File size'))),
+              DataColumn(label: Text(t.translate('Upload date'))),
+              DataColumn(label: Text(t.translate('Order date'))),
+              DataColumn(label: Text(t.translate('Uploaded by'))),
+              DataColumn(label: Text(t.translate('Actions'))),
+            ],
+            rows: [
+              for (final e in entries)
+                DataRow(
+                  color: WidgetStateProperty.resolveWith(
+                      (states) => states.contains(WidgetState.hovered) ? kCrmPrimary.withOpacity(0.04) : null),
+                  onSelectChanged: (_) => onView(e.doc),
+                  cells: [
+                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(_iconFor(e.doc), size: 16, color: kCrmPrimary),
+                      const SizedBox(width: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 220),
+                        child: Text(e.doc.originalName,
+                            style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmText),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      // §MODIFICATION — SCAN DOCUMENTS (INCLUDE IMPORT) :
+                      // PLUSIEURS DOCUMENTS PAR LIGNE (2026-09-01, §1 du
+                      // ticket) — "+N" quand la ligne a plus d'un document,
+                      // MÊME style de puce que `_documentsCell` (Factured
+                      // Shipments/Paid Invoices), jamais une deuxième ligne
+                      // créée pour ces fichiers supplémentaires.
+                      if (e.order.documents.length > 1) ...[
+                        const SizedBox(width: 4),
+                        Text('+${e.order.documents.length - 1} ${t.translate('more')}',
+                            style: tInter(fontSize: 11, color: kCrmTextSub)),
+                      ],
+                    ])),
+                    DataCell(Text(e.doc.extension.toUpperCase().isEmpty ? '—' : e.doc.extension.toUpperCase())),
+                    DataCell(Text(formatFinanceFileSize(e.doc.fileSize))),
+                    DataCell(Text(_dateTimeFmt(e.doc.createdAt))),
+                    // §MODIFICATION — INFLOW RAW MATERIALS / SECTION EXPORT :
+                    // même `OrderDateCell` que le tableau principal — même
+                    // widget, même appel PATCH, même `_orders` mis à jour
+                    // (voir onOrderDateSave/onOrderDateSaved ci-dessus).
+                    DataCell(OrderDateCell(
+                      key: ValueKey('export-order-date-${e.order.id}'),
+                      order: e.order,
+                      onSave: onOrderDateSave,
+                      onSaved: onOrderDateSaved,
+                    )),
+                    DataCell(Text(e.doc.uploader?.email ?? '—')),
+                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                      // §MODIFICATION — SCAN DOCUMENTS (INCLUDE IMPORT) :
+                      // PLUSIEURS DOCUMENTS PAR LIGNE (2026-09-01, §3 du
+                      // ticket) — "Upload" ajoute des fichiers au MÊME bon de
+                      // commande (jamais une nouvelle ligne) ; réutilise TEL
+                      // QUEL `FinanceUploadDropzone` (Drag & Drop OS +
+                      // sélection multi-fichiers déjà en place) dans une
+                      // modal dédiée, voir `_showAddDocumentsDialog` plus bas.
+                      Tooltip(
+                        message: t.translate('Upload'),
+                        child: IconButton(
+                          icon: const Icon(Icons.upload_outlined, size: 18, color: kCrmPrimary),
+                          onPressed: () => _showAddDocumentsDialog(context, e.order, onAddDocuments, onOrderUpdated),
+                        ),
+                      ),
+                      Tooltip(
+                        message: t.translate('View'),
+                        child: OutlinedButton.icon(
+                          // §2/§8 du ticket : un seul document → comportement
+                          // actuel inchangé (aperçu direct) ; plusieurs
+                          // documents → modal listant chacun individuellement
+                          // avec son propre View (jamais un mélange des deux).
+                          onPressed: () => e.order.documents.length > 1
+                              ? _showOrderDocumentsDialog(context, e.order, onDeleteDocument, onOrderUpdated)
+                              : onView(e.doc),
+                          icon: const Icon(Icons.visibility_outlined, size: 15),
+                          label: Text(t.translate('View'), style: tInter(fontSize: 12, fontWeight: FontWeight.w700)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: kCrmPrimary,
+                            side: const BorderSide(color: kCrmBorder),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: t.translate('Delete'),
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: kCrmDanger),
+                        onPressed: () => onDelete(e.order),
+                      ),
+                    ])),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _iconFor(FinanceDocumentModel doc) {
+    if (doc.isPdf) return Icons.picture_as_pdf_outlined;
+    if (doc.isImage) return Icons.image_outlined;
+    if (['xls', 'xlsx', 'csv'].contains(doc.extension)) return Icons.grid_on_outlined;
+    if (['doc', 'docx'].contains(doc.extension)) return Icons.description_outlined;
+    return Icons.insert_drive_file_outlined;
+  }
+
+  String _dateTimeFmt(String? iso) {
+    if (iso == null || iso.isEmpty) return '—';
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return DateFormat('dd/MM/yyyy HH:mm').format(d);
+  }
+}
+
+// §MODIFICATION — SCAN DOCUMENTS (INCLUDE IMPORT) : PLUSIEURS DOCUMENTS PAR
+// LIGNE (2026-09-01, §2/§8/§9 du ticket) — modal "Associated documents" :
+// liste TOUS les documents du bon de commande, chacun avec son propre "View"
+// (showFinanceDocumentPreview, réutilisé tel quel) et son propre "Delete"
+// (jamais toute la ligne). Réutilise le widget `FinanceDocumentsTable` DÉJÀ
+// existant (partagé avec les fiches détail Invoice/Shipment/Purchase Order,
+// §12 : "ne pas modifier inutilement") plutôt que d'écrire un second tableau
+// de documents.
+Future<void> _showOrderDocumentsDialog(
+  BuildContext context,
+  FinancePurchaseOrderModel order,
+  Future<FinancePurchaseOrderModel> Function(String orderId, String documentId) onDeleteDocument,
+  ValueChanged<FinancePurchaseOrderModel> onOrderUpdated,
+) {
+  return showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (_) => Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ResponsiveDialogBox(
+        width: 820,
+        height: 560,
+        child: _OrderDocumentsDialogBody(order: order, onDeleteDocument: onDeleteDocument, onOrderUpdated: onOrderUpdated),
+      ),
+    ),
+  );
+}
+
+class _OrderDocumentsDialogBody extends StatefulWidget {
+  final FinancePurchaseOrderModel order;
+  final Future<FinancePurchaseOrderModel> Function(String orderId, String documentId) onDeleteDocument;
+  final ValueChanged<FinancePurchaseOrderModel> onOrderUpdated;
+
+  const _OrderDocumentsDialogBody({required this.order, required this.onDeleteDocument, required this.onOrderUpdated});
+
+  @override
+  State<_OrderDocumentsDialogBody> createState() => _OrderDocumentsDialogBodyState();
+}
+
+class _OrderDocumentsDialogBodyState extends State<_OrderDocumentsDialogBody> {
+  late List<FinanceDocumentModel> _documents;
+  // §7 du ticket (même principe que Register Payment) : jamais deux
+  // suppressions simultanées du même document sur un double-clic rapide.
+  final Set<String> _deletingIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _documents = widget.order.documents;
+  }
+
+  Future<void> _handleDelete(FinanceDocumentModel doc) async {
+    if (_deletingIds.contains(doc.id)) return;
+    setState(() => _deletingIds.add(doc.id));
+    final t = AppLocalizations.of(context);
+    try {
+      final updated = await widget.onDeleteDocument(widget.order.id, doc.id);
+      if (!mounted) return;
+      // §9 du ticket : seul CE document disparaît de la modal, les autres
+      // restent — `updated.documents` (renvoyé par le backend) fait foi,
+      // jamais un simple retrait optimiste côté client.
+      setState(() => _documents = updated.documents);
+      widget.onOrderUpdated(updated);
+    } catch (e) {
+      if (!mounted) return;
+      SafeSnack.messengerKey.currentState
+          ?.showSnackBar(SnackBar(content: Text('${t.translate('Erreur')} : $e'), backgroundColor: kCrmDanger));
+    } finally {
+      if (mounted) setState(() => _deletingIds.remove(doc.id));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: kCrmBorder))),
+        child: Row(children: [
+          const Icon(Icons.folder_copy_outlined, color: kCrmPrimary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(t.translate('Associated documents'),
+                style: tInter(fontSize: 14.5, fontWeight: FontWeight.w800, color: kCrmText)),
+          ),
+          IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.of(context).pop()),
+        ]),
+      ),
+      Flexible(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: FinanceDocumentsTable(
+            documents: _documents,
+            onView: (doc) => showFinanceDocumentPreview(context, doc),
+            onDelete: _handleDelete,
+            showStatus: false,
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
+// §MODIFICATION — SCAN DOCUMENTS (INCLUDE IMPORT) : PLUSIEURS DOCUMENTS PAR
+// LIGNE (2026-09-01, §3/§4/§7 du ticket) — modal "Add documents" : réutilise
+// TEL QUEL `FinanceUploadDropzone` (même Drag & Drop OS + sélection
+// multi-fichiers déjà en place pour la création d'un nouveau bon de
+// commande, voir plus haut dans ce fichier) — seul le callback change : les
+// fichiers sont ajoutés au bon de commande EXISTANT (`onAddDocuments`),
+// jamais un nouveau bon créé.
+Future<void> _showAddDocumentsDialog(
+  BuildContext context,
+  FinancePurchaseOrderModel order,
+  Future<FinancePurchaseOrderModel> Function(String orderId, List<FinancePickedFile> files) onAddDocuments,
+  ValueChanged<FinancePurchaseOrderModel> onOrderUpdated,
+) {
+  return showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (_) => Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ResponsiveDialogBox(
+        width: 640,
+        height: 420,
+        child: _AddDocumentsDialogBody(order: order, onAddDocuments: onAddDocuments, onOrderUpdated: onOrderUpdated),
+      ),
+    ),
+  );
+}
+
+class _AddDocumentsDialogBody extends StatefulWidget {
+  final FinancePurchaseOrderModel order;
+  final Future<FinancePurchaseOrderModel> Function(String orderId, List<FinancePickedFile> files) onAddDocuments;
+  final ValueChanged<FinancePurchaseOrderModel> onOrderUpdated;
+
+  const _AddDocumentsDialogBody({required this.order, required this.onAddDocuments, required this.onOrderUpdated});
+
+  @override
+  State<_AddDocumentsDialogBody> createState() => _AddDocumentsDialogBodyState();
+}
+
+class _AddDocumentsDialogBodyState extends State<_AddDocumentsDialogBody> {
+  bool _busy = false;
+
+  Future<void> _handleFilesSelected(List<FinancePickedFile> files) async {
+    setState(() => _busy = true);
+    final t = AppLocalizations.of(context);
+    try {
+      final updated = await widget.onAddDocuments(widget.order.id, files);
+      if (!mounted) return;
+      widget.onOrderUpdated(updated);
+      Navigator.of(context).pop();
+      SafeSnack.messengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(files.length == 1 ? t.translate('Document déposé') : t.translate('Documents déposés')),
+          backgroundColor: kCrmSuccess,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      SafeSnack.messengerKey.currentState
+          ?.showSnackBar(SnackBar(content: Text('${t.translate('Erreur')} : $e'), backgroundColor: kCrmDanger));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: kCrmBorder))),
+        child: Row(children: [
+          const Icon(Icons.upload_file_outlined, color: kCrmPrimary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(t.translate('Add documents'),
+                style: tInter(fontSize: 14.5, fontWeight: FontWeight.w800, color: kCrmText)),
+          ),
+          IconButton(icon: const Icon(Icons.close_rounded), onPressed: _busy ? null : () => Navigator.of(context).pop()),
+        ]),
+      ),
+      Flexible(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: FinanceUploadDropzone(onFilesSelected: _handleFilesSelected, busy: _busy),
+        ),
+      ),
+    ]);
   }
 }

@@ -274,6 +274,13 @@ class FinanceShipmentModel {
   final String? deliveryInfo;
   final String status; // DRAFT | PREPARED | SHIPPED | DELIVERED | CANCELLED | NEEDS_REVIEW
   final double? ocrConfidence;
+  // §CORRECTION — WORKFLOW OCR CUSTOMER SHIPMENTS (2026-08-31) : signal
+  // exposé par le backend (finance.dto.js#toShipmentResponse), équivalent
+  // de `FinancePurchaseOrderModel.orderNumber == null` pour les Purchase
+  // Orders — `reference` ne peut PAS jouer ce rôle ici (elle reçoit
+  // TOUJOURS une valeur, réelle ou générée par repli, jamais null — voir
+  // isExtractionFailed ci-dessous).
+  final bool hasReliableReference;
   final List<FinanceInvoiceRefLite> invoices;
   final List<FinanceShipmentItemModel> items;
   final FinanceUserRef? creator;
@@ -305,6 +312,7 @@ class FinanceShipmentModel {
     this.deliveryInfo,
     this.status = 'DRAFT',
     this.ocrConfidence,
+    this.hasReliableReference = false,
     this.invoices = const [],
     this.items = const [],
     this.creator,
@@ -313,6 +321,25 @@ class FinanceShipmentModel {
   });
 
   bool get needsReview => status == 'NEEDS_REVIEW';
+
+  // §CORRECTION — WORKFLOW OCR CUSTOMER SHIPMENTS (2026-08-31) : aligné
+  // EXACTEMENT sur `FinancePurchaseOrderModel.isExtractionFailed` (Inflow of
+  // raw materials, la référence explicite du ticket) :
+  // `status == 'OCR_FAILED' || (identifiant fiable absent)`. Pour Purchase
+  // Orders, l'identifiant fiable est `orderNumber` (nullable, jamais
+  // généré). Pour Shipments, `reference` reçoit TOUJOURS une valeur (repli
+  // auto-généré "SHIP-{année}-NNNNNN" quand l'OCR ne trouve rien de
+  // fiable — colonne `allowNull:false, unique`) : elle ne peut donc PAS
+  // servir de signal, contrairement à `orderNumber`. `hasReliableReference`
+  // (exposé par le backend, recalculé depuis `ocrExtraction.deliveryNumber`
+  // avec le MÊME seuil de confiance que celui utilisé pour décider
+  // `reference` à l'upload) joue exactement ce rôle à la place. Résultat :
+  // un document dont le numéro de BL n'a jamais été détecté de façon fiable
+  // (même si l'OCR a "trouvé" des lignes produit ailleurs dans un document
+  // sans rapport) reste dans "Scan" — jamais affiché comme un Customer
+  // Shipment réel, exactement comme un Purchase Order sans orderNumber
+  // fiable reste dans "Export".
+  bool get isExtractionFailed => status == 'OCR_FAILED' || !hasReliableReference;
 
   factory FinanceShipmentModel.fromJson(Map<String, dynamic> json) {
     return FinanceShipmentModel(
@@ -343,6 +370,7 @@ class FinanceShipmentModel {
       deliveryInfo: json['deliveryInfo']?.toString(),
       status: (json['status'] ?? 'DRAFT').toString(),
       ocrConfidence: _toDouble(json['ocrConfidence']),
+      hasReliableReference: json['hasReliableReference'] == true,
       invoices: (json['invoices'] as List? ?? [])
           .whereType<Map>()
           .map((e) => FinanceInvoiceRefLite.fromJson(Map<String, dynamic>.from(e)))
@@ -540,6 +568,12 @@ class FinanceInvoiceModel {
   final String? paymentMethod;
   final String? amountInWords;
   final double? ocrConfidence;
+  // §CORRECTION — WORKFLOW OCR FACTURED SHIPMENTS (2026-08-31) : signal
+  // exposé par le backend (finance.dto.js#toInvoiceResponse), même principe
+  // que `FinanceShipmentModel.hasReliableReference` — `invoiceNumber` ne
+  // peut pas jouer ce rôle ici (il reçoit TOUJOURS une valeur, réelle ou
+  // générée par repli, jamais null — voir isExtractionFailed ci-dessous).
+  final bool hasReliableInvoiceNumber;
   final List<FinanceInvoiceTaxModel> taxes;
   final List<FinancePaymentModel> payments;
   final List<FinanceInvoiceItemModel> items;
@@ -572,6 +606,7 @@ class FinanceInvoiceModel {
     this.paymentMethod,
     this.amountInWords,
     this.ocrConfidence,
+    this.hasReliableInvoiceNumber = false,
     this.taxes = const [],
     this.payments = const [],
     this.items = const [],
@@ -579,6 +614,18 @@ class FinanceInvoiceModel {
     this.creator,
     this.createdAt,
   });
+
+  // §CORRECTION — WORKFLOW OCR FACTURED SHIPMENTS (2026-08-31) : aligné
+  // EXACTEMENT sur `FinancePurchaseOrderModel.isExtractionFailed` (Inflow of
+  // raw materials, la référence explicite du ticket) — une facture dont le
+  // numéro n'a jamais été détecté de façon fiable (même si l'OCR a "trouvé"
+  // des lignes/montants ailleurs dans un document sans rapport) reste dans
+  // "Export", jamais affichée comme une facture réelle dans le tableau
+  // principal — exactement comme un Purchase Order sans orderNumber fiable
+  // reste dans "Export". `!hasReliableInvoiceNumber` couvre aussi le cas
+  // OCR totalement en échec (aucun texte exploitable → aucun champ n'est
+  // jamais détecté avec confiance).
+  bool get isExtractionFailed => !hasReliableInvoiceNumber;
 
   factory FinanceInvoiceModel.fromJson(Map<String, dynamic> json) {
     return FinanceInvoiceModel(
@@ -606,6 +653,7 @@ class FinanceInvoiceModel {
       paymentMethod: json['paymentMethod']?.toString(),
       amountInWords: json['amountInWords']?.toString(),
       ocrConfidence: _toDouble(json['ocrConfidence']),
+      hasReliableInvoiceNumber: json['hasReliableInvoiceNumber'] == true,
       taxes: (json['taxes'] as List? ?? [])
           .whereType<Map>()
           .map((e) => FinanceInvoiceTaxModel.fromJson(Map<String, dynamic>.from(e)))

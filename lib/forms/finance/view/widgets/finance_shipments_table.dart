@@ -19,6 +19,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'package:dash_master_toolkit/application/common/safe_snack.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
@@ -38,8 +39,26 @@ class FinanceShipmentsTable extends StatelessWidget {
   final List<CustomerShipmentRow> rows;
   final ValueChanged<FinanceShipmentModel> onView;
   final ValueChanged<FinanceShipmentModel>? onDelete;
+  // §CORRECTION — WORKFLOW OCR CUSTOMER SHIPMENTS (2026-08-31) : "Delivery
+  // date" éditable directement depuis CE tableau — même principe que
+  // "Order date" dans FinancePurchaseOrdersTable (Inflow of raw materials,
+  // la référence du ticket) : un Shipment NEEDS_REVIEW à cause d'un SEUL
+  // champ secondaire manquant (la date) reste un Shipment RÉEL, visible ici
+  // avec sa date corrigible sur place — jamais banni vers "Scan" pour ce
+  // seul motif (voir FinanceShipmentModel.isExtractionFailed, qui ne
+  // dépend plus que de `status == OCR_FAILED`). `null` désactive l'édition
+  // (cellule en lecture seule, comportement inchangé).
+  final Future<FinanceShipmentModel> Function(String id, DateTime newDate)? onDeliveryDateSave;
+  final ValueChanged<FinanceShipmentModel>? onDeliveryDateSaved;
 
-  const FinanceShipmentsTable({super.key, required this.rows, required this.onView, this.onDelete});
+  const FinanceShipmentsTable({
+    super.key,
+    required this.rows,
+    required this.onView,
+    this.onDelete,
+    this.onDeliveryDateSave,
+    this.onDeliveryDateSaved,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -103,7 +122,24 @@ class FinanceShipmentsTable extends StatelessWidget {
                   cells: [
                     DataCell(Text(r.shipment.shipmentNumber ?? '—', style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: kFinanceColor))),
                     DataCell(Text(r.shipment.reference, style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmText))),
-                    DataCell(Text(_dateFmt(r.shipment.shipmentDate))),
+                    DataCell(
+                      onDeliveryDateSave == null
+                          ? Text(_dateFmt(r.shipment.shipmentDate))
+                          : DeliveryDateCell(
+                              // §CORRECTION — CUSTOMER SHIPMENTS / DELIVERY
+                              // DATE (2026-08-31) : la Key inclut désormais
+                              // `shipmentDate` en plus de l'id — force un
+                              // Element/State totalement neuf à chaque
+                              // changement de date (au lieu d'une simple
+                              // mise à jour de `widget` sur le même State),
+                              // par sécurité supplémentaire au-delà du
+                              // `setState` déjà correct côté écran parent.
+                              key: ValueKey('shipment-delivery-date-${r.shipment.id}-${r.shipment.shipmentDate}'),
+                              shipment: r.shipment,
+                              onSave: onDeliveryDateSave!,
+                              onSaved: onDeliveryDateSaved,
+                            ),
+                    ),
                     DataCell(Text(r.shipment.customerCode ?? '—')),
                     DataCell(Text(_customerDisplay(r.shipment))),
                     DataCell(Text(r.shipment.customerTaxId ?? '—')),
@@ -172,5 +208,101 @@ class FinanceShipmentsTable extends StatelessWidget {
     final d = DateTime.tryParse(iso);
     if (d == null) return iso;
     return DateFormat('dd/MM/yyyy').format(d);
+  }
+}
+
+// §CORRECTION — WORKFLOW OCR CUSTOMER SHIPMENTS (2026-08-31) : cellule
+// "Delivery date" éditable — PUBLIQUE (pas de préfixe `_`), réutilisée à
+// l'identique par ce tableau principal ET par la section "Scan"
+// (finance_customer_shipments_screen.dart) — même widget, même mécanisme
+// PUT (FinanceService.updateShipmentDeliveryDate), même
+// FinanceShipmentModel, une seule source de données, jamais une deuxième
+// implémentation. Même comportement que OrderDateCell
+// (finance_purchase_orders_table.dart, Inflow of raw materials) : Normal
+// (date + crayon) / "Date not defined" si absente / "Saving..." pendant
+// l'appel / restauration de l'ancienne valeur + SnackBar en cas d'échec /
+// `onSaved` remonte le Shipment à jour à l'écran parent.
+class DeliveryDateCell extends StatefulWidget {
+  final FinanceShipmentModel shipment;
+  final Future<FinanceShipmentModel> Function(String id, DateTime newDate) onSave;
+  final ValueChanged<FinanceShipmentModel>? onSaved;
+
+  const DeliveryDateCell({super.key, required this.shipment, required this.onSave, this.onSaved});
+
+  @override
+  State<DeliveryDateCell> createState() => DeliveryDateCellState();
+}
+
+class DeliveryDateCellState extends State<DeliveryDateCell> {
+  bool _saving = false;
+
+  String _dateFmt(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return DateFormat('dd/MM/yyyy').format(d);
+  }
+
+  Future<void> _pick() async {
+    if (_saving) return;
+    final t = AppLocalizations.of(context);
+    final current = widget.shipment.shipmentDate == null ? null : DateTime.tryParse(widget.shipment.shipmentDate!);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+
+    setState(() => _saving = true);
+    try {
+      final updated = await widget.onSave(widget.shipment.id, picked);
+      if (!mounted) return;
+      widget.onSaved?.call(updated);
+    } catch (e) {
+      if (!mounted) return;
+      // Échec → `widget.shipment` n'a jamais été modifié ici, l'ancienne
+      // valeur reste donc affichée automatiquement.
+      SafeSnack.messengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text('${t.translate('Failed to update delivery date')} : $e'), backgroundColor: kCrmDanger),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    if (_saving) {
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+        const SizedBox(width: 6),
+        Text(t.translate('Saving...'), style: tInter(fontSize: 12, color: kCrmTextSub)),
+      ]);
+    }
+
+    final raw = widget.shipment.shipmentDate;
+    final hasDate = raw != null && raw.isNotEmpty;
+    final label = hasDate ? _dateFmt(raw) : t.translate('Date not defined');
+
+    return InkWell(
+      onTap: _pick,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(label,
+              style: tInter(
+                fontSize: 12.5,
+                fontStyle: hasDate ? FontStyle.normal : FontStyle.italic,
+                color: hasDate ? kCrmText : kCrmTextSub,
+              )),
+          const SizedBox(width: 4),
+          Icon(Icons.edit_outlined, size: 13, color: kCrmTextSub.withOpacity(0.7)),
+        ]),
+      ),
+    );
   }
 }

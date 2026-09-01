@@ -28,6 +28,13 @@ class ProductionRecordModel {
   final Map<String, String>? creator;
   final String? createdAt;
   final String? updatedAt;
+  // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS RECOVERABLES
+  // — renseigné UNIQUEMENT par GET /production-records/summary (jointure
+  // module+date avec Recuperables.waste, voir productionRecords.service.js
+  // #attachWaste) ; toujours 0 pour "Fiches de production"
+  // (GET /production-records), qui n'appelle pas cette jointure — jamais
+  // recalculé côté client à partir de Quantity/Diameter/Finished Product.
+  final double waste;
 
   const ProductionRecordModel({
     required this.id,
@@ -50,6 +57,7 @@ class ProductionRecordModel {
     this.creator,
     this.createdAt,
     this.updatedAt,
+    this.waste = 0,
   });
 
   bool get isProbar => type == 'probar';
@@ -105,6 +113,7 @@ class ProductionRecordModel {
       creator: _toNullableMapOfString(json['creator']),
       createdAt: json['createdAt']?.toString(),
       updatedAt: json['updatedAt']?.toString(),
+      waste: _toDouble(json['waste']) ?? 0,
     );
   }
 

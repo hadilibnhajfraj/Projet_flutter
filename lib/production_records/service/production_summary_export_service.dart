@@ -160,7 +160,7 @@ class ProductionSummaryExportService {
   static const _pdfPromesh4Bg = PdfColor.fromInt(0xFFFEF3C7);
 
   List<pw.Widget> _pdfSection(String label, PdfColor color, ProductionSummaryTable table, {required bool isPromesh}) {
-    final flexIndex = 1, flexDate = 3, flexMachine = 3, flexDiameter = 2, flexMesh = 3, flexQty = 3;
+    final flexIndex = 1, flexDate = 3, flexMachine = 3, flexDiameter = 2, flexMesh = 3, flexQty = 3, flexWaste = 3;
 
     pw.Widget headerRow() => pw.Container(
           color: _pdfBg,
@@ -168,10 +168,13 @@ class ProductionSummaryExportService {
           child: pw.Row(children: [
             pw.Expanded(flex: flexIndex, child: pw.Text('#', style: _pdfHeadStyle)),
             pw.Expanded(flex: flexDate, child: pw.Text('Date production', style: _pdfHeadStyle)),
-            if (isPromesh) pw.Expanded(flex: flexMachine, child: pw.Text('Machine', style: _pdfHeadStyle)),
+            // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS
+            // RECOVERABLES — "Machine" affiché pour PROBAR aussi désormais.
+            pw.Expanded(flex: flexMachine, child: pw.Text('Machine', style: _pdfHeadStyle)),
             pw.Expanded(flex: flexDiameter, child: pw.Text('Diameter', style: _pdfHeadStyle)),
             if (isPromesh) pw.Expanded(flex: flexMesh, child: pw.Text('Cell size', style: _pdfHeadStyle)),
             pw.Expanded(flex: flexQty, child: pw.Text('Quantity (${table.unit})', style: _pdfHeadStyle, textAlign: pw.TextAlign.right)),
+            pw.Expanded(flex: flexWaste, child: pw.Text('Waste (${table.wasteUnit})', style: _pdfHeadStyle, textAlign: pw.TextAlign.right)),
           ]),
         );
 
@@ -179,9 +182,12 @@ class ProductionSummaryExportService {
       final isPromesh4 = isPromesh && isPromesh4Machine(r.machine);
       final style = pw.TextStyle(fontSize: 8.5, color: _pdfText, fontWeight: isPromesh4 ? pw.FontWeight.bold : null);
       final dateLabel = _pdfFormatDate(r.date);
+      final machineLabel = isPromesh ? formatPromeshMachineLabel(r.machine) : formatProbarMachineLabel(r.machine);
       final diameterLabel = (r.diametre == null || r.diametre!.isEmpty) ? 'Non renseigné' : '${r.diametre} mm';
       final meshLabel = (r.tailleMaille == null || r.tailleMaille!.isEmpty) ? 'Non renseigné' : formatCellSize(r.tailleMaille!);
       final qtyLabel = '${formatProductionNumber(r.quantite ?? 0)} ${table.unit}';
+      // Jamais recalculé — voir productionRecords.service.js#attachWaste.
+      final wasteLabel = '${r.waste.toStringAsFixed(2)} ${table.wasteUnit}';
 
       return pw.Container(
         padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -192,16 +198,17 @@ class ProductionSummaryExportService {
         child: pw.Row(children: [
           pw.Expanded(flex: flexIndex, child: pw.Text('$index', style: style)),
           pw.Expanded(flex: flexDate, child: pw.Text(dateLabel, style: style)),
-          if (isPromesh) pw.Expanded(flex: flexMachine, child: pw.Text(formatPromeshMachineLabel(r.machine), style: style)),
+          pw.Expanded(flex: flexMachine, child: pw.Text(machineLabel, style: style)),
           pw.Expanded(flex: flexDiameter, child: pw.Text(diameterLabel, style: style)),
           if (isPromesh) pw.Expanded(flex: flexMesh, child: pw.Text(meshLabel, style: style)),
           pw.Expanded(flex: flexQty, child: pw.Text(qtyLabel, textAlign: pw.TextAlign.right, style: style)),
+          pw.Expanded(flex: flexWaste, child: pw.Text(wasteLabel, textAlign: pw.TextAlign.right, style: style)),
         ]),
       );
     }
 
     final grandTotalLabel = isPromesh ? 'TOTAL PROMESH' : 'TOTAL PROBAR';
-    final leadingFlex = flexIndex + flexDate + (isPromesh ? flexMachine : 0) + flexDiameter + (isPromesh ? flexMesh : 0);
+    final leadingFlex = flexIndex + flexDate + flexMachine + flexDiameter + (isPromesh ? flexMesh : 0);
     pw.Widget grandTotalRow() => pw.Container(
           color: color,
           padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 9),
@@ -215,6 +222,26 @@ class ProductionSummaryExportService {
               flex: flexQty,
               child: pw.Text('${formatProductionNumber(table.grandTotal)} ${table.unit}',
                   textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
+            ),
+            pw.Expanded(flex: flexWaste, child: pw.SizedBox()),
+          ]),
+        );
+
+    // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS RECOVERABLES
+    // — deuxième ligne de total (Waste), jamais fusionnée avec Quantity.
+    pw.Widget grandTotalWasteRow() => pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+          margin: const pw.EdgeInsets.only(top: 1),
+          decoration: pw.BoxDecoration(color: color, border: const pw.Border(top: pw.BorderSide(color: PdfColors.white, width: 0.5))),
+          child: pw.Row(children: [
+            pw.Expanded(
+              flex: leadingFlex + flexQty,
+              child: pw.Text('TOTAL WASTE', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
+            ),
+            pw.Expanded(
+              flex: flexWaste,
+              child: pw.Text('${table.grandTotalWaste.toStringAsFixed(2)} ${table.wasteUnit}',
+                  textAlign: pw.TextAlign.right, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
             ),
           ]),
         );
@@ -241,6 +268,7 @@ class ProductionSummaryExportService {
           else
             ...rows,
           grandTotalRow(),
+          grandTotalWasteRow(),
         ]),
       ),
       pw.SizedBox(height: 10),
@@ -382,9 +410,12 @@ class ProductionSummaryExportService {
     ({String? start, String? end}) dateRange, {
     required bool isPromesh,
   }) {
-    // Colonnes PROMESH : #, Date production, Machine, Diamètre, Cell size, Quantity
-    // Colonnes PROBAR  : #, Date production, Diamètre, Quantity
-    final lastCol = isPromesh ? 5 : 3;
+    // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS RECOVERABLES
+    // — "Machine" affiché pour PROBAR aussi désormais, "Waste (kg)" ajouté
+    // aux deux :
+    // Colonnes PROMESH : #, Date production, Machine, Diamètre, Cell size, Quantity, Waste
+    // Colonnes PROBAR  : #, Date production, Machine, Diamètre, Quantity, Waste
+    final lastCol = isPromesh ? 6 : 5;
 
     int row = startRow;
     row = _mergedTitle(sheet, row, lastCol, 'Production Summary — $sectionLabel', isPromesh ? '#2563EB' : '#F97316');
@@ -401,8 +432,8 @@ class ProductionSummaryExportService {
     // NUMÉRIQUES pures (ni séparateur de milliers, ni unité, ni chaîne
     // formatée — demande explicite, voir _numericCell).
     final headers = isPromesh
-        ? ['#', 'Date production', 'Machine', 'Diameter', 'Cell size', 'Quantity (${table.unit})']
-        : ['#', 'Date production', 'Diameter', 'Quantity (${table.unit})'];
+        ? ['#', 'Date production', 'Machine', 'Diameter', 'Cell size', 'Quantity (${table.unit})', 'Waste (${table.wasteUnit})']
+        : ['#', 'Date production', 'Machine', 'Diameter', 'Quantity (${table.unit})', 'Waste (${table.wasteUnit})'];
     for (int c = 0; c < headers.length; c++) {
       sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: c, rowIndex: row))
         ..value = headers[c]
@@ -430,12 +461,12 @@ class ProductionSummaryExportService {
         ..value = dateLabel
         ..cellStyle = highlight;
       col++;
-      if (isPromesh) {
-        sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
-          ..value = formatPromeshMachineLabel(r.machine)
-          ..cellStyle = highlight;
-        col++;
-      }
+      // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS
+      // RECOVERABLES — "Machine" écrit pour PROBAR aussi désormais.
+      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
+        ..value = isPromesh ? formatPromeshMachineLabel(r.machine) : formatProbarMachineLabel(r.machine)
+        ..cellStyle = highlight;
+      col++;
       sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
         ..value = diameterLabel
         ..cellStyle = highlight;
@@ -450,10 +481,36 @@ class ProductionSummaryExportService {
       sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
         ..value = _numericCell(r.quantite ?? 0)
         ..cellStyle = highlight;
+      col++;
+      // Jamais recalculé — voir productionRecords.service.js#attachWaste.
+      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: row))
+        ..value = _numericCell(r.waste)
+        ..cellStyle = highlight;
       row++;
     }
 
     row++;
+    final qtyCol = lastCol - 1;
+    if (qtyCol > 0) {
+      sheet.merge(
+        xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row),
+        xl.CellIndex.indexByColumnRow(columnIndex: qtyCol - 1, rowIndex: row),
+      );
+    }
+    final totalStyle = xl.CellStyle(bold: true, fontSize: 13, backgroundColorHex: isPromesh ? '#2563EB' : '#F97316', fontColorHex: '#FFFFFF');
+    sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
+      ..value = isPromesh ? 'TOTAL PROMESH' : 'TOTAL PROBAR'
+      ..cellStyle = totalStyle;
+    sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: qtyCol, rowIndex: row))
+      ..value = _numericCell(table.grandTotal)
+      ..cellStyle = totalStyle;
+    sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: lastCol, rowIndex: row))
+      ..value = ''
+      ..cellStyle = totalStyle;
+    row++;
+
+    // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS RECOVERABLES
+    // — deuxième ligne "TOTAL WASTE", jamais fusionnée avec Quantity.
     if (lastCol > 0) {
       sheet.merge(
         xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row),
@@ -461,11 +518,11 @@ class ProductionSummaryExportService {
       );
     }
     sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
-      ..value = isPromesh ? 'TOTAL PROMESH' : 'TOTAL PROBAR'
-      ..cellStyle = xl.CellStyle(bold: true, fontSize: 13, backgroundColorHex: isPromesh ? '#2563EB' : '#F97316', fontColorHex: '#FFFFFF');
+      ..value = 'TOTAL WASTE'
+      ..cellStyle = totalStyle;
     sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: lastCol, rowIndex: row))
-      ..value = _numericCell(table.grandTotal)
-      ..cellStyle = xl.CellStyle(bold: true, fontSize: 13, backgroundColorHex: isPromesh ? '#2563EB' : '#F97316', fontColorHex: '#FFFFFF');
+      ..value = _numericCell(table.grandTotalWaste)
+      ..cellStyle = totalStyle;
 
     for (int c = 0; c <= lastCol; c++) {
       sheet.setColAutoFit(c);

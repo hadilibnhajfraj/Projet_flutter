@@ -16,10 +16,26 @@
 // visuellement par alternance de fond (§7 : "au minimum afficher PO # sur
 // chaque ligne" — la valeur est garantie sur chaque ligne dans tous les cas,
 // l'alternance de fond est un plus, pas une restructuration du tableau).
+//
+// §MODIFICATION — INFLOW RAW MATERIALS : "Order date" devient éditable
+// directement depuis cette table (§2-§7 du ticket) — voir OrderDateCell,
+// qui gère elle-même son état (Normal/Saving/Erreur), au clic ouvre un
+// `showDatePicker`, appelle `onOrderDateSave` (PATCH réel, jamais un
+// recalcul local) puis remonte le Purchase Order mis à jour via
+// `onOrderDateSaved` — jamais de rechargement complet de la page (§6).
+//
+// §MODIFICATION — INFLOW RAW MATERIALS / SECTION EXPORT : `OrderDateCell`
+// est PUBLIQUE (pas de préfixe `_`) — réutilisée telle quelle par la section
+// "Export" (ex-"Documents requiring extraction", voir
+// finance_inflow_raw_materials_screen.dart) pour les bons de commande dont
+// l'OCR a échoué. Même widget, même mécanisme PATCH, même
+// `FinancePurchaseOrderModel` que ce tableau — une seule source de données
+// (§5 du ticket), jamais une deuxième implémentation de cellule éditable.
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'package:dash_master_toolkit/application/common/safe_snack.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
@@ -39,8 +55,22 @@ class FinancePurchaseOrdersTable extends StatelessWidget {
   final List<RawMaterialRow> rows;
   final ValueChanged<FinancePurchaseOrderModel> onView;
   final ValueChanged<FinancePurchaseOrderModel>? onDelete;
+  // §MODIFICATION — INFLOW RAW MATERIALS : "Order date" éditable — `null`
+  // désactive l'édition (cellule en lecture seule, comportement inchangé) ;
+  // fourni par l'écran appelant, qui seul connaît l'API/le rafraîchissement
+  // de sa propre liste (§11 — une seule source de vérité, jamais dupliquée
+  // ici).
+  final Future<FinancePurchaseOrderModel> Function(String id, DateTime newDate)? onOrderDateSave;
+  final ValueChanged<FinancePurchaseOrderModel>? onOrderDateSaved;
 
-  const FinancePurchaseOrdersTable({super.key, required this.rows, required this.onView, this.onDelete});
+  const FinancePurchaseOrdersTable({
+    super.key,
+    required this.rows,
+    required this.onView,
+    this.onDelete,
+    this.onOrderDateSave,
+    this.onOrderDateSaved,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +132,16 @@ class FinancePurchaseOrdersTable extends StatelessWidget {
                   cells: [
                     DataCell(Text(r.order.poNumber ?? '—', style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: kFinanceColor))),
                     DataCell(Text(r.order.orderNumber ?? '—', style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmText))),
-                    DataCell(Text(_dateFmt(r.order.orderDate))),
+                    DataCell(
+                      onOrderDateSave == null
+                          ? Text(_dateFmt(r.order.orderDate))
+                          : OrderDateCell(
+                              key: ValueKey('order-date-${r.order.id}'),
+                              order: r.order,
+                              onSave: onOrderDateSave!,
+                              onSaved: onOrderDateSaved,
+                            ),
+                    ),
                     DataCell(Text(r.order.displayCustomerName)),
                     DataCell(Text(r.order.customerCode ?? '—')),
                     DataCell(ConstrainedBox(
@@ -156,5 +195,102 @@ class FinancePurchaseOrdersTable extends StatelessWidget {
     final d = DateTime.tryParse(iso);
     if (d == null) return iso;
     return DateFormat('dd/MM/yyyy').format(d);
+  }
+}
+
+// §MODIFICATION — INFLOW RAW MATERIALS : cellule "Order date" éditable.
+// États gérés localement (§7 du ticket) :
+//   Normal          → date formatée "dd/MM/yyyy" + icône crayon
+//   OCR absent      → "Date non définie" (reste cliquable/éditable)
+//   Modification    → "Saving…" (indicateur inline, pas de rechargement)
+//   Erreur          → revient à l'ancienne valeur (jamais mise à jour tant
+//                     que le backend n'a pas confirmé) + SnackBar d'erreur
+//   Succès          → `onSaved` remonte le Purchase Order à jour à l'écran
+//                     parent, qui affiche la confirmation (§8 du ticket) —
+//                     cette cellule elle-même n'a alors plus rien à faire,
+//                     `widget.order` change à la prochaine reconstruction.
+class OrderDateCell extends StatefulWidget {
+  final FinancePurchaseOrderModel order;
+  final Future<FinancePurchaseOrderModel> Function(String id, DateTime newDate) onSave;
+  final ValueChanged<FinancePurchaseOrderModel>? onSaved;
+
+  const OrderDateCell({super.key, required this.order, required this.onSave, this.onSaved});
+
+  @override
+  State<OrderDateCell> createState() => OrderDateCellState();
+}
+
+class OrderDateCellState extends State<OrderDateCell> {
+  bool _saving = false;
+
+  String _dateFmt(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return DateFormat('dd/MM/yyyy').format(d);
+  }
+
+  Future<void> _pick() async {
+    if (_saving) return;
+    final t = AppLocalizations.of(context);
+    final current = widget.order.orderDate == null ? null : DateTime.tryParse(widget.order.orderDate!);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+
+    setState(() => _saving = true);
+    try {
+      final updated = await widget.onSave(widget.order.id, picked);
+      if (!mounted) return;
+      widget.onSaved?.call(updated);
+    } catch (e) {
+      if (!mounted) return;
+      // Échec → `widget.order` n'a jamais été modifié ici, l'ancienne valeur
+      // reste donc affichée automatiquement (§6 du ticket — "restaurer
+      // l'ancienne valeur si la sauvegarde échoue", rien à faire de plus).
+      SafeSnack.messengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text('${t.translate('Failed to update order date')} : $e'), backgroundColor: kCrmDanger),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    if (_saving) {
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+        const SizedBox(width: 6),
+        Text(t.translate('Saving...'), style: tInter(fontSize: 12, color: kCrmTextSub)),
+      ]);
+    }
+
+    final raw = widget.order.orderDate;
+    final hasDate = raw != null && raw.isNotEmpty;
+    final label = hasDate ? _dateFmt(raw) : t.translate('Date non définie');
+
+    return InkWell(
+      onTap: _pick,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(label,
+              style: tInter(
+                fontSize: 12.5,
+                fontStyle: hasDate ? FontStyle.normal : FontStyle.italic,
+                color: hasDate ? kCrmText : kCrmTextSub,
+              )),
+          const SizedBox(width: 4),
+          Icon(Icons.edit_outlined, size: 13, color: kCrmTextSub.withOpacity(0.7)),
+        ]),
+      ),
+    );
   }
 }

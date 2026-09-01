@@ -522,19 +522,22 @@ GroupedMenuModel buildFinanceGroup() => GroupedMenuModel(
           navigationPath: MyRoute.financeInflowRawMaterialsScreen,
           accentColor:    kFinanceColor,
         ),
-        // §MODIFICATION CRM — SOUS-MENU IMPORT SUR CHAQUE MENU FINANCE :
-        // tuile indépendante au rendu "sous-menu" (voir isSubItem) — jamais
-        // un `SidebarItemType.submenu` (aurait cassé le clic direct sur
-        // "Inflow of raw materials" ci-dessus, voir le commentaire sur
-        // `isSubItem` dans sidebar_item_model.dart).
-        SidebarItemModel(
-          name:           'Import',
-          icon:           Icons.upload_file_outlined,
-          sidebarItemType: SidebarItemType.tile,
-          navigationPath: MyRoute.financeInflowRawMaterialsImportScreen,
-          accentColor:    kFinanceColor,
-          isSubItem:      true,
-        ),
+        // §MODIFICATION — SOUS-MENU IMPORT RETIRÉ DE "Inflow of raw
+        // materials" à la demande explicite du ticket (2026-08-31) : le
+        // sous-menu Import spécifique à ce tile a été supprimé du sidebar.
+        // La route MyRoute.financeInflowRawMaterialsImportScreen et l'écran
+        // associé ne sont PAS supprimés (aucun changement backend/route —
+        // uniquement l'entrée de menu latéral). Les autres sous-menus
+        // Import (Shipment/Factured/Paid) restent inchangés ci-dessous.
+        // §MODIFICATION — SOUS-MENU IMPORT RETIRÉ DE "Shipment of products to
+        // the customers" à la demande explicite du ticket (2026-08-31) : le
+        // sous-menu Import spécifique à ce tile a été supprimé du sidebar.
+        // La route MyRoute.financeCustomerShipmentsImportScreen et l'écran
+        // associé ne sont PAS supprimés (aucun changement backend/route —
+        // uniquement l'entrée de menu latéral). Customer Shipments (Scan
+        // document/OCR/Export Excel/données) reste inchangé — voir
+        // finance_customer_shipments_screen.dart. Les autres sous-menus
+        // Import (Factured/Paid) restent inchangés ci-dessous.
         SidebarItemModel(
           name:           'Shipment of products to the customers',
           icon:           Icons.local_shipping_outlined,
@@ -542,14 +545,25 @@ GroupedMenuModel buildFinanceGroup() => GroupedMenuModel(
           navigationPath: MyRoute.financeCustomerShipmentsScreen,
           accentColor:    kFinanceColor,
         ),
-        SidebarItemModel(
-          name:           'Import',
-          icon:           Icons.upload_file_outlined,
-          sidebarItemType: SidebarItemType.tile,
-          navigationPath: MyRoute.financeCustomerShipmentsImportScreen,
-          accentColor:    kFinanceColor,
-          isSubItem:      true,
-        ),
+        // §MODIFICATION — FACTURED SHIPMENTS : IMPORT SUR LA MÊME PAGE
+        // (2026-08-31, §1 du ticket) : sous-menu "Import" retiré du sidebar
+        // — la section "Import" est désormais affichée directement sur
+        // "Factured shipments - by facture" (sous le tableau principal, voir
+        // finance_factured_shipments_screen.dart), jamais une page séparée.
+        // La route MyRoute.financeFacturedShipmentsImportScreen n'est PAS
+        // supprimée (pointe maintenant vers ce même écran, voir
+        // my_route.dart).
+        //
+        // §ANNULATION — SIDEBAR EXPORT (2026-08-31) : le sous-menu "Export"
+        // (ajouté puis, par erreur, dupliqué dans une édition suivante,
+        // causant "Duplicate keys found" sur
+        // Key('FINANCE-/finance/factured-shipments/export')) est retiré du
+        // sidebar à la demande explicite du ticket — annulation de l'ajout,
+        // pas juste de son doublon. La route
+        // MyRoute.financeFacturedShipmentsExportScreen et l'écran associé
+        // (finance_factured_shipments_export_screen.dart) ne sont PAS
+        // supprimés (aucun changement backend/route, uniquement l'entrée de
+        // menu latéral) — même principe que les retraits Import précédents.
         SidebarItemModel(
           name:           'Factured shipments - by facture',
           icon:           Icons.receipt_long_outlined,
@@ -557,28 +571,19 @@ GroupedMenuModel buildFinanceGroup() => GroupedMenuModel(
           navigationPath: MyRoute.financeFacturedShipmentsScreen,
           accentColor:    kFinanceColor,
         ),
-        SidebarItemModel(
-          name:           'Import',
-          icon:           Icons.upload_file_outlined,
-          sidebarItemType: SidebarItemType.tile,
-          navigationPath: MyRoute.financeFacturedShipmentsImportScreen,
-          accentColor:    kFinanceColor,
-          isSubItem:      true,
-        ),
+        // §CORRECTION — SIDEBAR PAID FACTURES (2026-08-31) : sous-menu
+        // "Import" retiré à la demande explicite du ticket — la route
+        // MyRoute.financePaidInvoicesImportScreen et l'écran associé ne
+        // sont PAS supprimés (aucun changement backend/route/API, uniquement
+        // l'entrée de menu latéral) — même principe que les retraits Import
+        // précédents (Inflow of raw materials, Customer Shipments,
+        // Factured Shipments).
         SidebarItemModel(
           name:           'Paid factures',
           icon:           Icons.verified_outlined,
           sidebarItemType: SidebarItemType.tile,
           navigationPath: MyRoute.financePaidInvoicesScreen,
           accentColor:    kFinanceColor,
-        ),
-        SidebarItemModel(
-          name:           'Import',
-          icon:           Icons.upload_file_outlined,
-          sidebarItemType: SidebarItemType.tile,
-          navigationPath: MyRoute.financePaidInvoicesImportScreen,
-          accentColor:    kFinanceColor,
-          isSubItem:      true,
         ),
         // §MODIFICATION — SUPPRESSION "OTHER" DU SIDEBAR FINANCE : "Other" et
         // son sous-menu "Import" retirés du menu à la demande explicite du

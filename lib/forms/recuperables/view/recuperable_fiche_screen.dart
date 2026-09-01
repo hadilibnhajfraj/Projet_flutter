@@ -1,12 +1,33 @@
 // lib/forms/recuperables/view/recuperable_fiche_screen.dart
 //
-// Écran "Récupérables Traités" — formulaire industriel pensé pour un
-// opérateur qui ne maîtrise pas l'informatique : en-tête (Date/Module/
-// Machine/Ligne/Poste/Opérateur) TOUJOURS visible (fixe, hors zone de
-// défilement) au-dessus d'une grille FIXE de 12 diamètres. Seuls Déchet
-// (kg) et Déchet + Produit fini (kg) se saisissent — aucune validation
-// obligatoire, un champ vide vaut 0. "Enregistrer" sauvegarde le tableau
-// complet en un seul appel ; "Terminer" clôture définitivement la fiche.
+// Écran "Récupérables Traités" (Recoverables Processed) — formulaire
+// industriel pensé pour un opérateur qui ne maîtrise pas l'informatique :
+// en-tête (Date/Module/Machine/Ligne/Poste/Opérateur) TOUJOURS visible (fixe,
+// hors zone de défilement) au-dessus de DEUX champs INDÉPENDANTS : Waste (kg)
+// et Finished Product (kg) — jamais additionnés entre eux.
+//
+// §MODIFICATION — FICHE RECOVERABLES PROCESSED SIMPLIFIÉE : la grille par
+// diamètre (Ø6-Ø28) est supprimée de cet écran de saisie — plus aucune
+// logique diameter/diameterId/diameterMm/wasteByDiameter/
+// finishedProductByDiameter/recoverableByDiameter ici. Les anciennes fiches
+// (déjà enregistrées avec un détail par diamètre) ne sont ni supprimées ni
+// modifiées — elles restent consultables telles quelles dans l'historique/le
+// détail (voir recuperable_detail_screen.dart, inchangé, qui affiche encore
+// `recuperables`/`kRecuperableDiametres` pour ces fiches-là).
+//
+// §MODIFICATION — SUPPRESSION "WASTE + FINISHED PRODUCT" : le champ combiné
+// et son total ont été retirés de cet écran — `RecuperableFicheModel.
+// wasteFinishedProduct` (modèle + backend) reste inchangé pour ne pas
+// affecter les fiches qui l'ont déjà renseigné, mais n'est plus alimenté.
+//
+// §MODIFICATION — AJOUT FINISHED PRODUCT : `finishedProduct` est une valeur
+// INDÉPENDANTE de `waste` (jamais une somme, jamais le même champ que
+// l'ancien "Waste + Finished Product") — nouvelle colonne dédiée côté
+// backend (voir migration 20260828000100), NULL pour toute fiche créée avant
+// ce ticket. Aucune validation obligatoire ici non plus — un champ vide vaut
+// 0. "Enregistrer" sauvegarde `waste`/`finishedProduct` en un seul appel ;
+// "Terminer" clôture définitivement la fiche — comportement des deux boutons
+// inchangé.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -48,13 +69,9 @@ class _RecuperableFicheScreenState extends State<RecuperableFicheScreen> {
   String _ligne = kRecuperableLignes.first;
   String _poste = kRecuperablePostes.first.$1;
 
-  // ── Grille des 12 diamètres ────────────────────────────────────────────────
-  final Map<String, TextEditingController> _dechetCtrls = {
-    for (final d in kRecuperableDiametres) d: TextEditingController(),
-  };
-  final Map<String, TextEditingController> _dechetProduitCtrls = {
-    for (final d in kRecuperableDiametres) d: TextEditingController(),
-  };
+  // ── Waste (kg) / Finished Product (kg) — deux valeurs indépendantes ───────
+  final _wasteCtrl = TextEditingController();
+  final _finishedProductCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -69,8 +86,8 @@ class _RecuperableFicheScreenState extends State<RecuperableFicheScreen> {
   @override
   void dispose() {
     _dateCtrl.dispose();
-    for (final c in _dechetCtrls.values) c.dispose();
-    for (final c in _dechetProduitCtrls.values) c.dispose();
+    _wasteCtrl.dispose();
+    _finishedProductCtrl.dispose();
     super.dispose();
   }
 
@@ -101,11 +118,13 @@ class _RecuperableFicheScreenState extends State<RecuperableFicheScreen> {
       _date = d;
       _dateCtrl.text = DateFormat('dd/MM/yyyy').format(d);
     }
-    for (final diam in kRecuperableDiametres) {
-      final item = fiche.itemFor(diam);
-      _dechetCtrls[diam]!.text = item.dechetKg == 0 ? '' : _fmtNum(item.dechetKg);
-      _dechetProduitCtrls[diam]!.text = item.dechetProduitFiniKg == 0 ? '' : _fmtNum(item.dechetProduitFiniKg);
-    }
+    // §MODIFICATION — FICHE RECOVERABLES PROCESSED SIMPLIFIÉE : `waste`/
+    // `finishedProduct` sont `null` pour une fiche créée avant ce ticket
+    // (jamais dérivés de `recuperables` — les notions restent indépendantes)
+    // — champs vides (donc 0) dans ce cas, jamais d'erreur.
+    _wasteCtrl.text = (fiche.waste == null || fiche.waste == 0) ? '' : _fmtNum(fiche.waste!);
+    _finishedProductCtrl.text =
+        (fiche.finishedProduct == null || fiche.finishedProduct == 0) ? '' : _fmtNum(fiche.finishedProduct!);
     setState(() => _fiche = fiche);
   }
 
@@ -113,8 +132,8 @@ class _RecuperableFicheScreenState extends State<RecuperableFicheScreen> {
 
   double _parse(TextEditingController c) => double.tryParse(c.text.trim().replaceAll(',', '.')) ?? 0;
 
-  double get _totalDechet => kRecuperableDiametres.fold(0.0, (s, d) => s + _parse(_dechetCtrls[d]!));
-  double get _totalDechetProduit => kRecuperableDiametres.fold(0.0, (s, d) => s + _parse(_dechetProduitCtrls[d]!));
+  double get _totalWaste => _parse(_wasteCtrl);
+  double get _totalFinishedProduct => _parse(_finishedProductCtrl);
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -140,14 +159,8 @@ class _RecuperableFicheScreenState extends State<RecuperableFicheScreen> {
         poste: _poste,
         date: DateFormat('yyyy-MM-dd').format(_date),
         operateur: AuthService().displayName,
-        recuperables: [
-          for (final d in kRecuperableDiametres)
-            RecuperableItemModel(
-              diametre: d,
-              dechetKg: _parse(_dechetCtrls[d]!),
-              dechetProduitFiniKg: _parse(_dechetProduitCtrls[d]!),
-            ),
-        ],
+        waste: _parse(_wasteCtrl),
+        finishedProduct: _parse(_finishedProductCtrl),
       );
       final saved = await RecuperableService.instance.saveFiche(model);
       if (!mounted) return;
@@ -234,7 +247,7 @@ class _RecuperableFicheScreenState extends State<RecuperableFicheScreen> {
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      _buildDiametreTable(),
+                      _buildWasteInputs(),
                       const SizedBox(height: 16),
                       _buildTotals(),
                       const SizedBox(height: 20),
@@ -372,94 +385,75 @@ class _RecuperableFicheScreenState extends State<RecuperableFicheScreen> {
     );
   }
 
-  Widget _buildDiametreTable() {
+  // §MODIFICATION — AJOUT FINISHED PRODUCT : deux champs INDÉPENDANTS
+  // (jamais combinés) — côte à côte quand l'espace le permet (desktop/
+  // tablette ≥700px), empilés verticalement sur mobile (§RESPONSIVE du
+  // ticket), toujours via Expanded/Column — jamais de largeur fixe, jamais
+  // de RenderFlex overflow.
+  Widget _buildWasteInputs() {
     final locked = _fiche != null && !_fiche!.isOpen;
+    final isMobile = MediaQuery.of(context).size.width < 700;
+    final wasteField = _wasteInputCard(label: 'Waste (kg)', ctrl: _wasteCtrl, locked: locked);
+    final finishedProductField = _wasteInputCard(label: 'Finished Product (kg)', ctrl: _finishedProductCtrl, locked: locked);
+    return isMobile
+        ? Column(children: [wasteField, const SizedBox(height: 12), finishedProductField])
+        : Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: wasteField),
+            const SizedBox(width: 12),
+            Expanded(child: finishedProductField),
+          ]);
+  }
+
+  Widget _wasteInputCard({required String label, required TextEditingController ctrl, required bool locked}) {
     return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: kCrmSurface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: kCrmBorder),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
       ),
-      child: Column(children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: const BoxDecoration(
-            color: kCrmBg,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            border: Border(bottom: BorderSide(color: kCrmBorder)),
-          ),
-          child: Row(children: [
-            const SizedBox(width: 70, child: Text('')),
-            Expanded(child: Center(child: _headLabel('Déchet (kg)'))),
-            Expanded(child: Center(child: _headLabel('Déchet + Produit fini (kg)'))),
-          ]),
-        ),
-        for (int i = 0; i < kRecuperableDiametres.length; i++)
-          _diametreRow(kRecuperableDiametres[i], locked, i.isOdd),
-      ]),
-    );
-  }
-
-  Widget _headLabel(String text) => Text(AppLocalizations.of(context).translate(text),
-      textAlign: TextAlign.center, style: tInter(fontSize: 11.5, fontWeight: FontWeight.w800, color: kCrmTextSub));
-
-  Widget _diametreRow(String diametre, bool locked, bool odd) {
-    return Container(
-      color: odd ? kCrmBg.withOpacity(0.4) : Colors.transparent,
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(children: [
-        SizedBox(
-          width: 70,
-          child: Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: kRecuperableColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-              child: Text('Ø$diametre', style: tInter(fontSize: 13, fontWeight: FontWeight.w900, color: kRecuperableColor)),
-            ),
-          ),
-        ),
-        Expanded(child: _numberCell(_dechetCtrls[diametre]!, locked)),
-        Expanded(child: _numberCell(_dechetProduitCtrls[diametre]!, locked)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(AppLocalizations.of(context).translate(label), style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: kCrmTextSub)),
+        const SizedBox(height: 10),
+        _numberCell(ctrl, locked),
       ]),
     );
   }
 
   Widget _numberCell(TextEditingController ctrl, bool locked) {
     if (locked) {
-      return Center(
-        child: Text(ctrl.text.trim().isEmpty ? '0' : ctrl.text, style: tInter(fontSize: 14, fontWeight: FontWeight.w700, color: kCrmText)),
-      );
+      return Text(ctrl.text.trim().isEmpty ? '0' : ctrl.text, style: tInter(fontSize: 20, fontWeight: FontWeight.w800, color: kCrmText));
     }
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: TextField(
-        controller: ctrl,
-        textAlign: TextAlign.center,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
-        onChanged: (_) => setState(() {}),
-        style: tInter(fontSize: 15, fontWeight: FontWeight.w700, color: kCrmText),
-        decoration: InputDecoration(
-          isDense: true,
-          hintText: '0',
-          hintStyle: tInter(fontSize: 15, color: const Color(0xFFCBD5E1)),
-          filled: true,
-          fillColor: kCrmBg,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kCrmBorder)),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kCrmBorder)),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kRecuperableColor, width: 1.5)),
-        ),
+    return TextField(
+      controller: ctrl,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+      onChanged: (_) => setState(() {}),
+      style: tInter(fontSize: 16, fontWeight: FontWeight.w700, color: kCrmText),
+      decoration: InputDecoration(
+        isDense: true,
+        hintText: '0',
+        hintStyle: tInter(fontSize: 16, color: const Color(0xFFCBD5E1)),
+        filled: true,
+        fillColor: kCrmBg,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kCrmBorder)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kCrmBorder)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: kRecuperableColor, width: 1.5)),
       ),
     );
   }
 
+  // §MODIFICATION — AJOUT FINISHED PRODUCT : deux totaux INDÉPENDANTS —
+  // "Total Waste" calculé uniquement à partir de Waste, "Total Finished
+  // Product" uniquement à partir de Finished Product (jamais additionnés).
   Widget _buildTotals() {
     final isMobile = MediaQuery.of(context).size.width < 700;
     final cards = [
-      _totalCard('Total Déchet', '${_totalDechet.toStringAsFixed(2)} kg', kRecuperableColor),
-      _totalCard('Total Déchet + Produit fini', '${_totalDechetProduit.toStringAsFixed(2)} kg', kCrmPrimary),
+      _totalCard('Total Waste', '${_totalWaste.toStringAsFixed(2)} kg', kRecuperableColor),
+      _totalCard('Total Finished Product', '${_totalFinishedProduct.toStringAsFixed(2)} kg', kCrmPrimary),
     ];
     return isMobile
         ? Column(children: [cards[0], const SizedBox(height: 12), cards[1]])

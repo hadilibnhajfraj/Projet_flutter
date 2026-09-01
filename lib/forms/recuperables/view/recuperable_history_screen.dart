@@ -1,8 +1,17 @@
 // lib/forms/recuperables/view/recuperable_history_screen.dart
 //
-// Historique RÉCUPÉRABLES — cartes (machine, ligne, dates, statut, nombre
-// de lignes, total récupérable). Vert = module, Orange = en cours,
-// Gris = clôturée.
+// Historique RÉCUPÉRABLES — cartes (machine, ligne, date, Waste/Finished
+// Product, statut). Vert = module, Orange = en cours, Gris = clôturée.
+//
+// §MODIFICATION — CORRECTION AFFICHAGE RECOVERABLES HISTORY : la carte
+// n'affiche plus que les DEUX valeurs de la fiche simplifiée (`waste`/
+// `finishedProduct`, jamais additionnées) — "Clôture prévue", le nombre de
+// lignes et le total "kg récupérable" issus de l'ancien système par diamètre
+// (`recuperables`/`totalDechetKg`/`nombreLignes`) ne sont plus affichés ici.
+// Ces champs restent inchangés dans le modèle/l'API et sur les AUTRES écrans
+// (détail, stats, exports) — cette page est la SEULE modifiée par ce ticket.
+// `waste`/`finishedProduct` sont `null` pour une fiche créée avant ce
+// ticket : affichés comme `0.00 kg`, jamais une erreur.
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -155,6 +164,15 @@ class _FicheCard extends StatelessWidget {
   final VoidCallback onTap;
   const _FicheCard({required this.fiche, required this.onTap});
 
+  // §MODIFICATION — CORRECTION AFFICHAGE RECOVERABLES HISTORY (carte
+  // compacte) : en-tête (icône + titre/date + badge statut, statut centré
+  // verticalement sur cette ligne) puis, en dessous, Waste/Finished Product
+  // en deux blocs "label au-dessus / valeur en dessous" — côte à côte quand
+  // la largeur RÉELLEMENT disponible pour la carte le permet (LayoutBuilder
+  // local, jamais une largeur fixe), empilés sinon. Purement visuel : aucune
+  // donnée/logique/API touchée — toujours `fiche.waste`/`fiche.
+  // finishedProduct` (jamais additionnés, jamais affichés en cas de `null`
+  // grâce à `?? 0`), `fiche.isOpen` pour le badge, rien d'autre.
   @override
   Widget build(BuildContext context) {
     final statut = recuperableStatutInfo(fiche.statut);
@@ -171,54 +189,71 @@ class _FicheCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(children: [
-            Container(
-              width: 46,
-              height: 46,
-              alignment: Alignment.center,
-              decoration:
-                  BoxDecoration(color: kRecuperableColor.withOpacity(0.12), borderRadius: BorderRadius.circular(14)),
-              child: const Text('♻️', style: TextStyle(fontSize: 22)),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${fiche.module} · ${AppLocalizations.of(context).translate('Machine')} ${fiche.machine} · ${fiche.ligne} · ${fiche.posteLabel}',
-                    style: tInter(fontSize: 14.5, fontWeight: FontWeight.w800, color: kCrmText)),
-                const SizedBox(height: 3),
-                Text(
-                    '${AppLocalizations.of(context).translate('Date')} : ${_fmt(fiche.date)}  →  ${AppLocalizations.of(context).translate('Clôture prévue')} : ${_fmt(fiche.dateCloture)}',
-                    style: tInter(fontSize: 12, color: kCrmTextSub)),
-                const SizedBox(height: 6),
-                Wrap(spacing: 14, runSpacing: 4, children: [
-                  _miniStat(context, Icons.list_alt_outlined,
-                      '${fiche.nombreLignes} ${AppLocalizations.of(context).translate(fiche.nombreLignes == 1 ? 'ligne' : 'lignes')}'),
-                  _miniStat(context, Icons.recycling_rounded,
-                      '${fiche.totalDechetKg.toStringAsFixed(1)} ${AppLocalizations.of(context).translate('kg récupérable')}'),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // ── En-tête : icône + titre/date (Expanded) + badge statut ──────
+            Row(children: [
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration:
+                    BoxDecoration(color: kRecuperableColor.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
+                child: const Text('♻️', style: TextStyle(fontSize: 18)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${fiche.module} · ${AppLocalizations.of(context).translate('Machine')} ${fiche.machine} · ${fiche.ligne} · ${fiche.posteLabel}',
+                      style: tInter(fontSize: 14, fontWeight: FontWeight.w800, color: kCrmText)),
+                  const SizedBox(height: 2),
+                  Text('${AppLocalizations.of(context).translate('Date')} : ${_fmt(fiche.date)}', style: tInter(fontSize: 11.5, color: kCrmTextSub)),
                 ]),
-              ]),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: statut.color.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(statut.emoji, style: const TextStyle(fontSize: 12)),
-                const SizedBox(width: 5),
-                Text(AppLocalizations.of(context).translate(statut.label), style: tInter(fontSize: 11.5, fontWeight: FontWeight.w800, color: statut.color)),
-              ]),
-            ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: statut.color.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(statut.emoji, style: const TextStyle(fontSize: 12)),
+                  const SizedBox(width: 5),
+                  // Libellé anglais demandé pour CETTE carte uniquement — ne
+                  // touche pas `recuperableStatutInfo` (partagé avec le
+                  // détail, qui garde ses libellés existants, inchangés).
+                  Text(AppLocalizations.of(context).translate(fiche.isOpen ? 'In progress' : 'Completed'),
+                      style: tInter(fontSize: 11, fontWeight: FontWeight.w800, color: statut.color)),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            // ── Waste / Finished Product — deux blocs distincts ─────────────
+            LayoutBuilder(builder: (context, constraints) {
+              final wasteBlock = _valueBlock(context, 'Waste', '${(fiche.waste ?? 0).toStringAsFixed(2)} kg');
+              final finishedBlock = _valueBlock(context, 'Finished Product', '${(fiche.finishedProduct ?? 0).toStringAsFixed(2)} kg');
+              final isNarrow = constraints.maxWidth < 360;
+              return isNarrow
+                  ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      wasteBlock,
+                      const SizedBox(height: 10),
+                      finishedBlock,
+                    ])
+                  : Row(children: [
+                      Expanded(child: wasteBlock),
+                      const SizedBox(width: 16),
+                      Expanded(child: finishedBlock),
+                    ]);
+            }),
           ]),
         ),
       ),
     );
   }
 
-  Widget _miniStat(BuildContext context, IconData icon, String label) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 13, color: kCrmTextSub),
-      const SizedBox(width: 4),
-      Text(label, style: tInter(fontSize: 12, color: kCrmText)),
+  Widget _valueBlock(BuildContext context, String label, String value) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(AppLocalizations.of(context).translate(label), style: tInter(fontSize: 11, fontWeight: FontWeight.w700, color: kCrmTextSub)),
+      const SizedBox(height: 2),
+      Text(value, style: tInter(fontSize: 15, fontWeight: FontWeight.w800, color: kCrmText)),
     ]);
   }
 

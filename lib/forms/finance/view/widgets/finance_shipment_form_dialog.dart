@@ -14,6 +14,7 @@
 // uploaded" → "Reading document..." → "Document analyzed", puis ferme et
 // signale au parent d'ouvrir la fiche Shipment créée.
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -49,6 +50,20 @@ class _StagedShipmentFile {
 String _extensionOf(String filename) {
   final dot = filename.lastIndexOf('.');
   return dot == -1 ? '' : filename.substring(dot + 1).toLowerCase();
+}
+
+// §CORRECTION — WORKFLOW OCR CUSTOMER SHIPMENTS (2026-08-31) : extrait le
+// message métier du backend (`{success:false, message:"..."}`, voir
+// finance.controller.js#handle) plutôt que d'afficher le `toString()` brut
+// d'une DioException ("DioException [bad response]: ..."), illisible pour
+// l'utilisateur. Repli sur `error.toString()` uniquement pour les erreurs
+// SANS réponse serveur (connexion coupée) — jamais masqué, juste plus lisible.
+String _friendlyErrorMessage(Object error) {
+  if (error is DioException) {
+    final data = error.response?.data;
+    if (data is Map && data['message'] is String) return data['message'] as String;
+  }
+  return error.toString();
 }
 
 IconData _iconForFilename(String filename) {
@@ -146,12 +161,21 @@ class _FinanceShipmentFormState extends State<_FinanceShipmentForm> {
     } catch (e) {
       // Seule une VRAIE erreur réseau/upload arrive ici (§"une exception UI
       // après confirmation API ne doit pas être considérée comme un échec").
+      // Depuis la correction backend (§CORRECTION — WORKFLOW OCR CUSTOMER
+      // SHIPMENTS), un document dont le BL n'a pas pu être extrait N'EST
+      // PLUS une erreur ici — il crée un Shipment status=OCR_FAILED/
+      // NEEDS_REVIEW et RÉUSSIT normalement (visible dans "Scan"). Seule une
+      // VRAIE erreur serveur (réseau coupé, bug, DB down) atteint donc ce
+      // bloc désormais — mais son message ne doit jamais afficher le texte
+      // brut de la DioException (illisible pour l'utilisateur) : le message
+      // métier du backend (`{success:false, message:"..."}`, déjà renvoyé
+      // pour toute erreur gérée) est utilisé quand disponible.
       if (!mounted) return;
       final t = AppLocalizations.of(context);
       setState(() {
         _saving = false;
         _stage = _UploadStage.idle;
-        _error = '${t.translate('Erreur')} : $e';
+        _error = '${t.translate('Erreur')} : ${_friendlyErrorMessage(e)}';
       });
       return;
     }

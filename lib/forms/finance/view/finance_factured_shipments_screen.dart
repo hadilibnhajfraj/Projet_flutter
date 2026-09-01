@@ -4,7 +4,21 @@
 // Customer / Shipment number, couverte par le même champ de recherche libre
 // que le backend résout via invoiceNumber/customer.raisonSociale/
 // shipment.reference) + filtres Date/Status.
-
+//
+// §CORRECTION — WORKFLOW OCR FACTURED SHIPMENTS (2026-08-31) : partition
+// EXCLUSIVE entre le tableau principal et "Export", basée sur
+// `FinanceInvoiceModel.isExtractionFailed` (donc sur
+// `hasReliableInvoiceNumber`, exposé par le backend) — EXACTEMENT le même
+// principe que `FinancePurchaseOrderModel.isExtractionFailed` (Inflow of
+// raw materials, la référence explicite du ticket) : une facture reste dans
+// le tableau principal dès qu'un numéro de facture fiable a été détecté,
+// même si `status` est NEEDS_REVIEW pour une AUTRE raison secondaire — elle
+// ne va dans "Export" que si AUCUN numéro fiable n'a été trouvé (OCR
+// totalement en échec ou document sans rapport). Remplace l'ancien
+// mécanisme "3 fetches (tous/NEEDS_REVIEW/OCR_FAILED) + exclusion par id",
+// qui excluait à tort du tableau principal toute facture NEEDS_REVIEW,
+// même avec un numéro parfaitement fiable — un seul fetch désormais,
+// partition faite CÔTÉ CLIENT comme pour Shipments/Purchase Orders.
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -18,6 +32,7 @@ import '../theme/finance_theme.dart';
 import 'widgets/finance_invoice_detail_dialog.dart';
 import 'widgets/finance_invoice_upload_dialog.dart';
 import 'widgets/finance_invoices_table.dart';
+import 'widgets/finance_preview_dialog.dart';
 
 class FinanceFacturedShipmentsScreen extends StatefulWidget {
   const FinanceFacturedShipmentsScreen({super.key});
@@ -34,12 +49,23 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
   DateTime? _startDate;
   DateTime? _endDate;
   List<FinanceInvoiceModel> _invoices = const [];
-  int _count = 0;
   // §CORRECTION — SUPPRESSION FINANCE : empêche deux requêtes DELETE
   // simultanées sur la même facture (double-clic rapide sur 🗑) — un id déjà
   // en cours de suppression est ignoré silencieusement plutôt que de
   // déclencher un second appel réseau.
   final Set<String> _deletingIds = {};
+  // §CORRECTION — FACTURED SHIPMENTS / PAID INVOICES (2026-09-01, §7 du
+  // ticket) : empêche deux POST /payments simultanés sur la même facture
+  // (double-clic rapide sur "Register Payment") — même principe que
+  // `_deletingIds` ci-dessus.
+  final Set<String> _payingIds = {};
+
+  // §CORRECTION — WORKFLOW OCR FACTURED SHIPMENTS (2026-08-31) : partition
+  // EXCLUSIVE — voir le commentaire en tête de fichier. `_validInvoices`
+  // alimente le tableau principal, `_failedInvoices` alimente "Export" —
+  // jamais les deux à la fois pour une même facture.
+  List<FinanceInvoiceModel> get _validInvoices => _invoices.where((i) => !i.isExtractionFailed).toList();
+  List<FinanceInvoiceModel> get _failedInvoices => _invoices.where((i) => i.isExtractionFailed).toList();
 
   @override
   void initState() {
@@ -61,10 +87,7 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
         pageSize: 200,
       );
       if (!mounted) return;
-      setState(() {
-        _invoices = page.items;
-        _count = page.count;
-      });
+      setState(() => _invoices = page.items);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
@@ -117,10 +140,7 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
       if (!mounted) return;
       // La ligne n'est retirée QUE si le backend a confirmé la suppression
       // (aucune exception ci-dessus) — jamais un simple retrait optimiste.
-      setState(() {
-        _invoices = _invoices.where((i) => i.id != inv.id).toList();
-        _count = _count > 0 ? _count - 1 : 0;
-      });
+      setState(() => _invoices = _invoices.where((i) => i.id != inv.id).toList());
       SafeSnack.messengerKey.currentState?.showSnackBar(
         SnackBar(content: Text(t.translate('Invoice deleted successfully')), backgroundColor: kCrmSuccess),
       );
@@ -133,6 +153,77 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
     }
   }
 
+  // §CORRECTION — SIMPLIFICATION REGISTER PAYMENT (2026-08-31, §4-§7 du
+  // ticket) : même dialogue/service que le bouton "Register payment" de la
+  // fiche facture (finance_invoice_detail_dialog.dart) — jamais une
+  // deuxième implémentation. Formulaire minimal : seuls method + document
+  // sont envoyés (§2 du ticket), le backend déduit le reste (amount/
+  // paidDate) exactement comme pour "New shipment"/"Upload invoice".
+  //
+  // Mise à jour IMMÉDIATE de l'état local (§7 du ticket : "ne pas demander
+  // de F5") — la facture est retirée de `_invoices` dès la confirmation API,
+  // SANS refetch réseau : comme `_invoices` alimente à la fois
+  // `_validInvoices` ("Sage Documents") et `_failedInvoices` ("Scan
+  // Documents"), elle disparaît instantanément des DEUX sections (§5 du
+  // ticket — jamais présente dans les deux à la fois). Elle apparaîtra dans
+  // "Paid invoices" à la prochaine visite de cet écran (fetchPaidInvoices,
+  // déjà exécuté à CHAQUE initState de cette page — aucun changement
+  // nécessaire là-bas, §6/§9 du ticket : réutilisation pure de l'existant).
+  Future<void> _registerPaymentForInvoice(FinanceInvoiceModel invoice) async {
+    // §7 du ticket : "ne jamais envoyer deux POST pour un seul clic" — un
+    // paiement déjà en cours pour cette facture ignore silencieusement tout
+    // nouveau clic (même widget déjà de-disabled côté table, voir
+    // `_ExportDocumentsTable` ci-dessous, mais le garde-fou réel est ICI :
+    // seule condition qui empêche réellement un second appel réseau).
+    if (_payingIds.contains(invoice.id)) return;
+    final preselected = kFinancePaymentMethods.contains(invoice.paymentMethod) ? invoice.paymentMethod : null;
+    final result = await showRegisterPaymentDialog(context, preselectedMethod: preselected);
+    if (result == null) return;
+    if (!mounted) return;
+    final t = AppLocalizations.of(context);
+    setState(() => _payingIds.add(invoice.id));
+    try {
+      await FinanceService.instance.registerPayment(invoice.id, method: result.method, document: result.document);
+      if (!mounted) return;
+      // La ligne n'est retirée QUE si le backend a confirmé l'enregistrement
+      // (aucune exception ci-dessus) — jamais un simple retrait optimiste.
+      // §9 du ticket : le message de succès n'est affiché QU'APRÈS cette
+      // confirmation, jamais avant.
+      setState(() => _invoices = _invoices.where((i) => i.id != invoice.id).toList());
+      SafeSnack.messengerKey.currentState?.showSnackBar(
+        SnackBar(content: Text(t.translate('Payment registered successfully')), backgroundColor: kCrmSuccess),
+      );
+    } catch (e) {
+      // §11/§8 du ticket : en cas d'échec, la facture reste dans "Scan
+      // Documents" — `_invoices` n'est modifié QUE dans le bloc try
+      // ci-dessus, donc rien n'a changé ici en cas d'erreur.
+      if (!mounted) return;
+      SafeSnack.messengerKey.currentState
+          ?.showSnackBar(SnackBar(content: Text('${t.translate('Erreur')} : $e'), backgroundColor: kCrmDanger));
+    } finally {
+      if (mounted) setState(() => _payingIds.remove(invoice.id));
+    }
+  }
+
+  // §CORRECTION — FACTURED SHIPMENTS / PAID INVOICES (2026-09-01, §1 du
+  // ticket) : "Invoice date" éditable depuis le tableau "Sage Documents". Le
+  // PATCH réel se fait dans FinanceService (jamais un recalcul local) — ce
+  // screen ne fait que transmettre l'appel et appliquer la facture mise à
+  // jour renvoyée par le backend à `_invoices`, sans jamais recharger toute
+  // la liste (même principe que _saveOrderDate/_saveDeliveryDate).
+  Future<FinanceInvoiceModel> _saveInvoiceDate(String id, DateTime newDate) {
+    return FinanceService.instance.updateInvoiceDate(id, newDate);
+  }
+
+  void _applyUpdatedInvoice(FinanceInvoiceModel updated) {
+    if (!mounted) return;
+    setState(() => _invoices = [for (final i in _invoices) if (i.id == updated.id) updated else i]);
+    final t = AppLocalizations.of(context);
+    SafeSnack.messengerKey.currentState?.showSnackBar(
+      SnackBar(content: Text(t.translate('Date updated successfully')), backgroundColor: kCrmSuccess, duration: const Duration(seconds: 2)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -140,6 +231,13 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
     // une facture payée n'appartient plus à cette liste (elle apparaît
     // automatiquement dans Paid Factures dès l'enregistrement du paiement),
     // ce filtre n'y renverrait donc plus jamais de résultat.
+    //
+    // §CORRECTION — WORKFLOW OCR FACTURED SHIPMENTS (2026-08-31) :
+    // "Needs review"/"OCR failed" réintégrés — la partition tableau
+    // principal/"Export" ne dépend plus de `status` mais de
+    // `hasReliableInvoiceNumber` (voir _validInvoices/_failedInvoices) :
+    // une facture NEEDS_REVIEW avec un numéro fiable reste dans le tableau
+    // principal, donc ce filtre peut de nouveau renvoyer des résultats.
     const statuses = [
       (null, 'Toutes'),
       ('EXTRACTED', 'Extracted'),
@@ -245,19 +343,59 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
                 ]),
               ),
               const SizedBox(height: 18),
-              Text('$_count ${t.translate('invoice(s)')}', style: tInter(fontSize: 16, fontWeight: FontWeight.w800, color: kCrmText)),
+              // §CORRECTION — RENOMMAGE LIBELLÉS FACTURED SHIPMENTS
+              // (2026-08-31, même principe que Inflow of raw materials/
+              // Customer Shipments) : "N invoice(s)" → "Sage Documents"
+              // (libellé fixe) — la partition exclusive tableau principal/
+              // section dédiée (`_validInvoices`/`isExtractionFailed`,
+              // basée sur hasReliableInvoiceNumber) est inchangée.
+              Text(t.translate('Sage Documents'), style: tInter(fontSize: 16, fontWeight: FontWeight.w800, color: kCrmText)),
               const SizedBox(height: 14),
               if (_error != null)
                 _buildError(t)
               else if (_loading)
                 const Padding(padding: EdgeInsets.symmetric(vertical: 40), child: Center(child: CircularProgressIndicator()))
-              else
+              else ...[
                 FinanceInvoicesTable(
-                  invoices: _invoices,
+                  invoices: _validInvoices,
                   mode: FinanceInvoiceTableMode.factured,
                   onView: (inv) => showFinanceInvoiceDetail(context, inv, onChanged: _load),
                   onDelete: _handleDelete,
+                  onInvoiceDateSave: _saveInvoiceDate,
+                  onInvoiceDateSaved: _applyUpdatedInvoice,
                 ),
+                if (_failedInvoices.isNotEmpty) ...[
+                  const SizedBox(height: 28),
+                  // §CORRECTION — WORKFLOW OCR FACTURED SHIPMENTS
+                  // (2026-08-31) : section "Export" (renommée depuis
+                  // "Import" — même terminologie que Inflow of raw
+                  // materials) — uniquement les factures sans numéro fiable
+                  // détecté (voir _failedInvoices ci-dessus), sur la MÊME
+                  // page que le tableau principal (jamais une page séparée,
+                  // jamais un lien sidebar — voir sidebar_item_model.dart,
+                  // inchangé).
+                  Text(t.translate('Scan Documents (include export)'), style: tInter(fontSize: 15, fontWeight: FontWeight.w800, color: kCrmText)),
+                  const SizedBox(height: 4),
+                  Text(t.translate('These files could not be read automatically. You can still view or delete them.'),
+                      style: tInter(fontSize: 12, color: kCrmTextSub)),
+                  const SizedBox(height: 10),
+                  _ExportDocumentsTable(
+                    invoices: _failedInvoices,
+                    onView: (doc) => showFinanceDocumentPreview(context, doc),
+                    onDelete: _handleDelete,
+                    onRegisterPayment: _registerPaymentForInvoice,
+                    payingIds: _payingIds,
+                    // §CORRECTION — INVOICE DATE ÉDITABLE DANS "SCAN
+                    // DOCUMENTS" (2026-09-01) : mêmes callbacks que "Sage
+                    // Documents" ci-dessus — même endpoint PATCH
+                    // /invoices/:id, même mise à jour locale de `_invoices`
+                    // (donc des DEUX sections à la fois), jamais une
+                    // deuxième implémentation.
+                    onInvoiceDateSave: _saveInvoiceDate,
+                    onInvoiceDateSaved: _applyUpdatedInvoice,
+                  ),
+                ],
+              ],
             ]),
           ),
         ),
@@ -314,5 +452,194 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
         ]),
       ),
     );
+  }
+}
+
+// §CORRECTION — WORKFLOW OCR FACTURED SHIPMENTS (2026-08-31) : table dédiée
+// à la section "Export" — Document name/File type/File size/Upload date/
+// Invoice date/Uploaded by/Actions (View/Delete), même structure que
+// `_ShipmentsRequiringExtractionTable` (Customer Shipments) et la section
+// "Export" de Inflow of raw materials. "View" ouvre l'aperçu du document
+// brut (showFinanceDocumentPreview, déjà utilisé ailleurs) — jamais une
+// deuxième implémentation de viewer. "Delete" réutilise le même
+// _handleDelete que le tableau principal (suppression réelle de la
+// facture, jamais un simple retrait de document isolé).
+class _ExportDocumentsTable extends StatelessWidget {
+  final List<FinanceInvoiceModel> invoices;
+  final ValueChanged<FinanceDocumentModel> onView;
+  final ValueChanged<FinanceInvoiceModel> onDelete;
+  // §MODIFICATION — REGISTER PAYMENT DEPUIS SCAN DOCUMENTS (2026-08-31) :
+  // permet de régler directement une facture depuis cette section, sans
+  // passer par "View" — réutilise le MÊME dialogue/service que le bouton
+  // "Register payment" de la fiche facture (showRegisterPaymentDialog +
+  // FinanceService.registerPayment), jamais une deuxième implémentation.
+  final ValueChanged<FinanceInvoiceModel> onRegisterPayment;
+  // §CORRECTION — FACTURED SHIPMENTS / PAID INVOICES (2026-09-01, §7 du
+  // ticket) : "pendant l'appel API, bouton disabled + loading" — le
+  // garde-fou réel contre le double POST vit dans l'écran parent
+  // (`_payingIds`, voir _registerPaymentForInvoice), ceci n'est QUE le
+  // retour visuel correspondant.
+  final Set<String> payingIds;
+  // §CORRECTION — INVOICE DATE ÉDITABLE DANS "SCAN DOCUMENTS" (2026-09-01) :
+  // mêmes callbacks que `FinanceInvoicesTable.onInvoiceDateSave`/
+  // `onInvoiceDateSaved` ("Sage Documents") — le PATCH réel vit dans
+  // FinanceService, jamais recalculé ici.
+  final Future<FinanceInvoiceModel> Function(String id, DateTime newDate) onInvoiceDateSave;
+  final ValueChanged<FinanceInvoiceModel> onInvoiceDateSaved;
+
+  const _ExportDocumentsTable({
+    required this.invoices,
+    required this.onView,
+    required this.onDelete,
+    required this.onRegisterPayment,
+    required this.payingIds,
+    required this.onInvoiceDateSave,
+    required this.onInvoiceDateSaved,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    // Une facture dont l'extraction a échoué peut, en théorie, n'avoir aucun
+    // document rattaché (upload interrompu) — jamais affichée dans ce cas
+    // plutôt que de deviner un nom de fichier.
+    final entries = [for (final inv in invoices) if (inv.documents.isNotEmpty) (invoice: inv, doc: inv.documents.first)];
+
+    if (entries.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 30),
+        child: Center(child: Text(t.translate('Aucun document'), style: tInter(fontSize: 13, color: kCrmTextSub))),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(color: kCrmSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: kCrmBorder)),
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTableTheme(
+          data: DataTableThemeData(
+            headingRowColor: WidgetStateProperty.all(kCrmBg),
+            headingTextStyle: tInter(fontSize: 11.5, fontWeight: FontWeight.w800, color: kCrmTextSub),
+            dataTextStyle: tInter(fontSize: 12.5, color: kCrmText),
+            dividerThickness: 1,
+          ),
+          child: DataTable(
+            headingRowHeight: 44,
+            dataRowMinHeight: 52,
+            dataRowMaxHeight: 56,
+            columnSpacing: 22,
+            columns: [
+              DataColumn(label: Text(t.translate('Document name'))),
+              DataColumn(label: Text(t.translate('File type'))),
+              DataColumn(label: Text(t.translate('File size'))),
+              DataColumn(label: Text(t.translate('Upload date'))),
+              DataColumn(label: Text(t.translate('Invoice date'))),
+              DataColumn(label: Text(t.translate('Uploaded by'))),
+              DataColumn(label: Text(t.translate('Register Payment'))),
+              DataColumn(label: Text(t.translate('Actions'))),
+            ],
+            rows: [
+              for (final e in entries)
+                DataRow(
+                  color: WidgetStateProperty.resolveWith(
+                      (states) => states.contains(WidgetState.hovered) ? kCrmPrimary.withOpacity(0.04) : null),
+                  onSelectChanged: (_) => onView(e.doc),
+                  cells: [
+                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(_iconFor(e.doc), size: 16, color: kCrmPrimary),
+                      const SizedBox(width: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 220),
+                        child: Text(e.doc.originalName,
+                            style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmText),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                    ])),
+                    DataCell(Text(e.doc.extension.toUpperCase().isEmpty ? '—' : e.doc.extension.toUpperCase())),
+                    DataCell(Text(formatFinanceFileSize(e.doc.fileSize))),
+                    DataCell(Text(_dateTimeFmt(e.doc.createdAt))),
+                    // §CORRECTION — INVOICE DATE ÉDITABLE DANS "SCAN
+                    // DOCUMENTS" (2026-09-01) : même widget PUBLIC
+                    // `InvoiceDateCell` que "Sage Documents"
+                    // (finance_invoices_table.dart) — jamais une deuxième
+                    // implémentation. "Date not defined" si absente, crayon
+                    // ✎, DatePicker → PATCH /invoices/:id existant → mise à
+                    // jour immédiate de la ligne sans F5.
+                    DataCell(
+                      InvoiceDateCell(
+                        key: ValueKey('export-invoice-date-${e.invoice.id}-${e.invoice.invoiceDate}'),
+                        invoice: e.invoice,
+                        onSave: onInvoiceDateSave,
+                        onSaved: onInvoiceDateSaved,
+                      ),
+                    ),
+                    DataCell(Text(e.doc.uploader?.email ?? '—')),
+                    DataCell(Builder(builder: (context) {
+                      // §7 du ticket : "pendant l'appel API → bouton disabled
+                      // → loading" — `payingIds` (état du parent) pilote ce
+                      // seul retour visuel, le vrai garde-fou anti-double-clic
+                      // vit dans _registerPaymentForInvoice.
+                      final isPaying = payingIds.contains(e.invoice.id);
+                      return OutlinedButton.icon(
+                        onPressed: isPaying ? null : () => onRegisterPayment(e.invoice),
+                        icon: isPaying
+                            ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.payments_outlined, size: 15),
+                        label: Text(t.translate('Register Payment'), style: tInter(fontSize: 12, fontWeight: FontWeight.w700)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kFinanceColor,
+                          side: const BorderSide(color: kFinanceColor),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      );
+                    })),
+                    DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                      Tooltip(
+                        message: t.translate('View'),
+                        child: OutlinedButton.icon(
+                          onPressed: () => onView(e.doc),
+                          icon: const Icon(Icons.visibility_outlined, size: 15),
+                          label: Text(t.translate('View'), style: tInter(fontSize: 12, fontWeight: FontWeight.w700)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: kCrmPrimary,
+                            side: const BorderSide(color: kCrmBorder),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: t.translate('Delete'),
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: kCrmDanger),
+                        onPressed: () => onDelete(e.invoice),
+                      ),
+                    ])),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _iconFor(FinanceDocumentModel doc) {
+    if (doc.isPdf) return Icons.picture_as_pdf_outlined;
+    if (doc.isImage) return Icons.image_outlined;
+    if (['xls', 'xlsx', 'csv'].contains(doc.extension)) return Icons.grid_on_outlined;
+    if (['doc', 'docx'].contains(doc.extension)) return Icons.description_outlined;
+    return Icons.insert_drive_file_outlined;
+  }
+
+  String _dateTimeFmt(String? iso) {
+    if (iso == null || iso.isEmpty) return '—';
+    final d = DateTime.tryParse(iso);
+    if (d == null) return iso;
+    return DateFormat('dd/MM/yyyy HH:mm').format(d);
   }
 }
