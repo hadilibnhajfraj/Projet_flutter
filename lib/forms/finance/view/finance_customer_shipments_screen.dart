@@ -27,14 +27,17 @@ import 'package:intl/intl.dart';
 import 'package:dash_master_toolkit/application/common/safe_snack.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/widgets/responsive_dialog_box.dart';
 
 import '../model/finance_models.dart';
 import '../service/finance_service.dart';
 import '../theme/finance_theme.dart';
+import 'widgets/finance_documents_table.dart';
 import 'widgets/finance_preview_dialog.dart';
 import 'widgets/finance_shipment_detail_dialog.dart';
 import 'widgets/finance_shipment_form_dialog.dart';
 import 'widgets/finance_shipments_table.dart';
+import 'widgets/finance_upload_dropzone.dart';
 
 // Suffisamment grand pour charger la totalité des Customer Shipments en un
 // seul appel — la recherche (Shipment #/Delivery number/Customer/Customer
@@ -167,6 +170,19 @@ class _FinanceCustomerShipmentsScreenState extends State<FinanceCustomerShipment
     SafeSnack.messengerKey.currentState?.showSnackBar(
       SnackBar(content: Text(t.translate('Date updated successfully')), backgroundColor: kCrmSuccess, duration: const Duration(seconds: 2)),
     );
+  }
+
+  // §MODIFICATION — CUSTOMER SHIPMENTS / SCAN DOCUMENTS : PLUSIEURS
+  // DOCUMENTS PAR LIGNE (2026-09-01) — même principe que
+  // `_applyUpdatedShipment` ci-dessus (met à jour `_shipments` avec le
+  // shipment renvoyé par le backend, jamais un rechargement complet), mais
+  // SANS le message "Date updated successfully" (propre à l'édition de
+  // date) : l'ajout/la suppression d'un document affiche son propre message
+  // au bon endroit (voir _AddShipmentDocumentsDialogBody/
+  // _ShipmentDocumentsDialogBody plus bas).
+  void _applyUpdatedShipmentSilently(FinanceShipmentModel updated) {
+    if (!mounted) return;
+    setState(() => _shipments = [for (final s in _shipments) if (s.id == updated.id) updated else s]);
   }
 
   // Suppression réelle côté backend (§AJOUTER LA SUPPRESSION DES DOCUMENTS
@@ -560,6 +576,15 @@ class _FinanceCustomerShipmentsScreenState extends State<FinanceCustomerShipment
                     onDelete: (shipment) => _handleDelete(shipment),
                     onDeliveryDateSave: _saveDeliveryDate,
                     onDeliveryDateSaved: _applyUpdatedShipment,
+                    // §MODIFICATION — CUSTOMER SHIPMENTS / SCAN DOCUMENTS :
+                    // PLUSIEURS DOCUMENTS PAR LIGNE (2026-09-01) — mêmes
+                    // méthodes `FinanceService` que ci-dessus, appliquées au
+                    // MÊME `_shipments` via `_applyUpdatedShipmentSilently`
+                    // (donc reflétées instantanément dans les DEUX tableaux,
+                    // sans jamais recharger toute la page — §11 du ticket).
+                    onAddDocuments: FinanceService.instance.addShipmentDocuments,
+                    onDeleteDocument: FinanceService.instance.deleteShipmentDocument,
+                    onShipmentUpdated: _applyUpdatedShipmentSilently,
                   ),
                 ],
               ],
@@ -601,6 +626,16 @@ class _ShipmentsRequiringExtractionTable extends StatelessWidget {
   final ValueChanged<FinanceShipmentModel> onDelete;
   final Future<FinanceShipmentModel> Function(String id, DateTime newDate) onDeliveryDateSave;
   final ValueChanged<FinanceShipmentModel> onDeliveryDateSaved;
+  // §MODIFICATION — CUSTOMER SHIPMENTS / SCAN DOCUMENTS : PLUSIEURS
+  // DOCUMENTS PAR LIGNE (2026-09-01) — une ligne (un shipment) peut désormais
+  // avoir PLUSIEURS documents associés (jamais une nouvelle ligne créée, §7
+  // du ticket) : `onAddDocuments` ajoute N fichier(s) au shipment EXISTANT,
+  // `onDeleteDocument` supprime UN SEUL document sans toucher aux autres
+  // (§8), `onShipmentUpdated` répercute le shipment à jour (renvoyé par le
+  // backend) dans `_shipments` côté écran parent.
+  final Future<FinanceShipmentModel> Function(String shipmentId, List<FinancePickedFile> files) onAddDocuments;
+  final Future<FinanceShipmentModel> Function(String shipmentId, String documentId) onDeleteDocument;
+  final ValueChanged<FinanceShipmentModel> onShipmentUpdated;
 
   const _ShipmentsRequiringExtractionTable({
     required this.shipments,
@@ -608,6 +643,9 @@ class _ShipmentsRequiringExtractionTable extends StatelessWidget {
     required this.onDelete,
     required this.onDeliveryDateSave,
     required this.onDeliveryDateSaved,
+    required this.onAddDocuments,
+    required this.onDeleteDocument,
+    required this.onShipmentUpdated,
   });
 
   @override
@@ -668,6 +706,18 @@ class _ShipmentsRequiringExtractionTable extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                       ),
+                      // §MODIFICATION — CUSTOMER SHIPMENTS / SCAN DOCUMENTS :
+                      // PLUSIEURS DOCUMENTS PAR LIGNE (2026-09-01, §2 du
+                      // ticket) — "+N" quand la ligne a plus d'un document,
+                      // MÊME style de puce que `_ExportOrdersTable` (Inflow
+                      // of raw materials) et `_documentsCell` (Factured
+                      // Shipments/Paid Invoices) — jamais une deuxième ligne
+                      // créée pour ces fichiers supplémentaires.
+                      if (e.shipment.documents.length > 1) ...[
+                        const SizedBox(width: 4),
+                        Text('+${e.shipment.documents.length - 1} ${t.translate('more')}',
+                            style: tInter(fontSize: 11, color: kCrmTextSub)),
+                      ],
                     ])),
                     DataCell(Text(e.doc.extension.toUpperCase().isEmpty ? '—' : e.doc.extension.toUpperCase())),
                     DataCell(Text(formatFinanceFileSize(e.doc.fileSize))),
@@ -690,10 +740,31 @@ class _ShipmentsRequiringExtractionTable extends StatelessWidget {
                     )),
                     DataCell(Text(e.doc.uploader?.email ?? '—')),
                     DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                      // §MODIFICATION — CUSTOMER SHIPMENTS / SCAN DOCUMENTS :
+                      // PLUSIEURS DOCUMENTS PAR LIGNE (2026-09-01, §4 du
+                      // ticket) — "Upload" ajoute des fichiers au MÊME
+                      // shipment (jamais une nouvelle ligne) ; réutilise TEL
+                      // QUEL `FinanceUploadDropzone` (Drag & Drop OS +
+                      // sélection multi-fichiers déjà en place) dans une
+                      // modal dédiée, voir `_showAddShipmentDocumentsDialog`
+                      // plus bas.
+                      Tooltip(
+                        message: t.translate('Upload'),
+                        child: IconButton(
+                          icon: const Icon(Icons.upload_outlined, size: 18, color: kCrmPrimary),
+                          onPressed: () => _showAddShipmentDocumentsDialog(context, e.shipment, onAddDocuments, onShipmentUpdated),
+                        ),
+                      ),
                       Tooltip(
                         message: t.translate('View'),
                         child: OutlinedButton.icon(
-                          onPressed: () => onView(e.doc),
+                          // §3 du ticket : un seul document → comportement
+                          // actuel inchangé (aperçu direct) ; plusieurs
+                          // documents → modal listant chacun individuellement
+                          // avec son propre View (jamais un mélange des deux).
+                          onPressed: () => e.shipment.documents.length > 1
+                              ? _showShipmentDocumentsDialog(context, e.shipment, onDeleteDocument, onShipmentUpdated)
+                              : onView(e.doc),
                           icon: const Icon(Icons.visibility_outlined, size: 15),
                           label: Text(t.translate('View'), style: tInter(fontSize: 12, fontWeight: FontWeight.w700)),
                           style: OutlinedButton.styleFrom(
@@ -734,5 +805,203 @@ class _ShipmentsRequiringExtractionTable extends StatelessWidget {
     final d = DateTime.tryParse(iso);
     if (d == null) return iso;
     return DateFormat('dd/MM/yyyy HH:mm').format(d);
+  }
+}
+
+// §MODIFICATION — CUSTOMER SHIPMENTS / SCAN DOCUMENTS : PLUSIEURS DOCUMENTS
+// PAR LIGNE (2026-09-01, §3/§8 du ticket) — modal "Associated documents" :
+// liste TOUS les documents du shipment, chacun avec son propre "View"
+// (showFinanceDocumentPreview, réutilisé tel quel) et son propre "Delete"
+// (jamais toute la ligne). Réutilise le widget `FinanceDocumentsTable` DÉJÀ
+// existant (partagé avec les fiches détail Invoice/Shipment/Purchase Order)
+// plutôt que d'écrire un second tableau de documents — même principe que
+// `_OrderDocumentsDialogBody` dans finance_inflow_raw_materials_screen.dart.
+Future<void> _showShipmentDocumentsDialog(
+  BuildContext context,
+  FinanceShipmentModel shipment,
+  Future<FinanceShipmentModel> Function(String shipmentId, String documentId) onDeleteDocument,
+  ValueChanged<FinanceShipmentModel> onShipmentUpdated,
+) {
+  return showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (_) => Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ResponsiveDialogBox(
+        width: 820,
+        height: 560,
+        child: _ShipmentDocumentsDialogBody(shipment: shipment, onDeleteDocument: onDeleteDocument, onShipmentUpdated: onShipmentUpdated),
+      ),
+    ),
+  );
+}
+
+class _ShipmentDocumentsDialogBody extends StatefulWidget {
+  final FinanceShipmentModel shipment;
+  final Future<FinanceShipmentModel> Function(String shipmentId, String documentId) onDeleteDocument;
+  final ValueChanged<FinanceShipmentModel> onShipmentUpdated;
+
+  const _ShipmentDocumentsDialogBody({required this.shipment, required this.onDeleteDocument, required this.onShipmentUpdated});
+
+  @override
+  State<_ShipmentDocumentsDialogBody> createState() => _ShipmentDocumentsDialogBodyState();
+}
+
+class _ShipmentDocumentsDialogBodyState extends State<_ShipmentDocumentsDialogBody> {
+  late List<FinanceDocumentModel> _documents;
+  // Même principe que Register Payment (§7 du ticket précédent) : jamais
+  // deux suppressions simultanées du même document sur un double-clic rapide.
+  final Set<String> _deletingIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _documents = widget.shipment.documents;
+  }
+
+  Future<void> _handleDelete(FinanceDocumentModel doc) async {
+    if (_deletingIds.contains(doc.id)) return;
+    setState(() => _deletingIds.add(doc.id));
+    final t = AppLocalizations.of(context);
+    try {
+      final updated = await widget.onDeleteDocument(widget.shipment.id, doc.id);
+      if (!mounted) return;
+      // §8 du ticket : seul CE document disparaît de la modal, les autres
+      // restent — `updated.documents` (renvoyé par le backend) fait foi,
+      // jamais un simple retrait optimiste côté client.
+      setState(() => _documents = updated.documents);
+      widget.onShipmentUpdated(updated);
+    } catch (e) {
+      if (!mounted) return;
+      SafeSnack.messengerKey.currentState
+          ?.showSnackBar(SnackBar(content: Text('${t.translate('Erreur')} : $e'), backgroundColor: kCrmDanger));
+    } finally {
+      if (mounted) setState(() => _deletingIds.remove(doc.id));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: kCrmBorder))),
+        child: Row(children: [
+          const Icon(Icons.folder_copy_outlined, color: kCrmPrimary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(t.translate('Associated documents'),
+                style: tInter(fontSize: 14.5, fontWeight: FontWeight.w800, color: kCrmText)),
+          ),
+          IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.of(context).pop()),
+        ]),
+      ),
+      Flexible(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: FinanceDocumentsTable(
+            documents: _documents,
+            onView: (doc) => showFinanceDocumentPreview(context, doc),
+            onDelete: _handleDelete,
+            showStatus: false,
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
+// §MODIFICATION — CUSTOMER SHIPMENTS / SCAN DOCUMENTS : PLUSIEURS DOCUMENTS
+// PAR LIGNE (2026-09-01, §4/§5/§6/§14 du ticket) — modal "Add documents" :
+// réutilise TEL QUEL `FinanceUploadDropzone` (même Drag & Drop OS + sélection
+// multi-fichiers déjà en place pour la création d'un nouveau shipment, voir
+// "New shipment" ailleurs dans ce module) — seul le callback change : les
+// fichiers sont ajoutés au shipment EXISTANT (`onAddDocuments`), jamais un
+// nouveau shipment créé.
+Future<void> _showAddShipmentDocumentsDialog(
+  BuildContext context,
+  FinanceShipmentModel shipment,
+  Future<FinanceShipmentModel> Function(String shipmentId, List<FinancePickedFile> files) onAddDocuments,
+  ValueChanged<FinanceShipmentModel> onShipmentUpdated,
+) {
+  return showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (_) => Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ResponsiveDialogBox(
+        width: 640,
+        height: 420,
+        child: _AddShipmentDocumentsDialogBody(shipment: shipment, onAddDocuments: onAddDocuments, onShipmentUpdated: onShipmentUpdated),
+      ),
+    ),
+  );
+}
+
+class _AddShipmentDocumentsDialogBody extends StatefulWidget {
+  final FinanceShipmentModel shipment;
+  final Future<FinanceShipmentModel> Function(String shipmentId, List<FinancePickedFile> files) onAddDocuments;
+  final ValueChanged<FinanceShipmentModel> onShipmentUpdated;
+
+  const _AddShipmentDocumentsDialogBody({required this.shipment, required this.onAddDocuments, required this.onShipmentUpdated});
+
+  @override
+  State<_AddShipmentDocumentsDialogBody> createState() => _AddShipmentDocumentsDialogBodyState();
+}
+
+class _AddShipmentDocumentsDialogBodyState extends State<_AddShipmentDocumentsDialogBody> {
+  bool _busy = false;
+
+  // §14 du ticket : un seul clic → une seule opération d'upload — le bouton
+  // du dropzone est lui-même désactivé pendant `_busy` (voir
+  // `FinanceUploadDropzone.busy`), donc aucun double-envoi possible tant que
+  // la première requête n'est pas terminée.
+  Future<void> _handleFilesSelected(List<FinancePickedFile> files) async {
+    setState(() => _busy = true);
+    final t = AppLocalizations.of(context);
+    try {
+      final updated = await widget.onAddDocuments(widget.shipment.id, files);
+      if (!mounted) return;
+      widget.onShipmentUpdated(updated);
+      Navigator.of(context).pop();
+      SafeSnack.messengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(files.length == 1 ? t.translate('Document déposé') : t.translate('Documents déposés')),
+          backgroundColor: kCrmSuccess,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      SafeSnack.messengerKey.currentState
+          ?.showSnackBar(SnackBar(content: Text('${t.translate('Erreur')} : $e'), backgroundColor: kCrmDanger));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: kCrmBorder))),
+        child: Row(children: [
+          const Icon(Icons.upload_file_outlined, color: kCrmPrimary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(t.translate('Add documents'),
+                style: tInter(fontSize: 14.5, fontWeight: FontWeight.w800, color: kCrmText)),
+          ),
+          IconButton(icon: const Icon(Icons.close_rounded), onPressed: _busy ? null : () => Navigator.of(context).pop()),
+        ]),
+      ),
+      Flexible(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: FinanceUploadDropzone(onFilesSelected: _handleFilesSelected, busy: _busy),
+        ),
+      ),
+    ]);
   }
 }

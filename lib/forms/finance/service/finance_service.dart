@@ -371,6 +371,32 @@ class FinanceService {
     await ApiClient.instance.dio.delete('$_basePath/shipments/$id');
   }
 
+  // §MODIFICATION — CUSTOMER SHIPMENTS / SCAN DOCUMENTS : PLUSIEURS
+  // DOCUMENTS PAR LIGNE (2026-09-01) — ajoute N document(s) supplémentaire(s)
+  // à UN shipment déjà EXISTANT (jamais un nouveau shipment créé,
+  // contrairement à createShipment ci-dessus). Même pattern multipart
+  // "documents" (liste) que createShipment/addRawMaterialDocuments — un seul
+  // POST envoie tous les fichiers.
+  Future<FinanceShipmentModel> addShipmentDocuments(String shipmentId, List<FinancePickedFile> files) async {
+    final formData = FormData.fromMap({
+      'documents': files.map((f) => MultipartFile.fromBytes(f.bytes, filename: f.filename)).toList(),
+    });
+    final res = await ApiClient.instance.dio.post(
+      '$_basePath/shipments/$shipmentId/documents',
+      data: formData,
+      options: Options(sendTimeout: const Duration(seconds: 60), receiveTimeout: const Duration(seconds: 60)),
+    );
+    return FinanceShipmentModel.fromJson(_unwrapObject(res.data));
+  }
+
+  // §8 du ticket : supprime UN SEUL document d'un shipment, jamais le
+  // shipment entier ni les autres documents qui lui sont rattachés (voir
+  // deleteShipment ci-dessus pour la suppression complète).
+  Future<FinanceShipmentModel> deleteShipmentDocument(String shipmentId, String documentId) async {
+    final res = await ApiClient.instance.dio.delete('$_basePath/shipments/$shipmentId/documents/$documentId');
+    return FinanceShipmentModel.fromJson(_unwrapObject(res.data));
+  }
+
   // ── INVOICES (Factured shipments / Paid factures) ───────────────────
 
   Future<FinancePagedResult<FinanceInvoiceModel>> _fetchInvoicesFrom(
@@ -557,6 +583,32 @@ class FinanceService {
   // côté frontend.
   Future<void> deleteInvoice(String id) async {
     await ApiClient.instance.dio.delete('$_basePath/invoices/$id');
+  }
+
+  // §MODIFICATION — FACTURED SHIPMENTS / SCAN DOCUMENTS (INCLUDE EXPORT) :
+  // PLUSIEURS DOCUMENTS PAR LIGNE (2026-09-02) — ajoute N document(s)
+  // supplémentaire(s) à UNE facture déjà EXISTANTE (jamais une nouvelle
+  // facture créée, contrairement à uploadInvoice ci-dessus). Même pattern
+  // multipart "documents" (liste) que createShipment/addRawMaterialDocuments/
+  // addShipmentDocuments — un seul POST envoie tous les fichiers.
+  Future<FinanceInvoiceModel> addInvoiceDocuments(String invoiceId, List<FinancePickedFile> files) async {
+    final formData = FormData.fromMap({
+      'documents': files.map((f) => MultipartFile.fromBytes(f.bytes, filename: f.filename)).toList(),
+    });
+    final res = await ApiClient.instance.dio.post(
+      '$_basePath/invoices/$invoiceId/documents',
+      data: formData,
+      options: Options(sendTimeout: const Duration(seconds: 60), receiveTimeout: const Duration(seconds: 60)),
+    );
+    return FinanceInvoiceModel.fromJson(_unwrapObject(res.data));
+  }
+
+  // §6 du ticket : supprime UN SEUL document d'une facture, jamais la
+  // facture entière ni les autres documents qui lui sont rattachés (voir
+  // deleteInvoice ci-dessus pour la suppression complète).
+  Future<FinanceInvoiceModel> deleteInvoiceDocument(String invoiceId, String documentId) async {
+    final res = await ApiClient.instance.dio.delete('$_basePath/invoices/$invoiceId/documents/$documentId');
+    return FinanceInvoiceModel.fromJson(_unwrapObject(res.data));
   }
 
   // ── CUSTOMERS (réutilise la table clients existante, GET /api/clients/all

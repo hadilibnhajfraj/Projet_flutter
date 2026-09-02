@@ -25,14 +25,17 @@ import 'package:intl/intl.dart';
 import 'package:dash_master_toolkit/application/common/safe_snack.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/widgets/responsive_dialog_box.dart';
 
 import '../model/finance_models.dart';
 import '../service/finance_service.dart';
 import '../theme/finance_theme.dart';
+import 'widgets/finance_documents_table.dart';
 import 'widgets/finance_invoice_detail_dialog.dart';
 import 'widgets/finance_invoice_upload_dialog.dart';
 import 'widgets/finance_invoices_table.dart';
 import 'widgets/finance_preview_dialog.dart';
+import 'widgets/finance_upload_dropzone.dart';
 
 class FinanceFacturedShipmentsScreen extends StatefulWidget {
   const FinanceFacturedShipmentsScreen({super.key});
@@ -224,6 +227,20 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
     );
   }
 
+  // §MODIFICATION — FACTURED SHIPMENTS / SCAN DOCUMENTS (INCLUDE EXPORT) :
+  // PLUSIEURS DOCUMENTS PAR LIGNE (2026-09-02) — même principe que
+  // `_applyUpdatedInvoice` ci-dessus (met à jour `_invoices` avec la facture
+  // renvoyée par le backend, jamais un rechargement complet — donc reflété
+  // instantanément dans les DEUX sections "Sage Documents"/"Scan Documents",
+  // §14 du ticket), mais SANS le message "Date updated successfully" (propre
+  // à l'édition de date) : l'ajout/la suppression d'un document affiche son
+  // propre message au bon endroit (voir
+  // _AddInvoiceDocumentsDialogBody/_InvoiceDocumentsDialogBody plus bas).
+  void _applyUpdatedInvoiceSilently(FinanceInvoiceModel updated) {
+    if (!mounted) return;
+    setState(() => _invoices = [for (final i in _invoices) if (i.id == updated.id) updated else i]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
@@ -393,6 +410,16 @@ class _FinanceFacturedShipmentsScreenState extends State<FinanceFacturedShipment
                     // deuxième implémentation.
                     onInvoiceDateSave: _saveInvoiceDate,
                     onInvoiceDateSaved: _applyUpdatedInvoice,
+                    // §MODIFICATION — FACTURED SHIPMENTS / SCAN DOCUMENTS
+                    // (INCLUDE EXPORT) : PLUSIEURS DOCUMENTS PAR LIGNE
+                    // (2026-09-02) — mêmes méthodes `FinanceService` que
+                    // ci-dessus, appliquées au MÊME `_invoices` via
+                    // `_applyUpdatedInvoiceSilently` (donc reflétées
+                    // instantanément dans les DEUX sections, sans jamais
+                    // recharger toute la page — §14 du ticket).
+                    onAddDocuments: FinanceService.instance.addInvoiceDocuments,
+                    onDeleteDocument: FinanceService.instance.deleteInvoiceDocument,
+                    onInvoiceUpdated: _applyUpdatedInvoiceSilently,
                   ),
                 ],
               ],
@@ -486,6 +513,16 @@ class _ExportDocumentsTable extends StatelessWidget {
   // FinanceService, jamais recalculé ici.
   final Future<FinanceInvoiceModel> Function(String id, DateTime newDate) onInvoiceDateSave;
   final ValueChanged<FinanceInvoiceModel> onInvoiceDateSaved;
+  // §MODIFICATION — FACTURED SHIPMENTS / SCAN DOCUMENTS (INCLUDE EXPORT) :
+  // PLUSIEURS DOCUMENTS PAR LIGNE (2026-09-02) — une ligne (une facture) peut
+  // désormais avoir PLUSIEURS documents associés (jamais une nouvelle ligne
+  // créée, §12 du ticket) : `onAddDocuments` ajoute N fichier(s) à la
+  // facture EXISTANTE, `onDeleteDocument` supprime UN SEUL document sans
+  // toucher aux autres (§6), `onInvoiceUpdated` répercute la facture à jour
+  // (renvoyée par le backend) dans `_invoices` côté écran parent.
+  final Future<FinanceInvoiceModel> Function(String invoiceId, List<FinancePickedFile> files) onAddDocuments;
+  final Future<FinanceInvoiceModel> Function(String invoiceId, String documentId) onDeleteDocument;
+  final ValueChanged<FinanceInvoiceModel> onInvoiceUpdated;
 
   const _ExportDocumentsTable({
     required this.invoices,
@@ -495,6 +532,9 @@ class _ExportDocumentsTable extends StatelessWidget {
     required this.payingIds,
     required this.onInvoiceDateSave,
     required this.onInvoiceDateSaved,
+    required this.onAddDocuments,
+    required this.onDeleteDocument,
+    required this.onInvoiceUpdated,
   });
 
   @override
@@ -555,6 +595,18 @@ class _ExportDocumentsTable extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis),
                       ),
+                      // §MODIFICATION — FACTURED SHIPMENTS / SCAN DOCUMENTS
+                      // (INCLUDE EXPORT) : PLUSIEURS DOCUMENTS PAR LIGNE
+                      // (2026-09-02, §1/§13 du ticket) — "+N" quand la ligne a
+                      // plus d'un document, MÊME style de puce que
+                      // `_ExportOrdersTable`/`_ShipmentsRequiringExtractionTable`
+                      // — jamais une deuxième ligne créée pour ces fichiers
+                      // supplémentaires.
+                      if (e.invoice.documents.length > 1) ...[
+                        const SizedBox(width: 4),
+                        Text('+${e.invoice.documents.length - 1} ${t.translate('more')}',
+                            style: tInter(fontSize: 11, color: kCrmTextSub)),
+                      ],
                     ])),
                     DataCell(Text(e.doc.extension.toUpperCase().isEmpty ? '—' : e.doc.extension.toUpperCase())),
                     DataCell(Text(formatFinanceFileSize(e.doc.fileSize))),
@@ -597,10 +649,31 @@ class _ExportDocumentsTable extends StatelessWidget {
                       );
                     })),
                     DataCell(Row(mainAxisSize: MainAxisSize.min, children: [
+                      // §MODIFICATION — FACTURED SHIPMENTS / SCAN DOCUMENTS
+                      // (INCLUDE EXPORT) : PLUSIEURS DOCUMENTS PAR LIGNE
+                      // (2026-09-02, §2 du ticket) — "Upload" ajoute des
+                      // fichiers à la MÊME facture (jamais une nouvelle
+                      // ligne) ; réutilise TEL QUEL `FinanceUploadDropzone`
+                      // (Drag & Drop OS + sélection multi-fichiers déjà en
+                      // place) dans une modal dédiée, voir
+                      // `_showAddInvoiceDocumentsDialog` plus bas.
+                      Tooltip(
+                        message: t.translate('Upload'),
+                        child: IconButton(
+                          icon: const Icon(Icons.upload_outlined, size: 18, color: kCrmPrimary),
+                          onPressed: () => _showAddInvoiceDocumentsDialog(context, e.invoice, onAddDocuments, onInvoiceUpdated),
+                        ),
+                      ),
                       Tooltip(
                         message: t.translate('View'),
                         child: OutlinedButton.icon(
-                          onPressed: () => onView(e.doc),
+                          // §5 du ticket : un seul document → comportement
+                          // actuel inchangé (aperçu direct) ; plusieurs
+                          // documents → modal listant chacun individuellement
+                          // avec son propre View (jamais un mélange des deux).
+                          onPressed: () => e.invoice.documents.length > 1
+                              ? _showInvoiceDocumentsDialog(context, e.invoice, onDeleteDocument, onInvoiceUpdated)
+                              : onView(e.doc),
                           icon: const Icon(Icons.visibility_outlined, size: 15),
                           label: Text(t.translate('View'), style: tInter(fontSize: 12, fontWeight: FontWeight.w700)),
                           style: OutlinedButton.styleFrom(
@@ -641,5 +714,204 @@ class _ExportDocumentsTable extends StatelessWidget {
     final d = DateTime.tryParse(iso);
     if (d == null) return iso;
     return DateFormat('dd/MM/yyyy HH:mm').format(d);
+  }
+}
+
+// §MODIFICATION — FACTURED SHIPMENTS / SCAN DOCUMENTS (INCLUDE EXPORT) :
+// PLUSIEURS DOCUMENTS PAR LIGNE (2026-09-02, §5/§6 du ticket) — modal
+// "Associated documents" : liste TOUS les documents de la facture, chacun
+// avec son propre "View" (showFinanceDocumentPreview, réutilisé tel quel) et
+// son propre "Delete" (jamais toute la ligne). Réutilise le widget
+// `FinanceDocumentsTable` DÉJÀ existant (partagé avec les fiches détail
+// Invoice/Shipment/Purchase Order) plutôt que d'écrire un second tableau de
+// documents — même principe que `_OrderDocumentsDialogBody`/
+// `_ShipmentDocumentsDialogBody` dans les écrans Inflow/Customer Shipments.
+Future<void> _showInvoiceDocumentsDialog(
+  BuildContext context,
+  FinanceInvoiceModel invoice,
+  Future<FinanceInvoiceModel> Function(String invoiceId, String documentId) onDeleteDocument,
+  ValueChanged<FinanceInvoiceModel> onInvoiceUpdated,
+) {
+  return showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (_) => Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ResponsiveDialogBox(
+        width: 820,
+        height: 560,
+        child: _InvoiceDocumentsDialogBody(invoice: invoice, onDeleteDocument: onDeleteDocument, onInvoiceUpdated: onInvoiceUpdated),
+      ),
+    ),
+  );
+}
+
+class _InvoiceDocumentsDialogBody extends StatefulWidget {
+  final FinanceInvoiceModel invoice;
+  final Future<FinanceInvoiceModel> Function(String invoiceId, String documentId) onDeleteDocument;
+  final ValueChanged<FinanceInvoiceModel> onInvoiceUpdated;
+
+  const _InvoiceDocumentsDialogBody({required this.invoice, required this.onDeleteDocument, required this.onInvoiceUpdated});
+
+  @override
+  State<_InvoiceDocumentsDialogBody> createState() => _InvoiceDocumentsDialogBodyState();
+}
+
+class _InvoiceDocumentsDialogBodyState extends State<_InvoiceDocumentsDialogBody> {
+  late List<FinanceDocumentModel> _documents;
+  // Même principe que Register Payment (§7 du ticket précédent) : jamais
+  // deux suppressions simultanées du même document sur un double-clic rapide.
+  final Set<String> _deletingIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _documents = widget.invoice.documents;
+  }
+
+  Future<void> _handleDelete(FinanceDocumentModel doc) async {
+    if (_deletingIds.contains(doc.id)) return;
+    setState(() => _deletingIds.add(doc.id));
+    final t = AppLocalizations.of(context);
+    try {
+      final updated = await widget.onDeleteDocument(widget.invoice.id, doc.id);
+      if (!mounted) return;
+      // §6 du ticket : seul CE document disparaît de la modal, les autres
+      // restent — `updated.documents` (renvoyé par le backend) fait foi,
+      // jamais un simple retrait optimiste côté client.
+      setState(() => _documents = updated.documents);
+      widget.onInvoiceUpdated(updated);
+    } catch (e) {
+      if (!mounted) return;
+      SafeSnack.messengerKey.currentState
+          ?.showSnackBar(SnackBar(content: Text('${t.translate('Erreur')} : $e'), backgroundColor: kCrmDanger));
+    } finally {
+      if (mounted) setState(() => _deletingIds.remove(doc.id));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: kCrmBorder))),
+        child: Row(children: [
+          const Icon(Icons.folder_copy_outlined, color: kCrmPrimary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(t.translate('Associated documents'),
+                style: tInter(fontSize: 14.5, fontWeight: FontWeight.w800, color: kCrmText)),
+          ),
+          IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.of(context).pop()),
+        ]),
+      ),
+      Flexible(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: FinanceDocumentsTable(
+            documents: _documents,
+            onView: (doc) => showFinanceDocumentPreview(context, doc),
+            onDelete: _handleDelete,
+            showStatus: false,
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
+// §MODIFICATION — FACTURED SHIPMENTS / SCAN DOCUMENTS (INCLUDE EXPORT) :
+// PLUSIEURS DOCUMENTS PAR LIGNE (2026-09-02, §2/§3/§4/§15 du ticket) — modal
+// "Add documents" : réutilise TEL QUEL `FinanceUploadDropzone` (même Drag &
+// Drop OS + sélection multi-fichiers déjà en place pour "Upload invoice",
+// voir finance_invoice_upload_dialog.dart) — seul le callback change : les
+// fichiers sont ajoutés à la facture EXISTANTE (`onAddDocuments`), jamais une
+// nouvelle facture créée.
+Future<void> _showAddInvoiceDocumentsDialog(
+  BuildContext context,
+  FinanceInvoiceModel invoice,
+  Future<FinanceInvoiceModel> Function(String invoiceId, List<FinancePickedFile> files) onAddDocuments,
+  ValueChanged<FinanceInvoiceModel> onInvoiceUpdated,
+) {
+  return showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (_) => Dialog(
+      insetPadding: const EdgeInsets.all(24),
+      child: ResponsiveDialogBox(
+        width: 640,
+        height: 420,
+        child: _AddInvoiceDocumentsDialogBody(invoice: invoice, onAddDocuments: onAddDocuments, onInvoiceUpdated: onInvoiceUpdated),
+      ),
+    ),
+  );
+}
+
+class _AddInvoiceDocumentsDialogBody extends StatefulWidget {
+  final FinanceInvoiceModel invoice;
+  final Future<FinanceInvoiceModel> Function(String invoiceId, List<FinancePickedFile> files) onAddDocuments;
+  final ValueChanged<FinanceInvoiceModel> onInvoiceUpdated;
+
+  const _AddInvoiceDocumentsDialogBody({required this.invoice, required this.onAddDocuments, required this.onInvoiceUpdated});
+
+  @override
+  State<_AddInvoiceDocumentsDialogBody> createState() => _AddInvoiceDocumentsDialogBodyState();
+}
+
+class _AddInvoiceDocumentsDialogBodyState extends State<_AddInvoiceDocumentsDialogBody> {
+  bool _busy = false;
+
+  // §15 du ticket : un seul clic → une seule opération d'upload — le bouton
+  // du dropzone est lui-même désactivé pendant `_busy` (voir
+  // `FinanceUploadDropzone.busy`), donc aucun double-envoi possible tant que
+  // la première requête n'est pas terminée.
+  Future<void> _handleFilesSelected(List<FinancePickedFile> files) async {
+    setState(() => _busy = true);
+    final t = AppLocalizations.of(context);
+    try {
+      final updated = await widget.onAddDocuments(widget.invoice.id, files);
+      if (!mounted) return;
+      widget.onInvoiceUpdated(updated);
+      Navigator.of(context).pop();
+      SafeSnack.messengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text(files.length == 1 ? t.translate('Document déposé') : t.translate('Documents déposés')),
+          backgroundColor: kCrmSuccess,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      SafeSnack.messengerKey.currentState
+          ?.showSnackBar(SnackBar(content: Text('${t.translate('Erreur')} : $e'), backgroundColor: kCrmDanger));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: kCrmBorder))),
+        child: Row(children: [
+          const Icon(Icons.upload_file_outlined, color: kCrmPrimary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(t.translate('Add documents'),
+                style: tInter(fontSize: 14.5, fontWeight: FontWeight.w800, color: kCrmText)),
+          ),
+          IconButton(icon: const Icon(Icons.close_rounded), onPressed: _busy ? null : () => Navigator.of(context).pop()),
+        ]),
+      ),
+      Flexible(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: FinanceUploadDropzone(onFilesSelected: _handleFilesSelected, busy: _busy),
+        ),
+      ),
+    ]);
   }
 }
