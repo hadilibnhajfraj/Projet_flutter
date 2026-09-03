@@ -66,8 +66,18 @@ class ProductionRecordsService {
     return ProductionRecordPage(items: items, pagination: pagination, statistics: statistics, productionTotals: productionTotals);
   }
 
-  Future<ProductionRecordFilters> fetchFilters() async {
-    final res = await ApiClient.instance.dio.get('$_basePath/filters');
+  // §MODIFICATION — PRODUCTION SUMMARY : PARITÉ RESPONSABLE_LOGISTIQUE_ACHAT /
+  // SUPERADMIN (2026-09-02) — `forSummary: true` (envoyé UNIQUEMENT par
+  // production_summary_screen.dart) fait lister au backend TOUTES les
+  // machines/diamètres (parité superadmin pour cet écran précis, voir
+  // productionRecords.controller.js#filters) ; l'appel de l'écran
+  // "Production Records" (par défaut, `forSummary: false`) garde le
+  // comportement owner-scoped existant, inchangé.
+  Future<ProductionRecordFilters> fetchFilters({bool forSummary = false}) async {
+    final res = await ApiClient.instance.dio.get(
+      '$_basePath/filters',
+      queryParameters: forSummary ? {'scope': 'summary'} : null,
+    );
     final data = _unwrapObject(res.data);
     return ProductionRecordFilters.fromJson(data);
   }

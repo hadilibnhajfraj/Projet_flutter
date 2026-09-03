@@ -98,7 +98,11 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
 
   Future<void> _loadFilters() async {
     try {
-      final f = await ProductionRecordsService.instance.fetchFilters();
+      // §MODIFICATION — PRODUCTION SUMMARY : PARITÉ RESPONSABLE_LOGISTIQUE_ACHAT
+      // / SUPERADMIN (2026-09-02) — `forSummary: true` fait lister TOUTES les
+      // machines/diamètres (PROMESH 1/2/4 y compris), quel que soit le rôle,
+      // exactement comme superadmin — voir production_records_service.dart.
+      final f = await ProductionRecordsService.instance.fetchFilters(forSummary: true);
       if (!mounted) return;
       setState(() => _filters = f);
     } catch (_) {
