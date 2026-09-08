@@ -672,19 +672,46 @@ class ProductionSummaryExportService {
     ProductionSummaryTable table, {
     required bool isPromesh,
   }) {
-    final sections = aggregateByMachine(table.rows, groupByCellSize: isPromesh);
+    // §CORRECTION — EXCLUSION DES LIGNES "NOT SPECIFIED" (2026-09-21, ticket
+    // "corriger l'affichage du Production Summary") — filtre appliqué
+    // UNIQUEMENT pour PROMESH : `hasValidDiameterAndCellSize` exige un Cell
+    // size renseigné, un champ qui n'existe JAMAIS pour PROBAR (jamais de
+    // Cell size côté PROBAR, voir `groupByCellSize: false` plus bas) — filtrer
+    // PROBAR avec ce même critère viderait sa feuille entière. PROBAR (aucun
+    // ticket ne l'a jamais concerné) garde `table.rows` intégral, inchangé.
+    final rowsForRecap = isPromesh ? table.rows.where(hasValidDiameterAndCellSize).toList() : table.rows;
+    final sections = aggregateByMachine(rowsForRecap, groupByCellSize: isPromesh);
     final color = isPromesh ? '#2563EB' : '#F97316';
 
-    final combinedSections = isPromesh ? [for (final s in sections) if (!isPromesh4Machine(s.machine)) s] : const <MachineSection>[];
     final isolatedSections = isPromesh ? [for (final s in sections) if (isPromesh4Machine(s.machine)) s] : sections;
-    final combinedGroups = <MachineDiameterGroup>[for (final s in combinedSections) ...s.rows];
+    // §MODIFICATION — SUPPRESSION COLONNE MACHINE DU BLOC 1-2-3 (2026-09-20,
+    // ticket "supprimer complètement la colonne Machine") — le bloc combiné
+    // PROMESH 1-2-3 n'est PLUS dérivé des sections par-machine : il est
+    // recalculé par `aggregateByDiameterCellSize` sur les lignes BRUTES des
+    // machines non-4 (§2/§3 du ticket — GROUP BY Diameter+Cell size
+    // UNIQUEMENT, jamais Machine). `combinedMachineNumbers` (extrait des
+    // lignes brutes, jamais des groupes qui ne portent plus l'info machine)
+    // sert uniquement au libellé d'en-tête/sous-total "PROMESH 1-2-3".
+    final combinedRows = isPromesh ? rowsForRecap.where((r) => !isPromesh4Machine(r.machine)).toList() : const <ProductionRecordModel>[];
+    final combinedGroups = isPromesh ? aggregateByDiameterCellSize(combinedRows) : const <MachineDiameterGroup>[];
+    final combinedMachineNumbers = <String>{
+      for (final r in combinedRows)
+        if (r.machine != null && r.machine!.trim().isNotEmpty) r.machine!.trim(),
+    }.toList()
+      ..sort((a, b) {
+        final na = int.tryParse(a);
+        final nb = int.tryParse(b);
+        if (na != null && nb != null) return na.compareTo(nb);
+        return a.compareTo(b);
+      });
 
-    // Colonnes bloc combiné (PROMESH uniquement) : Machine, Diameter, Cell
-    // size, Quantity, Waste. Colonnes section isolée : Diameter [+ Cell
-    // size si PROMESH] , Quantity, Waste (jamais de Cell size pour PROBAR,
-    // comportement historique inchangé).
-    const combinedLastCol = 4;
+    // Colonnes bloc combiné (PROMESH uniquement) : Diameter, Cell size,
+    // Quantity, Waste (plus de colonne Machine, §1 du ticket — mêmes
+    // colonnes que la section isolée ci-dessous). Colonnes section isolée :
+    // Diameter [+ Cell size si PROMESH], Quantity, Waste (jamais de Cell
+    // size pour PROBAR, comportement historique inchangé).
     final isolatedLastCol = isPromesh ? 3 : 2;
+    final combinedLastCol = isolatedLastCol;
     final overallLastCol = combinedGroups.isNotEmpty ? combinedLastCol : isolatedLastCol;
 
     int row = 0;
@@ -696,7 +723,7 @@ class ProductionSummaryExportService {
     }
 
     if (combinedGroups.isNotEmpty) {
-      row = _writeExcelCombinedMachineBlock(sheet, row, combinedGroups, table, color);
+      row = _writeExcelCombinedMachineBlock(sheet, row, combinedGroups, combinedMachineNumbers, table, color);
       row++; // ligne vide de séparation avant la section PROMESH 4.
     }
 
@@ -705,13 +732,21 @@ class ProductionSummaryExportService {
       row++; // ligne vide de séparation avant la section suivante.
     }
 
-    // TOTAL général — repris TEL QUEL de `table.grandTotal` (jamais recalculé
-    // ici ; inclut TOUJOURS PROMESH 4, contrairement au total du bloc
-    // combiné ci-dessus qui ne porte que sur PROMESH 1-2-3, §5). §13 du
-    // ticket "Excel de référence" (2026-09-13) : le libellé PROMESH devient
-    // "GRAND TOTAL MESH" (calqué sur le fichier Excel de référence du
-    // client) — PROBAR (jamais concerné par ce ticket) garde "TOTAL PROBAR"
-    // inchangé.
+    // TOTAL général — pour PROBAR, repris TEL QUEL de `table.grandTotal`
+    // (jamais recalculé, jamais concerné par ce ticket). §13 du ticket
+    // "Excel de référence" (2026-09-13) : le libellé PROMESH devient "GRAND
+    // TOTAL MESH" (calqué sur le fichier Excel de référence du client) —
+    // PROBAR garde "TOTAL PROBAR" inchangé.
+    //
+    // §CORRECTION — EXCLUSION DES LIGNES "NOT SPECIFIED" (2026-09-21) — §7
+    // du ticket : "TOTAL PROMESH doit être calculé uniquement à partir des
+    // lignes valides affichées dans les deux blocs" = SOUS-TOTAL PROMESH
+    // 1-2-3 + SOUS-TOTAL PROMESH 4 (jamais `table.grandTotal`, qui inclut
+    // les fiches sans Diameter/Cell size renseignés).
+    final qtyTotal = isPromesh
+        ? isolatedSections.expand((s) => s.rows).fold<double>(0, (sum, g) => sum + g.quantity) +
+            combinedGroups.fold<double>(0, (sum, g) => sum + g.quantity)
+        : table.grandTotal;
     //
     // §CORRECTION — INCOHÉRENCE SOUS-TOTAUX/TOTAL WASTE PROMESH (2026-09-19,
     // ticket "corriger le calcul du Waste dans Production Summary —
@@ -725,7 +760,16 @@ class ProductionSummaryExportService {
     // du `waste` de TOUS les groupes déjà utilisés pour les sous-totaux —
     // jamais une valeur backend indépendante, §7 du ticket). PROBAR (aucun
     // ticket ne l'a jamais concerné) garde `table.grandTotalWaste` inchangé.
-    final wasteTotal = isPromesh ? sections.expand((s) => s.rows).fold<double>(0, (sum, g) => sum + g.waste) : table.grandTotalWaste;
+    //
+    // §MISE À JOUR — SUPPRESSION COLONNE MACHINE DU BLOC 1-2-3 (2026-09-20)
+    // — doit désormais suivre EXACTEMENT la même logique que le bloc combiné
+    // ci-dessus (`aggregateByDiameterCellSize`, jamais `aggregateByMachine`)
+    // pour rester la somme réelle des sous-totaux affichés dans cette
+    // feuille : PROMESH 4 isolé (inchangé) + PROMESH 1-2-3 (nouveau calcul).
+    final wasteTotal = isPromesh
+        ? isolatedSections.expand((s) => s.rows).fold<double>(0, (sum, g) => sum + g.waste) +
+            combinedGroups.fold<double>(0, (sum, g) => sum + g.waste)
+        : table.grandTotalWaste;
     final totalStyle = xl.CellStyle(bold: true, fontSize: 13, backgroundColorHex: color, fontColorHex: '#FFFFFF');
     if (overallLastCol > 0) {
       sheet.merge(
@@ -737,7 +781,7 @@ class ProductionSummaryExportService {
       ..value = isPromesh ? _t('GRAND TOTAL MESH') : _t('Total PROBAR').toUpperCase()
       ..cellStyle = totalStyle;
     sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: overallLastCol, rowIndex: row))
-      ..value = _numericCell(table.grandTotal)
+      ..value = _numericCell(qtyTotal)
       ..cellStyle = totalStyle;
     row++;
     if (overallLastCol > 0) {
@@ -758,32 +802,28 @@ class ProductionSummaryExportService {
     }
   }
 
-  // §1-§5 du ticket : UN SEUL bloc pour toutes les machines "standard"
-  // (jamais PROMESH 4), avec une colonne Machine pour distinguer chaque
-  // ligne — jamais une section par machine comme avant. `groups` arrive
-  // déjà trié machine → diamètre → cell size (ordre produit par
-  // `aggregateByMachine`, jamais retrié ici). Retourne la prochaine ligne
-  // libre (comme les autres écrivains de section de ce fichier).
+  // §MODIFICATION — SUPPRESSION COLONNE MACHINE DU BLOC 1-2-3 (2026-09-20,
+  // ticket "supprimer complètement la colonne Machine") — UN SEUL bloc pour
+  // PROMESH 1-2-3, avec EXACTEMENT les mêmes colonnes que la section
+  // isolée PROMESH 4 (_writeExcelMachineSection) : Diameter, Cell size,
+  // Quantity, Waste — plus de colonne Machine (§1 du ticket). `groups`
+  // arrive déjà trié Diameter → Cell size (produit par
+  // `aggregateByDiameterCellSize`, jamais retrié ici) ; `machineNumbers`
+  // (extrait des lignes brutes par l'appelant, les groupes ne portent plus
+  // l'info machine) sert uniquement au libellé d'en-tête/sous-total.
+  // Retourne la prochaine ligne libre (comme les autres écrivains de
+  // section de ce fichier).
   int _writeExcelCombinedMachineBlock(
     xl.Sheet sheet,
     int startRow,
     List<MachineDiameterGroup> groups,
+    List<String> machineNumbers,
     ProductionSummaryTable table,
     String color,
   ) {
     int row = startRow;
-    const lastCol = 4; // Machine, Diameter, Cell size, Quantity, Waste
+    const lastCol = 3; // Diameter, Cell size, Quantity, Waste
 
-    final machineNumbers = <String>{
-      for (final g in groups)
-        if (g.machine != null && g.machine!.trim().isNotEmpty) g.machine!.trim(),
-    }.toList()
-      ..sort((a, b) {
-        final na = int.tryParse(a);
-        final nb = int.tryParse(b);
-        if (na != null && nb != null) return na.compareTo(nb);
-        return a.compareTo(b);
-      });
     final headerLabel = machineNumbers.isEmpty ? _t('Non renseigné') : machineNumbers.map(formatPromeshMachineLabel).join(' + ');
     // §5/§7/§9 du ticket "Excel de référence" : "SOUS-TOTAL PROMESH 1-2-3"
     // — UN SEUL total pour tout le bloc, jamais un sous-total par machine à
@@ -795,7 +835,7 @@ class ProductionSummaryExportService {
       ..cellStyle = xl.CellStyle(bold: true, fontSize: 13, fontColorHex: '#0F172A');
     row++;
 
-    final headers = [_t('Machine'), _t('Diameter'), _t('Cell size'), '${_t('Quantity')} (${table.unit})', '${_t('Waste')} (${table.wasteUnit})'];
+    final headers = [_t('Diameter'), _t('Cell size'), '${_t('Quantity')} (${table.unit})', '${_t('Waste')} (${table.wasteUnit})'];
     for (int c = 0; c < headers.length; c++) {
       final isNumericHeader = c >= headers.length - 2;
       sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: c, rowIndex: row))
@@ -808,40 +848,31 @@ class ProductionSummaryExportService {
       final diameterLabel = (g.diametre == null || g.diametre!.isEmpty) ? _t('Non renseigné') : '${g.diametre} mm';
       final meshLabel = (g.cellSize == null || g.cellSize!.isEmpty) ? _t('Non renseigné') : g.cellSize!;
       sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row))
-        ..value = formatPromeshMachineLabel(g.machine)
-        ..cellStyle = _dataCellStyle(bold: true);
-      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row))
         ..value = diameterLabel
         ..cellStyle = _dataCellStyle();
-      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row))
+      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: row))
         ..value = meshLabel
         ..cellStyle = _dataCellStyle();
-      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row))
+      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: row))
         ..value = _numericCell(g.quantity)
         ..cellStyle = _dataCellStyle(align: xl.HorizontalAlign.Right);
-      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: row))
+      sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: row))
         ..value = _numericCell(g.waste)
         ..cellStyle = _dataCellStyle(align: xl.HorizontalAlign.Right);
       row++;
     }
 
-    // §MODIFICATION — SOUS-TOTAL PROMESH 1-2(-3) : COLONNES QUANTITY/WASTE
-    // SÉPARÉES (2026-09-14, ticket "corriger la ligne SOUS-TOTAL PROMESH
-    // 1-2") — AVANT cette correction, le libellé fusionnait les colonnes
-    // 0..lastCol-1 (Machine+Diameter+Cell size+Quantity) et la valeur
-    // Quantity était écrite dans la colonne lastCol — c'est-à-dire la
-    // colonne WASTE (jamais renseignée). Désormais le libellé ne fusionne
-    // QUE Machine+Diameter+Cell size (colonnes 0..lastCol-2), Quantity a sa
-    // PROPRE cellule (colonne lastCol-1) et Waste la sienne (colonne
-    // lastCol) — jamais l'une dans la colonne de l'autre (§3/§4 du ticket).
+    // Le libellé ne fusionne QUE Diameter+Cell size (colonnes 0..lastCol-2),
+    // Quantity a sa PROPRE cellule (colonne lastCol-1) et Waste la sienne
+    // (colonne lastCol) — jamais l'une dans la colonne de l'autre.
     final subtotal = groups.fold<double>(0, (s, g) => s + g.quantity);
     // Simple somme des `waste` déjà calculés par groupe (voir
-    // `MachineDiameterGroup.waste`, produit par `aggregateByMachine`,
+    // `MachineDiameterGroup.waste`, produit par `aggregateByDiameterCellSize`,
     // jamais retouché ici) — jamais un recalcul, jamais le total général
-    // (`table.grandTotalWaste`, §5 du ticket).
+    // (`table.grandTotalWaste`, §4 du ticket).
     final wasteSubtotal = groups.fold<double>(0, (s, g) => s + g.waste);
     final qtyCol = lastCol - 1;
-    if (qtyCol > 0) {
+    if (qtyCol > 1) {
       sheet.merge(
         xl.CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: row),
         xl.CellIndex.indexByColumnRow(columnIndex: qtyCol - 1, rowIndex: row),

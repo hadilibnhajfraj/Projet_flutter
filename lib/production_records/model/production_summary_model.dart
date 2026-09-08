@@ -135,6 +135,23 @@ String formatProductionNumber(double value) {
   return isNegative ? '-$result' : result;
 }
 
+// §MODIFICATION — RÉCAPITULATIF PROMESH : EXCLUSION DES LIGNES "NOT
+// SPECIFIED" (2026-09-21, ticket "corriger l'affichage du Production
+// Summary — exclure Diameter/Cell size non renseignés du récapitulatif") —
+// une fiche est valide POUR LE RÉCAPITULATIF uniquement si Diameter ET Cell
+// size sont TOUS LES DEUX renseignés (§4 du ticket). Utilisé pour FILTRER
+// les lignes AVANT tout appel à `aggregateByMachine`/
+// `aggregateByDiameterCellSize` ci-dessous (§9 : exclusion réelle de la
+// liste, jamais un masquage visuel après coup) — jamais appliqué au tableau
+// détaillé "PROMESH Production" lui-même (`widget.table.rows`, qui garde
+// TOUTES ses lignes intactes, §8 du ticket : aucune donnée supprimée, ni en
+// base ni dans le tableau principal).
+bool hasValidDiameterAndCellSize(ProductionRecordModel r) {
+  final diametre = r.diametre?.trim();
+  final cellSize = r.tailleMaille?.trim();
+  return diametre != null && diametre.isNotEmpty && cellSize != null && cellSize.isNotEmpty;
+}
+
 // §MODIFICATION — RÉCAPITULATIF PAR MACHINE : LOGIQUE PARTAGÉE UI/EXPORT
 // (2026-09-10, ticket "export Excel — Récapitulatif dans une feuille
 // séparée") — DÉPLACÉ ICI depuis production_summary_screen.dart (où ce
@@ -247,6 +264,73 @@ List<MachineSection> aggregateByMachine(List<ProductionRecordModel> rows, {requi
   }
   final machineKeys = byMachine.keys.toList()..sort(_compareMachineField);
   return [for (final m in machineKeys) MachineSection(machine: m, rows: byMachine[m]!)];
+}
+
+// §MODIFICATION — RÉCAPITULATIF PROMESH 1-2-3 : GROUP BY DIAMETER + CELL
+// SIZE UNIQUEMENT (2026-09-20, ticket "supprimer complètement la colonne
+// Machine") — contrairement à `aggregateByMachine` ci-dessus (qui garde
+// TOUJOURS la machine dans la clé de regroupement, utilisée par PROMESH 4
+// isolé et par PROBAR), cette fonction ignore complètement la machine dès
+// l'entrée : deux lignes de MACHINES DIFFÉRENTES partageant le même
+// Diameter+Cell size fusionnent désormais en UNE SEULE ligne (§2/§3 du
+// ticket — "GROUP BY Diameter, Cell size" et NON "GROUP BY Machine,
+// Diameter, Cell size"). `rows` doit déjà être pré-filtré par l'appelant
+// (ex. machines != PROMESH 4, voir _machineBreakdownBlock) — cette fonction
+// ne fait aucune distinction de machine, avant ou après regroupement. Le
+// champ `machine` de `MachineDiameterGroup` retourné est toujours `null`
+// (non pertinent ici, aucune colonne Machine n'est plus affichée pour ce
+// bloc). Même logique Waste que `aggregateByMachine` (chaque date comptée
+// une seule fois PAR GROUPE, jamais recalculée depuis Quantity — §4/§11 du
+// ticket) : seule la CLÉ de regroupement change.
+List<MachineDiameterGroup> aggregateByDiameterCellSize(List<ProductionRecordModel> rows) {
+  final wasteByDate = <String, double>{};
+  final quantityByGroup = <String, double>{};
+  final diametreByGroup = <String, String?>{};
+  final cellSizeByGroup = <String, String?>{};
+  final datesByGroup = <String, Set<String>>{};
+
+  for (final r in rows) {
+    final date = r.date;
+    if (date != null && date.isNotEmpty) {
+      wasteByDate[date] = r.waste;
+    }
+    final diametre = r.diametre?.trim();
+    final tailleMaille = r.tailleMaille?.trim();
+    // §8 du ticket : "Not specified" (diamètre/cell size absents) fusionne
+    // aussi en un seul groupe — même normalisation que `aggregateByMachine`.
+    final cellSize = (tailleMaille != null && tailleMaille.isNotEmpty) ? formatCellSize(tailleMaille).toUpperCase() : null;
+    final key = '${diametre ?? ''}|${cellSize ?? ''}';
+
+    quantityByGroup[key] = (quantityByGroup[key] ?? 0) + (r.quantite ?? 0);
+    diametreByGroup[key] = diametre;
+    cellSizeByGroup[key] = cellSize;
+    if (date != null && date.isNotEmpty) {
+      (datesByGroup[key] ??= <String>{}).add(date);
+    }
+  }
+
+  // §6 du ticket : Diameter croissant puis Cell size croissant — jamais par
+  // Machine (qui n'existe plus dans la clé).
+  final keys = quantityByGroup.keys.toList()
+    ..sort((a, b) {
+      final na = double.tryParse(diametreByGroup[a] ?? '');
+      final nb = double.tryParse(diametreByGroup[b] ?? '');
+      if (na != null && nb != null && na != nb) return na.compareTo(nb);
+      if (na == null && nb != null) return 1;
+      if (na != null && nb == null) return -1;
+      return (cellSizeByGroup[a] ?? '').compareTo(cellSizeByGroup[b] ?? '');
+    });
+
+  return [
+    for (final k in keys)
+      MachineDiameterGroup(
+        machine: null,
+        diametre: diametreByGroup[k],
+        cellSize: cellSizeByGroup[k],
+        quantity: quantityByGroup[k]!,
+        waste: (datesByGroup[k] ?? const <String>{}).fold<double>(0, (s, d) => s + (wasteByDate[d] ?? 0)),
+      ),
+  ];
 }
 
 // Comparateur "machine" partagé — extrait de aggregateByMachine ci-dessus

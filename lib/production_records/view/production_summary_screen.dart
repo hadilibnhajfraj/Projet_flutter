@@ -1188,31 +1188,48 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   static final _miniHeadStyle = tInter(fontSize: 10.5, fontWeight: FontWeight.w700, color: kCrmTextSub, letterSpacing: 0.2);
   static final _miniValueStyle = tInter(fontSize: 12.5, fontWeight: FontWeight.w500, color: kCrmText);
 
-  // §MODIFICATION — RÉCAPITULATIF PROMESH : REGROUPEMENT 1-2-3 / 4 SÉPARÉ
-  // (2026-09-12, ticket "modifier UNIQUEMENT la structure du RÉCAPITULATIF
-  // DE PRODUCTION") — `aggregateByMachine` (INCHANGÉE, toujours groupée par
-  // Machine+Diameter+Cell size) reste la seule source de vérité ; ce bloc se
-  // contente de RÉPARTIR ses sections en deux paquets pour l'affichage :
-  // toute machine "spéciale" (PROMESH 4, via `isPromesh4Machine` — jamais
-  // hardcodé "1,2,3" en dur, pour ne jamais fabriquer une ligne/valeur pour
-  // une machine absente des données filtrées) va dans `isolatedSections`
-  // (sa propre carte, inchangée) ; toutes les AUTRES machines sont
-  // aplaties dans `combinedGroups` (une seule carte avec colonne Machine,
-  // §1-§4 du ticket). Si PROMESH 4 n'a aucune donnée filtrée,
-  // `isolatedSections` est simplement vide (pas de carte vide affichée) —
-  // même principe déjà en vigueur pour toute machine sans donnée.
+  // §MODIFICATION — RÉCAPITULATIF PROMESH 1-2-3 : SUPPRESSION DE LA COLONNE
+  // MACHINE (2026-09-20, ticket "supprimer complètement la colonne
+  // Machine") — la répartition PROMESH 4 / reste des machines continue de
+  // s'appuyer sur `aggregateByMachine` (INCHANGÉE — toujours nécessaire pour
+  // isoler PROMESH 4 via `isPromesh4Machine`, jamais hardcodé "1,2,3"), mais
+  // les lignes du bloc "PROMESH 1+2+3" ne viennent PLUS de ces sections
+  // par-machine : elles sont recalculées par `aggregateByDiameterCellSize`
+  // sur les lignes BRUTES des machines non-4 (§2/§3 du ticket — GROUP BY
+  // Diameter+Cell size UNIQUEMENT, jamais Machine — deux machines
+  // différentes partageant le même Diameter+Cell size fusionnent désormais
+  // en une seule ligne). `combinedMachineNumbers` (extrait des lignes
+  // BRUTES, plus des groupes qui ne portent plus l'info machine) sert
+  // uniquement à composer le libellé d'en-tête/sous-total "PROMESH 1-2-3".
+  //
+  // §CORRECTION — EXCLUSION DES LIGNES "NOT SPECIFIED" (2026-09-21, ticket
+  // "corriger l'affichage du Production Summary") — `validRows` retire
+  // RÉELLEMENT (jamais un masquage visuel) toute fiche dont Diameter OU
+  // Cell size est absent/vide AVANT tout regroupement (§1/§4/§9 du ticket).
+  // Le tableau détaillé "PROMESH Production" (`widget.table.rows`, jamais
+  // référencé ci-dessous) continue d'afficher CES mêmes fiches intactes —
+  // seul le récapitulatif filtre (§8 du ticket).
   Widget _machineBreakdownBlock(AppLocalizations t) {
-    final sections = aggregateByMachine(widget.table.rows, groupByCellSize: widget.isPromesh);
+    final validRows = widget.table.rows.where(hasValidDiameterAndCellSize).toList();
+    final sections = aggregateByMachine(validRows, groupByCellSize: widget.isPromesh);
     if (sections.isEmpty) return const SizedBox.shrink();
 
-    final combinedGroups = <MachineDiameterGroup>[
-      for (final s in sections)
-        if (!isPromesh4Machine(s.machine)) ...s.rows,
-    ];
     final isolatedSections = [
       for (final s in sections)
         if (isPromesh4Machine(s.machine)) s,
     ];
+    final combinedRows = validRows.where((r) => !isPromesh4Machine(r.machine)).toList();
+    final combinedGroups = aggregateByDiameterCellSize(combinedRows);
+    final combinedMachineNumbers = <String>{
+      for (final r in combinedRows)
+        if (r.machine != null && r.machine!.trim().isNotEmpty) r.machine!.trim(),
+    }.toList()
+      ..sort((a, b) {
+        final na = int.tryParse(a);
+        final nb = int.tryParse(b);
+        if (na != null && nb != null) return na.compareTo(nb);
+        return a.compareTo(b);
+      });
 
     return Container(
       width: double.infinity,
@@ -1226,7 +1243,7 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
             style: tInter(fontSize: 11, fontWeight: FontWeight.w800, color: kCrmTextSub, letterSpacing: 0.6)),
         const SizedBox(height: 10),
         if (combinedGroups.isNotEmpty) ...[
-          _combinedMachineCard(t, combinedGroups),
+          _combinedMachineCard(t, combinedGroups, combinedMachineNumbers),
           if (isolatedSections.isNotEmpty) const SizedBox(height: 10),
         ],
         for (var i = 0; i < isolatedSections.length; i++) ...[
@@ -1237,39 +1254,26 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
     );
   }
 
-  // §1-§4 du ticket : UNE SEULE carte pour toutes les machines "standard"
-  // (jamais PROMESH 4), avec une colonne Machine supplémentaire pour
-  // distinguer chaque ligne — jamais une carte par machine comme avant.
-  // `groups` arrive déjà trié machine → diamètre → cell size (ordre produit
-  // par `aggregateByMachine`, jamais retrié ici).
-  Widget _combinedMachineCard(AppLocalizations t, List<MachineDiameterGroup> groups) {
+  // §1/§5 du ticket : UNE SEULE carte pour PROMESH 1+2+3, avec EXACTEMENT
+  // les mêmes 4 colonnes que la carte PROMESH 4 isolée (`_machineCard`) —
+  // Diameter | Cell size | Quantity | Waste, JAMAIS de colonne Machine
+  // (§1 du ticket). `groups` arrive déjà trié Diameter → Cell size (§6,
+  // produit par `aggregateByDiameterCellSize`, jamais retrié ici) ;
+  // `machineNumbers` (extrait des lignes brutes par l'appelant) sert
+  // uniquement au libellé d'en-tête/sous-total, jamais au regroupement.
+  Widget _combinedMachineCard(AppLocalizations t, List<MachineDiameterGroup> groups, List<String> machineNumbers) {
     final subtotal = groups.fold<double>(0, (sum, g) => sum + g.quantity);
-    // §MODIFICATION — SOUS-TOTAL PROMESH 1-2(-3) : COLONNES QUANTITY/WASTE
-    // SÉPARÉES (2026-09-14, ticket "corriger la ligne SOUS-TOTAL PROMESH
-    // 1-2") — simple somme des valeurs `waste` DÉJÀ calculées par groupe
-    // (voir `MachineDiameterGroup.waste`, produit par `aggregateByMachine`,
-    // jamais retouché ici) — jamais un recalcul à partir de Quantity (§5 du
+    // Simple somme des `waste` DÉJÀ calculés par groupe (voir
+    // `MachineDiameterGroup.waste`, produit par `aggregateByDiameterCellSize`,
+    // jamais retouché ici) — jamais un recalcul à partir de Quantity (§4 du
     // ticket), jamais le total général (`table.grandTotalWaste`, réservé au
     // bandeau TOTAL WASTE final, voir _grandTotalWasteRow, INCHANGÉ).
     final wasteSubtotal = groups.fold<double>(0, (sum, g) => sum + g.waste);
-    final machineNumbers = <String>{
-      for (final g in groups)
-        if (g.machine != null && g.machine!.trim().isNotEmpty) g.machine!.trim(),
-    }.toList()
-      ..sort((a, b) {
-        final na = int.tryParse(a);
-        final nb = int.tryParse(b);
-        if (na != null && nb != null) return na.compareTo(nb);
-        return a.compareTo(b);
-      });
     final headerLabel = machineNumbers.isEmpty
         ? AppLocalizations.of(context).translate('Non renseigné')
         : machineNumbers.map(formatPromeshMachineLabel).join(' + ');
-    // §MODIFICATION — RÉCAPITULATIF PROMESH : ALIGNEMENT SUR L'EXCEL DE
-    // RÉFÉRENCE (2026-09-13, ticket "reproduire exactement la logique de
-    // mon Excel") — §7/§9/§13 du ticket : "SOUS-TOTAL PROMESH 1-2-3" pour
-    // le bloc combiné (jamais "TOTAL", réservé au grand total final déjà
-    // existant en bas du tableau — voir _grandTotalRow, INCHANGÉ).
+    // "SOUS-TOTAL PROMESH 1-2-3" (jamais "TOTAL", réservé au grand total
+    // final déjà existant en bas du tableau — voir _grandTotalRow, INCHANGÉ).
     final totalLabel = machineNumbers.isEmpty ? '' : 'PROMESH ${machineNumbers.join('-')}';
 
     return Container(
@@ -1290,40 +1294,38 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
           ]),
         ),
         Container(height: 1, color: kCrmBorder),
-        // Mini-header — Machine en tête (§3 du ticket), seule différence
-        // structurelle avec la carte PROMESH 4 ci-dessous (_machineCard),
-        // qui n'a jamais eu besoin de cette colonne (une seule machine).
+        // Mini-header — EXACTEMENT les mêmes 4 colonnes/poids que la carte
+        // PROMESH 4 isolée ci-dessous (_machineCard) : plus aucune colonne
+        // Machine (§1 du ticket).
         Container(
           color: kCrmBg,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           child: Row(children: [
-            Expanded(flex: 2, child: Text(t.translate('Machine'), style: _miniHeadStyle)),
             Expanded(flex: 2, child: Text(t.translate('Diameter'), style: _miniHeadStyle)),
             Expanded(flex: 3, child: Text(t.translate('Cell size'), style: _miniHeadStyle)),
             Expanded(flex: 3, child: Text(t.translate('Quantity'), style: _miniHeadStyle, textAlign: TextAlign.right)),
             Expanded(flex: 2, child: Text(t.translate('Waste'), style: _miniHeadStyle, textAlign: TextAlign.right)),
           ]),
         ),
-        for (final g in groups) _combinedDetailRow(t, g),
-        // §5/§8 du ticket : UN SEUL total pour l'ensemble de la section
+        // Réutilise TEL QUEL `_machineDetailRow` (même structure Diameter/
+        // Cell size/Quantity/Waste que la carte PROMESH 4 isolée) — plus de
+        // widget dédié séparé nécessaire depuis la suppression de la
+        // colonne Machine.
+        for (final g in groups) _machineDetailRow(t, g),
+        // §7 du ticket : UN SEUL total pour l'ensemble de la section
         // (jamais un sous-total par machine à l'intérieur de cette carte) —
         // "SOUS-TOTAL PROMESH 1-2-3", jamais confondu avec le TOTAL PROMESH
         // final (couleur pleine, voir _grandTotalRow) qui, lui, inclut
-        // PROMESH 4.
-        //
-        // §MODIFICATION — COLONNES QUANTITY/WASTE SÉPARÉES (2026-09-14) —
-        // le libellé occupe désormais EXACTEMENT la largeur des colonnes
-        // Machine+Diameter+Cell size (flex 2+2+3=7, mêmes poids que
-        // `_combinedDetailRow`/le mini-header ci-dessus), puis Quantity
-        // (flex 3) et Waste (flex 2) sont CHACUNE alignées à droite sous
-        // leur propre colonne — jamais Waste affiché dans la colonne
-        // Quantity ou l'inverse (§3/§4 du ticket).
+        // PROMESH 4. Le libellé occupe la largeur des colonnes Diameter+
+        // Cell size (flex 2+3=5, mêmes poids que le mini-header ci-dessus),
+        // Quantity (flex 3) et Waste (flex 2) restent chacune alignées à
+        // droite sous leur propre colonne.
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           color: widget.color.withOpacity(0.06),
           child: Row(children: [
             Expanded(
-              flex: 7,
+              flex: 5,
               child: Text(totalLabel.isEmpty ? t.translate('SOUS-TOTAL') : '${t.translate('SOUS-TOTAL')} $totalLabel',
                   style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmText)),
             ),
@@ -1338,31 +1340,6 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
                   textAlign: TextAlign.right, style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmTextSub)),
             ),
           ]),
-        ),
-      ]),
-    );
-  }
-
-  // Ligne de détail de la carte combinée — MÊME style que `_machineDetailRow`
-  // ci-dessous, avec une colonne Machine supplémentaire en tête (§3 du
-  // ticket) pour savoir à quelle machine chaque ligne appartient.
-  Widget _combinedDetailRow(AppLocalizations t, MachineDiameterGroup g) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: kCrmBorder, width: 0.4))),
-      child: Row(children: [
-        Expanded(flex: 2, child: Text(formatPromeshMachineLabel(g.machine), style: _miniValueStyle.copyWith(fontWeight: FontWeight.w600))),
-        Expanded(flex: 2, child: Text(_diameterLabel(t, g.diametre), style: _miniValueStyle)),
-        Expanded(flex: 3, child: Text(_cellSizeLabel(t, g.cellSize), style: _miniValueStyle)),
-        Expanded(
-          flex: 3,
-          child: Text('${formatProductionNumber(g.quantity)} ${widget.table.unit}',
-              textAlign: TextAlign.right, style: _miniValueStyle.copyWith(fontWeight: FontWeight.w700, color: widget.color)),
-        ),
-        Expanded(
-          flex: 2,
-          child: Text('${g.waste.toStringAsFixed(2)} ${widget.table.wasteUnit}',
-              textAlign: TextAlign.right, style: _miniValueStyle.copyWith(color: kCrmTextSub)),
         ),
       ]),
     );
@@ -1518,8 +1495,35 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
     );
   }
 
+  // §CORRECTION — EXCLUSION DES LIGNES "NOT SPECIFIED" (2026-09-21, ticket
+  // "corriger l'affichage du Production Summary") — §7 du ticket : "TOTAL
+  // PROMESH doit être calculé uniquement à partir des lignes valides
+  // affichées dans les deux blocs" = SOUS-TOTAL PROMESH 1-2-3 + SOUS-TOTAL
+  // PROMESH 4 (mêmes `validRows` que _machineBreakdownBlock/
+  // _recapWasteTotal). PROBAR (aucun récapitulatif affiché, jamais concerné
+  // par ce ticket) garde `table.grandTotal` inchangé.
+  //
+  // IMPORTANT — CHANGEMENT DE COMPORTEMENT VISIBLE : avant cette correction,
+  // "TOTAL PROMESH" incluait TOUTE la quantité de `table.grandTotal`
+  // (valeur backend, y compris les fiches sans Diameter/Cell size
+  // renseignés). Il n'inclut désormais QUE la quantité des fiches valides —
+  // une fiche réelle mais sans Diameter/Cell size ne contribue plus du tout
+  // à ce total, exactement comme demandé explicitement par ce ticket.
+  double _recapQuantityTotal() {
+    final validRows = widget.table.rows.where(hasValidDiameterAndCellSize).toList();
+    final sections = aggregateByMachine(validRows, groupByCellSize: true);
+    final isolatedQty = sections
+        .where((s) => isPromesh4Machine(s.machine))
+        .expand((s) => s.rows)
+        .fold<double>(0, (sum, g) => sum + g.quantity);
+    final combinedRows = validRows.where((r) => !isPromesh4Machine(r.machine)).toList();
+    final combinedQty = aggregateByDiameterCellSize(combinedRows).fold<double>(0, (sum, g) => sum + g.quantity);
+    return isolatedQty + combinedQty;
+  }
+
   Widget _grandTotalRow(AppLocalizations t) {
     final leadingFlex = _flexIndex + _flexDate + _flexMachine + _flexShift + _flexDiameter + (widget.isPromesh ? _flexMesh : 0);
+    final qtyTotal = widget.isPromesh ? _recapQuantityTotal() : widget.table.grandTotal;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(color: widget.color),
@@ -1531,7 +1535,7 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
         ),
         Expanded(
           flex: _flexQty,
-          child: Text('${formatProductionNumber(widget.table.grandTotal)} ${widget.table.unit}',
+          child: Text('${formatProductionNumber(qtyTotal)} ${widget.table.unit}',
               textAlign: TextAlign.right, style: tInter(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
         ),
         // Colonne Waste laissée vide sur cette ligne — son propre total
@@ -1565,9 +1569,29 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   // _machineBreakdownBlock ci-dessus, gate `if (widget.isPromesh)`) garde
   // `table.grandTotalWaste` inchangé — rien à réconcilier puisqu'aucun
   // sous-total n'est montré à l'écran pour PROBAR.
+  // §MISE À JOUR — SUPPRESSION COLONNE MACHINE DU BLOC 1-2-3 (2026-09-20) —
+  // depuis que le bloc "PROMESH 1+2+3" est recalculé par
+  // `aggregateByDiameterCellSize` (jamais `aggregateByMachine`, voir
+  // _machineBreakdownBlock), ce total DOIT suivre EXACTEMENT la même
+  // logique pour rester la somme réelle des sous-totaux affichés (sinon on
+  // réintroduit la même incohérence que la correction précédente, vue sous
+  // un autre angle) : PROMESH 4 (isolé, via `aggregateByMachine` — jamais
+  // changé, une seule machine) + le reste (PROMESH 1-2-3, via
+  // `aggregateByDiameterCellSize` sur les lignes brutes non-PROMESH 4).
   double _recapWasteTotal() {
-    final sections = aggregateByMachine(widget.table.rows, groupByCellSize: true);
-    return sections.expand((s) => s.rows).fold<double>(0, (sum, g) => sum + g.waste);
+    // §CORRECTION — EXCLUSION DES LIGNES "NOT SPECIFIED" (2026-09-21) — même
+    // filtre `validRows` que `_machineBreakdownBlock` (§2/§7 du ticket :
+    // "Not specified" ne doit avoir AUCUN impact sur le total), pour que ce
+    // total reste la somme exacte des sous-totaux réellement affichés.
+    final validRows = widget.table.rows.where(hasValidDiameterAndCellSize).toList();
+    final sections = aggregateByMachine(validRows, groupByCellSize: true);
+    final isolatedWaste = sections
+        .where((s) => isPromesh4Machine(s.machine))
+        .expand((s) => s.rows)
+        .fold<double>(0, (sum, g) => sum + g.waste);
+    final combinedRows = validRows.where((r) => !isPromesh4Machine(r.machine)).toList();
+    final combinedWaste = aggregateByDiameterCellSize(combinedRows).fold<double>(0, (sum, g) => sum + g.waste);
+    return isolatedWaste + combinedWaste;
   }
 
   Widget _grandTotalWasteRow(AppLocalizations t) {
