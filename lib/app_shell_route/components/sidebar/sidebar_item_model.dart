@@ -428,6 +428,19 @@ List<SidebarSubmenuModel> _machineSubmenus(String lineRoot) => List.generate(
       ),
     );
 
+// §MODIFICATION — "PRODUCTION SUMMARY" REMONTÉ AU NIVEAU RACINE
+// (2026-09-18, ticket "Production Summary PROMESH/PROBAR ne doivent PAS
+// être à l'intérieur des sous-menus PROMESH/PROBAR") — les sous-menus
+// PROMESH/PROBAR ne contiennent plus QUE les 4 machines (§5 du ticket) ;
+// "Production Summary PROMESH"/"Production Summary PROBAR" sont désormais
+// des `SidebarItemModel` de type `tile` INDÉPENDANTS, au même niveau que
+// PROMESH/PROBAR dans le groupe PRODUCTION (§1-§4/§9-§11 : toujours
+// visibles, quel que soit l'état ouvert/replié des sous-menus PROMESH/
+// PROBAR — un `tile` frère n'est jamais affecté par le collapse d'un
+// `submenu` voisin) — voir `buildIndustrialGroups()` ci-dessous. L'ancienne
+// fonction `_lineSubmenus` (qui injectait "Production Summary" DANS le
+// sous-menu) est supprimée, remplacée par `_machineSubmenus` seule (machines
+// uniquement, §5).
 List<GroupedMenuModel> buildIndustrialGroups() => [
       GroupedMenuModel(
         name: 'PRODUCTION',
@@ -440,6 +453,18 @@ List<GroupedMenuModel> buildIndustrialGroups() => [
             accentColor:    kPromeshColor,
             submenus:       _machineSubmenus(MyRoute.productionPromeshRoot),
           ),
+          // §6/§7 du ticket : route déjà existante, jamais inventée —
+          // `MyRoute.productionPromeshSummaryScreen` (`/production/
+          // promesh-summary`), la même que verrouille `ProductionSummaryScreen
+          // (fixedType: 'promesh')` (voir my_route.dart) — clic direct sur
+          // la page, aucune navigation intermédiaire.
+          SidebarItemModel(
+            name:           'Production Summary PROMESH',
+            icon:           Icons.summarize_outlined,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: MyRoute.productionPromeshSummaryScreen,
+            accentColor:    kPromeshColor,
+          ),
           SidebarItemModel(
             name:           'PROBAR',
             icon:           Icons.factory_outlined,
@@ -448,17 +473,15 @@ List<GroupedMenuModel> buildIndustrialGroups() => [
             accentColor:    kProbarColor,
             submenus:       _machineSubmenus(MyRoute.productionProbarRoot),
           ),
+          // §6/§7 du ticket : même principe, route existante
+          // `MyRoute.productionProbarSummaryScreen` (`/production/
+          // probar-summary`).
           SidebarItemModel(
-            name:           'Fiches de production',
-            icon:           Icons.receipt_long_outlined,
-            sidebarItemType: SidebarItemType.tile,
-            navigationPath: MyRoute.productionRecordsScreen,
-          ),
-          SidebarItemModel(
-            name:           'Production Summary',
+            name:           'Production Summary PROBAR',
             icon:           Icons.summarize_outlined,
             sidebarItemType: SidebarItemType.tile,
-            navigationPath: MyRoute.productionSummaryScreen,
+            navigationPath: MyRoute.productionProbarSummaryScreen,
+            accentColor:    kProbarColor,
           ),
         ],
       ),

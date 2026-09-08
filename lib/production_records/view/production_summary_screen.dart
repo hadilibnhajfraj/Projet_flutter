@@ -48,13 +48,6 @@ Widget _responsiveCardGrid(List<Widget> cards, int columns, {double gap = 14}) {
   return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: rows);
 }
 
-const _kPeriods = <(String?, String)>[
-  (null, 'Toutes les périodes'),
-  ('week', 'Cette semaine'),
-  ('month', 'Ce mois'),
-  ('custom', 'Personnalisée'),
-];
-
 // Le filtre Statut par défaut est "Validées" — mêmes fiches que les autres
 // KPI industriels de la page "Fiches de production" (voir
 // getProductionTotals) ; "Toutes" est une valeur explicite distincte, jamais
@@ -66,8 +59,20 @@ const _kStatuses = <(String, String)>[
   ('all', 'Toutes'),
 ];
 
+// §MODIFICATION — DEUX PAGES SÉPARÉES PROMESH/PROBAR (2026-09-08) —
+// `fixedType` ('promesh'/'probar') verrouille définitivement le filtre Type
+// sur une seule valeur (le sélecteur segmenté "Toutes/PROMESH/PROBAR"
+// disparaît, voir `_buildFiltersCard`) : la page ne récupère et n'affiche
+// alors QUE ce type, via le MÊME paramètre `type` déjà supporté par
+// `fetchSummary`/`GET /production-records/summary` (aucun changement
+// backend). `fixedType: null` (défaut) préserve EXACTEMENT le comportement
+// combiné historique de l'ancienne route `/production/summary` — jamais
+// cassé, pour ne rien casser côté deep-links/favoris existants (voir
+// my_route.dart). Aucune duplication de logique : `_ProductionSummaryScreenState`
+// reste un SEUL widget partagé, réutilisé par les 3 routes.
 class ProductionSummaryScreen extends StatefulWidget {
-  const ProductionSummaryScreen({super.key});
+  final String? fixedType;
+  const ProductionSummaryScreen({super.key, this.fixedType});
 
   @override
   State<ProductionSummaryScreen> createState() => _ProductionSummaryScreenState();
@@ -78,13 +83,52 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
   bool _exporting = false;
   String? _error;
 
+  // Initialisé à `widget.fixedType` dans `initState` (jamais modifiable par
+  // l'utilisateur quand verrouillé — voir _buildFiltersCard) ; reste
+  // librement modifiable via le sélecteur segmenté quand `fixedType` est
+  // `null` (page combinée historique, comportement inchangé).
   String? _type; // null = 'Toutes' | 'probar' | 'promesh'
-  String? _period;
-  DateTime? _customStart;
-  DateTime? _customEnd;
+  // §MODIFICATION — PRODUCTION SUMMARY : FILTRE "CUSTOM DATE" UNIQUE +
+  // COLONNE SHIFT (2026-09-07) — le filtre de période ne conserve plus QUE
+  // "Custom" (§1 du ticket) : `_period` (dropdown "Toutes/Semaine/Mois/
+  // Personnalisée") est retiré.
+  //
+  // §CORRECTION — CUSTOM DATE : SÉLECTION D'UNE SEULE DATE (2026-09-07,
+  // ticket suivant) — "Custom Date" filtre sur UN SEUL jour, jamais une
+  // plage : `_selectedDate` remplace les anciens `_customStart`/`_customEnd`
+  // (DateTimeRange/showDateRangePicker retirés). Envoyé au backend comme
+  // `startDate == endDate == _selectedDate` (voir _load ci-dessous) — le
+  // backend borne déjà correctement sur le jour calendaire complet
+  // [startDate, startDate+1) sans jamais comparer d'heure (computeDateRange,
+  // productionRecords.service.js), donc aucun changement backend n'était
+  // nécessaire pour ce ticket.
+  //
+  // §MODIFICATION — CUSTOM DATE : DEUX MODES "DATE UNIQUE" / "PÉRIODE"
+  // (2026-09-09) — `_selectedRange` (NOUVEAU) ajoute le mode période à côté
+  // du mode date unique déjà existant, SANS le remplacer (§1/§2 du ticket :
+  // "permettre deux modes de sélection"). Les deux champs sont mutuellement
+  // exclusifs (choisir l'un efface l'autre, voir _customDateChip) — jamais
+  // les deux actifs en même temps. `computeDateRange` (backend, DÉJÀ
+  // existant, inchangé) borne déjà [startDate, endDate+1) de façon inclusive
+  // dès que les deux dates sont fournies (voir Backend Master/src/modules/
+  // production-records/utils/dateRange.js) : envoyer directement
+  // `_selectedRange.start`/`_selectedRange.end` comme startDate/endDate
+  // (voir _load) suffit pour une période inclusive (§6 du ticket), aucun
+  // changement backend nécessaire.
+  DateTime? _selectedDate;
+  DateTimeRange? _selectedRange;
   String? _machineFilter;
   String? _diameterFilter;
   String _status = 'validee';
+
+  // §MODIFICATION — TRI DES TABLEAUX "PROMESH/PROBAR PRODUCTION"
+  // (2026-09-11) — état de tri PUREMENT client (§22 du ticket : aucun appel
+  // backend), un par type, totalement indépendant (trier PROMESH ne touche
+  // jamais l'état de tri PROBAR). Vit ICI (pas dans `_SummaryTableCardState`)
+  // pour que l'export Excel/PDF (§16/§17) puisse refléter le tri
+  // actuellement actif — voir _sortedSummaryForExport plus bas.
+  ProductionRowSort? _promeshSort;
+  ProductionRowSort? _probarSort;
 
   ProductionSummary _summary = const ProductionSummary();
   ProductionRecordFilters _filters = const ProductionRecordFilters();
@@ -92,6 +136,7 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
   @override
   void initState() {
     super.initState();
+    _type = widget.fixedType;
     _loadFilters();
     _load();
   }
@@ -116,11 +161,31 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
       _error = null;
     });
     try {
+      // §MODIFICATION — CUSTOM DATE : DEUX MODES (2026-09-09) — mode "Date
+      // unique" : `startDate == endDate == _selectedDate` (inchangé). Mode
+      // "Période" (NOUVEAU) : `startDate`/`endDate` reçoivent les deux
+      // bornes réelles choisies par l'utilisateur — le backend
+      // (computeDateRange, DÉJÀ existant, inchangé) calcule alors
+      // [startDate, endDate+1), une plage inclusive des deux bornes (§6 du
+      // ticket), sans jamais comparer l'heure (`dateProduction`/`dateFiche`
+      // sont DATEONLY côté base). Les deux modes sont mutuellement
+      // exclusifs (voir _selectedRange/_selectedDate ci-dessus) ;
+      // `period: 'custom'` n'est envoyé QUE si une date/période est
+      // choisie — le backend ignore totalement startDate/endDate sinon.
+      String? startIso;
+      String? endIso;
+      if (_selectedDate != null) {
+        startIso = DateFormat('yyyy-MM-dd').format(_selectedDate!);
+        endIso = startIso;
+      } else if (_selectedRange != null) {
+        startIso = DateFormat('yyyy-MM-dd').format(_selectedRange!.start);
+        endIso = DateFormat('yyyy-MM-dd').format(_selectedRange!.end);
+      }
       final summary = await ProductionRecordsService.instance.fetchSummary(
         type: _type,
-        period: _period,
-        startDate: _period == 'custom' && _customStart != null ? DateFormat('yyyy-MM-dd').format(_customStart!) : null,
-        endDate: _period == 'custom' && _customEnd != null ? DateFormat('yyyy-MM-dd').format(_customEnd!) : null,
+        period: startIso == null ? null : 'custom',
+        startDate: startIso,
+        endDate: endIso,
         machineId: _machineFilter,
         diameter: _diameterFilter,
         status: _status,
@@ -135,19 +200,40 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
     }
   }
 
+  // §15 du ticket : titre/sous-titre dépendent de `widget.fixedType` — la
+  // page combinée historique (`fixedType == null`) garde ses libellés
+  // d'origine, inchangés.
+  String get _pageTitleKey => switch (widget.fixedType) {
+        'promesh' => 'Production Summary — PROMESH',
+        'probar' => 'Production Summary — PROBAR',
+        _ => 'Production Summary',
+      };
+
+  String get _pageSubtitleKey => switch (widget.fixedType) {
+        'promesh' => 'Production overview for PROMESH',
+        'probar' => 'Production overview for PROBAR',
+        _ => 'Production overview for PROBAR and PROMESH',
+      };
+
   Future<void> _refreshAll() => Future.wait([_loadFilters(), _load()]);
 
   void _onFilterChanged() => _load();
 
   void _resetFilters() {
     setState(() {
-      _type = null;
-      _period = null;
-      _customStart = null;
-      _customEnd = null;
+      // Revient au type verrouillé (page dédiée) ou à "Toutes" (page
+      // combinée historique) — jamais un Reset qui ferait apparaître
+      // l'autre type sur une page dédiée.
+      _type = widget.fixedType;
+      _selectedDate = null;
+      _selectedRange = null;
       _machineFilter = null;
       _diameterFilter = null;
       _status = 'validee';
+      // §18/§19 du ticket "tri" : Reset supprime aussi le tri actif des deux
+      // tableaux — retour complet à l'ordre par défaut.
+      _promeshSort = null;
+      _probarSort = null;
     });
     _load();
   }
@@ -156,16 +242,25 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
   // et export — le PDF/Excel doit refléter EXACTEMENT ce que l'utilisateur
   // voit) ──────────────────────────────────────────────────────────────────
   String _periodLabel(AppLocalizations t) {
-    if (_period == 'custom') {
-      final s = _customStart == null ? '…' : DateFormat('dd/MM/yyyy').format(_customStart!);
-      final e = _customEnd == null ? '…' : DateFormat('dd/MM/yyyy').format(_customEnd!);
-      return '$s → $e';
+    if (_selectedDate != null) {
+      return DateFormat('dd/MM/yyyy').format(_selectedDate!);
     }
-    final match = _kPeriods.firstWhere((p) => p.$1 == _period, orElse: () => (_period, 'Toutes les périodes'));
-    return t.translate(match.$2);
+    if (_selectedRange != null) {
+      return '${DateFormat('dd/MM/yyyy').format(_selectedRange!.start)} - ${DateFormat('dd/MM/yyyy').format(_selectedRange!.end)}';
+    }
+    return t.translate('Toutes les périodes');
   }
 
-  String? get _machineLabel => _machineFilter == null ? null : 'Machine $_machineFilter';
+  // §MODIFICATION — CORRECTION GLOBALE DES TRADUCTIONS (2026-09-17, ticket
+  // "l'interface mélange parfois l'anglais et le français") — le mot
+  // "Machine" était écrit en dur (jamais passé par `t.translate`), donc
+  // jamais traduit si la langue changeait cette convention à l'avenir —
+  // corrigé pour repasser par le système de localisation existant, comme
+  // partout ailleurs dans ce fichier (§2/§3 du ticket : ne jamais laisser un
+  // texte contourner `AppLocalizations`, ne jamais créer de système
+  // parallèle).
+  String? get _machineLabel =>
+      _machineFilter == null ? null : '${AppLocalizations.of(context).translate('Machine')} $_machineFilter';
 
   ProductionSummaryExportContext get _exportContext => ProductionSummaryExportContext(
         periodLabel: _periodLabel(AppLocalizations.of(context)),
@@ -177,11 +272,54 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
         // Valeurs brutes des filtres — utilisées uniquement par
         // exportExcel() pour calculer dynamiquement la plage de dates
         // réelle des fiches exportées (voir _resolveExcelPeriodRange).
-        rawPeriod: _period,
-        rawStartDate: _period == 'custom' && _customStart != null ? DateFormat('yyyy-MM-dd').format(_customStart!) : null,
-        rawEndDate: _period == 'custom' && _customEnd != null ? DateFormat('yyyy-MM-dd').format(_customEnd!) : null,
+        // §MODIFICATION — CUSTOM DATE : DEUX MODES (2026-09-09) —
+        // `rawStartDate`/`rawEndDate` reçoivent EXACTEMENT les mêmes bornes
+        // que `_load()` ci-dessus (date unique OU période réelle), pour que
+        // l'export reflète toujours exactement ce que l'écran affiche.
+        rawPeriod: (_selectedDate == null && _selectedRange == null) ? null : 'custom',
+        rawStartDate: _selectedDate != null
+            ? DateFormat('yyyy-MM-dd').format(_selectedDate!)
+            : (_selectedRange != null ? DateFormat('yyyy-MM-dd').format(_selectedRange!.start) : null),
+        rawEndDate: _selectedDate != null
+            ? DateFormat('yyyy-MM-dd').format(_selectedDate!)
+            : (_selectedRange != null ? DateFormat('yyyy-MM-dd').format(_selectedRange!.end) : null),
         rawMachineId: _machineFilter,
       );
+
+  // §16/§17 du ticket "tri" : Excel/PDF/Impression doivent respecter le tri
+  // actuellement actif dans le tableau détaillé — construit une COPIE de
+  // `_summary` dont seul `rows` est réordonné (mêmes `grandTotal`/
+  // `grandTotalWaste`/`totalRecords`/`unit`, jamais recalculés). Le
+  // récapitulatif Excel n'est PAS affecté : `aggregateByMachine` (appelé côté
+  // export) retrie de toute façon intégralement par machine/diamètre/cell
+  // size, quel que soit l'ordre d'entrée des lignes (§16 : "ne doit pas être
+  // détruit par le tri du tableau détaillé").
+  ProductionSummary get _sortedSummaryForExport {
+    final promesh = _summary.promesh;
+    final probar = _summary.probar;
+    return ProductionSummary(
+      promesh: promesh == null
+          ? null
+          : ProductionSummaryTable(
+              rows: sortProductionRows(promesh.rows, column: _promeshSort?.column, ascending: _promeshSort?.ascending ?? true),
+              grandTotal: promesh.grandTotal,
+              unit: promesh.unit,
+              totalRecords: promesh.totalRecords,
+              grandTotalWaste: promesh.grandTotalWaste,
+              wasteUnit: promesh.wasteUnit,
+            ),
+      probar: probar == null
+          ? null
+          : ProductionSummaryTable(
+              rows: sortProductionRows(probar.rows, column: _probarSort?.column, ascending: _probarSort?.ascending ?? true),
+              grandTotal: probar.grandTotal,
+              unit: probar.unit,
+              totalRecords: probar.totalRecords,
+              grandTotalWaste: probar.grandTotalWaste,
+              wasteUnit: probar.wasteUnit,
+            ),
+    );
+  }
 
   Future<void> _runExport(Future<void> Function() action) async {
     if (_exporting) return;
@@ -227,8 +365,20 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
               if (_error != null)
                 _buildError(context)
               else ...[
-                _buildKpiRow(context, isMobile),
-                const SizedBox(height: 26),
+                // §MODIFICATION — SUPPRESSION CARTES KPI SUR LES PAGES DÉDIÉES
+                // (2026-09-09, §1/§14/§15 du ticket) — "Total PROMESH/PROBAR"
+                // et "Number of records" ne sont plus affichées QUE sur les
+                // deux pages dédiées PROMESH/PROBAR (`widget.fixedType !=
+                // null`) : le tableau détaillé remonte alors naturellement à
+                // leur place (§19, aucun espace vide laissé — voir aussi le
+                // SizedBox(height: 26) ci-dessous, également retiré dans ce
+                // cas). La page combinée historique (`fixedType == null`,
+                // `/production/summary`, jamais visée par ce ticket) garde
+                // ces cartes strictement inchangées.
+                if (widget.fixedType == null) ...[
+                  _buildKpiRow(context, isMobile),
+                  const SizedBox(height: 26),
+                ],
                 if (_loading && promesh == null && probar == null)
                   _buildTablesSkeleton()
                 else ...[
@@ -241,6 +391,8 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
                       icon: Icons.factory_outlined,
                       table: promesh,
                       isPromesh: true,
+                      sort: _promeshSort,
+                      onSortChanged: (s) => setState(() => _promeshSort = s),
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -253,9 +405,20 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
                       icon: Icons.factory_outlined,
                       table: probar,
                       isPromesh: false,
+                      sort: _probarSort,
+                      onSortChanged: (s) => setState(() => _probarSort = s),
                     ),
                     const SizedBox(height: 24),
                   ],
+                  // §SUPPRESSION — TABLEAUX "TOTAL PAR JOURNÉE" (2026-09-08,
+                  // ticket "supprimer complètement les deux tableaux de
+                  // synthèse") — les sections PROMESH/PROBAR "Total par
+                  // journée" (et toute leur logique d'agrégation dédiée,
+                  // `DailyProductionTotal`/`_aggregateDailyTotals`/
+                  // `_DailyTotalsSection`/`_DailyTotalsTableCard`/
+                  // `_PromeshDailyBreakdownCard`) ont été entièrement
+                  // retirées — seuls les tableaux détaillés PROMESH/PROBAR
+                  // Production (`_ProductionSection` ci-dessus) subsistent.
                   if (promesh == null && probar == null) _buildEmpty(context, t),
                 ],
               ],
@@ -283,10 +446,10 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
       const SizedBox(width: 12),
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(t.translate('Production Summary'), style: tInter(fontSize: 21, fontWeight: FontWeight.w800, color: kCrmText)),
+          Text(t.translate(_pageTitleKey), style: tInter(fontSize: 21, fontWeight: FontWeight.w800, color: kCrmText)),
           const SizedBox(height: 2),
           Text(
-            t.translate('Production overview for PROBAR and PROMESH'),
+            t.translate(_pageSubtitleKey),
             style: tInter(fontSize: 12.5, color: kCrmTextSub),
           ),
         ]),
@@ -330,12 +493,31 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: kCrmSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: kCrmBorder)),
       child: Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
-        btn(Icons.table_view_rounded, 'Export Excel',
-            () => _runExport(() => ProductionSummaryExportService.instance.exportExcel(_summary, _exportContext))),
-        btn(Icons.picture_as_pdf_outlined, 'Export PDF',
-            () => _runExport(() => ProductionSummaryExportService.instance.exportPdf(_summary, _exportContext))),
-        btn(Icons.print_outlined, 'Imprimer',
-            () => _runExport(() => ProductionSummaryExportService.instance.printSummary(_summary, _exportContext))),
+        // §MODIFICATION — CORRECTION GLOBALE DES TRADUCTIONS (2026-09-17) —
+        // le service d'export n'a pas de `BuildContext` propre (ce n'est
+        // pas un widget) : on lui transmet directement la fonction
+        // `translate` déjà résolue ICI (où `context` est disponible), pour
+        // que Excel/PDF/Impression respectent la langue actuellement
+        // sélectionnée — jamais un second système de traduction (§3 du
+        // ticket).
+        btn(
+          Icons.table_view_rounded,
+          'Export Excel',
+          () => _runExport(() => ProductionSummaryExportService.instance
+              .exportExcel(_sortedSummaryForExport, _exportContext, AppLocalizations.of(context).translate)),
+        ),
+        btn(
+          Icons.picture_as_pdf_outlined,
+          'Export PDF',
+          () => _runExport(() => ProductionSummaryExportService.instance
+              .exportPdf(_sortedSummaryForExport, _exportContext, AppLocalizations.of(context).translate)),
+        ),
+        btn(
+          Icons.print_outlined,
+          'Imprimer',
+          () => _runExport(() => ProductionSummaryExportService.instance
+              .printSummary(_sortedSummaryForExport, _exportContext, AppLocalizations.of(context).translate)),
+        ),
         if (_exporting) ...[
           const SizedBox(width: 4),
           const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -352,18 +534,24 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: kCrmSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: kCrmBorder)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _buildTypeFilter(context),
-        const SizedBox(height: 14),
+        // §3/§13 du ticket : sur une page dédiée (fixedType défini), le
+        // sélecteur "Toutes/PROMESH/PROBAR" n'a plus lieu d'être — la page
+        // ne montre QUE le type verrouillé, jamais un moyen de basculer
+        // vers l'autre type depuis cet écran. La page combinée historique
+        // (`fixedType == null`) garde ce sélecteur, inchangé.
+        if (widget.fixedType == null) ...[
+          _buildTypeFilter(context),
+          const SizedBox(height: 14),
+        ],
         Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          _dropdown<String?>(
-            icon: Icons.event_outlined,
-            value: _period,
-            items: [for (final p in _kPeriods) (p.$1, t.translate(p.$2))],
-            onChanged: (v) => setState(() {
-              _period = v;
-              _onFilterChanged();
-            }),
-          ),
+          // §MODIFICATION — PRODUCTION SUMMARY : FILTRE "CUSTOM DATE" UNIQUE
+          // (2026-09-07) — remplace l'ancien dropdown Période ("Toutes/
+          // Semaine/Mois/Personnalisée") + les deux chips "Date début"/"Date
+          // fin" affichées séparément : UN SEUL contrôle, toujours visible.
+          // §CORRECTION — SÉLECTION D'UNE SEULE DATE (2026-09-07, ticket
+          // suivant) : filtre sur UN SEUL jour (`showDatePicker`), jamais une
+          // plage — voir _customDateChip plus bas.
+          _customDateChip(context),
           _dropdown<String?>(
             icon: Icons.circle_outlined,
             value: _diameterFilter,
@@ -381,7 +569,7 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
             value: _machineFilter,
             items: [
               (null, t.translate('Toutes les machines')),
-              for (final m in _filters.machines) (m, 'Machine $m'),
+              for (final m in _filters.machines) (m, '${t.translate('Machine')} $m'),
             ],
             onChanged: (v) => setState(() {
               _machineFilter = v;
@@ -403,29 +591,99 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
             label: Text(t.translate('Réinitialiser'), style: tInter(fontSize: 12.5, fontWeight: FontWeight.w600, color: kCrmTextSub)),
           ),
         ]),
-        if (_period == 'custom') ...[
-          const SizedBox(height: 10),
-          Wrap(spacing: 10, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
-            _datePickerChip(
-              label: t.translate('Date début'),
-              value: _customStart,
-              onPicked: (d) => setState(() {
-                _customStart = d;
-                _onFilterChanged();
-              }),
-            ),
-            _datePickerChip(
-              label: t.translate('Date fin'),
-              value: _customEnd,
-              onPicked: (d) => setState(() {
-                _customEnd = d;
-                _onFilterChanged();
-              }),
-            ),
-          ]),
-        ],
       ]),
     );
+  }
+
+  // §MODIFICATION — CUSTOM DATE : DEUX MODES "DATE UNIQUE" / "PÉRIODE"
+  // (2026-09-09) — remplace l'ancien tap unique (qui n'ouvrait QUE
+  // `showDatePicker`) par un `PopupMenuButton` proposant explicitement les
+  // deux modes (§3 du ticket) : "Date unique" ouvre `showDatePicker` (jour
+  // unique, comportement inchangé du ticket précédent) ; "Période" ouvre
+  // `showDateRangePicker` (§5 — SEULE l'action de choisir "Période" fait
+  // apparaître Date début/Date fin, jamais affichées par défaut, §4 :
+  // toujours absentes en mode Date unique). Les deux champs d'état
+  // (_selectedDate/_selectedRange) sont mutuellement exclusifs : choisir
+  // l'un efface systématiquement l'autre (§7 : Reset les efface tous les
+  // deux également, voir _resetFilters).
+  Widget _customDateChip(BuildContext context) {
+    final t = AppLocalizations.of(context);
+    final label = _customDateLabel(t);
+
+    Future<void> pickSingleDate() async {
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: _selectedDate ?? DateTime.now(),
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+      );
+      if (picked == null) return;
+      setState(() {
+        _selectedDate = picked;
+        _selectedRange = null;
+      });
+      _onFilterChanged();
+    }
+
+    Future<void> pickRange() async {
+      final picked = await showDateRangePicker(
+        context: context,
+        initialDateRange: _selectedRange,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+      );
+      if (picked == null) return;
+      setState(() {
+        _selectedRange = picked;
+        _selectedDate = null;
+      });
+      _onFilterChanged();
+    }
+
+    return PopupMenuButton<String>(
+      tooltip: '',
+      offset: const Offset(0, 42),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      onSelected: (mode) {
+        if (mode == 'single') pickSingleDate();
+        if (mode == 'range') pickRange();
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(value: 'single', child: Text(t.translate('Date unique'))),
+        PopupMenuItem(value: 'range', child: Text(t.translate('Période'))),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(color: kCrmBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: kCrmBorder)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.calendar_today_outlined, size: 14, color: kCrmTextSub),
+          const SizedBox(width: 6),
+          Text(label, style: tInter(fontSize: 12.5, fontWeight: FontWeight.w600, color: kCrmText)),
+          const SizedBox(width: 4),
+          const Icon(Icons.expand_more_rounded, size: 16, color: kCrmTextSub),
+        ]),
+      ),
+    );
+  }
+
+  // §8 du ticket — trois cas d'affichage distincts : aucune date ("Custom
+  // Date"), date unique ("Custom Date : dd/MM/yyyy"), période ("Period :
+  // dd/MM/yyyy - dd/MM/yyyy"). Même format de date que le reste de
+  // l'application (dd/MM/yyyy, voir _formatProductionDate).
+  String _customDateLabel(AppLocalizations t) {
+    if (_selectedDate != null) {
+      return '${t.translate('Custom Date')} : ${DateFormat('dd/MM/yyyy').format(_selectedDate!)}';
+    }
+    if (_selectedRange != null) {
+      final start = DateFormat('dd/MM/yyyy').format(_selectedRange!.start);
+      final end = DateFormat('dd/MM/yyyy').format(_selectedRange!.end);
+      // §CORRECTION — CLÉ DE TRADUCTION INCOHÉRENTE (2026-09-17) : ce même
+      // libellé utilisait une clé DIFFÉRENTE ('Period') de celle du menu de
+      // sélection ci-dessus ('Période') — deux clés pour le même concept
+      // pouvaient diverger et mélanger les langues. Unifié sur 'Période'.
+      return '${t.translate('Période')} : $start - $end';
+    }
+    return t.translate('Custom Date');
   }
 
   // ── FILTRE TYPE (segmenté) ───────────────────────────────────────────
@@ -458,31 +716,6 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
       seg('promesh', 'PROMESH', kPromeshColor),
       seg('probar', 'PROBAR', kProbarColor),
     ]);
-  }
-
-  Widget _datePickerChip({required String label, required DateTime? value, required ValueChanged<DateTime> onPicked}) {
-    return InkWell(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: value ?? DateTime.now(),
-          firstDate: DateTime(2020),
-          lastDate: DateTime(2100),
-        );
-        if (picked != null) onPicked(picked);
-      },
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(color: kCrmBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: kCrmBorder)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.calendar_today_outlined, size: 14, color: kCrmTextSub),
-          const SizedBox(width: 6),
-          Text(value == null ? label : DateFormat('dd/MM/yyyy').format(value),
-              style: tInter(fontSize: 12.5, fontWeight: FontWeight.w600, color: kCrmText)),
-        ]),
-      ),
-    );
   }
 
   Widget _dropdown<T>({
@@ -640,6 +873,8 @@ class _ProductionSection extends StatelessWidget {
   final IconData icon;
   final ProductionSummaryTable table;
   final bool isPromesh;
+  final ProductionRowSort? sort;
+  final ValueChanged<ProductionRowSort?> onSortChanged;
 
   const _ProductionSection({
     required this.titleKey,
@@ -648,6 +883,8 @@ class _ProductionSection extends StatelessWidget {
     required this.icon,
     required this.table,
     required this.isPromesh,
+    required this.sort,
+    required this.onSortChanged,
   });
 
   @override
@@ -675,7 +912,14 @@ class _ProductionSection extends StatelessWidget {
         ),
       ]),
       const SizedBox(height: 12),
-      _SummaryTableCard(color: color, table: table, isPromesh: isPromesh, grandTotalLabelKey: totalLabelKey),
+      _SummaryTableCard(
+        color: color,
+        table: table,
+        isPromesh: isPromesh,
+        grandTotalLabelKey: totalLabelKey,
+        sort: sort,
+        onSortChanged: onSortChanged,
+      ),
     ]);
   }
 }
@@ -688,19 +932,25 @@ class _ProductionSection extends StatelessWidget {
 // visible en bas. Une fiche PROMESH machine 4 (valeur réelle de la colonne
 // `machine`, jamais la position de la ligne — voir isPromesh4Machine) est
 // mise en évidence sur toute la ligne. Pagination locale par fiches quand il
-// y en a beaucoup — l'export (Excel/PDF) utilise toujours `widget.table.rows`
-// en entier, jamais seulement la page actuellement affichée.
+// y en a beaucoup — l'export (Excel/PDF, voir
+// _ProductionSummaryScreenState._sortedSummaryForExport) utilise toujours
+// l'intégralité des lignes (retriées selon le tri actif, §16/§17 du ticket
+// "tri"), jamais seulement la page actuellement affichée ici.
 class _SummaryTableCard extends StatefulWidget {
   final Color color;
   final ProductionSummaryTable table;
   final bool isPromesh;
   final String grandTotalLabelKey;
+  final ProductionRowSort? sort;
+  final ValueChanged<ProductionRowSort?> onSortChanged;
 
   const _SummaryTableCard({
     required this.color,
     required this.table,
     required this.isPromesh,
     required this.grandTotalLabelKey,
+    required this.sort,
+    required this.onSortChanged,
   });
 
   @override
@@ -714,6 +964,11 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   static const _flexIndex = 1;
   static const _flexDate = 3;
   static const _flexMachine = 3;
+  // §MODIFICATION — PRODUCTION SUMMARY : COLONNE SHIFT (2026-09-07, §4/§5 du
+  // ticket) — Date → Machine → Shift → Diameter → Cell size → Quantity →
+  // Waste, même ordre que demandé. Colonne PUREMENT informative : jamais
+  // utilisée comme filtre (§3/§9), jamais additionnée dans les totaux (§8).
+  static const _flexShift = 2;
   static const _flexDiameter = 2;
   static const _flexMesh = 3;
   static const _flexQty = 3;
@@ -736,10 +991,19 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
     final rows = widget.table.rows;
-    final totalPages = rows.isEmpty ? 1 : ((rows.length + _rowsPerPage - 1) ~/ _rowsPerPage);
+    // §MODIFICATION — TRI DES TABLEAUX "PROMESH/PROBAR PRODUCTION"
+    // (2026-09-11) — `displayRows` est la SEULE variable affectée par le tri
+    // (§13/§14 du ticket : appliqué APRÈS les filtres déjà pris en compte
+    // par `rows`, et AVANT la pagination ci-dessous — jamais un tri limité à
+    // la page courante). `rows` (non trié) reste utilisé TEL QUEL par
+    // `_machineBreakdownBlock`/`_grandTotalRow`/`_grandTotalWasteRow`
+    // ci-dessous : le tri d'affichage ne modifie jamais le récapitulatif ni
+    // les totaux (§15).
+    final displayRows = sortProductionRows(rows, column: widget.sort?.column, ascending: widget.sort?.ascending ?? true);
+    final totalPages = displayRows.isEmpty ? 1 : ((displayRows.length + _rowsPerPage - 1) ~/ _rowsPerPage);
     final page = _page.clamp(0, totalPages - 1);
-    final pageRows = rows.skip(page * _rowsPerPage).take(_rowsPerPage).toList();
-    final showPagination = rows.length > _rowsPerPage;
+    final pageRows = displayRows.skip(page * _rowsPerPage).take(_rowsPerPage).toList();
+    final showPagination = displayRows.length > _rowsPerPage;
 
     return Container(
       decoration: BoxDecoration(color: kCrmSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: kCrmBorder)),
@@ -773,6 +1037,17 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   _headerRow(t),
                   for (int i = 0; i < pageRows.length; i++) _dataRow(t, page * _rowsPerPage + i + 1, pageRows[i]),
+                  // §MODIFICATION — PRODUCTION SUMMARY : SYNTHÈSE PAR MACHINE
+                  // À L'INTÉRIEUR DE "PROMESH PRODUCTION" (2026-09-08, ticket
+                  // "ajouter cette synthèse JUSTE AVANT TOTAL PROMESH") —
+                  // UNIQUEMENT pour PROMESH (jamais PROBAR, jamais une
+                  // nouvelle section/page). Basée sur `widget.table.rows` EN
+                  // ENTIER (le même jeu déjà filtré par le backend qui
+                  // alimente aussi `_grandTotalRow` juste en dessous), donc
+                  // TOUJOURS le total de TOUTES les pages, jamais seulement
+                  // la page actuellement affichée — cohérent avec TOTAL
+                  // PROMESH qui, lui aussi, porte déjà sur l'ensemble filtré.
+                  if (widget.isPromesh) _machineBreakdownBlock(t),
                   _grandTotalRow(t),
                   // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS
                   // RECOVERABLES — deuxième ligne de total, sous TOTAL
@@ -793,28 +1068,62 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
       color: kCrmBg,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       child: Row(children: [
-        Expanded(flex: _flexIndex, child: Text('#', style: _headStyle)),
-        Expanded(flex: _flexDate, child: Text(t.translate('Date production'), style: _headStyle)),
+        Expanded(flex: _flexIndex, child: _sortableHeader(t, '#', ProductionSortColumn.rowNumber)),
+        Expanded(flex: _flexDate, child: _sortableHeader(t, t.translate('Date production'), ProductionSortColumn.date)),
         // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS
         // RECOVERABLES (§2) — "Machine" est désormais affiché pour PROBAR
         // aussi, plus seulement PROMESH.
-        Expanded(flex: _flexMachine, child: Text(t.translate('Machine'), style: _headStyle)),
-        Expanded(flex: _flexDiameter, child: Text(t.translate('Diameter'), style: _headStyle)),
-        if (widget.isPromesh) Expanded(flex: _flexMesh, child: Text(t.translate('Cell size'), style: _headStyle)),
-        Expanded(flex: _flexQty, child: Text('${t.translate('Quantity')} (${widget.table.unit})', style: _headStyle, textAlign: TextAlign.right)),
-        Expanded(flex: _flexWaste, child: Text('${t.translate('Waste')} (${widget.table.wasteUnit})', style: _headStyle, textAlign: TextAlign.right)),
+        Expanded(flex: _flexMachine, child: _sortableHeader(t, t.translate('Machine'), ProductionSortColumn.machine)),
+        Expanded(flex: _flexShift, child: _sortableHeader(t, t.translate('Shift'), ProductionSortColumn.shift)),
+        Expanded(flex: _flexDiameter, child: _sortableHeader(t, t.translate('Diameter'), ProductionSortColumn.diameter)),
+        if (widget.isPromesh)
+          Expanded(flex: _flexMesh, child: _sortableHeader(t, t.translate('Cell size'), ProductionSortColumn.cellSize)),
+        Expanded(
+          flex: _flexQty,
+          child: _sortableHeader(t, '${t.translate('Quantity')} (${widget.table.unit})', ProductionSortColumn.quantity, alignRight: true),
+        ),
+        Expanded(
+          flex: _flexWaste,
+          child: _sortableHeader(t, '${t.translate('Waste')} (${widget.table.wasteUnit})', ProductionSortColumn.waste, alignRight: true),
+        ),
       ]),
     );
   }
 
   static final _headStyle = tInter(fontSize: 11, fontWeight: FontWeight.w800, color: kCrmTextSub, letterSpacing: 0.3);
 
+  // §MODIFICATION — TRI DES TABLEAUX "PROMESH/PROBAR PRODUCTION"
+  // (2026-09-11) — header cliquable, tri intégré directement dans l'en-tête
+  // (§20 du ticket : "pas de gros boutons de tri", interface compacte).
+  // Icône discrète : `unfold_more` (non trié) / `arrow_upward` (croissant) /
+  // `arrow_downward` (décroissant) — §3 du ticket. La colonne active est mise
+  // en évidence (couleur primaire, icône + libellé) pour rester "clairement
+  // identifiable" (§3).
+  Widget _sortableHeader(AppLocalizations t, String label, ProductionSortColumn column, {bool alignRight = false}) {
+    final isActive = widget.sort?.column == column;
+    final icon = !isActive
+        ? Icons.unfold_more_rounded
+        : (widget.sort!.ascending ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded);
+    final style = isActive ? _headStyle.copyWith(color: kCrmPrimary) : _headStyle;
+    final iconWidget = Icon(icon, size: 13, color: isActive ? kCrmPrimary : kCrmTextSub);
+    final textWidget = Flexible(child: Text(label, style: style, overflow: TextOverflow.ellipsis));
+
+    return InkWell(
+      onTap: () => widget.onSortChanged(cycleProductionSort(widget.sort, column)),
+      borderRadius: BorderRadius.circular(4),
+      child: Row(
+        mainAxisAlignment: alignRight ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [textWidget, const SizedBox(width: 3), iconWidget],
+      ),
+    );
+  }
+
   Widget _dataRow(AppLocalizations t, int index, ProductionRecordModel r) {
     final isPromesh4 = widget.isPromesh && isPromesh4Machine(r.machine);
     final dateLabel = _formatProductionDate(r.date);
     final machineLabel = widget.isPromesh ? formatPromeshMachineLabel(r.machine) : formatProbarMachineLabel(r.machine);
-    final diameterLabel = (r.diametre == null || r.diametre!.isEmpty) ? t.translate('Non renseigné') : '${r.diametre} mm';
-    final meshLabel = (r.tailleMaille == null || r.tailleMaille!.isEmpty) ? t.translate('Non renseigné') : formatCellSize(r.tailleMaille!);
+    final diameterLabel = _diameterLabel(t, r.diametre);
+    final meshLabel = _cellSizeLabel(t, r.tailleMaille);
     final qtyLabel = '${formatProductionNumber(r.quantite ?? 0)} ${widget.table.unit}';
     // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS RECOVERABLES
     // — `r.waste` vient directement du backend (jointure module+date sur
@@ -841,6 +1150,7 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
           flex: _flexMachine,
           child: isPromesh4 ? _promesh4Badge(r.machine) : Text(machineLabel, style: textStyle),
         ),
+        Expanded(flex: _flexShift, child: _shiftBadge(r.poste)),
         Expanded(flex: _flexDiameter, child: Text(diameterLabel, style: textStyle)),
         if (widget.isPromesh) Expanded(flex: _flexMesh, child: Text(meshLabel, style: textStyle)),
         Expanded(flex: _flexQty, child: Text(qtyLabel, textAlign: TextAlign.right, style: textStyle)),
@@ -864,8 +1174,352 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
     );
   }
 
+  // §CORRECTION — SYNTHÈSE PAR MACHINE : PRÉSENTATION "FICHE INDUSTRIELLE"
+  // (2026-09-08, ticket "améliorer fortement l'affichage") — MÊME logique
+  // fonctionnelle qu'avant (`_aggregateByMachine`, inchangée), seule la
+  // PRÉSENTATION change : une petite "carte" compacte par machine (header +
+  // mini-tableau Diameter/Cell size/Quantity/Waste + sous-total), plus le
+  // grand tableau détaillé rejoué en colonnes complètes (§16 du ticket :
+  // "la machine doit être un HEADER DE GROUPE", jamais répétée sur chaque
+  // ligne interne). Volontairement INDÉPENDANTE des colonnes flex du
+  // tableau détaillé ci-dessus (_flexIndex/_flexDate/...) — c'est justement
+  // ce ré-emploi qui donnait l'impression d'un "second tableau mal
+  // intégré" avant cette correction.
+  static final _miniHeadStyle = tInter(fontSize: 10.5, fontWeight: FontWeight.w700, color: kCrmTextSub, letterSpacing: 0.2);
+  static final _miniValueStyle = tInter(fontSize: 12.5, fontWeight: FontWeight.w500, color: kCrmText);
+
+  // §MODIFICATION — RÉCAPITULATIF PROMESH : REGROUPEMENT 1-2-3 / 4 SÉPARÉ
+  // (2026-09-12, ticket "modifier UNIQUEMENT la structure du RÉCAPITULATIF
+  // DE PRODUCTION") — `aggregateByMachine` (INCHANGÉE, toujours groupée par
+  // Machine+Diameter+Cell size) reste la seule source de vérité ; ce bloc se
+  // contente de RÉPARTIR ses sections en deux paquets pour l'affichage :
+  // toute machine "spéciale" (PROMESH 4, via `isPromesh4Machine` — jamais
+  // hardcodé "1,2,3" en dur, pour ne jamais fabriquer une ligne/valeur pour
+  // une machine absente des données filtrées) va dans `isolatedSections`
+  // (sa propre carte, inchangée) ; toutes les AUTRES machines sont
+  // aplaties dans `combinedGroups` (une seule carte avec colonne Machine,
+  // §1-§4 du ticket). Si PROMESH 4 n'a aucune donnée filtrée,
+  // `isolatedSections` est simplement vide (pas de carte vide affichée) —
+  // même principe déjà en vigueur pour toute machine sans donnée.
+  Widget _machineBreakdownBlock(AppLocalizations t) {
+    final sections = aggregateByMachine(widget.table.rows, groupByCellSize: widget.isPromesh);
+    if (sections.isEmpty) return const SizedBox.shrink();
+
+    final combinedGroups = <MachineDiameterGroup>[
+      for (final s in sections)
+        if (!isPromesh4Machine(s.machine)) ...s.rows,
+    ];
+    final isolatedSections = [
+      for (final s in sections)
+        if (isPromesh4Machine(s.machine)) s,
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+      decoration: const BoxDecoration(
+        color: kCrmBg,
+        border: Border(top: BorderSide(color: kCrmBorder), bottom: BorderSide(color: kCrmBorder)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(t.translate('Récapitulatif de production').toUpperCase(),
+            style: tInter(fontSize: 11, fontWeight: FontWeight.w800, color: kCrmTextSub, letterSpacing: 0.6)),
+        const SizedBox(height: 10),
+        if (combinedGroups.isNotEmpty) ...[
+          _combinedMachineCard(t, combinedGroups),
+          if (isolatedSections.isNotEmpty) const SizedBox(height: 10),
+        ],
+        for (var i = 0; i < isolatedSections.length; i++) ...[
+          _machineCard(t, isolatedSections[i]),
+          if (i < isolatedSections.length - 1) const SizedBox(height: 10),
+        ],
+      ]),
+    );
+  }
+
+  // §1-§4 du ticket : UNE SEULE carte pour toutes les machines "standard"
+  // (jamais PROMESH 4), avec une colonne Machine supplémentaire pour
+  // distinguer chaque ligne — jamais une carte par machine comme avant.
+  // `groups` arrive déjà trié machine → diamètre → cell size (ordre produit
+  // par `aggregateByMachine`, jamais retrié ici).
+  Widget _combinedMachineCard(AppLocalizations t, List<MachineDiameterGroup> groups) {
+    final subtotal = groups.fold<double>(0, (sum, g) => sum + g.quantity);
+    // §MODIFICATION — SOUS-TOTAL PROMESH 1-2(-3) : COLONNES QUANTITY/WASTE
+    // SÉPARÉES (2026-09-14, ticket "corriger la ligne SOUS-TOTAL PROMESH
+    // 1-2") — simple somme des valeurs `waste` DÉJÀ calculées par groupe
+    // (voir `MachineDiameterGroup.waste`, produit par `aggregateByMachine`,
+    // jamais retouché ici) — jamais un recalcul à partir de Quantity (§5 du
+    // ticket), jamais le total général (`table.grandTotalWaste`, réservé au
+    // bandeau TOTAL WASTE final, voir _grandTotalWasteRow, INCHANGÉ).
+    final wasteSubtotal = groups.fold<double>(0, (sum, g) => sum + g.waste);
+    final machineNumbers = <String>{
+      for (final g in groups)
+        if (g.machine != null && g.machine!.trim().isNotEmpty) g.machine!.trim(),
+    }.toList()
+      ..sort((a, b) {
+        final na = int.tryParse(a);
+        final nb = int.tryParse(b);
+        if (na != null && nb != null) return na.compareTo(nb);
+        return a.compareTo(b);
+      });
+    final headerLabel = machineNumbers.isEmpty
+        ? AppLocalizations.of(context).translate('Non renseigné')
+        : machineNumbers.map(formatPromeshMachineLabel).join(' + ');
+    // §MODIFICATION — RÉCAPITULATIF PROMESH : ALIGNEMENT SUR L'EXCEL DE
+    // RÉFÉRENCE (2026-09-13, ticket "reproduire exactement la logique de
+    // mon Excel") — §7/§9/§13 du ticket : "SOUS-TOTAL PROMESH 1-2-3" pour
+    // le bloc combiné (jamais "TOTAL", réservé au grand total final déjà
+    // existant en bas du tableau — voir _grandTotalRow, INCHANGÉ).
+    final totalLabel = machineNumbers.isEmpty ? '' : 'PROMESH ${machineNumbers.join('-')}';
+
+    return Container(
+      decoration: BoxDecoration(color: kCrmSurface, borderRadius: BorderRadius.circular(10), border: Border.all(color: kCrmBorder)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: double.infinity,
+          color: kCrmSurface,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(children: [
+            Icon(Icons.precision_manufacturing_outlined, size: 15, color: widget.color),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(headerLabel,
+                  style: tInter(fontSize: 13.5, fontWeight: FontWeight.w700, color: widget.color), overflow: TextOverflow.ellipsis),
+            ),
+          ]),
+        ),
+        Container(height: 1, color: kCrmBorder),
+        // Mini-header — Machine en tête (§3 du ticket), seule différence
+        // structurelle avec la carte PROMESH 4 ci-dessous (_machineCard),
+        // qui n'a jamais eu besoin de cette colonne (une seule machine).
+        Container(
+          color: kCrmBg,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          child: Row(children: [
+            Expanded(flex: 2, child: Text(t.translate('Machine'), style: _miniHeadStyle)),
+            Expanded(flex: 2, child: Text(t.translate('Diameter'), style: _miniHeadStyle)),
+            Expanded(flex: 3, child: Text(t.translate('Cell size'), style: _miniHeadStyle)),
+            Expanded(flex: 3, child: Text(t.translate('Quantity'), style: _miniHeadStyle, textAlign: TextAlign.right)),
+            Expanded(flex: 2, child: Text(t.translate('Waste'), style: _miniHeadStyle, textAlign: TextAlign.right)),
+          ]),
+        ),
+        for (final g in groups) _combinedDetailRow(t, g),
+        // §5/§8 du ticket : UN SEUL total pour l'ensemble de la section
+        // (jamais un sous-total par machine à l'intérieur de cette carte) —
+        // "SOUS-TOTAL PROMESH 1-2-3", jamais confondu avec le TOTAL PROMESH
+        // final (couleur pleine, voir _grandTotalRow) qui, lui, inclut
+        // PROMESH 4.
+        //
+        // §MODIFICATION — COLONNES QUANTITY/WASTE SÉPARÉES (2026-09-14) —
+        // le libellé occupe désormais EXACTEMENT la largeur des colonnes
+        // Machine+Diameter+Cell size (flex 2+2+3=7, mêmes poids que
+        // `_combinedDetailRow`/le mini-header ci-dessus), puis Quantity
+        // (flex 3) et Waste (flex 2) sont CHACUNE alignées à droite sous
+        // leur propre colonne — jamais Waste affiché dans la colonne
+        // Quantity ou l'inverse (§3/§4 du ticket).
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          color: widget.color.withOpacity(0.06),
+          child: Row(children: [
+            Expanded(
+              flex: 7,
+              child: Text(totalLabel.isEmpty ? t.translate('SOUS-TOTAL') : '${t.translate('SOUS-TOTAL')} $totalLabel',
+                  style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmText)),
+            ),
+            Expanded(
+              flex: 3,
+              child: Text('${formatProductionNumber(subtotal)} ${widget.table.unit}',
+                  textAlign: TextAlign.right, style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: widget.color)),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text('${wasteSubtotal.toStringAsFixed(2)} ${widget.table.wasteUnit}',
+                  textAlign: TextAlign.right, style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmTextSub)),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  // Ligne de détail de la carte combinée — MÊME style que `_machineDetailRow`
+  // ci-dessous, avec une colonne Machine supplémentaire en tête (§3 du
+  // ticket) pour savoir à quelle machine chaque ligne appartient.
+  Widget _combinedDetailRow(AppLocalizations t, MachineDiameterGroup g) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: kCrmBorder, width: 0.4))),
+      child: Row(children: [
+        Expanded(flex: 2, child: Text(formatPromeshMachineLabel(g.machine), style: _miniValueStyle.copyWith(fontWeight: FontWeight.w600))),
+        Expanded(flex: 2, child: Text(_diameterLabel(t, g.diametre), style: _miniValueStyle)),
+        Expanded(flex: 3, child: Text(_cellSizeLabel(t, g.cellSize), style: _miniValueStyle)),
+        Expanded(
+          flex: 3,
+          child: Text('${formatProductionNumber(g.quantity)} ${widget.table.unit}',
+              textAlign: TextAlign.right, style: _miniValueStyle.copyWith(fontWeight: FontWeight.w700, color: widget.color)),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text('${g.waste.toStringAsFixed(2)} ${widget.table.wasteUnit}',
+              textAlign: TextAlign.right, style: _miniValueStyle.copyWith(color: kCrmTextSub)),
+        ),
+      ]),
+    );
+  }
+
+  // Carte compacte pour une machine "isolée" (PROMESH 4, jamais une autre
+  // depuis le regroupement 1-2-3, voir _machineBreakdownBlock ci-dessus) —
+  // header (icône + badge) puis mini-tableau Diameter/Cell size/Quantity/
+  // Waste (pas de colonne Machine ici : une seule machine, §7 du ticket),
+  // puis total. PROMESH 4 ne reçoit JAMAIS de grand bandeau orange ici — la
+  // carte garde le même style neutre que la section combinée, seul le badge
+  // dans le header (_promesh4Badge, déjà existant, inchangé) reste orange
+  // (§6 du ticket).
+  Widget _machineCard(AppLocalizations t, MachineSection s) {
+    final subtotal = s.rows.fold<double>(0, (sum, r) => sum + r.quantity);
+    // §6 du ticket "corriger SOUS-TOTAL PROMESH 1-2" — même règle que
+    // _combinedMachineCard : simple somme des `waste` déjà calculés par
+    // groupe (jamais un recalcul, jamais le total général).
+    final wasteSubtotal = s.rows.fold<double>(0, (sum, r) => sum + r.waste);
+    return Container(
+      decoration: BoxDecoration(color: kCrmSurface, borderRadius: BorderRadius.circular(10), border: Border.all(color: kCrmBorder)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header — la machine apparaît ICI une seule fois (§5 du ticket),
+        // jamais répétée sur les lignes internes.
+        Container(
+          width: double.infinity,
+          color: kCrmSurface,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          child: Row(children: [
+            Icon(Icons.precision_manufacturing_outlined, size: 15, color: widget.color),
+            const SizedBox(width: 8),
+            _machineSectionLabel(s.machine),
+          ]),
+        ),
+        Container(height: 1, color: kCrmBorder),
+        // Mini-header de colonnes — propre à cette carte, jamais aligné sur
+        // les colonnes du tableau détaillé (§16 : éviter le "second
+        // tableau mal intégré").
+        Container(
+          color: kCrmBg,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          child: Row(children: [
+            Expanded(flex: 2, child: Text(t.translate('Diameter'), style: _miniHeadStyle)),
+            Expanded(flex: 3, child: Text(t.translate('Cell size'), style: _miniHeadStyle)),
+            Expanded(flex: 3, child: Text(t.translate('Quantity'), style: _miniHeadStyle, textAlign: TextAlign.right)),
+            Expanded(flex: 2, child: Text(t.translate('Waste'), style: _miniHeadStyle, textAlign: TextAlign.right)),
+          ]),
+        ),
+        for (final g in s.rows) _machineDetailRow(t, g),
+        // §7/§9 du ticket "Excel de référence" : "SOUS-TOTAL PROMESH 4" —
+        // mis en évidence, mais nettement plus discret que le TOTAL PROMESH
+        // final (bandeau bleu plein, voir _grandTotalRow, INCHANGÉ).
+        //
+        // §MODIFICATION — COLONNES QUANTITY/WASTE SÉPARÉES (2026-09-14) —
+        // le libellé occupe la largeur des colonnes Diameter+Cell size
+        // (flex 2+3=5, mêmes poids que le mini-header ci-dessus), Quantity
+        // (flex 3) et Waste (flex 2) sont chacune alignées à droite sous
+        // leur propre colonne (§3/§4/§6 du ticket).
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          color: widget.color.withOpacity(0.06),
+          child: Row(children: [
+            Expanded(
+              flex: 5,
+              child: Text('${t.translate('SOUS-TOTAL')} ${formatPromeshMachineLabel(s.machine)}',
+                  style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmText)),
+            ),
+            Expanded(
+              flex: 3,
+              child: Text('${formatProductionNumber(subtotal)} ${widget.table.unit}',
+                  textAlign: TextAlign.right, style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: widget.color)),
+            ),
+            Expanded(
+              flex: 2,
+              child: Text('${wasteSubtotal.toStringAsFixed(2)} ${widget.table.wasteUnit}',
+                  textAlign: TextAlign.right, style: tInter(fontSize: 12, fontWeight: FontWeight.w600, color: kCrmTextSub)),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  // §"PROMESH 4" du ticket : le badge orange n'apparaît QUE sur le libellé
+  // de la machine, jamais sur toute la carte/ligne — les autres machines
+  // restent en texte normal (couleur PROMESH déjà utilisée pour les
+  // quantités du tableau, pour rester identifiables sans inventer un
+  // nouveau style). Titre légèrement plus grand que les valeurs internes
+  // (§12 : "Titre machine : font-size légèrement supérieur, font-weight
+  // 600/700").
+  Widget _machineSectionLabel(String? machine) {
+    if (machine == null || machine.isEmpty) {
+      return Text(AppLocalizations.of(context).translate('Non renseigné'),
+          style: tInter(fontSize: 13, fontWeight: FontWeight.w700, color: kCrmTextSub));
+    }
+    if (isPromesh4Machine(machine)) return _promesh4Badge(machine);
+    return Text(formatPromeshMachineLabel(machine), style: tInter(fontSize: 13.5, fontWeight: FontWeight.w700, color: widget.color));
+  }
+
+  Widget _machineDetailRow(AppLocalizations t, MachineDiameterGroup g) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: kCrmBorder, width: 0.4))),
+      child: Row(children: [
+        Expanded(flex: 2, child: Text(_diameterLabel(t, g.diametre), style: _miniValueStyle)),
+        Expanded(flex: 3, child: Text(_cellSizeLabel(t, g.cellSize), style: _miniValueStyle)),
+        Expanded(
+          flex: 3,
+          child: Text('${formatProductionNumber(g.quantity)} ${widget.table.unit}',
+              textAlign: TextAlign.right, style: _miniValueStyle.copyWith(fontWeight: FontWeight.w700, color: widget.color)),
+        ),
+        Expanded(
+          flex: 2,
+          child: Text('${g.waste.toStringAsFixed(2)} ${widget.table.wasteUnit}',
+              textAlign: TextAlign.right, style: _miniValueStyle.copyWith(color: kCrmTextSub)),
+        ),
+      ]),
+    );
+  }
+
+  // §MODIFICATION — PRODUCTION SUMMARY : COLONNE SHIFT (2026-09-07, §4-§7 du
+  // ticket) — badge PUREMENT informatif, jamais un filtre (§3/§9, aucun
+  // dropdown Shift n'existe). Lit directement `r.poste` ('matin'/'nuit',
+  // valeur métier RÉELLE déjà stockée en base pour PROMESH ET PROBAR — voir
+  // le champ `poste` dans PorPromesh.js/IndustrialRecord.js, ENUM("matin",
+  // "nuit")) : aucune valeur inventée, aucun "Shift 1/2/3" (§6). Une fiche
+  // sans poste enregistré (anciennes données, §7) affiche "Non renseigné" —
+  // même convention que Diameter/Cell size juste à côté dans ce même
+  // tableau, jamais un poste deviné.
+  //
+  // "Soir" est le libellé d'AFFICHAGE retenu ici pour la valeur backend
+  // 'nuit' (PROMESH ET PROBAR, conformément aux exemples du ticket) — la
+  // valeur métier stockée reste 'nuit', jamais renommée en base ; seul le
+  // libellé affiché change (§4 : "faire uniquement le mapping d'affichage
+  // nécessaire").
+  Widget _shiftBadge(String? poste) {
+    final t = AppLocalizations.of(context);
+    if (poste != 'matin' && poste != 'nuit') {
+      return Text(t.translate('Non renseigné'), style: tInter(fontSize: 11.5, color: kCrmTextSub));
+    }
+    final isMatin = poste == 'matin';
+    final color = isMatin ? kCrmInfo : kCrmWarning;
+    final label = isMatin ? t.translate('Matin') : t.translate('Soir');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.35)),
+      ),
+      child: Text(label, style: tInter(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+    );
+  }
+
   Widget _grandTotalRow(AppLocalizations t) {
-    final leadingFlex = _flexIndex + _flexDate + _flexMachine + _flexDiameter + (widget.isPromesh ? _flexMesh : 0);
+    final leadingFlex = _flexIndex + _flexDate + _flexMachine + _flexShift + _flexDiameter + (widget.isPromesh ? _flexMesh : 0);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       decoration: BoxDecoration(color: widget.color),
@@ -888,13 +1542,37 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
     );
   }
 
-  // §MODIFICATION — PRODUCTION SUMMARY : AJOUT DU WASTE DEPUIS RECOVERABLES —
-  // "TOTAL WASTE", deuxième ligne sous TOTAL PROMESH/PROBAR. Valeur = somme
-  // des dates DISTINCTES du tableau (déjà calculée côté backend, voir
-  // `grandTotalWaste`) — jamais une somme "par ligne" côté client, qui
-  // doublonnerait une date partagée par plusieurs lignes de production.
+  // §CORRECTION — INCOHÉRENCE SOUS-TOTAUX/TOTAL WASTE PROMESH (2026-09-19,
+  // ticket "corriger le calcul du Waste dans Production Summary — PROMESH")
+  // — AVANT cette correction, "TOTAL WASTE" affichait `table.grandTotalWaste`
+  // (calculé côté backend en comptant chaque DATE une seule fois sur
+  // L'ENSEMBLE du tableau), alors que les sous-totaux du récapitulatif
+  // (`_combinedMachineCard`/`_machineCard`, voir `_recapWasteTotal`
+  // ci-dessous) comptent chaque date une seule fois PAR GROUPE
+  // (Machine+Diameter+Cell size) — deux méthodes de calcul différentes pour
+  // la "même" valeur, d'où l'écart observé (ex. 3 750 + 0 dans les
+  // sous-totaux contre 750 dans le total, quand une même date de production
+  // contribue à plusieurs groupes distincts).
+  //
+  // Le ticket demande explicitement UNE SEULE source de vérité :
+  // TOTAL WASTE PROMESH = SOUS-TOTAL PROMESH 1-2(-3) + SOUS-TOTAL PROMESH 4.
+  // Pour PROMESH, "TOTAL WASTE" est donc désormais recalculé à partir des
+  // MÊMES groupes que le récapitulatif (`aggregateByMachine`, jamais une
+  // valeur backend indépendante ni un recalcul depuis Quantity/Diameter/Cell
+  // size — §4/§5/§6/§7 du ticket) : par construction, il est alors
+  // TOUJOURS exactement égal à la somme des sous-totaux affichés au-dessus.
+  // PROBAR (aucun récapitulatif/sous-total affiché pour ce type, voir
+  // _machineBreakdownBlock ci-dessus, gate `if (widget.isPromesh)`) garde
+  // `table.grandTotalWaste` inchangé — rien à réconcilier puisqu'aucun
+  // sous-total n'est montré à l'écran pour PROBAR.
+  double _recapWasteTotal() {
+    final sections = aggregateByMachine(widget.table.rows, groupByCellSize: true);
+    return sections.expand((s) => s.rows).fold<double>(0, (sum, g) => sum + g.waste);
+  }
+
   Widget _grandTotalWasteRow(AppLocalizations t) {
-    final leadingFlex = _flexIndex + _flexDate + _flexMachine + _flexDiameter + (widget.isPromesh ? _flexMesh : 0) + _flexQty;
+    final leadingFlex = _flexIndex + _flexDate + _flexMachine + _flexShift + _flexDiameter + (widget.isPromesh ? _flexMesh : 0) + _flexQty;
+    final wasteTotal = widget.isPromesh ? _recapWasteTotal() : widget.table.grandTotalWaste;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       decoration: BoxDecoration(color: widget.color.withOpacity(0.85)),
@@ -906,7 +1584,7 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
         ),
         Expanded(
           flex: _flexWaste,
-          child: Text('${widget.table.grandTotalWaste.toStringAsFixed(2)} ${widget.table.wasteUnit}',
+          child: Text('${wasteTotal.toStringAsFixed(2)} ${widget.table.wasteUnit}',
               textAlign: TextAlign.right, style: tInter(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
         ),
       ]),
@@ -944,3 +1622,22 @@ String _formatProductionDate(String? isoDate) {
   if (parsed == null) return isoDate;
   return DateFormat('dd/MM/yyyy').format(parsed);
 }
+
+// Libellés Diameter/Cell size partagés — utilisés par
+// `_SummaryTableCardState._dataRow` (tableau détaillé PROMESH/PROBAR ci-dessus).
+String _diameterLabel(AppLocalizations t, String? diametre) {
+  return (diametre == null || diametre.isEmpty) ? t.translate('Non renseigné') : '$diametre mm';
+}
+
+String _cellSizeLabel(AppLocalizations t, String? tailleMaille) {
+  return (tailleMaille == null || tailleMaille.isEmpty) ? t.translate('Non renseigné') : formatCellSize(tailleMaille);
+}
+
+// §MODIFICATION — RÉCAPITULATIF PAR MACHINE : LOGIQUE PARTAGÉE UI/EXPORT
+// (2026-09-10) — `MachineDiameterGroup`/`MachineSection`/`aggregateByMachine`
+// ont été DÉPLACÉS vers production_summary_model.dart (déjà importé
+// ci-dessus) pour être réutilisés TELS QUELS par
+// production_summary_export_service.dart (feuille Excel "Récapitulatif
+// PROMESH/PROBAR") — jamais une seconde implémentation parallèle qui
+// risquerait de désynchroniser les chiffres UI/Excel. Logique de
+// regroupement INCHANGÉE par ce déplacement.

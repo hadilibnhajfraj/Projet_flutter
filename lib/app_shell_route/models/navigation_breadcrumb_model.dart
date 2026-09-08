@@ -39,6 +39,23 @@ Map<String, NavigationBreadcrumbModel> get routerParam {
       parentRoute: 'Production',
       childRoute: 'Production Summary',
     ),
+    // §MODIFICATION — DEUX PAGES SÉPARÉES PROMESH/PROBAR (2026-09-08, §14 du
+    // ticket) — "Home / Production / PROMESH / Production Summary" : ce
+    // widget de breadcrumb n'affiche que 2 segments après Home
+    // (parentRoute/childRoute, voir navigation_breadcrumb.dart), donc
+    // `parentRoute` compose "Production / PROMESH" — même convention déjà
+    // utilisée ailleurs dans cette map pour un segment composé (voir
+    // MyRoute.userListScreen ci-dessous : parentRoute: 'Application / Users').
+    MyRoute.productionPromeshSummaryScreen: NavigationBreadcrumbModel(
+      title: 'Production Summary',
+      parentRoute: 'Production / PROMESH',
+      childRoute: 'Production Summary',
+    ),
+    MyRoute.productionProbarSummaryScreen: NavigationBreadcrumbModel(
+      title: 'Production Summary',
+      parentRoute: 'Production / PROBAR',
+      childRoute: 'Production Summary',
+    ),
      MyRoute.projectTimeline: NavigationBreadcrumbModel(
       title: 'TimeLine',
       parentRoute: 'TimeLine',

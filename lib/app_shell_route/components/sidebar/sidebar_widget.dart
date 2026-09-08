@@ -233,9 +233,16 @@ class SideBarWidget extends StatelessWidget {
       });
       if (sub != null) return (true, sub);
 
-      // Le parent est actif si sa navigationPath est préfixe de la route courante
+      // Le parent est actif si sa navigationPath est préfixe de la route
+      // courante — §CORRECTION (2026-09-18, ticket "menu actif doit être
+      // correctement sélectionné") : un simple `startsWith` sans frontière
+      // de segment faisait considérer PROMESH comme actif dès que la route
+      // était "/production/promesh-summary" (préfixe textuel de
+      // "/production/promesh", mais route SŒUR indépendante, pas une
+      // sous-route de PROMESH) — même correction que le `sub` ci-dessus
+      // (égalité stricte OU préfixe suivi d'un vrai séparateur "/").
       final nav = (menu.navigationPath ?? '').trim();
-      if (nav.isNotEmpty && currentRoute.startsWith(nav)) return (true, null);
+      if (nav.isNotEmpty && (currentRoute == nav || currentRoute.startsWith('$nav/'))) return (true, null);
       return (false, null);
     }
 

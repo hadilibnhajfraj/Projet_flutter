@@ -181,7 +181,14 @@ class MyRoute {
   static const productionPromeshRoot = '/production/promesh';
   static const productionProbarRoot = '/production/probar';
   static const productionRecordsScreen = '/production/records';
+  // §MODIFICATION — DEUX PAGES SÉPARÉES PROMESH/PROBAR (2026-09-08) —
+  // `productionSummaryScreen` (page combinée historique) reste INCHANGÉE
+  // pour ne casser aucun favori/lien existant (voir my_route.dart —
+  // aucun autre appelant ne dépend de son comportement précis). Les deux
+  // nouvelles routes dédiées sont des routes SŒURS, jamais un remplacement.
   static const productionSummaryScreen = '/production/summary';
+  static const productionPromeshSummaryScreen = '/production/promesh-summary';
+  static const productionProbarSummaryScreen = '/production/probar-summary';
   static const probarFormScreen = '/production/probar/form';
   static const melangeRoot = '/melange';
   static const melangeFormScreen = '/melange/form';
@@ -1174,10 +1181,64 @@ GoRoute(
               // "Production Summary" — récapitulatif PROBAR/PROMESH groupé
               // par diamètre (voir productionSummaryScreen). Même redirect
               // héritée (canViewPorPromesh) que le reste de productionRoot.
+              // CONSERVÉE TELLE QUELLE (§22 du ticket "deux pages séparées") :
+              // aucun favori/lien existant vers cette route ne doit casser —
+              // voir les deux routes sœurs dédiées juste en dessous.
+              //
+              // §CORRECTION — BUG NAVIGATION PROMESH/PROBAR (2026-09-15,
+              // ticket "l'URL change mais le contenu reste celui de l'ancien
+              // type tant qu'on ne rafraîchit pas la page") — CAUSE EXACTE :
+              // les 3 `NoTransitionPage` ci-dessous n'avaient AUCUN `key`
+              // explicite (donc `key == null` pour les trois). Le
+              // `Navigator` de GoRouter décide de RECRÉER une page (nouveau
+              // State, `initState` rejoué) ou de simplement RECONSTRUIRE la
+              // page existante (`didUpdateWidget`, State CONSERVÉ) en
+              // comparant `runtimeType` ET `key` de l'ancienne et de la
+              // nouvelle `Page` (`Page.canUpdate`, package go_router). Avec
+              // `key: null` partout, `/production/promesh-summary` →
+              // `/production/probar-summary` était vu comme "la MÊME page"
+              // (même type `NoTransitionPage<void>`, même clé nulle) : le
+              // `_ProductionSummaryScreenState` existant (créé pour PROMESH)
+              // était réutilisé tel quel — `initState` (qui fixe `_type =
+              // widget.fixedType` et lance `_load()`) n'était PLUS jamais
+              // rappelé, et rien d'autre ne resynchronisait `_type`/l'état
+              // avec le nouveau `fixedType` — d'où l'écran figé sur PROMESH
+              // jusqu'à un F5 complet (qui, lui, reconstruit tout depuis
+              // zéro). CORRECTION : une `ValueKey` DISTINCTE par route rend
+              // `Page.canUpdate` faux entre elles — GoRouter détruit alors
+              // proprement l'ancien State (`dispose`) et en crée un NOUVEAU
+              // (`initState` rejoué avec le bon `fixedType`) à chaque
+              // changement de route, garantissant que le contenu affiché ne
+              // dépend JAMAIS de la page précédemment visitée, uniquement
+              // de l'URL courante — et réinitialisant du même coup tous les
+              // filtres/tri/pagination locaux (jamais de valeur PROMESH qui
+              // survivrait sur la page PROBAR).
               GoRoute(
                 path: 'summary',
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: ProductionSummaryScreen()),
+                pageBuilder: (context, state) => const NoTransitionPage(
+                  key: ValueKey('production-summary-all'),
+                  child: ProductionSummaryScreen(),
+                ),
+              ),
+              // §MODIFICATION — DEUX PAGES SÉPARÉES PROMESH/PROBAR
+              // (2026-09-08) — MÊME widget `ProductionSummaryScreen` que
+              // ci-dessus (jamais une deuxième implémentation), verrouillé
+              // sur un seul type via `fixedType` : réutilise intégralement
+              // filtres/agrégation/synthèse/export déjà existants, juste
+              // restreint à PROMESH ou PROBAR (voir production_summary_screen.dart).
+              GoRoute(
+                path: 'promesh-summary',
+                pageBuilder: (context, state) => const NoTransitionPage(
+                  key: ValueKey('production-summary-promesh'),
+                  child: ProductionSummaryScreen(fixedType: 'promesh'),
+                ),
+              ),
+              GoRoute(
+                path: 'probar-summary',
+                pageBuilder: (context, state) => const NoTransitionPage(
+                  key: ValueKey('production-summary-probar'),
+                  child: ProductionSummaryScreen(fixedType: 'probar'),
+                ),
               ),
             ],
           ),
