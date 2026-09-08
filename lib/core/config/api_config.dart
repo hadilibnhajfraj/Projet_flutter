@@ -9,7 +9,7 @@
 
 class ApiConfig {
   /// API base URL - change to production URL or environment variable as needed
-  static const String baseUrl = 'https://api.crmprobar.com ';
+  static const String baseUrl = 'https://api.crmprobar.com';
 
   /// WebSocket base URL
   static const String wsBaseUrl = 'wss://api.crmprobar.com';
