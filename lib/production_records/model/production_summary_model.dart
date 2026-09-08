@@ -136,20 +136,57 @@ String formatProductionNumber(double value) {
 }
 
 // §MODIFICATION — RÉCAPITULATIF PROMESH : EXCLUSION DES LIGNES "NOT
-// SPECIFIED" (2026-09-21, ticket "corriger l'affichage du Production
-// Summary — exclure Diameter/Cell size non renseignés du récapitulatif") —
-// une fiche est valide POUR LE RÉCAPITULATIF uniquement si Diameter ET Cell
-// size sont TOUS LES DEUX renseignés (§4 du ticket). Utilisé pour FILTRER
-// les lignes AVANT tout appel à `aggregateByMachine`/
-// `aggregateByDiameterCellSize` ci-dessous (§9 : exclusion réelle de la
-// liste, jamais un masquage visuel après coup) — jamais appliqué au tableau
-// détaillé "PROMESH Production" lui-même (`widget.table.rows`, qui garde
-// TOUTES ses lignes intactes, §8 du ticket : aucune donnée supprimée, ni en
-// base ni dans le tableau principal).
+// SPECIFIED" (2026-09-21/22, tickets "corriger l'affichage du Production
+// Summary") — une fiche a un Diameter+Cell size valides uniquement si les
+// DEUX sont renseignés. Utilisé pour FILTRER les lignes AVANT tout appel à
+// `aggregateByMachine`/`aggregateByDiameterCellSize` ci-dessous (exclusion
+// réelle de la liste, jamais un masquage visuel après coup). Vérification
+// PARTIELLE (Diameter+Cell size uniquement) — voir `isValidProductionRecord`
+// ci-dessous pour la validation COMPLÈTE (Machine+Shift+Diameter+Cell
+// size), désormais utilisée partout où une fiche doit être jugée valide
+// pour "PROMESH Production" et son récapitulatif.
 bool hasValidDiameterAndCellSize(ProductionRecordModel r) {
   final diametre = r.diametre?.trim();
   final cellSize = r.tailleMaille?.trim();
   return diametre != null && diametre.isNotEmpty && cellSize != null && cellSize.isNotEmpty;
+}
+
+// §MODIFICATION — SUPPRESSION DES LIGNES INCOMPLÈTES/ORPHELINES
+// (2026-09-23, ticket "corriger définitivement le filtrage des données
+// affichées") — une fiche PROMESH est valide pour "PROMESH Production" ET
+// son récapitulatif UNIQUEMENT si Machine, Shift, Diameter ET Cell size
+// sont TOUS LES QUATRE renseignés (§1/§4 du ticket) — un simple Diameter+
+// Cell size valides (voir `hasValidDiameterAndCellSize` ci-dessus, encore
+// utilisée seule ailleurs dans le fichier) ne suffit PLUS : ce ticket
+// resserre explicitement la règle du ticket précédent qui autorisait une
+// Machine absente/"—" tant que Diameter+Cell size étaient valides (§4 de
+// CE ticket la remplace explicitement, exemple concret à l'appui — la
+// fiche "— | Not specified | 8 mm | 20X20" qui restait affichée doit
+// maintenant disparaître).
+//
+// Normalisation AVANT comparaison ("not specified"/"—" en minuscules,
+// espaces superflus retirés) pour rester robuste aux variantes de casse
+// jamais garanties par les données existantes — jamais une nouvelle
+// donnée inventée, uniquement une lecture stricte des champs déjà
+// existants (`machine`, `poste`, `diametre`, `tailleMaille` —
+// voir production_record_model.dart, aucun champ ajouté).
+bool isValidProductionRecord(ProductionRecordModel r) {
+  String normalize(String? v) => (v ?? '').trim().toLowerCase();
+
+  final machine = normalize(r.machine);
+  if (machine.isEmpty || machine == '—' || machine == '-' || machine == 'not specified') {
+    return false;
+  }
+
+  // §1 du ticket : Shift valide = valeur RÉELLE 'matin'/'nuit' (ENUM
+  // backend, voir PorPromesh.js/IndustrialRecord.js) — jamais une autre
+  // chaîne, jamais "not specified"/vide/null.
+  final poste = normalize(r.poste);
+  if (poste != 'matin' && poste != 'nuit') {
+    return false;
+  }
+
+  return hasValidDiameterAndCellSize(r);
 }
 
 // §MODIFICATION — RÉCAPITULATIF PAR MACHINE : LOGIQUE PARTAGÉE UI/EXPORT

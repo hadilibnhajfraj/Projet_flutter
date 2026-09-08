@@ -978,6 +978,21 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   static const _promesh4Bg = Color(0xFFFEF3C7); // amber-100 — distinct du bleu PROMESH, lisible
   static const _promesh4Border = Color(0xFFF59E0B); // kCrmWarning
 
+  // §MODIFICATION — EXCLUSION "NOT SPECIFIED" DE "PROMESH PRODUCTION"
+  // (2026-09-22/23, tickets "supprimer complètement l'affichage des lignes
+  // Not specified" puis "supprimer les lignes incomplètes/orphelines" —
+  // cette dernière RESSERRE la règle : Machine et Shift comptent désormais
+  // AUSSI, pas seulement Diameter+Cell size, voir `isValidProductionRecord`
+  // dans production_summary_model.dart) — SOURCE UNIQUE réutilisée par
+  // `build()` (lignes/pagination/tri), `_machineBreakdownBlock`
+  // (récapitulatif), `_recapWasteTotal`/`_recapQuantityTotal` (totaux) :
+  // "Production Records → filtrer → PROMESH Production → Récapitulatif →
+  // sous-totaux → totaux", jamais un filtrage différent à chaque étage.
+  // PROBAR (jamais concerné par aucun de ces tickets — pas de Cell size)
+  // garde `widget.table.rows` intégral, inchangé.
+  List<ProductionRecordModel> get _validRows =>
+      widget.isPromesh ? widget.table.rows.where(isValidProductionRecord).toList() : widget.table.rows;
+
   @override
   void didUpdateWidget(covariant _SummaryTableCard oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -990,7 +1005,7 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   @override
   Widget build(BuildContext context) {
     final t = AppLocalizations.of(context);
-    final rows = widget.table.rows;
+    final rows = _validRows;
     // §MODIFICATION — TRI DES TABLEAUX "PROMESH/PROBAR PRODUCTION"
     // (2026-09-11) — `displayRows` est la SEULE variable affectée par le tri
     // (§13/§14 du ticket : appliqué APRÈS les filtres déjà pris en compte
@@ -1202,15 +1217,16 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   // BRUTES, plus des groupes qui ne portent plus l'info machine) sert
   // uniquement à composer le libellé d'en-tête/sous-total "PROMESH 1-2-3".
   //
-  // §CORRECTION — EXCLUSION DES LIGNES "NOT SPECIFIED" (2026-09-21, ticket
-  // "corriger l'affichage du Production Summary") — `validRows` retire
-  // RÉELLEMENT (jamais un masquage visuel) toute fiche dont Diameter OU
-  // Cell size est absent/vide AVANT tout regroupement (§1/§4/§9 du ticket).
-  // Le tableau détaillé "PROMESH Production" (`widget.table.rows`, jamais
-  // référencé ci-dessous) continue d'afficher CES mêmes fiches intactes —
-  // seul le récapitulatif filtre (§8 du ticket).
+  // §CORRECTION — EXCLUSION DES LIGNES "NOT SPECIFIED" (2026-09-21/22,
+  // tickets "corriger l'affichage du Production Summary") — `_validRows`
+  // (getter partagé, voir plus haut) retire RÉELLEMENT (jamais un masquage
+  // visuel) toute fiche dont Diameter OU Cell size est absent/vide AVANT
+  // tout regroupement (§1/§4/§9 du ticket) — désormais la MÊME liste que
+  // celle affichée dans le tableau détaillé "PROMESH Production" au-dessus
+  // (§6/§10 du dernier ticket : une seule source de vérité, du tableau
+  // jusqu'aux totaux).
   Widget _machineBreakdownBlock(AppLocalizations t) {
-    final validRows = widget.table.rows.where(hasValidDiameterAndCellSize).toList();
+    final validRows = _validRows;
     final sections = aggregateByMachine(validRows, groupByCellSize: widget.isPromesh);
     if (sections.isEmpty) return const SizedBox.shrink();
 
@@ -1510,7 +1526,7 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   // une fiche réelle mais sans Diameter/Cell size ne contribue plus du tout
   // à ce total, exactement comme demandé explicitement par ce ticket.
   double _recapQuantityTotal() {
-    final validRows = widget.table.rows.where(hasValidDiameterAndCellSize).toList();
+    final validRows = _validRows;
     final sections = aggregateByMachine(validRows, groupByCellSize: true);
     final isolatedQty = sections
         .where((s) => isPromesh4Machine(s.machine))
@@ -1580,10 +1596,11 @@ class _SummaryTableCardState extends State<_SummaryTableCard> {
   // `aggregateByDiameterCellSize` sur les lignes brutes non-PROMESH 4).
   double _recapWasteTotal() {
     // §CORRECTION — EXCLUSION DES LIGNES "NOT SPECIFIED" (2026-09-21) — même
-    // filtre `validRows` que `_machineBreakdownBlock` (§2/§7 du ticket :
-    // "Not specified" ne doit avoir AUCUN impact sur le total), pour que ce
-    // total reste la somme exacte des sous-totaux réellement affichés.
-    final validRows = widget.table.rows.where(hasValidDiameterAndCellSize).toList();
+    // `_validRows` (getter partagé) que `_machineBreakdownBlock` (§2/§7 du
+    // ticket : "Not specified" ne doit avoir AUCUN impact sur le total),
+    // pour que ce total reste la somme exacte des sous-totaux réellement
+    // affichés.
+    final validRows = _validRows;
     final sections = aggregateByMachine(validRows, groupByCellSize: true);
     final isolatedWaste = sections
         .where((s) => isPromesh4Machine(s.machine))

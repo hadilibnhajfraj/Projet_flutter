@@ -520,6 +520,31 @@ class ProductionSummaryExportService {
         bottomBorder: _thinBorder,
       );
 
+  // §MODIFICATION — EXCLUSION "NOT SPECIFIED" DE "PROMESH PRODUCTION"
+  // (2026-09-22, ticket "supprimer complètement l'affichage des lignes Not
+  // specified" — cette fois dans le TABLEAU DÉTAILLÉ lui-même, pas
+  // seulement le récapitulatif, contrairement au ticket précédent) — calcule
+  // Quantity/Waste totaux à partir des SEULES fiches valides
+  // (`isValidProductionRecord`, resserrée le 2026-09-23), en réutilisant EXACTEMENT la même
+  // décomposition PROMESH 4 isolé + PROMESH 1-2-3 combiné que le
+  // récapitulatif (`_writeExcelRecapSheet` ci-dessous, jamais une seconde
+  // implémentation) — garantit que "TOTAL PROMESH"/"TOTAL WASTE" de LA
+  // FEUILLE DE DÉTAIL restent cohérents avec les sous-totaux du
+  // récapitulatif ET avec `_recapQuantityTotal`/`_recapWasteTotal` côté
+  // écran (production_summary_screen.dart). PROBAR (aucun ticket ne l'a
+  // jamais concerné — pas de Cell size) garde `table.grandTotal`/
+  // `table.grandTotalWaste` inchangés.
+  ({double quantity, double waste}) _promeshValidTotals(List<ProductionRecordModel> validRows) {
+    final sections = aggregateByMachine(validRows, groupByCellSize: true);
+    final isolatedGroups = sections.where((s) => isPromesh4Machine(s.machine)).expand((s) => s.rows);
+    final combinedRows = validRows.where((r) => !isPromesh4Machine(r.machine)).toList();
+    final combinedGroups = aggregateByDiameterCellSize(combinedRows);
+    final quantity =
+        isolatedGroups.fold<double>(0, (s, g) => s + g.quantity) + combinedGroups.fold<double>(0, (s, g) => s + g.quantity);
+    final waste = isolatedGroups.fold<double>(0, (s, g) => s + g.waste) + combinedGroups.fold<double>(0, (s, g) => s + g.waste);
+    return (quantity: quantity, waste: waste);
+  }
+
   // Écrit le tableau détaillé (une ligne par fiche réelle, IDENTIQUE aux
   // données actuellement filtrées/affichées à l'écran) dans sa PROPRE
   // feuille — toujours à partir de la ligne 0 (FEUILLE 1, §1/§10 du
@@ -532,6 +557,14 @@ class ProductionSummaryExportService {
     ({String? start, String? end}) dateRange, {
     required bool isPromesh,
   }) {
+    // §CORRECTION — EXCLUSION "NOT SPECIFIED" (2026-09-22) — même filtre
+    // que le tableau détaillé à l'écran (production_summary_screen.dart#
+    // _SummaryTableCardState.build) : PROMESH uniquement, jamais PROBAR
+    // (pas de Cell size côté PROBAR, le filtrer viderait toute sa feuille).
+    // §RESSERREMENT (2026-09-23) — `isValidProductionRecord` exige aussi
+    // Machine+Shift renseignés, pas seulement Diameter+Cell size.
+    final rows = isPromesh ? table.rows.where(isValidProductionRecord).toList() : table.rows;
+    final totals = isPromesh ? _promeshValidTotals(rows) : (quantity: table.grandTotal, waste: table.grandTotalWaste);
     // Colonnes PROMESH : #, Date production, Machine, Diamètre, Cell size, Quantity, Waste
     // Colonnes PROBAR  : #, Date production, Machine, Diamètre, Quantity, Waste
     final lastCol = isPromesh ? 6 : 5;
@@ -568,8 +601,8 @@ class ProductionSummaryExportService {
     // que l'écran (surlignage discret), jamais confondue avec le "nom en
     // orange uniquement" du récapitulatif (§9 du ticket, propre à
     // _writeExcelRecapSheet ci-dessous).
-    for (int i = 0; i < table.rows.length; i++) {
-      final r = table.rows[i];
+    for (int i = 0; i < rows.length; i++) {
+      final r = rows[i];
       final isPromesh4 = isPromesh && isPromesh4Machine(r.machine);
       final bg = isPromesh4 ? _xlPromesh4Bg : '#FFFFFF';
       final dateLabel = _pdfFormatDate(r.date);
@@ -623,7 +656,7 @@ class ProductionSummaryExportService {
       ..value = (isPromesh ? _t('Total PROMESH') : _t('Total PROBAR')).toUpperCase()
       ..cellStyle = totalStyle;
     sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: qtyCol, rowIndex: row))
-      ..value = _numericCell(table.grandTotal)
+      ..value = _numericCell(totals.quantity)
       ..cellStyle = totalStyle;
     sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: lastCol, rowIndex: row))
       ..value = ''
@@ -641,7 +674,7 @@ class ProductionSummaryExportService {
       ..value = _t('TOTAL WASTE')
       ..cellStyle = totalStyle;
     sheet.cell(xl.CellIndex.indexByColumnRow(columnIndex: lastCol, rowIndex: row))
-      ..value = _numericCell(table.grandTotalWaste)
+      ..value = _numericCell(totals.waste)
       ..cellStyle = totalStyle;
 
     for (int c = 0; c <= lastCol; c++) {
@@ -672,14 +705,15 @@ class ProductionSummaryExportService {
     ProductionSummaryTable table, {
     required bool isPromesh,
   }) {
-    // §CORRECTION — EXCLUSION DES LIGNES "NOT SPECIFIED" (2026-09-21, ticket
-    // "corriger l'affichage du Production Summary") — filtre appliqué
-    // UNIQUEMENT pour PROMESH : `hasValidDiameterAndCellSize` exige un Cell
-    // size renseigné, un champ qui n'existe JAMAIS pour PROBAR (jamais de
-    // Cell size côté PROBAR, voir `groupByCellSize: false` plus bas) — filtrer
-    // PROBAR avec ce même critère viderait sa feuille entière. PROBAR (aucun
-    // ticket ne l'a jamais concerné) garde `table.rows` intégral, inchangé.
-    final rowsForRecap = isPromesh ? table.rows.where(hasValidDiameterAndCellSize).toList() : table.rows;
+    // §CORRECTION — EXCLUSION DES LIGNES "NOT SPECIFIED"/INCOMPLÈTES
+    // (2026-09-21/23) — filtre appliqué UNIQUEMENT pour PROMESH :
+    // `isValidProductionRecord` exige Machine+Shift+Cell size renseignés,
+    // des champs qui n'existent/ne s'appliquent JAMAIS de la même façon
+    // côté PROBAR (jamais de Cell size, voir `groupByCellSize: false` plus
+    // bas) — filtrer PROBAR avec ce même critère viderait sa feuille
+    // entière. PROBAR (aucun ticket ne l'a jamais concerné) garde
+    // `table.rows` intégral, inchangé.
+    final rowsForRecap = isPromesh ? table.rows.where(isValidProductionRecord).toList() : table.rows;
     final sections = aggregateByMachine(rowsForRecap, groupByCellSize: isPromesh);
     final color = isPromesh ? '#2563EB' : '#F97316';
 
