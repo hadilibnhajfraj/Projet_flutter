@@ -6,6 +6,7 @@
 // saisit ici avant d'accéder aux modules métiers.
 
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_dialogs.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 
@@ -74,8 +75,7 @@ class _InfoGeneraleScreenState extends State<InfoGeneraleScreen> {
       context.go(_modulesRoute);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.red.shade700));
+      await showProductionError(context, e, prefix: 'Erreur :');
     } finally {
       if (mounted) setState(() => _saving = false);
     }

@@ -176,6 +176,7 @@ List<GroupedMenuModel> buildGroupedMenus({
   bool hideHrAndRecuperables = false,
   bool isRestrictedAdmin = false,
   bool isRootAdmin = false,
+  bool isComplianceManager = false,
 }) {
   // ── ESPACE DÉDIÉ — responsable_logistique_achat ─────────────────────────
   // Rien d'autre que le module industriel n'est visible pour ce rôle : pas
@@ -354,12 +355,45 @@ List<GroupedMenuModel> buildGroupedMenus({
               navigationPath: MyRoute.hrSortieRequestsScreen,
               icon: Icons.door_front_door_outlined,
             ),
+            // Demandes de régularisation PROD 1 / PROD 2 (403 BACKFILL_NOT_AUTHORIZED
+            // → "Demander une autorisation") — réservé à isComplianceManager, la même
+            // liste de responsables que le backend (requireManager) : le backend
+            // refuse (403) toute autre tentative, ce contrôle frontend n'est qu'un
+            // confort d'affichage, jamais la seule protection. Anciennement un groupe
+            // "PRODUCTION CONTROL" séparé en tête de sidebar — regroupé ici avec les
+            // autres files de demandes pour ne pas dupliquer le système (§14).
+            if (isComplianceManager)
+              SidebarSubmenuModel(
+                name: 'Production — Demandes d\'autorisation',
+                navigationPath: MyRoute.productionComplianceScreen,
+                icon: Icons.fact_check_outlined,
+              ),
+            // Demandes de désarchivage des fiches PROMESH/PROBAR archivées
+            // automatiquement (brouillon > 2h sans finalisation) — mêmes
+            // responsables que ci-dessus, même raisonnement (backend =
+            // seule autorité, requireManager côté /production-draft-archive).
+            if (isComplianceManager)
+              SidebarSubmenuModel(
+                name: 'Production — Demandes de désarchivage',
+                navigationPath: MyRoute.productionUnarchiveRequestsScreen,
+                icon: Icons.unarchive_outlined,
+              ),
           ],
         ),
       ],
     ),
 
     if (isAdmin && !isRestrictedAdmin) ...[
+      GroupedMenuModel(
+        name: 'REPORTS',
+        menus: [
+          SidebarItemModel(
+            name:           'Management Report',
+            icon:           Icons.assessment_outlined,
+            navigationPath: MyRoute.managementReportScreen,
+          ),
+        ],
+      ),
       GroupedMenuModel(
         name: 'USER MANAGEMENT',
         menus: [

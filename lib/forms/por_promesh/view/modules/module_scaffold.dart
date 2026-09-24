@@ -20,6 +20,7 @@ import '../../service/por_promesh_service.dart';
 import 'industrial_context_header.dart';
 import '../widgets/shimmer_box.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_banner.dart';
 
 class ModuleScaffold extends StatelessWidget {
   final String title;
@@ -107,6 +108,10 @@ class ModuleScaffold extends StatelessWidget {
                 loading: loading,
                 controller: controller,
               ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 0),
+              child: ProductionComplianceBanner(),
             ),
             Expanded(
               child: SingleChildScrollView(

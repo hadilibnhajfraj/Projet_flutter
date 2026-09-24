@@ -123,33 +123,12 @@ class SignInScreenState extends State<SignInScreen> {
                 const SizedBox(height: 28),
 
                 // ── Options ───────────────────────────────
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Obx(
-                      () => AuthCheckboxRow(
-                        value: controller.rememberMe.value,
-                        onChanged: (v) => controller.rememberMe.value = v ?? false,
-                        label: 'Se souvenir de moi',
-                      ),
-                    ),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, 0),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      onPressed: () => context.go(MyRoute.forgotPasswordScreen),
-                      child: Text(
-                        'Mot de passe oublié ?',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: colorPrimary100,
-                        ),
-                      ),
-                    ),
-                  ],
+                Obx(
+                  () => AuthCheckboxRow(
+                    value: controller.rememberMe.value,
+                    onChanged: (v) => controller.rememberMe.value = v ?? false,
+                    label: 'Se souvenir de moi',
+                  ),
                 ),
 
                 const SizedBox(height: 32),

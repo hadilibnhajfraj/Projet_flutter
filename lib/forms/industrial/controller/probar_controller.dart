@@ -382,9 +382,10 @@ class ProbarController extends GetxController {
     String machineNum,
     String posteValue, {
     bool forceRefresh = false,
+    String? productionDate, // YYYY-MM-DD — rattrapage autorisé d'une date antérieure
   }) async {
     final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    final key = '$machineNum|$posteValue|$today';
+    final key = '$machineNum|$posteValue|${productionDate ?? today}';
     if (!forceRefresh && key == _bootstrappedKey) return;
 
     isLoading.value = true;
@@ -402,15 +403,16 @@ class ProbarController extends GetxController {
       // la grille des modules n'apparaît alors jamais). Si la seule fiche du
       // jour est déjà validée, on en crée une nouvelle (comportement attendu
       // du bouton "Nouvelle fiche").
-      final todayDrafts =
-          existing.where((r) => r.dateFiche == today && r.statut != 'validee').toList();
+      final todayDrafts = productionDate != null
+          ? <IndustrialRecordModel>[]
+          : existing.where((r) => r.dateFiche == today && r.statut != 'validee').toList();
       if (todayDrafts.isNotEmpty) {
         resetForm();
         loadFromModel(todayDrafts.first);
       } else {
         resetForm();
         setMachinePoste(machine: machineNum, poste: posteValue);
-        dateProduction.text = today;
+        dateProduction.text = productionDate ?? today;
       }
       _bootstrappedKey = key;
     } finally {

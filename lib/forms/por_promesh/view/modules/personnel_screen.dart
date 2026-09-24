@@ -5,6 +5,7 @@
 // rapide à un seul champ, jamais une grille de 8 champs visibles à la fois.
 
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_dialogs.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 
@@ -72,7 +73,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Personnel enregistré')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.red.shade700));
+      await showProductionError(context, e, prefix: 'Erreur :');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -96,7 +97,7 @@ class _PersonnelScreenState extends State<PersonnelScreen> {
       context.go(_modulesPath);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.red.shade700));
+      await showProductionError(context, e, prefix: 'Erreur :');
     } finally {
       if (mounted) setState(() => _nextBusy = false);
     }

@@ -6,6 +6,7 @@
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_dialogs.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 
@@ -78,7 +79,7 @@ class _ObservationScreenState extends State<ObservationScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Observation enregistrée')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.red.shade700));
+      await showProductionError(context, e, prefix: 'Erreur :');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -121,7 +122,7 @@ class _ObservationScreenState extends State<ObservationScreen> {
       context.go(_modulesPath);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.red.shade700));
+      await showProductionError(context, e, prefix: 'Erreur :');
     } finally {
       if (mounted) setState(() => _nextBusy = false);
     }

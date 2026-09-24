@@ -7,7 +7,9 @@
 // une combinaison module/machine/poste déjà chargée (invalidée uniquement
 // par create/update/delete ou par `forceRefresh: true`, ex. pull-to-refresh).
 
+import 'package:dio/dio.dart';
 import 'package:dash_master_toolkit/providers/api_client.dart';
+import 'package:dash_master_toolkit/production_compliance/service/production_compliance_service.dart';
 import '../model/industrial_record_model.dart';
 
 class IndustrialRecordService {
@@ -54,14 +56,24 @@ class IndustrialRecordService {
   }
 
   Future<IndustrialRecordModel> create(IndustrialRecordModel model) async {
-    final res = await ApiClient.instance.dio.post(_basePath, data: model.toJson());
+    final Response res;
+    try {
+      res = await ApiClient.instance.dio.post(_basePath, data: model.toJson());
+    } on DioException catch (e) {
+      throw ProductionComplianceService.translateError(e);
+    }
     final saved = IndustrialRecordModel.fromJson(_unwrapObject(res.data));
     _invalidateModule(model.module);
     return saved;
   }
 
   Future<IndustrialRecordModel> update(String id, IndustrialRecordModel model) async {
-    final res = await ApiClient.instance.dio.put('$_basePath/$id', data: model.toJson());
+    final Response res;
+    try {
+      res = await ApiClient.instance.dio.put('$_basePath/$id', data: model.toJson());
+    } on DioException catch (e) {
+      throw ProductionComplianceService.translateError(e);
+    }
     final saved = IndustrialRecordModel.fromJson(_unwrapObject(res.data));
     _invalidateModule(model.module);
     return saved;

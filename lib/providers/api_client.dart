@@ -74,6 +74,23 @@ class ApiClient {
             }
           }
 
+          // Diagnostic HTTP 403 : requête exacte + corps de réponse du backend
+          // (jamais le jeton : seule sa présence est indiquée).
+          if (e.response?.statusCode == 403) {
+            final ro = e.requestOptions;
+            String clip(Object? v) {
+              final s = '$v';
+              return s.length > 600 ? '${s.substring(0, 600)}…' : s;
+            }
+
+            debugPrint(
+              '[API-403] ${ro.method} ${ro.baseUrl}${ro.path} '
+              'user=${_box.read('userEmail')} role=${_box.read('userRole')} '
+              'auth=${ro.headers['Authorization'] != null ? 'Bearer ***' : 'none'} '
+              'payload=${clip(ro.data)} response=${clip(e.response?.data)}',
+            );
+          }
+
           // ✅ si 401 => clear session
           final status = e.response?.statusCode;
           if (status == 401) {

@@ -20,6 +20,9 @@ import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/production_compliance/service/production_compliance_service.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_banner.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_dialogs.dart';
 
 import '../controller/por_promesh_controller.dart';
 import '../model/por_promesh_model.dart';
@@ -204,13 +207,14 @@ class _PosteDashboardScreenState extends State<PosteDashboardScreen> {
   // Dans tous les cas : id obtenu → navigation immédiate, jamais besoin
   // d'un second clic. Le Dashboard reste affiché pendant l'appel (jamais
   // d'écran vide) ; en cas d'erreur on reste ici avec un message.
-  Future<void> _createOrOpenDraft() async {
+  Future<void> _createOrOpenDraft({String? date}) async {
     debugPrint('[PosteDashboard] CLICK Nouvelle fiche (machine=${widget.machine}, poste=${widget.poste})');
     if (_creatingDraft) return;
     setState(() => _creatingDraft = true);
     try {
       final existing = Get.isRegistered<PorPromeshController>() ? Get.find<PorPromeshController>() : null;
-      final reusableId = existing != null &&
+      final reusableId = date == null &&
+              existing != null &&
               existing.recordId != null &&
               !existing.isLocked.value &&
               existing.machine.value == widget.machine &&
@@ -224,7 +228,7 @@ class _PosteDashboardScreenState extends State<PosteDashboardScreen> {
         id = reusableId;
       } else {
         final record =
-            await PorPromeshService.instance.createOrOpenDraft(machine: widget.machine, poste: widget.poste);
+            await PorPromeshService.instance.createOrOpenDraft(machine: widget.machine, poste: widget.poste, dateProduction: date);
         debugPrint('[PosteDashboard] POST terminé, ID reçu : ${record.id}');
         id = record.id;
       }
@@ -245,8 +249,7 @@ class _PosteDashboardScreenState extends State<PosteDashboardScreen> {
     } catch (e) {
       debugPrint('[PosteDashboard] ERREUR pendant la création/ouverture : $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.red.shade700));
+      await showProductionError(context, e, prefix: ProductionComplianceService.isComplianceBlock(e) ? null : 'Erreur :');
     } finally {
       if (mounted) setState(() => _creatingDraft = false);
     }
@@ -268,6 +271,7 @@ class _PosteDashboardScreenState extends State<PosteDashboardScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _buildHeader(isMobile),
                 const SizedBox(height: 20),
+                ProductionComplianceBanner(onBackfill: (d) => _createOrOpenDraft(date: d)),
                 if (_error != null)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 24),

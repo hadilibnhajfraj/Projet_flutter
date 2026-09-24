@@ -33,6 +33,7 @@
 // Contrôle Machine → Contrôle Qualité → Terminer.
 
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_dialogs.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 
@@ -112,7 +113,7 @@ class _ControleMachineScreenState extends State<ControleMachineScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contrôle Machine enregistré')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.red.shade700));
+      await showProductionError(context, e, prefix: 'Erreur :');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -133,7 +134,7 @@ class _ControleMachineScreenState extends State<ControleMachineScreen> {
       context.go(_modulesRoute);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : $e'), backgroundColor: Colors.red.shade700));
+      await showProductionError(context, e, prefix: 'Erreur :');
     } finally {
       if (mounted) setState(() => _nextBusy = false);
     }

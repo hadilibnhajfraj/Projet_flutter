@@ -3,6 +3,8 @@ import '../common_imports.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dash_master_toolkit/providers/archive_request_provider.dart';
 import 'package:dash_master_toolkit/providers/maintenance_request_provider.dart';
+import 'package:dash_master_toolkit/providers/production_compliance_request_provider.dart';
+import 'package:dash_master_toolkit/providers/production_unarchive_request_provider.dart';
 import 'package:dash_master_toolkit/core/theme/app_text_styles.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart'
     show kPromeshColor, kProbarColor, kMelangeColor, kMaintenanceColor;
@@ -85,6 +87,7 @@ class SideBarWidget extends StatelessWidget {
       hideHrAndRecuperables: hideHrAndRecuperables,
       isRestrictedAdmin: isRestrictedAdmin,
       isRootAdmin: isRootAdmin,
+      isComplianceManager: auth.isComplianceManager,
     );
 
     final sidebarW = iconOnly
@@ -641,6 +644,18 @@ class SidebarMenuItem extends StatelessWidget {
               if (sub.navigationPath == MyRoute.maintenanceRequestsScreen)
                 Obx(() {
                   final count = MaintenanceRequestProvider.to.pendingCount;
+                  if (count == 0) return const SizedBox.shrink();
+                  return _Badge(count: count, selected: false);
+                })
+              else if (sub.navigationPath == MyRoute.productionComplianceScreen)
+                Obx(() {
+                  final count = ProductionComplianceRequestProvider.to.pendingCount;
+                  if (count == 0) return const SizedBox.shrink();
+                  return _Badge(count: count, selected: false);
+                })
+              else if (sub.navigationPath == MyRoute.productionUnarchiveRequestsScreen)
+                Obx(() {
+                  final count = ProductionUnarchiveRequestProvider.to.pendingCount;
                   if (count == 0) return const SizedBox.shrink();
                   return _Badge(count: count, selected: false);
                 })

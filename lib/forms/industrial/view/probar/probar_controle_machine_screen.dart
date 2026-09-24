@@ -9,6 +9,7 @@
 // l'interface — voir ProbarController._processControlRaw pour la
 // préservation silencieuse des données des fiches existantes).
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_dialogs.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter;
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
@@ -80,10 +81,7 @@ class _ProbarControleMachineScreenState extends State<ProbarControleMachineScree
         ));
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${AppLocalizations.of(context).translate('Erreur')} : $e'), backgroundColor: kCrmDanger));
-      }
+      await showProductionError(context, e, prefix: AppLocalizations.of(context).translate('Erreur') + ' :');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -96,10 +94,7 @@ class _ProbarControleMachineScreenState extends State<ProbarControleMachineScree
       await c.saveDraft();
       if (mounted) context.go(_modulesPath);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${AppLocalizations.of(context).translate('Erreur')} : $e'), backgroundColor: kCrmDanger));
-      }
+      await showProductionError(context, e, prefix: AppLocalizations.of(context).translate('Erreur') + ' :');
     } finally {
       if (mounted) setState(() => _saving = false);
     }

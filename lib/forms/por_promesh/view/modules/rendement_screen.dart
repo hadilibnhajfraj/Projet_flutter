@@ -5,6 +5,7 @@
 // pas de grille dense de champs secondaires.
 
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_dialogs.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 
@@ -87,9 +88,7 @@ class _RendementScreenState extends State<RendementScreen> {
           .showSnackBar(SnackBar(content: Text(AppLocalizations.of(context).translate('Rendement enregistré'))));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${AppLocalizations.of(context).translate('Erreur :')} $e'),
-          backgroundColor: Colors.red.shade700));
+      await showProductionError(context, e, prefix: AppLocalizations.of(context).translate('Erreur :'));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -110,9 +109,7 @@ class _RendementScreenState extends State<RendementScreen> {
       context.go(_modulesPath);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('${AppLocalizations.of(context).translate('Erreur :')} $e'),
-          backgroundColor: Colors.red.shade700));
+      await showProductionError(context, e, prefix: AppLocalizations.of(context).translate('Erreur :'));
     } finally {
       if (mounted) setState(() => _nextBusy = false);
     }

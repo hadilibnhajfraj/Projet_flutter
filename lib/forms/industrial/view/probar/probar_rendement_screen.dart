@@ -1,5 +1,6 @@
 // lib/forms/industrial/view/probar/probar_rendement_screen.dart
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_dialogs.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
@@ -76,11 +77,7 @@ class _ProbarRendementScreenState extends State<ProbarRendementScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('${AppLocalizations.of(context).translate('Erreur')} : $e'),
-            backgroundColor: kCrmDanger));
-      }
+      await showProductionError(context, e, prefix: AppLocalizations.of(context).translate('Erreur') + ' :');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -100,11 +97,7 @@ class _ProbarRendementScreenState extends State<ProbarRendementScreen> {
       await c.saveDraft();
       if (mounted) context.go(_modulesPath);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('${AppLocalizations.of(context).translate('Erreur')} : $e'),
-            backgroundColor: kCrmDanger));
-      }
+      await showProductionError(context, e, prefix: AppLocalizations.of(context).translate('Erreur') + ' :');
     } finally {
       if (mounted) setState(() => _saving = false);
     }

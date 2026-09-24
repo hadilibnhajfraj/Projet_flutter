@@ -16,6 +16,9 @@ import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/production_compliance/service/production_compliance_service.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_banner.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_dialogs.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/modules/industrial_context_header.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/widgets/shimmer_box.dart';
 
@@ -162,7 +165,7 @@ class _ProbarPosteDashboardScreenState extends State<ProbarPosteDashboardScreen>
   // 3. On navigue vers la page Modules avec ce ficheId en query param —
   //    c'est ce même id qui sera transmis à chaque écran module ensuite,
   //    aucune re-création implicite n'est plus possible.
-  Future<void> _createOrOpenDraft() async {
+  Future<void> _createOrOpenDraft({String? date}) async {
     if (_creatingDraft) return;
     setState(() => _creatingDraft = true);
     try {
@@ -170,7 +173,7 @@ class _ProbarPosteDashboardScreenState extends State<ProbarPosteDashboardScreen>
           ? Get.find<ProbarController>()
           : Get.put(ProbarController(), permanent: true);
 
-      await c.bootstrapForMachinePoste(widget.machine, widget.poste, forceRefresh: true);
+      await c.bootstrapForMachinePoste(widget.machine, widget.poste, forceRefresh: true, productionDate: date);
 
       if (c.recordId == null) {
         await c.saveDraft();
@@ -185,11 +188,8 @@ class _ProbarPosteDashboardScreenState extends State<ProbarPosteDashboardScreen>
     } catch (e, stack) {
       debugPrint('[ProbarDashboard] ERREUR : $e\n$stack');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('${AppLocalizations.of(context).translate('Erreur')} : $e'),
-            backgroundColor: Colors.red.shade700),
-      );
+      await showProductionError(context, e,
+          prefix: ProductionComplianceService.isComplianceBlock(e) ? null : '${AppLocalizations.of(context).translate('Erreur')} :');
     } finally {
       if (mounted) setState(() => _creatingDraft = false);
     }
@@ -253,6 +253,7 @@ class _ProbarPosteDashboardScreenState extends State<ProbarPosteDashboardScreen>
                       icon: Icons.person_outline_rounded, label: AuthService().displayName, color: kCrmTextSub),
                 ]),
                 const SizedBox(height: 20),
+                ProductionComplianceBanner(onBackfill: (d) => _createOrOpenDraft(date: d)),
                 SizedBox(
                   width: isMobile ? double.infinity : 260,
                   child: IndustrialBigButton(

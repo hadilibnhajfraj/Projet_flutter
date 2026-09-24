@@ -11,6 +11,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 
 import 'package:dash_master_toolkit/providers/api_client.dart';
+import 'package:dash_master_toolkit/production_compliance/service/production_compliance_service.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 import '../model/por_promesh_model.dart';
 import '../model/poste_dashboard_stats.dart';
@@ -127,15 +128,22 @@ class PorPromeshService {
   Future<({String id, String machine, String poste, String status})> createOrOpenDraft({
     required String machine,
     required String poste,
+    String? dateProduction, // YYYY-MM-DD — rattrapage autorisé d'une date antérieure
   }) async {
     debugPrint('[PorPromeshService] POST $_basePath/new (machine=$machine, poste=$poste)');
-    final res = await ApiClient.instance.dio.post('$_basePath/new', data: {
-      'machine': machine,
-      'poste': poste,
-      // Repli si l'utilisateur n'a pas de profil (user_profiles.name) en
-      // base — le backend privilégie désormais ce profil serveur.
-      'operateurName': AuthService().displayName,
-    });
+    final Response res;
+    try {
+      res = await ApiClient.instance.dio.post('$_basePath/new', data: {
+        'machine': machine,
+        'poste': poste,
+        // Repli si l'utilisateur n'a pas de profil (user_profiles.name) en
+        // base — le backend privilégie désormais ce profil serveur.
+        'operateurName': AuthService().displayName,
+        if (dateProduction != null) 'dateProduction': dateProduction,
+      });
+    } on DioException catch (e) {
+      throw ProductionComplianceService.translateError(e);
+    }
     final data = _unwrapObject(res.data);
     debugPrint('[PorPromeshService] POST terminé, id reçu = ${data['id']}');
     return (
@@ -160,13 +168,21 @@ class PorPromeshService {
   }
 
   Future<PorPromeshModel> create(PorPromeshModel model) async {
-    final res = await ApiClient.instance.dio.post(_basePath, data: model.toJson());
-    return PorPromeshModel.fromJson(_unwrapObject(res.data));
+    try {
+      final res = await ApiClient.instance.dio.post(_basePath, data: model.toJson());
+      return PorPromeshModel.fromJson(_unwrapObject(res.data));
+    } on DioException catch (e) {
+      throw ProductionComplianceService.translateError(e);
+    }
   }
 
   Future<PorPromeshModel> update(String id, PorPromeshModel model) async {
-    final res = await ApiClient.instance.dio.put('$_basePath/$id', data: model.toJson());
-    return PorPromeshModel.fromJson(_unwrapObject(res.data));
+    try {
+      final res = await ApiClient.instance.dio.put('$_basePath/$id', data: model.toJson());
+      return PorPromeshModel.fromJson(_unwrapObject(res.data));
+    } on DioException catch (e) {
+      throw ProductionComplianceService.translateError(e);
+    }
   }
 
   Future<void> delete(String id) async {

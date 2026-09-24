@@ -87,6 +87,18 @@ bool get isRootAdmin {
   return e == 'cbitunisia@cbi-tunisia.com';
 }
 
+// Responsables du contrôle Production Compliance — même liste que le backend
+// (.env PRODUCTION_COMPLIANCE_MANAGERS, lu par config/productionCompliance.js) ;
+// le backend reste l'autorité (403 NOT_A_MANAGER sinon, revérifié en base par
+// requireManager — ceci ne conditionne que l'affichage du menu). Inclut
+// cbitunisia@cbi-tunisia.com (Super Admin réel, role=superadmin) en plus des
+// deux responsables historiques : sans elle ici, le menu resterait invisible
+// pour son compte même après l'avoir ajoutée côté backend.
+bool get isComplianceManager {
+  final e = (userEmail ?? '').toLowerCase().trim();
+  return e == 'hadil.ibnhajfraj@gmail.com' || e == 'manegerofficecbi@gmail.com' || e == 'cbitunisia@cbi-tunisia.com';
+}
+
 // Gestion complète des demandes de maintenance (Administration > Demandes >
 // Maintenance) : accepter/refuser/affecter un technicien/passer en cours/
 // terminer/supprimer. Admin (rôle) + rôle responsable_logistique_achat +

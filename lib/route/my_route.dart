@@ -73,6 +73,9 @@ import 'package:dash_master_toolkit/application/users/view/add_commercial_action
 import 'package:dash_master_toolkit/dashboard/commercial_contacts/view/commercial_contacts_kpi_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_list_screen.dart';
 import 'package:dash_master_toolkit/production_records/view/production_records_screen.dart';
+import 'package:dash_master_toolkit/reports/view/management_report_screen.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_compliance_screen.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_unarchive_requests_screen.dart';
 import 'package:dash_master_toolkit/production_records/view/production_summary_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_detail_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_dashboard_screen.dart';
@@ -285,6 +288,9 @@ static const clientsProfileScreen = '/users/client';
   static const  revendeurProjectsScreen = "/users/revendeur";
   // Route réelle : nichée sous le parent '/forms' (voir GoRoute path: 'archive-requests').
   static const archiveRequestsScreen = '/forms/archive-requests';
+  static const managementReportScreen = '/reports/management';
+  static const productionComplianceScreen = '/production-compliance';
+  static const productionUnarchiveRequestsScreen = '/production-draft-archive';
   // Route réelle : nichée sous le parent '/forms' (voir GoRoute path: 'maintenance-requests').
   static const maintenanceRequestsScreen = '/forms/maintenance-requests';
   // Routes réelles : nichées sous le parent '/forms' (voir GoRoute path: 'hr-requests/conge'|'hr-requests/sortie').
@@ -880,6 +886,30 @@ GoRoute(
                     const NoTransitionPage(child: PorPromeshStatistiquesScreen()),
               ),
             ],
+          ),
+
+          // ── PRODUCTION COMPLIANCE (responsables configurés uniquement) ───
+          GoRoute(
+            path: productionComplianceScreen,
+            redirect: (context, state) => AuthService().isComplianceManager ? null : dashboard,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ProductionComplianceScreen()),
+          ),
+
+          // ── PRODUCTION — UNARCHIVE REQUESTS (mêmes responsables) ─────────
+          GoRoute(
+            path: productionUnarchiveRequestsScreen,
+            redirect: (context, state) => AuthService().isComplianceManager ? null : dashboard,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ProductionUnarchiveRequestsScreen()),
+          ),
+
+          // ── RAPPORT DE PILOTAGE (admin / superadmin / superadmin2) ───────
+          GoRoute(
+            path: managementReportScreen,
+            redirect: (context, state) => AuthService().isAdmin ? null : dashboard,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ManagementReportScreen()),
           ),
 
           // ── MODULE INDUSTRIEL — PRODUCTION (PROMESH/PROBAR) ──────────────
