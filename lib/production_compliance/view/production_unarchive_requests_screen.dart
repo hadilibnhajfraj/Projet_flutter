@@ -205,7 +205,7 @@ class _ProductionUnarchiveRequestsScreenState extends State<ProductionUnarchiveR
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(_t('Production — Unarchive Requests'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
-          Text(_t('Requests to unarchive PROMESH/PROBAR sheets automatically archived after 2 hours in draft'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text(_t('Requests to unarchive PROMESH/PROBAR sheets automatically archived after 8 hours in draft'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           const SizedBox(height: 16),
           _buildArchivedSheetsSection(),
           const SizedBox(height: 20),
@@ -326,7 +326,7 @@ class _ProductionUnarchiveRequestsScreenState extends State<ProductionUnarchiveR
       subtitle: '${_archivedSheets.length}',
       children: [
         Row(children: [
-          Expanded(child: Text(_t('Sheets automatically archived by the system (2h in draft) — visible here even if no unarchive request was filed yet'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12))),
+          Expanded(child: Text(_t('Sheets automatically archived by the system (8h in draft) — visible here even if no unarchive request was filed yet'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12))),
           IconButton(onPressed: _loadingArchived ? null : _loadArchivedSheets, icon: const Icon(Icons.refresh_rounded), tooltip: _t('Refresh')),
         ]),
         const SizedBox(height: 8),

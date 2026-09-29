@@ -525,7 +525,7 @@
   "Production — Demandes d'autorisation": "Production — Authorization Requests",
   "Production — Demandes de désarchivage": "Production — Unarchive Requests",
   "Production — Unarchive Requests": "Production — Unarchive Requests",
-  "Requests to unarchive PROMESH/PROBAR sheets automatically archived after 2 hours in draft": "Requests to unarchive PROMESH/PROBAR sheets automatically archived after 2 hours in draft",
+  "Requests to unarchive PROMESH/PROBAR sheets automatically archived after 8 hours in draft": "Requests to unarchive PROMESH/PROBAR sheets automatically archived after 8 hours in draft",
   "Unarchive requests": "Unarchive requests",
   "Fiche": "Sheet",
   "Production date": "Production date",
@@ -536,7 +536,7 @@
   "Automatically archived": "Automatically archived",
   "Request unarchive": "Request unarchive",
   "Unarchive request": "Unarchive request",
-  "Sheet archived after 2 hours without completion": "Sheet archived after 2 hours without completion",
+  "Sheet archived after 8 hours without completion": "Sheet archived after 8 hours without completion",
   "Retry email": "Retry email",
   "Email retried": "Email retried",
   "SMTP rejected outbound email.": "SMTP rejected outbound email.",
@@ -1696,5 +1696,5 @@
   "Refresh": "Refresh",
   "Created": "Created",
   "Archived": "Archived",
-  "Sheets automatically archived by the system (2h in draft) — visible here even if no unarchive request was filed yet": "Sheets automatically archived by the system (2h in draft) — visible here even if no unarchive request was filed yet"
+  "Sheets automatically archived by the system (8h in draft) — visible here even if no unarchive request was filed yet": "Sheets automatically archived by the system (8h in draft) — visible here even if no unarchive request was filed yet"
 }

@@ -525,7 +525,7 @@
   "Production — Demandes d'autorisation": "Production — Demandes d'autorisation",
   "Production — Demandes de désarchivage": "Production — Demandes de désarchivage",
   "Production — Unarchive Requests": "Demandes de désarchivage de production",
-  "Requests to unarchive PROMESH/PROBAR sheets automatically archived after 2 hours in draft": "Demandes de désarchivage des fiches PROMESH/PROBAR archivées automatiquement après 2 heures en brouillon",
+  "Requests to unarchive PROMESH/PROBAR sheets automatically archived after 8 hours in draft": "Demandes de désarchivage des fiches PROMESH/PROBAR archivées automatiquement après 8 heures en brouillon",
   "Unarchive requests": "Demandes de désarchivage",
   "Fiche": "Fiche",
   "Production date": "Date de production",
@@ -536,7 +536,7 @@
   "Automatically archived": "Archivée automatiquement",
   "Request unarchive": "Demander le désarchivage",
   "Unarchive request": "Demande de désarchivage",
-  "Sheet archived after 2 hours without completion": "Fiche archivée après 2 heures sans finalisation",
+  "Sheet archived after 8 hours without completion": "Fiche archivée après 8 heures sans finalisation",
   "Retry email": "Renvoyer l'e-mail",
   "Email retried": "E-mail relancé",
   "SMTP rejected outbound email.": "Le serveur SMTP a refusé l'envoi sortant.",
@@ -1696,5 +1696,5 @@
   "Refresh": "Actualiser",
   "Created": "Créée le",
   "Archived": "Archivée le",
-  "Sheets automatically archived by the system (2h in draft) — visible here even if no unarchive request was filed yet": "Fiches archivées automatiquement par le système (2h en brouillon) — visibles ici même si aucune demande de désarchivage n'a encore été déposée"
+  "Sheets automatically archived by the system (8h in draft) — visible here even if no unarchive request was filed yet": "Fiches archivées automatiquement par le système (8h en brouillon) — visibles ici même si aucune demande de désarchivage n'a encore été déposée"
 }

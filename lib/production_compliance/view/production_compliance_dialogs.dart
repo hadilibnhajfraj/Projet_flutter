@@ -146,7 +146,7 @@ Future<void> _showArchivedDialog(BuildContext context, ProductionApiException e)
       content: SizedBox(
         width: 440,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(t('Sheet archived after 2 hours without completion')),
+          Text(t('Sheet archived after 8 hours without completion')),
           const SizedBox(height: 8),
           Text('${t('User')} : ${AuthService().userEmail ?? ''}', style: const TextStyle(fontSize: 12)),
         ]),
