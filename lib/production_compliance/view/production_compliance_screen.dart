@@ -13,11 +13,13 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dash_master_toolkit/providers/production_compliance_request_provider.dart';
 import 'package:dash_master_toolkit/reports/view/report_widgets.dart';
 
 import '../service/production_compliance_service.dart';
 import 'production_compliance_dialogs.dart';
+import 'production_request_history_dialog.dart';
 
 const _kStatuses = <String>[
   'completed',
@@ -43,6 +45,11 @@ class _ProductionComplianceScreenState extends State<ProductionComplianceScreen>
   // d'autorisation) : Approve/Reject ici met aussi à jour le badge, sans
   // double appel réseau ni état dupliqué.
   final _reqProvider = ProductionComplianceRequestProvider.to;
+  // Responsable logistique (permissions production.authorization.* seulement) :
+  // uniquement les demandes d'autorisation — ni contrôle journalier, ni
+  // synthèse, ni autorisation directe, ni renvoi d'email (réservés aux
+  // responsables historiques, refusés 403 par le backend pour ce compte).
+  final bool _requestsOnly = !AuthService().isComplianceManager;
 
   DateTime _from = DateTime.now().subtract(const Duration(days: 29));
   DateTime _to = DateTime.now();
@@ -92,6 +99,12 @@ class _ProductionComplianceScreenState extends State<ProductionComplianceScreen>
       _error = null;
     });
     try {
+      if (_requestsOnly) {
+        await _reqProvider.load();
+        if (!mounted) return;
+        setState(() => _loading = false);
+        return;
+      }
       final rows = await _svc.list(
         from: _df.format(_from),
         to: _df.format(_to),
@@ -270,12 +283,16 @@ class _ProductionComplianceScreenState extends State<ProductionComplianceScreen>
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_t('Production Compliance'), style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+          Text(_requestsOnly ? 'Production — Demandes d\'autorisation' : _t('Production Compliance'),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
-          Text(_t('Daily production sheet control — Tunis time'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text(_requestsOnly ? 'Demandes de backfill des utilisateurs de production (PROD 1 / PROD 2)' : _t('Daily production sheet control — Tunis time'),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           const SizedBox(height: 16),
-          _filters(),
-          const SizedBox(height: 16),
+          if (!_requestsOnly) ...[
+            _filters(),
+            const SizedBox(height: 16),
+          ],
           if (_loading)
             const Padding(padding: EdgeInsets.symmetric(vertical: 60), child: Center(child: CircularProgressIndicator()))
           else if (_error != null)
@@ -291,8 +308,10 @@ class _ProductionComplianceScreenState extends State<ProductionComplianceScreen>
             )
           else ...[
             _requestsSection(),
-            _summarySection(),
-            _tableSection(),
+            if (!_requestsOnly) ...[
+              _summarySection(),
+              _tableSection(),
+            ],
           ],
         ]),
       ),
@@ -510,7 +529,14 @@ class _ProductionComplianceScreenState extends State<ProductionComplianceScreen>
             ),
           ]),
         ),
-        actions: [FilledButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(_t('Close')))],
+        actions: [
+          TextButton.icon(
+            onPressed: () => showProductionRequestHistory(context, type: 'authorization', id: r['id'].toString()),
+            icon: const Icon(Icons.history_rounded, size: 18),
+            label: const Text('Historique'),
+          ),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(_t('Close'))),
+        ],
       ),
     );
   }
@@ -565,7 +591,7 @@ class _ProductionComplianceScreenState extends State<ProductionComplianceScreen>
                     },
                   ),
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(minWidth: 1360),
+                    constraints: const BoxConstraints(minWidth: 1640),
                     child: DataTable(
                       columnSpacing: 18,
                       headingRowHeight: 40,
@@ -583,6 +609,10 @@ class _ProductionComplianceScreenState extends State<ProductionComplianceScreen>
                         DataColumn(label: Text(_t('Missing dates'))),
                         DataColumn(label: Text(_t('Reason'))),
                         DataColumn(label: Text(_t('Status'))),
+                        // Une seule décision possible (APPROVED/REJECTED verrouillé) :
+                        // qui l'a prise et quand, visible par les deux responsables.
+                        const DataColumn(label: Text('Traité par')),
+                        const DataColumn(label: Text('Traité le')),
                         DataColumn(label: Text(_t('Expires on'))),
                         // §13/§10 du ticket SMTP : statut de l'e-mail distinct du statut
                         // de la demande (§12 — indépendants), avec "Retry email".
@@ -611,6 +641,8 @@ class _ProductionComplianceScreenState extends State<ProductionComplianceScreen>
                               decoration: BoxDecoration(color: requestStatusColor(requests[i]['status'].toString()).withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
                               child: Text(requests[i]['status'].toString(), style: TextStyle(color: requestStatusColor(requests[i]['status'].toString()), fontWeight: FontWeight.w700)),
                             )),
+                            DataCell(Text(requests[i]['reviewerEmail']?.toString() ?? '—')),
+                            DataCell(Text(requests[i]['reviewedAt'] != null ? _fmtDateTime(requests[i]['reviewedAt']) : '—')),
                             DataCell(Text(requests[i]['expiresAt'] != null ? _fmtDate(requests[i]['expiresAt']) : '—')),
                             DataCell(_emailStatusChip(requests[i]['emailStatus']?.toString())),
                             DataCell(ConstrainedBox(
@@ -623,7 +655,7 @@ class _ProductionComplianceScreenState extends State<ProductionComplianceScreen>
                                   const SizedBox(width: 4),
                                   FilledButton(onPressed: () => _decide(requests[i], approve: true), child: Text(_t('AUTHORIZE'))),
                                 ],
-                                if (requests[i]['emailStatus'] == 'FAILED') ...[
+                                if (!_requestsOnly && requests[i]['emailStatus'] == 'FAILED') ...[
                                   const SizedBox(width: 4),
                                   OutlinedButton.icon(
                                     onPressed: () => _retryRequestEmail(requests[i]['id'].toString()),

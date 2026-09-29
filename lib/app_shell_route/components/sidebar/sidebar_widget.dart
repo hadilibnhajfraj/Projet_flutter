@@ -11,6 +11,7 @@ import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart
 import 'package:dash_master_toolkit/forms/hr/theme/hr_theme.dart' show kHrColor;
 import 'package:dash_master_toolkit/forms/recuperables/theme/recuperable_theme.dart' show kRecuperableColor;
 import 'package:dash_master_toolkit/forms/finance/theme/finance_theme.dart' show kFinanceColor;
+import 'package:dash_master_toolkit/quality_control/view/quality_control_widgets.dart' show kQualityControlColor;
 
 part 'sidebar_item_model.dart';
 
@@ -40,6 +41,7 @@ class SideBarWidget extends StatelessWidget {
     // combinant Production (comme isLogistiqueAchat) + Finance (comme
     // isFinance) — jamais le CRM/Administration/User Management.
     final isFinanceProduction = role == 'finance_production';
+    final isControleQualite = role == 'controle_qualite';
     final canViewCommercialKpi = auth.canViewCommercialKpi;
     final canViewPorPromesh = auth.canViewPorPromesh;
     final canViewFinance = auth.canViewFinance;
@@ -69,6 +71,7 @@ class SideBarWidget extends StatelessWidget {
       isCommercial:        isCommercial,
       isLogistiqueAchat:   isLogistiqueAchat,
       isFinanceProduction: isFinanceProduction,
+      isControleQualite: isControleQualite,
       canViewCommercialKpi: canViewCommercialKpi,
       canViewPorPromesh:   canViewPorPromesh,
       hideIndustrialDashboard: hideIndustrialDashboard,
@@ -81,6 +84,7 @@ class SideBarWidget extends StatelessWidget {
       isLogistiqueAchat: isLogistiqueAchat,
       isFinance: isFinance,
       isFinanceProduction: isFinanceProduction,
+      isControleQualite: isControleQualite,
       canViewPorPromesh: canViewPorPromesh,
       canViewFinance: canViewFinance,
       hideIndustrialDashboard: hideIndustrialDashboard,
@@ -88,6 +92,7 @@ class SideBarWidget extends StatelessWidget {
       isRestrictedAdmin: isRestrictedAdmin,
       isRootAdmin: isRootAdmin,
       isComplianceManager: auth.isComplianceManager,
+      isProductionWorkflowManager: auth.isProductionWorkflowManager,
     );
 
     final sidebarW = iconOnly

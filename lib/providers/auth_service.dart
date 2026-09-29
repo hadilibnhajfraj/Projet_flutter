@@ -99,6 +99,22 @@ bool get isComplianceManager {
   return e == 'hadil.ibnhajfraj@gmail.com' || e == 'manegerofficecbi@gmail.com' || e == 'cbitunisia@cbi-tunisia.com';
 }
 
+// Responsable logistique — gère UNIQUEMENT les demandes Production
+// (autorisation de backfill, désarchivage) + leurs statistiques. Exception
+// NOMINATIVE : son rôle responsable_logistique_achat est partagé avec
+// production_1..5, qui ne doivent jamais gérer ces demandes. Même liste que
+// le backend (config/productionWorkflow.js, PRODUCTION_WORKFLOW_MANAGERS) —
+// le backend reste l'autorité (permissions production.* revérifiées).
+bool get isProductionWorkflowManager {
+  final e = (userEmail ?? '').toLowerCase().trim();
+  return e == 'responsable_logistique@cbi-tunisia.com';
+}
+
+// Accès aux écrans des demandes Production : responsables historiques
+// (tous les droits Production Compliance) ou responsable logistique
+// (demandes uniquement).
+bool get canManageProductionRequests => isComplianceManager || isProductionWorkflowManager;
+
 // Gestion complète des demandes de maintenance (Administration > Demandes >
 // Maintenance) : accepter/refuser/affecter un technicien/passer en cours/
 // terminer/supprimer. Admin (rôle) + rôle responsable_logistique_achat +
@@ -137,6 +153,16 @@ bool get canViewFinance {
       r == 'superadmin2' ||
       r == 'finance_probar' ||
       r == 'finance_production';
+}
+
+// Module CONTRÔLE QUALITÉ (checklist de production) — rôle dédié
+// controle_qualite + tiers admin. Même liste que le backend
+// (config/qualityControl.js#writeRoles) ; le backend reste l'autorité.
+bool get isControleQualite => (userRole ?? '').toLowerCase().trim() == 'controle_qualite';
+
+bool get canViewQualityControl {
+  final r = (userRole ?? '').toLowerCase().trim();
+  return r == 'admin' || r == 'superadmin' || r == 'superadmin2' || r == 'controle_qualite';
 }
   // ---------------- SIGNUP ----------------
   Future<void> signup({required String email, required String password}) async {

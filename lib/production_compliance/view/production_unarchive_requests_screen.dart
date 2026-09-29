@@ -17,6 +17,7 @@ import 'package:dash_master_toolkit/providers/production_unarchive_request_provi
 import 'package:dash_master_toolkit/reports/view/report_widgets.dart';
 
 import '../service/production_draft_archive_service.dart';
+import 'production_request_history_dialog.dart';
 
 Color _statusColor(String status) {
   switch (status) {
@@ -122,7 +123,14 @@ class _ProductionUnarchiveRequestsScreenState extends State<ProductionUnarchiveR
             ),
           ]),
         ),
-        actions: [FilledButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(_t('Close')))],
+        actions: [
+          TextButton.icon(
+            onPressed: () => showProductionRequestHistory(context, type: 'unarchive', id: r['id'].toString()),
+            icon: const Icon(Icons.history_rounded, size: 18),
+            label: const Text('Historique'),
+          ),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(_t('Close'))),
+        ],
       ),
     );
   }
@@ -233,7 +241,7 @@ class _ProductionUnarchiveRequestsScreenState extends State<ProductionUnarchiveR
                           PointerDeviceKind.touch,
                         }),
                         child: ConstrainedBox(
-                          constraints: const BoxConstraints(minWidth: 1200),
+                          constraints: const BoxConstraints(minWidth: 1480),
                           child: DataTable(
                             columnSpacing: 18,
                             headingRowHeight: 40,
@@ -253,6 +261,8 @@ class _ProductionUnarchiveRequestsScreenState extends State<ProductionUnarchiveR
                               DataColumn(label: Text(_t('Archived on'))),
                               DataColumn(label: Text(_t('Reason'))),
                               DataColumn(label: Text(_t('Status'))),
+                              const DataColumn(label: Text('Traité par')),
+                              const DataColumn(label: Text('Traité le')),
                               DataColumn(label: Text(_t('Actions'))),
                             ],
                             rows: [
@@ -276,6 +286,8 @@ class _ProductionUnarchiveRequestsScreenState extends State<ProductionUnarchiveR
                                     decoration: BoxDecoration(color: _statusColor(requests[i]['status'].toString()).withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
                                     child: Text(requests[i]['status'].toString(), style: TextStyle(color: _statusColor(requests[i]['status'].toString()), fontWeight: FontWeight.w700)),
                                   )),
+                                  DataCell(Text(requests[i]['reviewerEmail']?.toString() ?? '—')),
+                                  DataCell(Text(requests[i]['reviewedAt'] != null ? _fmtDateTime(requests[i]['reviewedAt']) : '—')),
                                   DataCell(ConstrainedBox(
                                     constraints: const BoxConstraints(minWidth: 200),
                                     child: Row(mainAxisSize: MainAxisSize.min, children: [

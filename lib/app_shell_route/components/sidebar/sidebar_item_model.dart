@@ -90,10 +90,14 @@ List<SidebarItemModel> buildTopMenus({
   required bool canViewCommercialKpi,
   bool isLogistiqueAchat = false,
   bool isFinanceProduction = false,
+  bool isControleQualite = false,
   bool canViewPorPromesh = false,
   bool hideIndustrialDashboard = false,
   bool isRestrictedAdmin = false,
 }) {
+  // Espace dédié CONTRÔLE QUALITÉ : pas de Dashboard (CRM ni industriel),
+  // uniquement le groupe CONTRÔLE QUALITÉ (buildGroupedMenus).
+  if (isControleQualite) return [];
   // Espace dédié module industriel : un seul tile "Dashboard" (cartes KPI),
   // pas le Dashboard CRM (KPI Projets, etc.) qui ne concerne pas ce rôle.
   // finance_production (§MODIFICATION — INTERFACE PRODUCTION DE
@@ -170,6 +174,7 @@ List<GroupedMenuModel> buildGroupedMenus({
   bool isLogistiqueAchat = false,
   bool isFinance = false,
   bool isFinanceProduction = false,
+  bool isControleQualite = false,
   bool canViewPorPromesh = false,
   bool canViewFinance = false,
   bool hideIndustrialDashboard = false,
@@ -177,6 +182,7 @@ List<GroupedMenuModel> buildGroupedMenus({
   bool isRestrictedAdmin = false,
   bool isRootAdmin = false,
   bool isComplianceManager = false,
+  bool isProductionWorkflowManager = false,
 }) {
   // ── ESPACE DÉDIÉ — responsable_logistique_achat ─────────────────────────
   // Rien d'autre que le module industriel n'est visible pour ce rôle : pas
@@ -184,7 +190,15 @@ List<GroupedMenuModel> buildGroupedMenus({
   // RH > Demandes reste accessible — tout employé doit pouvoir demander un
   // congé ou une autorisation de sortie, quel que soit son rôle.
   if (isLogistiqueAchat) {
-    return [...buildIndustrialGroups(), buildHrGroup(), buildRecuperableGroup()];
+    return [
+      ...buildIndustrialGroups(),
+      buildHrGroup(),
+      buildRecuperableGroup(),
+      // Uniquement responsable_logistique@cbi-tunisia.com (jamais
+      // production_1..5, qui partagent ce rôle) : ADMINISTRATION réduite aux
+      // demandes Production — ni RH, ni Maintenance, ni autres demandes.
+      if (isProductionWorkflowManager) buildProductionRequestsAdminGroup(),
+    ];
   }
 
   // ── ESPACE DÉDIÉ — finance_probar ────────────────────────────────────────
@@ -202,6 +216,13 @@ List<GroupedMenuModel> buildGroupedMenus({
   // Administration (non demandés par ce ticket).
   if (isFinanceProduction) {
     return [...buildIndustrialGroups(), buildFinanceGroup()];
+  }
+
+  // ── ESPACE DÉDIÉ — controle_qualite ─────────────────────────────────────
+  // Uniquement le module CONTRÔLE QUALITÉ — ni CRM, ni saisie des fiches
+  // PROMESH/PROBAR, ni Administration/User Management.
+  if (isControleQualite) {
+    return [buildQualityControlGroup()];
   }
 
   // ── ACCUEIL ─────────────────────────────────────────────────────────────
@@ -304,6 +325,7 @@ List<GroupedMenuModel> buildGroupedMenus({
     ),
 
     if (canViewPorPromesh && !isRestrictedAdmin) ...buildIndustrialGroups(),
+    if (isAdmin && !isRestrictedAdmin) buildQualityControlGroup(),
     if (canViewFinance && !isRestrictedAdmin) buildFinanceGroup(),
 
     if (isAdmin && !hideIndustrialDashboard && !isRestrictedAdmin)
@@ -377,6 +399,12 @@ List<GroupedMenuModel> buildGroupedMenus({
                 name: 'Production — Demandes de désarchivage',
                 navigationPath: MyRoute.productionUnarchiveRequestsScreen,
                 icon: Icons.unarchive_outlined,
+              ),
+            if (isComplianceManager)
+              SidebarSubmenuModel(
+                name: 'Production — Statistiques des demandes',
+                navigationPath: MyRoute.productionRequestStatisticsScreen,
+                icon: Icons.insights_outlined,
               ),
           ],
         ),
@@ -558,6 +586,63 @@ List<GroupedMenuModel> buildIndustrialGroups() => [
         ],
       ),
     ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMINISTRATION — responsable logistique : demandes Production UNIQUEMENT
+// (mêmes routes/badges que les sous-menus équivalents du menu admin).
+// ─────────────────────────────────────────────────────────────────────────────
+GroupedMenuModel buildProductionRequestsAdminGroup() => GroupedMenuModel(
+      name: 'ADMINISTRATION',
+      menus: [
+        _safeSubmenuItem(
+          name: 'Demandes',
+          icon: Icons.inbox_rounded,
+          navigationPath: MyRoute.productionComplianceScreen,
+          submenus: [
+            SidebarSubmenuModel(
+              name: 'Production — Demandes d\'autorisation',
+              navigationPath: MyRoute.productionComplianceScreen,
+              icon: Icons.fact_check_outlined,
+            ),
+            SidebarSubmenuModel(
+              name: 'Production — Demandes d\'archivage / désarchivage',
+              navigationPath: MyRoute.productionUnarchiveRequestsScreen,
+              icon: Icons.unarchive_outlined,
+            ),
+            SidebarSubmenuModel(
+              name: 'Production — Statistiques des demandes',
+              navigationPath: MyRoute.productionRequestStatisticsScreen,
+              icon: Icons.insights_outlined,
+            ),
+          ],
+        ),
+      ],
+    );
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRODUCTION / CONTRÔLE QUALITÉ — groupe séparé de buildIndustrialGroups()
+// (partagé avec responsable_logistique_achat/finance_production, qui n'ont
+// pas accès au module côté backend).
+// ─────────────────────────────────────────────────────────────────────────────
+GroupedMenuModel buildQualityControlGroup() => GroupedMenuModel(
+      name: 'CONTRÔLE QUALITÉ',
+      menus: [
+        SidebarItemModel(
+          name:           'Nouveau contrôle',
+          icon:           Icons.fact_check_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.qualityControlFormScreen,
+          accentColor:    kQualityControlColor,
+        ),
+        SidebarItemModel(
+          name:           'Historique',
+          icon:           Icons.history_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.qualityControlHistoryScreen,
+          accentColor:    kQualityControlColor,
+        ),
+      ],
+    );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MODULE FINANCE PROBAR

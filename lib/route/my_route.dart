@@ -76,8 +76,11 @@ import 'package:dash_master_toolkit/production_records/view/production_records_s
 import 'package:dash_master_toolkit/reports/view/management_report_screen.dart';
 import 'package:dash_master_toolkit/production_compliance/view/production_compliance_screen.dart';
 import 'package:dash_master_toolkit/production_compliance/view/production_unarchive_requests_screen.dart';
+import 'package:dash_master_toolkit/production_compliance/view/production_request_statistics_screen.dart';
 import 'package:dash_master_toolkit/production_records/view/production_summary_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_detail_screen.dart';
+import 'package:dash_master_toolkit/quality_control/view/quality_control_history_screen.dart';
+import 'package:dash_master_toolkit/quality_control/view/quality_control_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_dashboard_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_historique_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_statistiques_screen.dart';
@@ -221,6 +224,12 @@ class MyRoute {
   static const financeFacturedShipmentsExportScreen = '/finance/factured-shipments/export';
   static const financePaidInvoicesImportScreen = '/finance/paid-invoices/import';
 
+  // ── Module CONTRÔLE QUALITÉ — espace dédié controle_qualite (+ admins) ────
+  static const qualityControlRoot = '/quality-control';
+  static const qualityControlHistoryScreen = '/quality-control/historique';
+  // `?id=<contrôle>` : checklist ; sans id : choix de la fiche à contrôler.
+  static const qualityControlFormScreen = '/quality-control/controle';
+
   static const industrialRoutePrefixes = [
     porPromeshRoot,
     productionRoot,
@@ -291,6 +300,14 @@ static const clientsProfileScreen = '/users/client';
   static const managementReportScreen = '/reports/management';
   static const productionComplianceScreen = '/production-compliance';
   static const productionUnarchiveRequestsScreen = '/production-draft-archive';
+  static const productionRequestStatisticsScreen = '/production-requests/statistics';
+  // Écrans des demandes Production accessibles au responsable logistique
+  // (en plus de son espace industriel) — voir isProductionWorkflowManager.
+  static const productionRequestRoutes = [
+    productionComplianceScreen,
+    productionUnarchiveRequestsScreen,
+    productionRequestStatisticsScreen,
+  ];
   // Route réelle : nichée sous le parent '/forms' (voir GoRoute path: 'maintenance-requests').
   static const maintenanceRequestsScreen = '/forms/maintenance-requests';
   // Routes réelles : nichées sous le parent '/forms' (voir GoRoute path: 'hr-requests/conge'|'hr-requests/sortie').
@@ -324,9 +341,14 @@ static const clientsProfileScreen = '/users/client';
         // industriel (POR PROMESH, PRODUCTION, MÉLANGE, MAINTENANCE).
         final isOnIndustrialRoute = industrialRoutePrefixes
             .any((p) => loc == p || loc.startsWith('$p/'));
+        // Exception nominative : responsable_logistique@cbi-tunisia.com accède
+        // aussi aux écrans des demandes Production (jamais production_1..5).
+        final isOnProductionRequestRoute = AuthService().isProductionWorkflowManager &&
+            productionRequestRoutes.any((p) => loc == p || loc.startsWith('$p/'));
         if (role == 'responsable_logistique_achat' &&
             !isAuthRoute &&
-            !isOnIndustrialRoute) {
+            !isOnIndustrialRoute &&
+            !isOnProductionRequestRoute) {
           return porPromeshDashboardScreen;
         }
 
@@ -352,6 +374,15 @@ static const clientsProfileScreen = '/users/client';
           return porPromeshDashboardScreen;
         }
 
+        // ── Espace dédié controle_qualite (module CONTRÔLE QUALITÉ) ───────
+        // Même verrouillage que les espaces ci-dessus : uniquement les
+        // routes /quality-control/* — jamais le CRM, les fiches en écriture
+        // (PROMESH/PROBAR) ni l'administration.
+        final isOnQualityControlRoute = loc == qualityControlRoot || loc.startsWith('$qualityControlRoot/');
+        if (role == 'controle_qualite' && !isAuthRoute && !isOnQualityControlRoute) {
+          return qualityControlHistoryScreen;
+        }
+
         // ── Connecté sur auth route ou racine → dashboard ─────────────────
         // La sélection du commercial (@probardistribution.com) est gérée
         // exclusivement dans sign_in_screen.dart après un login réussi.
@@ -366,6 +397,9 @@ static const clientsProfileScreen = '/users/client';
           }
           if (role == 'finance_production') {
             return porPromeshDashboardScreen;
+          }
+          if (role == 'controle_qualite') {
+            return qualityControlHistoryScreen;
           }
           if (role == 'commercial') {
             debugPrint('REDIRECTION → $commercialContactsKpiUsers');
@@ -889,9 +923,11 @@ GoRoute(
           ),
 
           // ── PRODUCTION COMPLIANCE (responsables configurés uniquement) ───
+          // Responsables historiques : écran complet ; responsable logistique :
+          // demandes d'autorisation uniquement (voir requestsOnly dans l'écran).
           GoRoute(
             path: productionComplianceScreen,
-            redirect: (context, state) => AuthService().isComplianceManager ? null : dashboard,
+            redirect: (context, state) => AuthService().canManageProductionRequests ? null : dashboard,
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: ProductionComplianceScreen()),
           ),
@@ -899,9 +935,44 @@ GoRoute(
           // ── PRODUCTION — UNARCHIVE REQUESTS (mêmes responsables) ─────────
           GoRoute(
             path: productionUnarchiveRequestsScreen,
-            redirect: (context, state) => AuthService().isComplianceManager ? null : dashboard,
+            redirect: (context, state) => AuthService().canManageProductionRequests ? null : dashboard,
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: ProductionUnarchiveRequestsScreen()),
+          ),
+
+          // ── PRODUCTION — STATISTIQUES DES DEMANDES ───────────────────────
+          GoRoute(
+            path: productionRequestStatisticsScreen,
+            redirect: (context, state) => AuthService().canManageProductionRequests ? null : dashboard,
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ProductionRequestStatisticsScreen()),
+          ),
+
+          // ── CONTRÔLE QUALITÉ (controle_qualite + admins) ─────────────────
+          GoRoute(
+            path: qualityControlRoot,
+            redirect: (context, state) {
+              if (!AuthService().canViewQualityControl) return dashboard;
+              if (state.fullPath == qualityControlRoot) return qualityControlHistoryScreen;
+              return null;
+            },
+            routes: [
+              GoRoute(
+                path: 'historique',
+                pageBuilder: (context, state) =>
+                    const NoTransitionPage(child: QualityControlHistoryScreen()),
+              ),
+              // Clé = URL complète : passer du choix de fiche (sans id) à la
+              // checklist (?id=...) doit recréer l'écran, pas réutiliser son
+              // State (même piège que Production Summary PROMESH/PROBAR).
+              GoRoute(
+                path: 'controle',
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: ValueKey(state.uri.toString()),
+                  child: QualityControlScreen(controlId: state.uri.queryParameters['id']),
+                ),
+              ),
+            ],
           ),
 
           // ── RAPPORT DE PILOTAGE (admin / superadmin / superadmin2) ───────

@@ -64,7 +64,8 @@ class _ProductionComplianceBannerState extends State<ProductionComplianceBanner>
         final me = snap.data;
         if (me == null || me['monitored'] != true) return const SizedBox.shrink();
         final missing = (me['missingDates'] as List? ?? []).map((e) => e.toString()).toList();
-        final backfill = (me['backfillDates'] as List? ?? []).whereType<Map>().map((e) => e['date'].toString()).toList();
+        final backfillAuths = (me['backfillDates'] as List? ?? []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        final backfill = backfillAuths.map((e) => e['date'].toString()).toList();
         final reqs = (me['requests'] as List? ?? []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
         if (missing.isEmpty && backfill.isEmpty) return const SizedBox.shrink();
 
@@ -119,11 +120,26 @@ class _ProductionComplianceBannerState extends State<ProductionComplianceBanner>
                   ]),
                 );
               }),
-            for (final d in backfill) ...[
-              Row(children: [
+            for (final a in backfillAuths) ...[
+              Builder(builder: (context) {
+                final d = a['date'].toString();
+                final by = a['authorizedByEmail']?.toString();
+                final at = DateTime.tryParse(a['authorizedAt']?.toString() ?? '');
+                final exp = DateTime.tryParse(a['expiresAt']?.toString() ?? '');
+                return Row(children: [
                 const Icon(Icons.lock_open_rounded, color: Colors.green),
                 const SizedBox(width: 10),
-                Expanded(child: Text('${_t('You are authorized to create the production sheet of')} ${_fmt(d)}.')),
+                Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('${_t('You are authorized to create the production sheet of')} ${_fmt(d)}.'),
+                    if (by != null)
+                      Text(
+                        'Authorization granted — $by${at != null ? ' — ${DateFormat('dd/MM/yyyy HH:mm').format(at.toLocal())}' : ''}'
+                        '${exp != null ? ' · expire le ${DateFormat('dd/MM/yyyy HH:mm').format(exp.toLocal())}' : ''}',
+                        style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.w600),
+                      ),
+                  ]),
+                ),
                 if (widget.onBackfill != null) ...[
                   const SizedBox(width: 8),
                   FilledButton(
@@ -140,7 +156,8 @@ class _ProductionComplianceBannerState extends State<ProductionComplianceBanner>
                     child: Text('${_t('Create sheet of')} ${_fmt(d)}'),
                   ),
                 ],
-              ]),
+              ]);
+              }),
             ],
           ]),
         );
