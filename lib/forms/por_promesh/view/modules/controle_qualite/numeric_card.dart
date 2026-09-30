@@ -30,6 +30,10 @@ class NumericCard extends StatelessWidget {
   // texte d'instruction ne peut pas être confondu avec une valeur déjà
   // saisie.
   final String? hintText;
+  // Variante "input texte" (opt-in, voir "Pression air comprimé") : saisie
+  // libre ("5", "5.5", "> 6"), champ encadré clairement identifiable comme
+  // un INPUT, unité affichée À DROITE, hors du champ (non éditable).
+  final bool textInput;
 
   const NumericCard({
     super.key,
@@ -42,6 +46,7 @@ class NumericCard extends StatelessWidget {
     this.outOfRange = false,
     this.rangeHint,
     this.hintText,
+    this.textInput = false,
   });
 
   @override
@@ -64,7 +69,7 @@ class NumericCard extends StatelessWidget {
           iconBoxSize: 22,
         ),
         const SizedBox(height: 6),
-        TextField(
+        if (textInput) _textInput(context) else TextField(
           controller: controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           onChanged: (_) => onChanged(),
@@ -98,5 +103,35 @@ class NumericCard extends StatelessWidget {
         ],
       ]),
     );
+  }
+
+  Widget _textInput(BuildContext context) {
+    OutlineInputBorder border(Color color, [double width = 1]) =>
+        OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: color, width: width));
+    return Row(children: [
+      Expanded(
+        child: TextField(
+          controller: controller,
+          keyboardType: TextInputType.text,
+          onChanged: (_) => onChanged(),
+          style: tInter(fontSize: 16, fontWeight: FontWeight.w900, color: kCrmText),
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            filled: true,
+            fillColor: kCrmSurface,
+            hintText: hintText == null ? null : AppLocalizations.of(context).translate(hintText!),
+            hintStyle: tInter(fontSize: 11.5, color: kCrmTextSub),
+            enabledBorder: border(kCrmBorder),
+            focusedBorder: border(kCrmInfo, 1.5),
+            border: border(kCrmBorder),
+          ),
+        ),
+      ),
+      if (suffix != null) ...[
+        const SizedBox(width: 8),
+        Text(suffix!, style: tInter(fontSize: 12, fontWeight: FontWeight.w700, color: kCrmTextSub)),
+      ],
+    ]);
   }
 }

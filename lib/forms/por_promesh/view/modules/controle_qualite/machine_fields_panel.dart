@@ -1,8 +1,9 @@
 // lib/forms/por_promesh/view/modules/controle_qualite/machine_fields_panel.dart
 //
-// "Contrôle Machine" — état général machine (7 champs : air, niveauBainEau,
-// temperatureEau, temperaturePistons, etatPistons, fluideVisuel,
-// etatDisqueCoupe). Les champs "Niveau bain résine", "État d'Atelier" et
+// "Contrôle Machine" — état général machine (5 champs : air, niveauBainEau,
+// temperaturePistons, etatPistons, fluideVisuel). "Température d'eau" et
+// "État disque de coupe (Machine)" retirés le 2026-09-30 (le `Wrap` de
+// `MachineControlGrid` recompacte seul la grille, aucun emplacement vide). Les champs "Niveau bain résine", "État d'Atelier" et
 // "Zone de Stockage" ont été supprimés (hors périmètre du contrôle
 // machine) et "Température demandée" a été renommée "Température des
 // Pistons" — saisie numérique libre, sans boutons préréglés.
@@ -34,7 +35,6 @@ import 'package:get/get.dart';
 
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/controller/por_promesh_controller.dart';
-import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 import 'cq_theme.dart';
 import 'machine_control_grid.dart';
@@ -78,23 +78,6 @@ class MachineFieldsPanel extends StatelessWidget {
               onChanged();
             },
           )),
-      // `outOfRange` dérive de `c.temperatureEau.text` à chaque frappe —
-      // recalculé ici via `AnimatedBuilder` scoped à cette seule carte (un
-      // `ParameterCard`/`NumericCard` ne s'auto-rebuild jamais : il
-      // affiche les props qu'on lui donne au moment du build).
-      AnimatedBuilder(
-        animation: c.temperatureEau,
-        builder: (context, _) => NumericCard(
-          icon: cqMachineFieldIcon(CqMachineField.temperatureEau),
-          title: "Température d'eau",
-          controller: c.temperatureEau,
-          suffix: '°C',
-          outOfRange: c.controleMachineTemperatureEauOutOfRange,
-          rangeHint:
-              '${AppLocalizations.of(context).translate('Plage attendue :')} ${PorPromeshController.machineTemperatureEauMin.toStringAsFixed(0)}–${PorPromeshController.machineTemperatureEauMax.toStringAsFixed(0)}°C',
-          onChanged: onChanged,
-        ),
-      ),
       NumericCard(
         icon: cqMachineFieldIcon(CqMachineField.temperaturePistons),
         title: 'Température des Pistons (°C)',
@@ -126,19 +109,6 @@ class MachineFieldsPanel extends StatelessWidget {
             ],
             onSelect: (v) {
               c.fluideVisuel.value = v;
-              onChanged();
-            },
-          )),
-      Obx(() => ParameterCard(
-            icon: cqMachineFieldIcon(CqMachineField.etatDisqueCoupe),
-            title: 'État disque de coupe (Machine)',
-            value: c.etatDisqueCoupe.value,
-            options: const [
-              StatusOption(value: 'OK', label: 'OK', icon: Icons.check_circle_rounded, color: kCrmSuccess),
-              StatusOption(value: 'NOK', label: 'NOK', icon: Icons.cancel_rounded, color: kCrmDanger),
-            ],
-            onSelect: (v) {
-              c.etatDisqueCoupe.value = v;
               onChanged();
             },
           )),

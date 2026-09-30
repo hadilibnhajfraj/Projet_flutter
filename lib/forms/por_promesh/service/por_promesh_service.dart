@@ -5,6 +5,7 @@
 // following the same Dio + envelope-tolerant parsing pattern used by
 // PipelineService.
 
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -181,6 +182,27 @@ class PorPromeshService {
       final res = await ApiClient.instance.dio.put('$_basePath/$id', data: model.toJson());
       return PorPromeshModel.fromJson(_unwrapObject(res.data));
     } on DioException catch (e) {
+      throw ProductionComplianceService.translateError(e);
+    }
+  }
+
+  /// UPDATE partiel (PUT /por-promesh/:id) — n'envoie QUE les champs
+  /// réellement modifiés (voir PorPromeshController.saveDraft) : un champ
+  /// non modifié n'est jamais réécrit (ni remis à null), et une table enfant
+  /// non modifiée n'est jamais supprimée/recréée côté backend.
+  Future<PorPromeshModel> updateFields(String id, Map<String, dynamic> fields) async {
+    final payload = PorPromeshModel.sanitizePayload(fields);
+    debugPrint('[PROMESH EDIT] ID: $id');
+    debugPrint('[PROMESH EDIT] Payload: ${jsonEncode(payload)}');
+    try {
+      final res = await ApiClient.instance.dio.put('$_basePath/$id', data: payload);
+      debugPrint('[PROMESH EDIT] Response status: ${res.statusCode}');
+      final body = jsonEncode(res.data);
+      debugPrint('[PROMESH EDIT] Response body: ${body.length > 2000 ? '${body.substring(0, 2000)}…' : body}');
+      return PorPromeshModel.fromJson(_unwrapObject(res.data));
+    } on DioException catch (e) {
+      debugPrint('[PROMESH EDIT] Response status: ${e.response?.statusCode}');
+      debugPrint('[PROMESH EDIT] Response body: ${e.response?.data}');
       throw ProductionComplianceService.translateError(e);
     }
   }

@@ -21,16 +21,13 @@ class PorPromeshExcelService {
     'Niveau bain de résine',
     'Diamètre de bar',
     'Température de machine',
-    "Température d'eau",
     "Pression d'air comprimé",
     'Validation impression',
     'Nombre de barre en longueur',
     'Dimensions de maille',
     'Dimensions côté 1 long',
     'Dimensions côté 2 long',
-    "Fuite d'eau",
     "Fuite d'air comprimé",
-    'Etat disque de coupe',
     'Nombre de barre en largeur',
   ];
 
@@ -96,11 +93,9 @@ class PorPromeshExcelService {
     row = _sectionHeader(sheet, row, '2. Plan de Process PROMESH');
     row = _kv(sheet, row, 'Air', m.air);
     row = _kv(sheet, row, "Niveau Bain d'Eau", m.niveauBainEau);
-    row = _kv(sheet, row, 'Température Eau', m.temperatureEau?.toString());
     row = _kv(sheet, row, 'Température des Pistons', m.temperaturePistons?.toString());
     row = _kv(sheet, row, 'État Pistons', m.etatPistons);
     row = _kv(sheet, row, 'Fluide Visuel', m.fluideVisuel);
-    row = _kv(sheet, row, 'État Disque Coupe', m.etatDisqueCoupe);
     row++;
 
     row = _sectionHeader(sheet, row, '3. Contrôle Qualité');

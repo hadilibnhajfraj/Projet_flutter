@@ -22,8 +22,11 @@ import 'industrial_context_header.dart';
 class InfoGeneraleScreen extends StatefulWidget {
   final String machine;
   final String poste;
+  // Fiche en cours d'édition (query ?ficheId=) — si présent, la fiche est
+  // chargée PAR SON ID (jamais par machine/poste/date du jour).
+  final String? ficheId;
 
-  const InfoGeneraleScreen({super.key, required this.machine, required this.poste});
+  const InfoGeneraleScreen({super.key, required this.machine, required this.poste, this.ficheId});
 
   @override
   State<InfoGeneraleScreen> createState() => _InfoGeneraleScreenState();
@@ -52,7 +55,12 @@ class _InfoGeneraleScreenState extends State<InfoGeneraleScreen> {
   // date) remplit les champs une fois résolu ; les `TextEditingController`
   // notifient alors les champs déjà visibles, sans reconstruction de page.
   Future<void> _bootstrap() async {
-    await c.bootstrapForMachinePoste(widget.machine, widget.poste);
+    final id = widget.ficheId;
+    if (id != null && id.isNotEmpty) {
+      await c.bootstrapWithId(widget.machine, widget.poste, id);
+    } else {
+      await c.bootstrapForMachinePoste(widget.machine, widget.poste);
+    }
     if (!mounted) return;
     if (c.isLocked.value || c.status.value == 'submitted') {
       context.go(_fichePath);
@@ -63,8 +71,10 @@ class _InfoGeneraleScreenState extends State<InfoGeneraleScreen> {
       '${MyRoute.productionPromeshRoot}/machine/${widget.machine}/poste/${widget.poste}/dashboard';
 
   String get _backRoute => '${MyRoute.productionPromeshRoot}/machine/${widget.machine}';
+  // Toujours avec l'id de la fiche enregistrée : les modules la rechargent
+  // par id (sans lui, ils repartaient d'un formulaire vide).
   String get _modulesRoute =>
-      '${MyRoute.productionPromeshRoot}/machine/${widget.machine}/poste/${widget.poste}/modules';
+      '${MyRoute.productionPromeshRoot}/machine/${widget.machine}/poste/${widget.poste}/modules?ficheId=${c.recordId ?? ''}';
 
   Future<void> _continue() async {
     if (!(c.formKey.currentState?.validate() ?? false)) return;

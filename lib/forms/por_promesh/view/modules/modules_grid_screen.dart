@@ -150,7 +150,10 @@ class _ModulesGridScreenState extends State<ModulesGridScreen> {
   // Le ficheId (créé dès "Nouvelle fiche") est la source de vérité pour
   // identifier la fiche — plus de résolution implicite par date du jour ici.
   Future<void> _bootstrap() async {
-    await c.bootstrapWithId(widget.machine, widget.poste, widget.ficheId);
+    // forceRefresh : point d'entrée d'une édition — toujours relire la fiche
+    // en base (jamais l'état laissé en mémoire par une session précédente
+    // du contrôleur permanent, cause des "anciennes valeurs" réécrites).
+    await c.bootstrapWithId(widget.machine, widget.poste, widget.ficheId, forceRefresh: true);
     if (!mounted) return;
     if (c.isLocked.value || c.status.value == 'submitted') {
       context.go(_fichePath);
@@ -218,7 +221,7 @@ class _ModulesGridScreenState extends State<ModulesGridScreen> {
             padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               InkWell(
-                onTap: () => context.go('${MyRoute.productionPromeshRoot}/machine/${widget.machine}/poste/${widget.poste}'),
+                onTap: () => context.go('${MyRoute.productionPromeshRoot}/machine/${widget.machine}/poste/${widget.poste}?ficheId=${widget.ficheId}'),
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   padding: const EdgeInsets.all(7),

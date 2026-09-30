@@ -1017,6 +1017,7 @@ GoRoute(
                           child: InfoGeneraleScreen(
                             machine: state.pathParameters['num'] ?? '1',
                             poste: state.pathParameters['poste'] ?? 'matin',
+                            ficheId: state.uri.queryParameters['ficheId'],
                           ),
                         ),
                         routes: [

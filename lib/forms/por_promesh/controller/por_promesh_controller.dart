@@ -16,6 +16,10 @@ import 'package:dash_master_toolkit/utils/common.dart';
 
 import '../model/por_promesh_model.dart';
 import '../service/por_promesh_service.dart';
+import '../utils/por_promesh_diff.dart';
+import '../utils/por_promesh_process_rows.dart';
+
+export '../utils/por_promesh_process_rows.dart' show ProcessControlRow;
 
 class PorPromeshController extends GetxController {
   final formKey = GlobalKey<FormState>();
@@ -109,8 +113,10 @@ class PorPromeshController extends GetxController {
   /// Met à jour le même cache que `bootstrapForMachinePoste` pour que les
   /// écrans suivants (Personnel, Observation, ...) ne refassent pas d'appel
   /// réseau.
-  Future<void> bootstrapWithId(String machineNum, String posteValue, String id) async {
-    if (recordId == id) return;
+  /// `forceRefresh: true` (grille des modules = entrée d'une édition) relit
+  /// TOUJOURS la fiche en base, même si ce même id est déjà en mémoire.
+  Future<void> bootstrapWithId(String machineNum, String posteValue, String id, {bool forceRefresh = false}) async {
+    if (!forceRefresh && recordId == id) return;
 
     isLoading.value = true;
     try {
@@ -242,33 +248,16 @@ class PorPromeshController extends GetxController {
   // ── Étape 5 — Contrôle Process PROMESH ──────────────────────────────────
   // Grille à lignes fixes, répétée pour chaque créneau de contrôle —
   // l'utilisateur ne fait que remplir P1 / CorP1 / P2 / CorP2 pour chaque ligne.
-  static const _processControlParametres = [
-    'Niveau bain de résine',
-    'Diamètre de bar',
-    'Température de machine',
-    "Température d'eau",
-    "Pression d'air comprimé",
-    'Validation impression',
-    'Nombre de barre en longueur',
-    'Dimensions de maille',
-    'Dimensions côté 1 long',
-    'Dimensions côté 2 long',
-    "Fuite d'eau",
-    "Fuite d'air comprimé",
-    'Etat disque de coupe',
-    'Nombre de barre en largeur',
-  ];
-
+  // Lignes fixes (voir kProcessControlParametres), répétées par créneau.
   static const Map<String, String> processControlBlocLabels = {
     'controle_08h20': 'Contrôle 08H20',
     'controle_10h20': 'Contrôle 10H20',
     'controle_14h20': 'Contrôle 14H20',
   };
 
-  late final Map<String, List<ProcessControlRow>> processControlBlocs = {
-    for (final bloc in processControlBlocLabels.keys)
-      bloc: _processControlParametres.map((p) => ProcessControlRow(p)).toList(),
-  };
+  // Controllers PERSISTANTS (créés une fois avec ce contrôleur permanent).
+  late final Map<String, List<ProcessControlRow>> processControlBlocs =
+      buildProcessControlBlocs(processControlBlocLabels.keys);
 
   final observationsGenerales = TextEditingController();
   // Justifications partagées — distinctes de `observationsGenerales`
@@ -346,7 +335,7 @@ class PorPromeshController extends GetxController {
 
   bool get controleProcessSaved {
     for (final bloc in processControlBlocLabels.keys) {
-      for (final cfg in processParamConfigs) {
+      for (final cfg in activeProcessParamConfigs) {
         if (_processRowFor(bloc, cfg.parametre).p1.text.trim().isEmpty) return false;
       }
     }
@@ -356,7 +345,7 @@ class PorPromeshController extends GetxController {
 
   bool get controleProcessHasNegative {
     for (final bloc in processControlBlocLabels.keys) {
-      for (final cfg in processParamConfigs) {
+      for (final cfg in activeProcessParamConfigs) {
         if (cfg.kind == ProcessParamKind.numeric) continue;
         final value = _processRowFor(bloc, cfg.parametre).p1.text.trim();
         if (value.isNotEmpty && processParamIsNegative(cfg.kind, value)) return true;
@@ -368,25 +357,15 @@ class PorPromeshController extends GetxController {
   ProcessControlRow _processRowFor(String bloc, String parametre) =>
       processControlBlocs[bloc]!.firstWhere((r) => r.parametre == parametre);
 
-  // Plage acceptable pour "Température d'eau" (Contrôle Machine) — pas de
-  // valeur métier fournie : ajuster ces deux constantes à la consigne réelle
-  // du site avant mise en production.
-  static const double machineTemperatureEauMin = 40.0;
-  static const double machineTemperatureEauMax = 60.0;
-
-  bool get controleMachineTemperatureEauOutOfRange {
-    final v = double.tryParse(temperatureEau.text.replaceAll(',', '.'));
-    if (v == null) return false;
-    return v < machineTemperatureEauMin || v > machineTemperatureEauMax;
-  }
-
+  // "Température d'eau" et "État disque de coupe (Machine)" retirés du
+  // Contrôle Machine (2026-09-30) : ni exigés, ni pris en compte pour la
+  // justification — `temperatureEau`/`etatDisqueCoupe` ne sont plus que
+  // chargés (anciennes fiches), jamais affichés ni envoyés.
   bool get controleMachineHasNegative =>
       air.value == '< 6 bars' ||
       niveauBainEau.value == 'Mauvais' ||
-      controleMachineTemperatureEauOutOfRange ||
       etatPistons.value == 'Sale' ||
-      fluideVisuel.value == 'Présence' ||
-      etatDisqueCoupe.value == 'NOK';
+      fluideVisuel.value == 'Présence';
 
   bool get controleMachineSaved {
     final required = [
@@ -394,10 +373,8 @@ class PorPromeshController extends GetxController {
       niveauBainEau.value,
       etatPistons.value,
       fluideVisuel.value,
-      etatDisqueCoupe.value,
     ];
     if (required.any((v) => v == null || v.isEmpty)) return false;
-    if (temperatureEau.text.trim().isEmpty) return false;
     if (temperaturePistons.text.trim().isEmpty) return false;
     if (controleMachineHasNegative && justificationControleMachine.text.trim().isEmpty) return false;
     return true;
@@ -544,6 +521,7 @@ class PorPromeshController extends GetxController {
   // ── Reset / load / build payload ─────────────────────────────────────
   void resetForm() {
     recordId = null;
+    _loadedSnapshot = null;
     status.value = 'draft';
     isLocked.value = false;
     lastUpdatedAt.value = null;
@@ -609,14 +587,7 @@ class PorPromeshController extends GetxController {
     actionsCorrectives.clear();
     attachments.clear();
 
-    for (final rows in processControlBlocs.values) {
-      for (final row in rows) {
-        row.p1.clear();
-        row.p2.clear();
-        row.corP1.value = false;
-        row.corP2.value = false;
-      }
-    }
+    clearProcessRows(processControlBlocs); // création : tous les champs vides
     observationsGenerales.clear();
     justificationControleProcess.clear();
     justificationControleMachine.clear();
@@ -635,6 +606,28 @@ class PorPromeshController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  /// Instantané (copie PROFONDE) du formulaire tel que chargé depuis la base
+  /// — référence du diff de saveDraft(). Construit via buildModel() pour
+  /// comparer exactement les mêmes représentations (texte/nombres/listes).
+  Map<String, dynamic>? _loadedSnapshot;
+
+  Map<String, dynamic> _formPayload() {
+    final json = buildModel(forStatus: 'draft').toJson()
+      ..remove('id')
+      ..remove('status');
+    return deepCopyJson(json);
+  }
+
+  /// Champs modifiés depuis le dernier chargement/sauvegarde (payload exact
+  /// du PUT partiel) — `{}` si rien n'a changé, `null` si aucune fiche n'est
+  /// encore chargée (création).
+  @visibleForTesting
+  Map<String, dynamic>? pendingChanges() {
+    final snapshot = _loadedSnapshot;
+    if (snapshot == null) return null;
+    return changedFields(snapshot, _formPayload());
   }
 
   void loadFromModel(PorPromeshModel m, {String? id}) {
@@ -706,21 +699,8 @@ class PorPromeshController extends GetxController {
     actionsCorrectives.text = m.actionsCorrectives ?? '';
     attachments.assignAll(m.attachments);
 
-    final byKey = <String, Map<String, dynamic>>{};
-    for (final row in m.processControl) {
-      final bloc = row['bloc']?.toString() ?? '';
-      final parametre = row['parametre']?.toString() ?? '';
-      byKey['$bloc|$parametre'] = row;
-    }
-    for (final entry in processControlBlocs.entries) {
-      for (final row in entry.value) {
-        final data = byKey['${entry.key}|${row.parametre}'];
-        row.p1.text = data?['valeurP1']?.toString() ?? '';
-        row.p2.text = data?['valeurP2']?.toString() ?? '';
-        row.corP1.value = data?['corP1'] == true;
-        row.corP2.value = data?['corP2'] == true;
-      }
-    }
+    // Édition : valeurs enregistrées (API) → controllers existants.
+    loadProcessRows(processControlBlocs, m.processControl);
 
     observationsGenerales.text = m.observationsGenerales ?? '';
     justificationControleProcess.text = m.justificationControleProcess ?? '';
@@ -730,6 +710,8 @@ class PorPromeshController extends GetxController {
     visaProductionProcess.text = m.visaProductionProcess ?? '';
     dateValidationProcess.text = m.dateValidationProcess ?? '';
     selectedDateValidationProcess.value = DateTime.tryParse(m.dateValidationProcess ?? '');
+
+    _loadedSnapshot = _formPayload();
   }
 
   PorPromeshModel buildModel({required String forStatus}) {
@@ -808,25 +790,44 @@ class PorPromeshController extends GetxController {
   /// `loadFromModel`).
   List<Map<String, dynamic>> get processControlRows => _buildProcessControlRows();
 
-  List<Map<String, dynamic>> _buildProcessControlRows() {
-    final result = <Map<String, dynamic>>[];
-    for (final entry in processControlBlocs.entries) {
-      for (final row in entry.value) {
-        result.add({
-          'bloc': entry.key,
-          'parametre': row.parametre,
-          'valeurP1': row.p1.text.trim(),
-          'corP1': row.corP1.value,
-          'valeurP2': row.p2.text.trim(),
-          'corP2': row.corP2.value,
-        });
-      }
-    }
-    return result;
-  }
+  List<Map<String, dynamic>> _buildProcessControlRows() =>
+      serializeProcessRows(processControlBlocs, exclude: processParamsRetired);
+
+  /// Sauvegarde en cours — un 2e appel (double clic, deux boutons) réutilise
+  /// la MÊME requête au lieu d'en lancer une seconde.
+  Future<PorPromeshModel>? _saveInFlight;
 
   /// Saves as draft (no full-form validation) — safe to call any time.
-  Future<PorPromeshModel> saveDraft() async {
+  Future<PorPromeshModel> saveDraft() {
+    final inFlight = _saveInFlight;
+    if (inFlight != null) return inFlight;
+    isSubmitting.value = true;
+    final future = _saveDraft();
+    _saveInFlight = future;
+    future.whenComplete(() {
+      _saveInFlight = null;
+      isSubmitting.value = false;
+    }).ignore(); // l'erreur éventuelle est remontée par `future` à l'appelant
+    return future;
+  }
+
+  Future<PorPromeshModel> _saveDraft() async {
+    // §CORRECTION ÉDITION PROMESH : en édition, seuls les champs RÉELLEMENT
+    // modifiés depuis le chargement sont envoyés (UPDATE partiel) — jamais
+    // un champ non touché remis à null, jamais une table enfant non touchée
+    // supprimée/recréée. Aucune modification → aucune écriture (relecture).
+    final hasId = recordId != null && recordId!.isNotEmpty;
+    final changed = pendingChanges();
+    if (hasId && changed != null) {
+      final saved = changed.isEmpty
+          ? await PorPromeshService.instance.fetchById(recordId!)
+          : await PorPromeshService.instance.updateFields(recordId!, changed);
+      // L'écran affiche exactement ce qui est en base (valeurs recalculées
+      // par le backend comprises) et le prochain diff part de cet état.
+      loadFromModel(saved, id: recordId);
+      return saved;
+    }
+
     final model = buildModel(forStatus: 'draft');
     // Filet de sécurité : `recordId` vide (jamais censé arriver après le
     // correctif de loadFromModel ci-dessus, mais sans risque de régression
@@ -841,6 +842,7 @@ class PorPromeshController extends GetxController {
     status.value = 'draft';
     isLocked.value = saved.isLocked;
     lastUpdatedAt.value = DateTime.tryParse(saved.updatedAt ?? '') ?? DateTime.now();
+    if (recordId != null && recordId!.isNotEmpty) loadFromModel(saved, id: recordId);
     return saved;
   }
 
@@ -913,29 +915,11 @@ class PorPromeshController extends GetxController {
   }
 }
 
-/// Une ligne fixe de la grille "Contrôle Process PROMESH" — le libellé
-/// (paramètre) est figé, seules P1 / CorP1 / P2 / CorP2 sont saisissables
-/// par le responsable_logistique_achat.
-class ProcessControlRow {
-  final String parametre;
-  final p1 = TextEditingController();
-  final p2 = TextEditingController();
-  final RxBool corP1 = false.obs;
-  final RxBool corP2 = false.obs;
-
-  ProcessControlRow(this.parametre);
-
-  void dispose() {
-    p1.dispose();
-    p2.dispose();
-  }
-}
-
 // ── Configuration des 14 paramètres "Contrôle Process" ───────────────────
 //
 // Source unique partagée par le contrôleur (complétude/`canFinish`) et
 // l'écran (rendu des cartes) — `parametre` doit rester rigoureusement
-// identique à `PorPromeshController._processControlParametres` ci-dessus
+// identique à `kProcessControlParametres` (utils/por_promesh_process_rows.dart)
 // (clé de recherche dans `processControlBlocs[bloc]`).
 
 enum ProcessParamKind { choice3, choiceConforme, choiceOkNok, choiceFuite, numeric }
@@ -949,6 +933,17 @@ class ProcessParamConfig {
 
   const ProcessParamConfig(this.parametre, this.emoji, this.title, this.kind, {this.suffix});
 }
+
+/// §MODIFICATION CONTRÔLE MACHINE PROMESH (2026-09-30) — lignes Process
+/// retirées de l'interface (copies automatiques des champs Machine
+/// "Température d'eau", "État disque de coupe (Machine)" et de "Fuite d'eau").
+/// Jamais affichées, exigées, ni envoyées ; les valeurs historiques restent
+/// en base (le backend les conserve, voir porPromesh.service.js).
+const List<String> processParamsRetired = ["Température d'eau", "Fuite d'eau", 'Etat disque de coupe'];
+
+/// Paramètres Process encore utilisés (formulaire, complétude, exports).
+final List<ProcessParamConfig> activeProcessParamConfigs =
+    processParamConfigs.where((c) => !processParamsRetired.contains(c.parametre)).toList();
 
 const List<ProcessParamConfig> processParamConfigs = [
   ProcessParamConfig('Niveau bain de résine', '🛢️', 'Niveau bain de résine', ProcessParamKind.choice3),

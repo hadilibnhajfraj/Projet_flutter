@@ -13,7 +13,6 @@ import 'package:flutter/material.dart';
 
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import '../modules/controle_qualite/cq_theme.dart';
-import '../../controller/por_promesh_controller.dart' show PorPromeshController;
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 
 class DetailMachineValueCard extends StatelessWidget {
@@ -80,13 +79,6 @@ Color detailNiveauBainEauColor(String? v) => switch (v) {
       _ => kCrmTextSub,
     };
 
-Color detailTemperatureEauColor(double? v) {
-  if (v == null) return kCrmTextSub;
-  final outOfRange =
-      v < PorPromeshController.machineTemperatureEauMin || v > PorPromeshController.machineTemperatureEauMax;
-  return outOfRange ? kCrmDanger : kCrmSuccess;
-}
-
 Color detailEtatPistonsColor(String? v) => switch (v) {
       'Propre' => kCrmSuccess,
       'Sale' => kCrmDanger,
@@ -96,11 +88,5 @@ Color detailEtatPistonsColor(String? v) => switch (v) {
 Color detailFluideVisuelColor(String? v) => switch (v) {
       'Absence' => kCrmSuccess,
       'Présence' => kCrmDanger,
-      _ => kCrmTextSub,
-    };
-
-Color detailEtatDisqueCoupeColor(String? v) => switch (v) {
-      'OK' => kCrmSuccess,
-      'NOK' => kCrmDanger,
       _ => kCrmTextSub,
     };

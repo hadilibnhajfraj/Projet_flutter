@@ -115,7 +115,11 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
   // les opérateurs (aucun formulaire CRM dédié).
   String _editRoute(PorPromeshModel item) {
     if (item.machine == null || item.poste == null) return MyRoute.productionPromeshRoot;
-    return '${MyRoute.productionPromeshRoot}/machine/${item.machine}/poste/${item.poste}';
+    // §CORRECTION ÉDITION PROMESH (2026-09-30) : ouvrait "Informations
+    // générales" SANS id → la fiche était recherchée par machine/poste/date
+    // du JOUR (autre fiche chargée, ou formulaire vide puis CRÉATION d'un
+    // doublon à l'enregistrement). On ouvre désormais la fiche par son id.
+    return '${MyRoute.productionPromeshRoot}/machine/${item.machine}/poste/${item.poste}/modules?ficheId=${item.id}';
   }
 
   Future<void> _printPdf() async {
@@ -548,12 +552,6 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
           color: detailNiveauBainEauColor(m.niveauBainEau),
         ),
         DetailMachineValueCard(
-          icon: Icons.thermostat_outlined,
-          title: 'Température Eau',
-          value: m.temperatureEau == null ? '' : '${_fmtNum(m.temperatureEau)} °C',
-          color: detailTemperatureEauColor(m.temperatureEau),
-        ),
-        DetailMachineValueCard(
           icon: Icons.local_fire_department_rounded,
           title: 'Température des Pistons',
           value: m.temperaturePistons == null ? '' : '${_fmtNum(m.temperaturePistons)} °C',
@@ -570,12 +568,6 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
           title: 'Fluide Visuel',
           value: safeValue(m.fluideVisuel),
           color: detailFluideVisuelColor(m.fluideVisuel),
-        ),
-        DetailMachineValueCard(
-          icon: Icons.content_cut_rounded,
-          title: 'État Disque Coupe',
-          value: safeValue(m.etatDisqueCoupe),
-          color: detailEtatDisqueCoupeColor(m.etatDisqueCoupe),
         ),
       ]),
       if (justification.isNotEmpty) ...[

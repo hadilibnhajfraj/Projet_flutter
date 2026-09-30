@@ -206,7 +206,11 @@ class _PorPromeshListScreenState extends State<PorPromeshListScreen> {
 
   String _editRoute(PorPromeshModel item) {
     if (item.machine == null || item.poste == null) return MyRoute.productionPromeshRoot;
-    return '${MyRoute.productionPromeshRoot}/machine/${item.machine}/poste/${item.poste}';
+    // §CORRECTION ÉDITION PROMESH (2026-09-30) : ouvrait "Informations
+    // générales" SANS id → la fiche était recherchée par machine/poste/date
+    // du JOUR (autre fiche chargée, ou formulaire vide puis CRÉATION d'un
+    // doublon à l'enregistrement). On ouvre désormais la fiche par son id.
+    return '${MyRoute.productionPromeshRoot}/machine/${item.machine}/poste/${item.poste}/modules?ficheId=${item.id}';
   }
 
   Future<void> _confirmDelete(PorPromeshModel item) async {

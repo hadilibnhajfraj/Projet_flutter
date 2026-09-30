@@ -17,6 +17,7 @@ import 'package:intl/intl.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/widgets/shimmer_box.dart';
+import 'package:dash_master_toolkit/forms/por_promesh/controller/por_promesh_controller.dart' show processParamsRetired;
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 
@@ -1261,15 +1262,17 @@ class _RecordDetailDrawerState extends State<_RecordDetailDrawer> {
       _addSimpleFields(blocks, t, {
         'Air': tech['air'],
         t.translate('Niveau bain eau'): tech['niveauBainEau'],
-        t.translate('Température eau'): tech['temperatureEau'],
+        // "Température eau" / "État disque de coupe" retirés (PROMESH, 2026-09-30).
         t.translate('Température pistons'): tech['temperaturePistons'],
         t.translate('État pistons'): tech['etatPistons'],
         t.translate('Fluide visuel'): tech['fluideVisuel'],
-        t.translate('État disque de coupe'): tech['etatDisqueCoupe'],
         t.translate('Diamètre maille 3'): tech['diametreMaille3'],
       });
       _addDynamicList(blocks, t, t.translate('Contrôles qualité'), tech['controlesQualite'] as List?);
-      _addDynamicList(blocks, t, t.translate('Paramètres process'), tech['processControl'] as List?);
+      _addDynamicList(blocks, t, t.translate('Paramètres process'), [
+        for (final r in (tech['processControl'] as List? ?? const []))
+          if (!(r is Map && processParamsRetired.contains(r['parametre']))) r,
+      ]);
       _addDynamicList(blocks, t, t.translate('Arrêts machine'), tech['arretsMachine'] as List?);
       _addDynamicList(blocks, t, t.translate('Consommations'), tech['consommations'] as List?);
     }

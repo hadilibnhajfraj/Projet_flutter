@@ -160,23 +160,18 @@ class _ControleMachineScreenState extends State<ControleMachineScreen> {
       nextBusy: _nextBusy,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         MachineFieldsPanel(c: c, onChanged: () {}),
-        // Réagit à temperatureEau (TextEditingController, hors plage
-        // 40-60°C) ET aux 5 champs à choix (RxnString) — les deux types de
-        // déclencheurs de `controleMachineHasNegative`.
-        AnimatedBuilder(
-          animation: c.temperatureEau,
-          builder: (context, _) => Obx(() {
-            if (!c.controleMachineHasNegative) return const SizedBox.shrink();
-            return Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: JustificationCard(
-                title: 'Justification — Contrôle Machine',
-                controller: c.justificationControleMachine,
-                onChanged: () {},
-              ),
-            );
-          }),
-        ),
+        // Réagit aux 4 champs à choix (RxnString) de `controleMachineHasNegative`.
+        Obx(() {
+          if (!c.controleMachineHasNegative) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: JustificationCard(
+              title: 'Justification — Contrôle Machine',
+              controller: c.justificationControleMachine,
+              onChanged: () {},
+            ),
+          );
+        }),
         const SizedBox(height: kCqSectionGap),
         const CqSectionHeading(
           icon: Icons.analytics_outlined,
@@ -186,13 +181,13 @@ class _ControleMachineScreenState extends State<ControleMachineScreen> {
         ),
         const SizedBox(height: 10),
         ProcessFieldsPanel(c: c, onChanged: () {}),
-        // Les 4 paramètres process à choix (État impression, Fuite d'eau,
-        // Fuite d'air comprimé, État disque de coupe) écrivent dans des
+        // Les paramètres process à choix encore actifs (État impression,
+        // Fuite d'air comprimé, Niveau bain de résine) écrivent dans des
         // TextEditingController (`row.p1`, pas des Rx) — Listenable.merge
         // est donc nécessaire pour réagir en direct à leur saisie.
         AnimatedBuilder(
           animation: Listenable.merge([
-            for (final cfg in processParamConfigs)
+            for (final cfg in activeProcessParamConfigs)
               if (cfg.kind != ProcessParamKind.numeric)
                 c.processControlBlocs[kProcessFieldsBloc]!
                     .firstWhere((r) => r.parametre == cfg.parametre)

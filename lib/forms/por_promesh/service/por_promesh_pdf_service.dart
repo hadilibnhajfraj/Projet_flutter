@@ -15,7 +15,7 @@ import 'package:printing/printing.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 import '../controller/por_promesh_controller.dart'
-    show processParamConfigs, ProcessParamConfig, ProcessParamKind, processParamIsNegative;
+    show activeProcessParamConfigs, ProcessParamConfig, ProcessParamKind, processParamIsNegative;
 import '../model/por_promesh_model.dart';
 import '../utils/por_promesh_pdf_theme.dart';
 import '../utils/por_promesh_safe_value.dart';
@@ -35,16 +35,13 @@ const _kProcessParams = [
   'Niveau bain de résine',
   'Diamètre de bar',
   'Température de machine',
-  "Température d'eau",
   "Pression d'air comprimé",
   'Validation impression',
   'Nombre de barre en longueur',
   'Dimensions de maille',
   'Dimensions côté 1 long',
   'Dimensions côté 2 long',
-  "Fuite d'eau",
   "Fuite d'air comprimé",
-  'Etat disque de coupe',
   'Nombre de barre en largeur',
 ];
 
@@ -257,7 +254,7 @@ class PorPromeshPdfService {
           headCell('10H20'),
           headCell('14H20'),
         ]),
-        for (final cfg in processParamConfigs)
+        for (final cfg in activeProcessParamConfigs)
           pw.TableRow(children: [
             pw.Padding(
               padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 4),

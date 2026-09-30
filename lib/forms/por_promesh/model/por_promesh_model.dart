@@ -297,6 +297,9 @@ class PorPromeshModel {
     return result;
   }
 
+  /// `temperatureEau` et `etatDisqueCoupe` ne sont plus envoyés (retirés du
+  /// Contrôle Machine le 2026-09-30) — toujours LUS par fromJson pour que
+  /// les anciennes fiches restent intactes côté serveur.
   Map<String, dynamic> toJson() => sanitizePayload({
         if (id != null) 'id': id,
         'status': status,
@@ -332,11 +335,9 @@ class PorPromeshModel {
         'visaDirection': visaDirection,
         'air': air,
         'niveauBainEau': niveauBainEau,
-        'temperatureEau': temperatureEau,
         'temperaturePistons': temperaturePistons,
         'etatPistons': etatPistons,
         'fluideVisuel': fluideVisuel,
-        'etatDisqueCoupe': etatDisqueCoupe,
         'controlesQualite': controlesQualite,
         'processControl': processControl,
         'observationsGenerales': observationsGenerales,

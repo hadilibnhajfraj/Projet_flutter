@@ -18,14 +18,10 @@
 //
 // 'Niveau bain de résine' est volontairement exclu (hors périmètre demandé).
 //
-// Rappel important : sur les 13 champs ci-dessous, 4 ("Température eau",
-// "Pression air comprimé", "Fuite d'eau", "Etat disque de coupe")
-// correspondent à des champs déjà saisis dans Contrôle Machine — le backend
-// écrase silencieusement leur valeur ici par la valeur dérivée du champ
-// Contrôle Machine correspondant à chaque `saveDraft()` (`applyDerivedProcessControl`).
-// Elles restent éditables pour rester visuellement homogènes avec les 9
-// autres champs, mais la valeur affichée après enregistrement reflète
-// toujours Contrôle Machine, jamais une saisie manuelle divergente ici.
+// Plus aucun champ n'est recopié depuis Contrôle Machine (2026-09-30) :
+// "Température eau", "Fuite d'eau", "Etat disque de coupe" sont retirés, et
+// "Pression air comprimé" est une vraie saisie (input texte), enregistrée
+// telle quelle — le backend ne la réécrit plus.
 
 import 'package:flutter/material.dart';
 
@@ -40,7 +36,12 @@ import 'status_selector.dart';
 
 const String kProcessFieldsBloc = 'controle_08h20';
 
-const List<String> processFieldsExcluded = ['Niveau bain de résine'];
+// Seul paramètre en saisie texte libre ("5", "5.5", "> 6") — voir
+// NumericCard.textInput. Les autres paramètres numériques sont inchangés.
+const String kPressionAirComprimeParam = "Pression d'air comprimé";
+
+// + paramètres retirés le 2026-09-30 (voir `processParamsRetired`).
+final List<String> processFieldsExcluded = ['Niveau bain de résine', ...processParamsRetired];
 
 class ProcessFieldsPanel extends StatelessWidget {
   final PorPromeshController c;
@@ -66,6 +67,7 @@ class ProcessFieldsPanel extends StatelessWidget {
         controller: row.p1,
         suffix: cfg.suffix,
         onChanged: onChanged,
+        textInput: cfg.parametre == kPressionAirComprimeParam,
       );
     }
     final options = _optionsFor(cfg.kind);
