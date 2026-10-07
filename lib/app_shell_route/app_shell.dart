@@ -1,6 +1,7 @@
 
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'components/common_imports.dart';
+import 'package:dash_master_toolkit/quality_control/quality_control_routes.dart' show qcBreadcrumb;
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.child});
@@ -111,6 +112,8 @@ class _AppShellState extends State<AppShell> {
 
   NavigationBreadcrumbModel _getBreadcrumbData(BuildContext context) {
     final location = GoRouterState.of(context).matchedLocation;
+    final qc = qcBreadcrumb(location);
+    if (qc != null) return NavigationBreadcrumbModel(title: qc.$1, parentRoute: qc.$2, childRoute: qc.$3);
     return routerParam[location] ?? _fallbackBreadcrumb(location);
   }
 

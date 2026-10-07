@@ -78,9 +78,16 @@ import 'package:dash_master_toolkit/production_compliance/view/production_compli
 import 'package:dash_master_toolkit/production_compliance/view/production_unarchive_requests_screen.dart';
 import 'package:dash_master_toolkit/production_compliance/view/production_request_statistics_screen.dart';
 import 'package:dash_master_toolkit/production_records/view/production_summary_screen.dart';
+import 'package:dash_master_toolkit/production_dashboard/view/production_dashboard_screen.dart';
+import 'package:dash_master_toolkit/production_dashboard/production_dashboard_routes.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_detail_screen.dart';
+import 'package:dash_master_toolkit/quality_control/view/quality_control_comparison_screen.dart';
 import 'package:dash_master_toolkit/quality_control/view/quality_control_history_screen.dart';
 import 'package:dash_master_toolkit/quality_control/view/quality_control_screen.dart';
+import 'package:dash_master_toolkit/quality_control/view/quality_control_home_screen.dart';
+import 'package:dash_master_toolkit/quality_control/view/quality_control_line_screen.dart';
+import 'package:dash_master_toolkit/quality_control/view/quality_control_machine_screen.dart';
+import 'package:dash_master_toolkit/quality_control/quality_control_routes.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_dashboard_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_historique_screen.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_statistiques_screen.dart';
@@ -187,6 +194,9 @@ class MyRoute {
   static const productionPromeshRoot = '/production/promesh';
   static const productionProbarRoot = '/production/probar';
   static const productionRecordsScreen = '/production/records';
+  // Dashboard Production : page d'accueil du module (KPI, machines,
+  // graphiques, dernières productions) — voir production_dashboard/.
+  static const productionDashboardScreen = ProdPaths.dashboard;
   // §MODIFICATION — DEUX PAGES SÉPARÉES PROMESH/PROBAR (2026-09-08) —
   // `productionSummaryScreen` (page combinée historique) reste INCHANGÉE
   // pour ne casser aucun favori/lien existant (voir my_route.dart —
@@ -225,10 +235,14 @@ class MyRoute {
   static const financePaidInvoicesImportScreen = '/finance/paid-invoices/import';
 
   // ── Module CONTRÔLE QUALITÉ — espace dédié controle_qualite (+ admins) ────
-  static const qualityControlRoot = '/quality-control';
-  static const qualityControlHistoryScreen = '/quality-control/historique';
-  // `?id=<contrôle>` : checklist ; sans id : choix de la fiche à contrôler.
-  static const qualityControlFormScreen = '/quality-control/controle';
+  // Chemins et arbre de routes : quality_control/quality_control_routes.dart.
+  static const qualityControlRoot = QcPaths.root;
+  static const qualityControlHistoryScreen = QcPaths.history;
+  static const qualityControlComparisonScreen = QcPaths.comparison;
+  static const qualityControlPromeshScreen = QcPaths.promesh;
+  static const qualityControlProbarScreen = QcPaths.probar;
+  // `?id=<contrôle>` : formulaire du contrôle. Sans id → accueil.
+  static const qualityControlFormScreen = QcPaths.form;
 
   static const industrialRoutePrefixes = [
     porPromeshRoot,
@@ -380,7 +394,7 @@ static const clientsProfileScreen = '/users/client';
         // (PROMESH/PROBAR) ni l'administration.
         final isOnQualityControlRoute = loc == qualityControlRoot || loc.startsWith('$qualityControlRoot/');
         if (role == 'controle_qualite' && !isAuthRoute && !isOnQualityControlRoute) {
-          return qualityControlHistoryScreen;
+          return qualityControlRoot;
         }
 
         // ── Connecté sur auth route ou racine → dashboard ─────────────────
@@ -399,7 +413,7 @@ static const clientsProfileScreen = '/users/client';
             return porPromeshDashboardScreen;
           }
           if (role == 'controle_qualite') {
-            return qualityControlHistoryScreen;
+            return qualityControlRoot;
           }
           if (role == 'commercial') {
             debugPrint('REDIRECTION → $commercialContactsKpiUsers');
@@ -949,30 +963,20 @@ GoRoute(
           ),
 
           // ── CONTRÔLE QUALITÉ (controle_qualite + admins) ─────────────────
-          GoRoute(
-            path: qualityControlRoot,
-            redirect: (context, state) {
-              if (!AuthService().canViewQualityControl) return dashboard;
-              if (state.fullPath == qualityControlRoot) return qualityControlHistoryScreen;
-              return null;
-            },
-            routes: [
-              GoRoute(
-                path: 'historique',
-                pageBuilder: (context, state) =>
-                    const NoTransitionPage(child: QualityControlHistoryScreen()),
-              ),
-              // Clé = URL complète : passer du choix de fiche (sans id) à la
-              // checklist (?id=...) doit recréer l'écran, pas réutiliser son
-              // State (même piège que Production Summary PROMESH/PROBAR).
-              GoRoute(
-                path: 'controle',
-                pageBuilder: (context, state) => NoTransitionPage(
-                  key: ValueKey(state.uri.toString()),
-                  child: QualityControlScreen(controlId: state.uri.queryParameters['id']),
-                ),
-              ),
-            ],
+          // Arbre + clés de page uniques : quality_control_routes.dart (voir
+          // la cause de l'assertion `!keyReservation.contains(key)` en tête).
+          buildQualityControlRoute(
+            canView: () => AuthService().canViewQualityControl,
+            deniedRedirect: dashboard,
+            screens: QcRouteScreens(
+              home: () => const QualityControlHomeScreen(),
+              history: (query) => QualityControlHistoryScreen(initialQuery: query),
+              comparison: () => const QualityControlComparisonScreen(),
+              line: (type) => QualityControlLineScreen(type: type),
+              machine: (type, machine) => QualityControlMachineScreen(type: type, machine: machine),
+              form: (id) => QualityControlScreen(controlId: id),
+              newForm: (type, machine) => QualityControlScreen.create(productionType: type, machine: machine),
+            ),
           ),
 
           // ── RAPPORT DE PILOTAGE (admin / superadmin / superadmin2) ───────
@@ -986,9 +990,20 @@ GoRoute(
           // ── MODULE INDUSTRIEL — PRODUCTION (PROMESH/PROBAR) ──────────────
           GoRoute(
             path: productionRoot,
-            redirect: (context, state) =>
-                AuthService().canViewPorPromesh ? null : dashboard,
+            // `/production` seul : ouvre le Dashboard Production (les routes
+            // enfants existantes ne sont pas redirigées).
+            redirect: (context, state) {
+              if (!AuthService().canViewPorPromesh) return dashboard;
+              return state.uri.path == productionRoot ? productionDashboardScreen : null;
+            },
             routes: [
+              GoRoute(
+                path: 'dashboard',
+                pageBuilder: (context, state) => const NoTransitionPage(
+                  key: ValueKey('production-dashboard'),
+                  child: ProductionDashboardScreen(),
+                ),
+              ),
               GoRoute(
                 path: 'promesh',
                 pageBuilder: (context, state) => const NoTransitionPage(

@@ -40,6 +40,10 @@ class SidebarItemModel {
   // autres (même `_isSelected`/`_handleNavigation` que toute tuile), avec
   // uniquement un style visuel de sous-élément.
   final bool             isSubItem;
+  // Active UNIQUEMENT sur la route exacte (pas sur ses sous-routes) — pour
+  // une entrée "accueil" dont les sous-pages ont leurs propres entrées
+  // (ex. "Contrôle Qualité" vs PROMESH / PROBAR / History).
+  final bool             exactMatch;
 
   SidebarItemModel({
     required this.name,
@@ -51,6 +55,7 @@ class SidebarItemModel {
     this.badge,
     this.accentColor,
     this.isSubItem = false,
+    this.exactMatch = false,
   }) : assert(
           sidebarItemType != SidebarItemType.submenu ||
               (submenus?.isNotEmpty ?? false),
@@ -154,9 +159,11 @@ List<SidebarItemModel> buildTopMenus({
             icon:           Icons.people_alt_outlined,
           ),
         if (canViewPorPromesh && !hideIndustrialDashboard && !isRestrictedAdmin)
+          // Remplace l'ancienne entrée « Dashboard Industriel » : ouvre le
+          // Dashboard Production (même page que l'entrée du groupe PRODUCTION).
           SidebarSubmenuModel(
-            name:           'Dashboard Industriel',
-            navigationPath: MyRoute.porPromeshDashboardScreen,
+            name:           'Dashboard Production',
+            navigationPath: MyRoute.productionDashboardScreen,
             icon:           Icons.precision_manufacturing_outlined,
           ),
       ],
@@ -222,7 +229,7 @@ List<GroupedMenuModel> buildGroupedMenus({
   // Uniquement le module CONTRÔLE QUALITÉ — ni CRM, ni saisie des fiches
   // PROMESH/PROBAR, ni Administration/User Management.
   if (isControleQualite) {
-    return [buildQualityControlGroup()];
+    return [buildQualityControlGroup(canCreate: true)];
   }
 
   // ── ACCUEIL ─────────────────────────────────────────────────────────────
@@ -325,7 +332,8 @@ List<GroupedMenuModel> buildGroupedMenus({
     ),
 
     if (canViewPorPromesh && !isRestrictedAdmin) ...buildIndustrialGroups(),
-    if (isAdmin && !isRestrictedAdmin) buildQualityControlGroup(),
+    // Admins : consultation seule (la saisie est réservée à controle_qualite).
+    if (isAdmin && !isRestrictedAdmin) buildQualityControlGroup(canCreate: false),
     if (canViewFinance && !isRestrictedAdmin) buildFinanceGroup(),
 
     if (isAdmin && !hideIndustrialDashboard && !isRestrictedAdmin)
@@ -507,6 +515,8 @@ List<GroupedMenuModel> buildIndustrialGroups() => [
       GroupedMenuModel(
         name: 'PRODUCTION',
         menus: [
+          // Le Dashboard Production est accessible depuis le groupe DASHBOARD
+          // uniquement (une seule entrée dans le menu).
           SidebarItemModel(
             name:           'PROMESH',
             icon:           Icons.factory_outlined,
@@ -624,22 +634,48 @@ GroupedMenuModel buildProductionRequestsAdminGroup() => GroupedMenuModel(
 // (partagé avec responsable_logistique_achat/finance_production, qui n'ont
 // pas accès au module côté backend).
 // ─────────────────────────────────────────────────────────────────────────────
-GroupedMenuModel buildQualityControlGroup() => GroupedMenuModel(
+GroupedMenuModel buildQualityControlGroup({bool canCreate = false}) => GroupedMenuModel(
       name: 'CONTRÔLE QUALITÉ',
       menus: [
         SidebarItemModel(
-          name:           'Nouveau contrôle',
-          icon:           Icons.fact_check_outlined,
+          name:           'Contrôle Qualité',
+          icon:           Icons.verified_user_outlined,
           sidebarItemType: SidebarItemType.tile,
-          navigationPath: MyRoute.qualityControlFormScreen,
+          navigationPath: MyRoute.qualityControlRoot,
           accentColor:    kQualityControlColor,
+          exactMatch:     true, // PROMESH/PROBAR/Historique ont leurs propres entrées
         ),
+        // Accès direct aux lignes (tuiles cliquables, style sous-élément).
+        SidebarItemModel(
+          name:           'PROMESH',
+          icon:           Icons.grid_on_rounded,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.qualityControlPromeshScreen,
+          accentColor:    kPromeshColor,
+          isSubItem:      true,
+        ),
+        SidebarItemModel(
+          name:           'PROBAR',
+          icon:           Icons.view_week_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.qualityControlProbarScreen,
+          accentColor:    kProbarColor,
+          isSubItem:      true,
+        ),
+        // Actif : couleur du thème (accent par défaut de la sidebar) —
+        // PROMESH bleu, PROBAR orange.
         SidebarItemModel(
           name:           'Historique',
           icon:           Icons.history_outlined,
           sidebarItemType: SidebarItemType.tile,
           navigationPath: MyRoute.qualityControlHistoryScreen,
-          accentColor:    kQualityControlColor,
+        ),
+        // Comparaison qualité période A / période B (même niveau qu'Historique).
+        SidebarItemModel(
+          name:           'Comparaison qualité',
+          icon:           Icons.compare_arrows_rounded,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.qualityControlComparisonScreen,
         ),
       ],
     );

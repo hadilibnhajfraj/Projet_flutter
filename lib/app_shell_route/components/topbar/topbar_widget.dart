@@ -2,6 +2,7 @@
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 
 import '../common_imports.dart';
+import 'package:dash_master_toolkit/quality_control/view/quality_control_topbar.dart';
 
 class TopBarWidget extends StatelessWidget implements PreferredSizeWidget {
   const TopBarWidget({super.key, this.onMenuTap});
@@ -11,7 +12,12 @@ class TopBarWidget extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final lang = AppLocalizations.of(context);
+    // Module Contrôle Qualité : recherche globale + identité (voir
+    // quality_control_topbar.dart) — les autres modules sont inchangés.
+    final width = MediaQuery.sizeOf(context).width;
+    final qcSearch = qcTopbarSearchVisible(context);
     return AppBar(
+      title: qcSearch && width >= 900 ? const QcTopbarSearch() : null,
       leading: rf.ResponsiveValue<Widget?>(
         context,
         conditionalValues: [
@@ -37,6 +43,7 @@ class TopBarWidget extends StatelessWidget implements PreferredSizeWidget {
       ).value,
       surfaceTintColor: Colors.transparent,
       actions: [
+        if (qcSearch && width < 900) const QcTopbarSearchButton(),
         // Language Dropdown
         Consumer<AppLanguageProvider>(
           builder: (context, lang, child) {
@@ -52,7 +59,8 @@ class TopBarWidget extends StatelessWidget implements PreferredSizeWidget {
           child: NotificationIconButton(),
         ),
 
-        // User Avatar
+        // User Avatar (+ identité du compte Contrôle Qualité)
+        if (width >= 1000) const QcTopbarIdentity(),
         const UserProfileAvatar(),
         const SizedBox(width: 16),
       ],

@@ -255,7 +255,11 @@ class SideBarWidget extends StatelessWidget {
     }
 
     final nav = (menu.navigationPath ?? '').toLowerCase().trim();
-    final isSelectedMenu = nav.isNotEmpty ? currentRoute.startsWith(nav) : false;
+    final isSelectedMenu = nav.isEmpty
+        ? false
+        : menu.exactMatch
+            ? currentRoute == nav
+            : currentRoute.startsWith(nav);
     return (isSelectedMenu, null);
   }
 

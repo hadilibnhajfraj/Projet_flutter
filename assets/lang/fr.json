@@ -511,6 +511,7 @@
   "KPI Commercial Contacts": "KPI Contacts Commerciaux",
   "KPI Projets CRM": "KPI Projets CRM",
   "Dashboard Industriel": "Tableau de bord industriel",
+  "Dashboard Production": "Dashboard Production",
   "Accueil": "Accueil",
   "Commercial Contacts": "Contacts Commerciaux",
   "Commercial Profile": "Profil Commercial",
@@ -1696,5 +1697,9 @@
   "Refresh": "Actualiser",
   "Created": "Créée le",
   "Archived": "Archivée le",
-  "Sheets automatically archived by the system (8h in draft) — visible here even if no unarchive request was filed yet": "Fiches archivées automatiquement par le système (8h en brouillon) — visibles ici même si aucune demande de désarchivage n'a encore été déposée"
+  "Sheets automatically archived by the system (8h in draft) — visible here even if no unarchive request was filed yet": "Fiches archivées automatiquement par le système (8h en brouillon) — visibles ici même si aucune demande de désarchivage n'a encore été déposée",
+  "CONTRÔLE QUALITÉ": "CONTRÔLE QUALITÉ",
+  "Contrôle Qualité": "Contrôle Qualité",
+  "Comparaison qualité": "Comparaison qualité",
+  "Tableau de bord": "Tableau de bord"
 }
