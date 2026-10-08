@@ -126,8 +126,10 @@ class QualityReadingFormController extends ChangeNotifier {
 
   bool isRemarkOpen(String key) => _remarkOpen.contains(key);
 
-  void openRemark(String key) {
-    _remarkOpen.add(key);
+  /// Affiche ou masque le champ Remarque d'un paramètre (affichage seul : la
+  /// remarque saisie est conservée, ouverte ou non).
+  void toggleRemark(String key) {
+    if (!_remarkOpen.remove(key)) _remarkOpen.add(key);
     notifyListeners();
   }
 
@@ -366,6 +368,7 @@ class QualityReadingForm extends StatelessWidget {
                 maxLines: 2, overflow: TextOverflow.ellipsis, style: tInter(fontSize: 11.5, fontWeight: FontWeight.w700, color: kCrmText, letterSpacing: 0.2)),
           ),
           if (nc) Icon(Icons.cancel_rounded, size: 16, color: accent),
+          _remarkToggle(p.key),
         ]),
         const SizedBox(height: 8),
         // Contrôle binaire : pas de valeur — Conforme / Non conforme. Sinon :
@@ -381,28 +384,79 @@ class QualityReadingForm extends StatelessWidget {
             padding: const EdgeInsets.only(top: 6),
             child: Text(c.errorOf(p)!, style: tInter(fontSize: 11, color: kCrmDanger)),
           ),
-        // REMARQUE : toujours proposée, facultative.
-        const SizedBox(height: 8),
-        TextField(
-          key: ValueKey('qc-remark-${p.key}'),
-          controller: c.remarkController(p.key),
-          enabled: _editable,
-          maxLines: 1,
-          onChanged: (_) => c.touch(),
-          style: tInter(fontSize: 12.5, color: kCrmText),
-          decoration: InputDecoration(
-            isDense: true,
-            prefixIcon: const Icon(Icons.notes_rounded, size: 16),
-            prefixIconConstraints: const BoxConstraints(minWidth: 34),
-            hintText: qcT(nc ? 'Expliquer l\'anomalie (recommandé)' : 'Remarque'),
-            hintStyle: tInter(fontSize: 12, color: kCrmTextSub),
-            filled: true,
-            fillColor: kCrmBg,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: kCrmBorder)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: kCrmBorder)),
-          ),
+        // REMARQUE : masquée par défaut (même si elle existe déjà) — l'icône du
+        // coin de la carte l'affiche ou la masque, avec une transition légère.
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: !c.isRemarkOpen(p.key)
+              ? const SizedBox(width: double.infinity)
+              : Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: TextField(
+                    key: ValueKey('qc-remark-${p.key}'),
+                    controller: c.remarkController(p.key),
+                    enabled: _editable,
+                    maxLines: 1,
+                    onChanged: (_) => c.touch(),
+                    style: tInter(fontSize: 12.5, color: kCrmText),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      prefixIcon: const Icon(Icons.notes_rounded, size: 16),
+                      prefixIconConstraints: const BoxConstraints(minWidth: 34),
+                      hintText: qcT(nc ? 'Expliquer l\'anomalie (recommandé)' : 'Remarque'),
+                      hintStyle: tInter(fontSize: 12, color: kCrmTextSub),
+                      filled: true,
+                      fillColor: kCrmBg,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: kCrmBorder)),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: kCrmBorder)),
+                    ),
+                  ),
+                ),
         ),
       ]),
+    );
+  }
+
+  /// Icône « remarque » du coin de la carte : petite, discrète. Pleine quand le
+  /// champ est ouvert ; un point signale une remarque existante. Consultable
+  /// même en lecture seule (le champ, lui, reste verrouillé).
+  Widget _remarkToggle(String key) {
+    final open = controller.isRemarkOpen(key);
+    final hasRemark = controller.remarkController(key).text.trim().isNotEmpty;
+    final color = open || hasRemark ? kQualityControlColor : kCrmTextSub;
+    return Tooltip(
+      message: qcT('Remarque'),
+      child: InkResponse(
+        key: ValueKey('qc-remark-toggle-$key'),
+        onTap: () => controller.toggleRemark(key),
+        radius: 16,
+        child: Padding(
+          padding: const EdgeInsets.only(left: 6),
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 150),
+                child: Icon(open ? Icons.mode_comment_rounded : Icons.mode_comment_outlined, key: ValueKey(open), size: 15, color: color),
+              ),
+              if (hasRemark)
+                Positioned(
+                  top: 1,
+                  right: 0,
+                  child: Container(
+                    key: ValueKey('qc-remark-dot-$key'),
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(color: kQualityControlColor, shape: BoxShape.circle, border: Border.all(color: kCrmSurface, width: 1.2)),
+                  ),
+                ),
+            ]),
+          ),
+        ),
+      ),
     );
   }
 

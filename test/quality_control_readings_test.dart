@@ -736,7 +736,7 @@ void main() {
     expect(find.byKey(const ValueKey('qc-save-physical')), findsNothing);
   });
 
-  testWidgets('mode de saisie — chaque paramètre : VALEUR + REMARQUE, aucun bouton Conforme / Non conforme / Non contrôlé', (tester) async {
+  testWidgets('mode de saisie — VALEUR visible + icône Remarque dans le coin : champ masqué par défaut, affiché au clic ; aucun bouton de statut', (tester) async {
     backend
       ..add('08:00', values: {'temperature_machine': '8'}, validated: true, status: 'CONFORME')
       ..add('11:00');
@@ -744,44 +744,73 @@ void main() {
     await _open(tester, size: const Size(1440, 12000));
     final machine = find.byKey(const ValueKey('qc-reading-section-controle_machine'));
     Finder remark(String key) => find.byKey(ValueKey('qc-remark-$key'));
+    Finder toggle(String key) => find.byKey(ValueKey('qc-remark-toggle-$key'));
+    Finder dot(String key) => find.byKey(ValueKey('qc-remark-dot-$key'));
+    Future<void> tapToggle(String key) async {
+      await tester.tap(toggle(key));
+      await tester.pumpAndSettle();
+    }
+
     const keys = ['temperature_machine', 'temperature_eau', 'pression_air_comprime', 'fuite_eau', 'fuite_air_comprime', 'etat_disque_coupe', 'niveau_bain_graines', 'vitesse_impression'];
 
-    // ✓ Aucun des trois statuts dans les paramètres ; un champ Remarque par paramètre.
+    // ✓ Aucun des trois statuts dans les paramètres.
     for (final label in ['Conforme', 'Non conforme', 'Non contrôlé']) {
       expect(find.descendant(of: machine, matching: find.text(label)), findsNothing, reason: label);
     }
+    // ✓ Par défaut : champ Remarque CACHÉ, seule l'icône (contour) est visible, sans indicateur.
     for (final key in keys) {
-      final field = tester.widget<TextField>(remark(key));
-      expect(field.decoration!.hintText, 'Remarque', reason: key);
-      expect(field.controller!.text, '', reason: key); // vide par défaut
-      expect(field.enabled, isNot(false), reason: key);
+      expect(remark(key), findsNothing, reason: key);
+      expect(find.descendant(of: toggle(key), matching: find.byIcon(Icons.mode_comment_outlined)), findsOneWidget, reason: key);
+      expect(dot(key), findsNothing, reason: key);
     }
-    // 4 champs « Valeur » (les 4 autres paramètres gardent leurs choix propres) + 8 remarques.
-    expect(find.descendant(of: machine, matching: find.byType(TextField)), findsNWidgets(12));
+    // Seuls les 4 champs « Valeur » sont affichés (les 4 autres paramètres gardent leurs choix).
+    expect(find.descendant(of: machine, matching: find.byType(TextField)), findsNWidgets(4));
     for (final key in ['temperature_machine', 'temperature_eau', 'pression_air_comprime', 'vitesse_impression']) {
       expect(tester.widget<TextField>(_field(key)).decoration!.hintText, 'Valeur', reason: key);
       expect(tester.widget<TextField>(_field(key)).controller!.text, '', reason: key); // vide à la création
     }
-    for (final choice in ['Absent', 'Présent', 'OK', 'NOK', 'Bien', 'Moyen', 'Mauvais']) {
-      expect(find.descendant(of: machine, matching: find.text(choice)), findsWidgets, reason: choice);
-    }
+    // L'icône est dans le coin supérieur droit de la carte, au-dessus du champ Valeur.
+    final icon = tester.getRect(toggle('temperature_machine'));
+    final value = tester.getRect(_field('temperature_machine'));
+    expect(icon.bottom, lessThanOrEqualTo(value.top));
+    expect(icon.right, greaterThan(value.right - 30));
+    expect(icon.width, lessThan(32));
     expect(find.textContaining('0 / 8 contrôlé(s)', findRichText: true), findsOneWidget);
 
-    // ✓ Saisie : une valeur suffit pour que le paramètre soit compté ; remarque facultative.
+    // ✓ Clic sur l'icône : le champ apparaît (icône pleine), vide, modifiable.
+    await tapToggle('temperature_machine');
+    expect(remark('temperature_machine'), findsOneWidget);
+    expect(tester.widget<TextField>(remark('temperature_machine')).decoration!.hintText, 'Remarque');
+    expect(tester.widget<TextField>(remark('temperature_machine')).controller!.text, '');
+    expect(find.descendant(of: toggle('temperature_machine'), matching: find.byIcon(Icons.mode_comment_rounded)), findsOneWidget);
+    expect(remark('temperature_eau'), findsNothing); // les autres cartes restent fermées
     await tester.enterText(_field('temperature_machine'), '20');
     await tester.enterText(remark('temperature_machine'), 'stable');
+    await tester.pump();
+    expect(dot('temperature_machine'), findsOneWidget); // remarque existante signalée
+
+    // ✓ Second clic : le champ est masqué, la remarque saisie est conservée.
+    await tapToggle('temperature_machine');
+    expect(remark('temperature_machine'), findsNothing);
+    expect(dot('temperature_machine'), findsOneWidget);
+    expect(find.descendant(of: toggle('temperature_machine'), matching: find.byIcon(Icons.mode_comment_outlined)), findsOneWidget);
+    await tapToggle('temperature_machine');
+    expect(tester.widget<TextField>(remark('temperature_machine')).controller!.text, 'stable');
+    await tapToggle('temperature_machine');
+
+    // Autres saisies : valeur seule, choix + remarque, remarque seule.
     await tester.enterText(_field('pression_air_comprime'), '6');
     final fuite = find.ancestor(of: find.text('FUITE D\'EAU'), matching: find.byType(Column)).first;
     await tester.tap(find.descendant(of: fuite, matching: find.text('Présent')));
+    await tapToggle('fuite_eau');
     await tester.enterText(remark('fuite_eau'), 'raccord à resserrer');
-    await tester.pump();
-    expect(find.textContaining('3 / 8 contrôlé(s)  ·  1 NC', findRichText: true), findsOneWidget);
-    // Une remarque seule ne rend pas le paramètre « contrôlé ».
+    await tapToggle('temperature_eau');
     await tester.enterText(remark('temperature_eau'), 'sonde à vérifier');
     await tester.pump();
-    expect(find.textContaining('3 / 8 contrôlé(s)', findRichText: true), findsOneWidget);
+    // Une remarque seule ne rend pas le paramètre « contrôlé ».
+    expect(find.textContaining('3 / 8 contrôlé(s)  ·  1 NC', findRichText: true), findsOneWidget);
 
-    // ✓ Sauvegarde : valeur + remarque en base ; le statut découle de la valeur.
+    // ✓ Sauvegarde inchangée : valeur + remarque en base, même champ masqué (température machine).
     await _save(tester);
     final saved = backend.readings[1].values;
     expect(saved['temperature_machine'], {'value': '20', 'status': 'CONFORME', 'remark': 'stable'});
@@ -790,22 +819,34 @@ void main() {
     expect(saved['temperature_eau'], {'value': null, 'status': 'NON_CONTROLE', 'remark': 'sonde à vérifier'});
     expect(saved.containsKey('vitesse_impression'), isFalse); // non modifié : non envoyé
 
-    // ✓ Rechargement depuis la base : valeurs et remarques préremplies, modifiables.
+    // ✓ Après rechargement depuis la base : remarques existantes NON affichées
+    // automatiquement — icône avec indicateur ; au clic, la remarque apparaît.
     expect(tester.widget<TextField>(_field('temperature_machine')).controller!.text, '20');
-    expect(tester.widget<TextField>(remark('temperature_machine')).controller!.text, 'stable');
+    for (final key in ['temperature_machine', 'fuite_eau', 'temperature_eau']) {
+      expect(remark(key), findsNothing, reason: key);
+      expect(dot(key), findsOneWidget, reason: key);
+    }
+    expect(dot('pression_air_comprime'), findsNothing);
+    await tapToggle('fuite_eau');
     expect(tester.widget<TextField>(remark('fuite_eau')).controller!.text, 'raccord à resserrer');
-    expect(tester.widget<TextField>(remark('temperature_eau')).controller!.text, 'sonde à vérifier');
+    await tapToggle('temperature_machine');
+    expect(tester.widget<TextField>(remark('temperature_machine')).controller!.text, 'stable');
+    // Modification de la valeur et effacement de la remarque.
     await tester.enterText(_field('temperature_machine'), '21');
     await tester.enterText(remark('temperature_machine'), '');
     await tester.pump();
+    expect(dot('temperature_machine'), findsNothing);
     await _save(tester);
     expect(backend.readings[1].values['temperature_machine'], {'value': '21', 'status': 'CONFORME', 'remark': null});
     expect(backend.readings[1].values['fuite_eau']!['value'], 'Présent'); // inchangé : intact
 
-    // ✓ Édition d'un prélèvement existant : sa valeur et sa remarque sont affichées.
+    // ✓ Édition d'un prélèvement existant (validé) : remarque masquée, signalée, consultable au clic.
     await tester.tap(_row('r1'));
     await _settle(tester);
     expect(tester.widget<TextField>(_field('temperature_machine')).controller!.text, '8');
+    expect(remark('temperature_machine'), findsNothing);
+    expect(dot('temperature_machine'), findsOneWidget);
+    await tapToggle('temperature_machine');
     expect(tester.widget<TextField>(remark('temperature_machine')).controller!.text, 'RAS au démarrage');
     expect(tester.takeException(), isNull);
   });
@@ -1043,9 +1084,10 @@ void main() {
       expect(field.enabled, isNot(false), reason: key);
       expect(field.controller!.text, '', reason: key);
     }
-    expect(find.descendant(of: form, matching: find.byType(TextField)), findsNWidgets(18)); // 9 valeurs + 9 remarques
+    expect(find.descendant(of: form, matching: find.byType(TextField)), findsNWidgets(9)); // 9 valeurs ; remarques masquées
     for (final key in keys) {
-      expect(find.byKey(ValueKey('qc-remark-$key')), findsOneWidget, reason: key);
+      expect(find.byKey(ValueKey('qc-remark-$key')), findsNothing, reason: key);
+      expect(find.byKey(ValueKey('qc-remark-toggle-$key')), findsOneWidget, reason: key);
     }
     expect(find.descendant(of: section, matching: find.text('Non contrôlé')), findsNothing);
     expect(find.descendant(of: section, matching: find.text('Conforme')), findsNothing);
@@ -1463,6 +1505,8 @@ void main() {
         expect(find.text(text), findsWidgets, reason: '$type · $text');
       }
       expect(find.text('Not checked'), findsNothing); // plus de statut par paramètre
+      await tester.tap(find.byKey(const ValueKey('qc-remark-toggle-temperature_eau')));
+      await tester.pumpAndSettle();
       expect(tester.widget<TextField>(find.byKey(const ValueKey('qc-remark-temperature_eau'))).decoration!.hintText, 'Remark');
       expect(find.text('Shift: Morning'), findsOneWidget);
       if (type == 'PROMESH') {
