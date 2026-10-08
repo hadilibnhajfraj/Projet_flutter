@@ -606,6 +606,7 @@ const Map<String, String> _exact = {
   "MASSE LINÉIQUE": "LINEAR MASS",
   "POIDS EN g": "WEIGHT IN g",
   "Contrôle produit": "Product Control",
+  "Au moins un paramètre doit être renseigné.": "At least one parameter must be filled in.",
   "TEMPÉRATURE MACHINE 1 — ZONE 1": "MACHINE TEMPERATURE 1 — ZONE 1",
   "TEMPÉRATURE MACHINE 1 — ZONE 2": "MACHINE TEMPERATURE 1 — ZONE 2",
   "TEMPÉRATURE MACHINE 2 — ZONE 1": "MACHINE TEMPERATURE 2 — ZONE 1",

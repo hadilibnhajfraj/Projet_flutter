@@ -29,6 +29,7 @@ const QcParamValues _blank = (value: '', status: 'NON_CONTROLE', remark: '');
 /// valeurs enregistrées (référence du diff), résultat demandé.
 class QualityReadingFormController extends ChangeNotifier {
   List<QualityParameter> _params = const [];
+  Map<String, QualityParameter> _byKey = const {};
   final Map<String, TextEditingController> _values = {};
   final Map<String, TextEditingController> _remarks = {};
   final Map<String, String> _statuses = {};
@@ -48,6 +49,7 @@ class QualityReadingFormController extends ChangeNotifier {
   /// Paramètres du formulaire : un controller par paramètre, créé une fois.
   void configure(List<QualityParameter> params) {
     _params = [...params]..sort((a, b) => a.position.compareTo(b.position));
+    _byKey = {for (final p in _params) p.key: p};
     for (final p in _params) {
       _values[p.key] ??= TextEditingController();
       _remarks[p.key] ??= TextEditingController();
@@ -78,24 +80,32 @@ class QualityReadingFormController extends ChangeNotifier {
 
   TextEditingController valueController(String key) => _values[key]!;
   TextEditingController remarkController(String key) => _remarks[key]!;
-  String status(String key) => _statuses[key] ?? 'NON_CONTROLE';
+  /// Statut d'un paramètre. Il n'est plus saisi (ni Conforme / Non conforme /
+  /// Non contrôlé) : il DÉCOULE de la valeur —
+  ///   - aucune valeur → non contrôlé ;
+  ///   - paramètre à choix → celui de l'option choisie (ex. « Présent », « NOK ») ;
+  ///   - valeur saisie → contrôlé (une non-conformité déjà enregistrée est conservée).
+  /// Seul le contrôle binaire (kind `conformity`) garde un statut choisi.
+  String status(String key) {
+    final raw = _statuses[key] ?? 'NON_CONTROLE';
+    final p = _byKey[key];
+    if (p == null || p.kind == 'conformity') return raw;
+    final value = _values[key]?.text.trim() ?? '';
+    if (value.isEmpty) return 'NON_CONTROLE';
+    if (p.kind == 'choice' && p.options.isNotEmpty) {
+      for (final o in p.options) {
+        if (o.value == value) return o.tone == 'nok' ? 'NON_CONFORME' : 'CONFORME';
+      }
+    }
+    return raw == 'NON_CONFORME' ? 'NON_CONFORME' : 'CONFORME';
+  }
 
   QcParamValues current(String key) => (value: _values[key]!.text.trim(), status: status(key), remark: _remarks[key]!.text.trim());
 
-  void setStatus(String key, String value) {
-    _statuses[key] = value;
-    if (anyNonConforme) requestedResult = 'NON_CONFORME';
-    notifyListeners();
-  }
-
   /// Valeur choisie par un bouton (paramètre à choix) ou reprise du prélèvement
-  /// précédent. `tone` : statut PROPOSÉ si aucun n'est encore choisi.
+  /// précédent. Le statut en découle (voir [status]).
   void setValue(String key, String value, {String? tone}) {
     _values[key]!.text = value;
-    if (status(key) == 'NON_CONTROLE' && value.isNotEmpty) {
-      if (tone == 'ok') _statuses[key] = 'CONFORME';
-      if (tone == 'nok') _statuses[key] = 'NON_CONFORME';
-    }
     if (anyNonConforme) requestedResult = 'NON_CONFORME';
     notifyListeners();
   }
@@ -124,7 +134,7 @@ class QualityReadingFormController extends ChangeNotifier {
   /// Saisie clavier : les compteurs et repères « modifié » se mettent à jour.
   void touch() => notifyListeners();
 
-  bool get anyNonConforme => _statuses.values.contains('NON_CONFORME');
+  bool get anyNonConforme => _params.any((p) => status(p.key) == 'NON_CONFORME');
   int get controlledCount => _params.where((p) => status(p.key) != 'NON_CONTROLE').length;
   int get nonConformCount => _params.where((p) => status(p.key) == 'NON_CONFORME').length;
   String get result => anyNonConforme ? 'NON_CONFORME' : requestedResult;
@@ -139,18 +149,12 @@ class QualityReadingFormController extends ChangeNotifier {
 
   bool get hasChanges => _params.any((p) => current(p.key) != _saved[p.key]);
 
-  // Mêmes règles que le backend (collectValidationErrors) — affichées avant
-  // l'envoi ; le serveur reste l'autorité.
-  String? errorOf(QualityParameter p) {
-    final v = current(p.key);
-    if (v.status != 'NON_CONTROLE' && v.value.isEmpty) return 'Valeur obligatoire';
-    // Non conforme : remarque RECOMMANDÉE (champ ouvert), jamais bloquante.
-    if (v.status == 'NON_CONTROLE' && v.value.isNotEmpty) return 'Indiquer Conforme ou Non conforme';
-    return null;
-  }
+  // Le statut découle de la valeur : un paramètre renseigné est toujours
+  // cohérent (plus de « valeur sans statut » ni de « statut sans valeur »).
+  String? errorOf(QualityParameter p) => null;
 
   List<String> errors() => [
-        if (controlledCount == 0) 'Au moins un paramètre doit être contrôlé (Conforme ou Non conforme).',
+        if (controlledCount == 0) 'Au moins un paramètre doit être renseigné.',
         for (final p in _params)
           if (errorOf(p) != null) '${p.label} : ${errorOf(p)}',
       ];
@@ -342,8 +346,7 @@ class QualityReadingForm extends StatelessWidget {
     final nc = status == 'NON_CONFORME';
     final accent = qualityStatusColor(status);
     final flagged = c.isFlagged(p);
-    final remarkVisible = c.isRemarkOpen(p.key) || c.remarkController(p.key).text.trim().isNotEmpty || nc;
-    final iconColor = status == 'NON_CONTROLE' ? kCrmTextSub : accent;
+    final iconColor = nc ? accent : kCrmTextSub;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
@@ -362,54 +365,43 @@ class QualityReadingForm extends StatelessWidget {
             child: Text(p.shortLabel ?? p.label,
                 maxLines: 2, overflow: TextOverflow.ellipsis, style: tInter(fontSize: 11.5, fontWeight: FontWeight.w700, color: kCrmText, letterSpacing: 0.2)),
           ),
-          if (status != 'NON_CONTROLE') Icon(nc ? Icons.cancel_rounded : Icons.check_circle_rounded, size: 16, color: accent),
-          if (!locked && !remarkVisible)
-            IconButton(
-              tooltip: qcT('Ajouter une remarque'),
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-              onPressed: () => c.openRemark(p.key),
-              icon: const Icon(Icons.notes_rounded, size: 16, color: kCrmTextSub),
-            ),
+          if (nc) Icon(Icons.cancel_rounded, size: 16, color: accent),
         ]),
         const SizedBox(height: 8),
-        // Contrôle binaire : ni valeur ni « Non contrôlé » — Conforme / Non conforme.
+        // Contrôle binaire : pas de valeur — Conforme / Non conforme. Sinon :
+        // VALEUR (champ ou choix du paramètre), sans bouton de statut.
         if (p.kind == 'conformity')
           _conformityChoice(p.key, status)
         else ...[
           _valueInput(p),
           _previousValue(p),
-          const SizedBox(height: 8),
-          _statusToggle(p.key, status),
         ],
         if (flagged)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(c.errorOf(p)!, style: tInter(fontSize: 11, color: kCrmDanger)),
           ),
-        if (remarkVisible) ...[
-          const SizedBox(height: 8),
-          TextField(
-            controller: c.remarkController(p.key),
-            enabled: _editable,
-            minLines: 1,
-            maxLines: 3,
-            onChanged: (_) => c.touch(),
-            style: tInter(fontSize: 12.5, color: kCrmText),
-            decoration: InputDecoration(
-              isDense: true,
-              prefixIcon: const Icon(Icons.notes_rounded, size: 16),
-              prefixIconConstraints: const BoxConstraints(minWidth: 34),
-              hintText: qcT(nc ? 'Expliquer l\'anomalie (recommandé)' : 'Remarque'),
-              hintStyle: tInter(fontSize: 12, color: kCrmTextSub),
-              filled: true,
-              fillColor: kCrmBg,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: kCrmBorder)),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: kCrmBorder)),
-            ),
+        // REMARQUE : toujours proposée, facultative.
+        const SizedBox(height: 8),
+        TextField(
+          key: ValueKey('qc-remark-${p.key}'),
+          controller: c.remarkController(p.key),
+          enabled: _editable,
+          maxLines: 1,
+          onChanged: (_) => c.touch(),
+          style: tInter(fontSize: 12.5, color: kCrmText),
+          decoration: InputDecoration(
+            isDense: true,
+            prefixIcon: const Icon(Icons.notes_rounded, size: 16),
+            prefixIconConstraints: const BoxConstraints(minWidth: 34),
+            hintText: qcT(nc ? 'Expliquer l\'anomalie (recommandé)' : 'Remarque'),
+            hintStyle: tInter(fontSize: 12, color: kCrmTextSub),
+            filled: true,
+            fillColor: kCrmBg,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: kCrmBorder)),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: kCrmBorder)),
           ),
-        ],
+        ),
       ]),
     );
   }
@@ -518,47 +510,6 @@ class QualityReadingForm extends StatelessWidget {
           ),
         );
     return Wrap(spacing: 8, runSpacing: 8, children: [pill('CONFORME', 'Conforme'), pill('NON_CONFORME', 'Non conforme')]);
-  }
-
-  Widget _statusToggle(String key, String status) {
-    Widget seg(String value, String label, IconData icon) {
-      final selected = status == value;
-      final color = qualityStatusColor(value == 'NON_CONTROLE' ? '' : value);
-      return Expanded(
-        child: InkWell(
-          onTap: _editable ? () => controller.setStatus(key, value) : null,
-          borderRadius: BorderRadius.circular(8),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            decoration: BoxDecoration(
-              color: selected ? color.withValues(alpha: 0.12) : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: selected ? color : Colors.transparent),
-            ),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(icon, size: 14, color: selected ? color : kCrmTextSub),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(label,
-                    overflow: TextOverflow.ellipsis,
-                    style: tInter(fontSize: 11.5, fontWeight: FontWeight.w800, color: selected ? color : kCrmTextSub)),
-              ),
-            ]),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: kCrmBg, borderRadius: BorderRadius.circular(8), border: Border.all(color: kCrmBorder)),
-      child: Row(children: [
-        seg('CONFORME', 'Conforme', Icons.check_circle_outline_rounded),
-        seg('NON_CONFORME', 'Non conforme', Icons.cancel_outlined),
-        seg('NON_CONTROLE', 'Non contrôlé', Icons.remove_circle_outline_rounded),
-      ]),
-    );
   }
 
   // ── Résultat du prélèvement ─────────────────────────────────────────────────

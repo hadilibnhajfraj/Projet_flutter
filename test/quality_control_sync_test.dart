@@ -357,9 +357,10 @@ void main() {
     expect(find.text('Nouveau contrôle qualité'), findsOneWidget);
     expect(db.posts, isEmpty); // rien en base avant l'enregistrement
 
-    final card = find.ancestor(of: find.text('TEMPÉRATURE D\'EAU'), matching: find.byType(Column)).first;
-    await tester.enterText(find.descendant(of: card, matching: find.byType(TextField)).first, '9.4');
-    await tester.tap(find.descendant(of: card, matching: find.text('Non conforme')));
+    // Plus de bouton de statut par paramètre : la non-conformité vient du choix du
+    // paramètre lui-même (fuite d'eau « Présent »).
+    final card = find.ancestor(of: find.text('FUITE D\'EAU'), matching: find.byType(Column)).first;
+    await tester.tap(find.descendant(of: card, matching: find.text('Présent')));
     await tester.pump();
     await tester.tap(find.text('Valider le contrôle qualité').first);
     await tester.pumpAndSettle();
@@ -379,7 +380,7 @@ void main() {
     final reading = Map<String, dynamic>.from(body['reading'] as Map);
     expect(reading['readingTime'], matches(r'^\d{2}:\d{2}$'));
     expect(reading['items'], [
-      {'parameterKey': 'temperature_eau', 'value': '9.4', 'status': 'NON_CONFORME', 'remark': ''},
+      {'parameterKey': 'fuite_eau', 'value': 'Présent', 'status': 'NON_CONFORME', 'remark': ''},
     ]);
     expect(body.containsKey('items'), isFalse);
     final created = db.controls.first;

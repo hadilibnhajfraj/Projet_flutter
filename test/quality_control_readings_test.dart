@@ -296,12 +296,10 @@ Future<void> _confirmTime(WidgetTester tester, {String? hh, String? mm}) async {
   await tester.pumpAndSettle();
 }
 
-/// Saisit les trois valeurs du scénario et les déclare conformes.
+/// Saisit les trois valeurs du scénario (une valeur saisie = paramètre contrôlé).
 Future<void> _fill(WidgetTester tester, List<String> values) async {
   for (var i = 0; i < _keys.length; i++) {
     await tester.enterText(_field(_keys[i]), values[i]);
-    final card = find.ancestor(of: find.text(_labels[i]), matching: find.byType(Column)).first;
-    await tester.tap(find.descendant(of: card, matching: find.text('Conforme')));
     await tester.pump();
   }
 }
@@ -447,7 +445,7 @@ void main() {
     await tester.pump();
     expect(_values(tester), ['22', '', '']);
     await _save(tester);
-    expect(backend.readings[2].values['temperature_machine'], containsPair('status', 'NON_CONTROLE'));
+    expect(backend.readings[2].values['temperature_machine'], containsPair('status', 'CONFORME')); // valeur reprise = paramètre renseigné
 
     // Aucun prélèvement existant modifié par les créations ; étape 1 jamais réécrite.
     expect(backend.requests.where((r) => r.contains('/readings/r1')), isEmpty);
@@ -455,8 +453,8 @@ void main() {
     expect(_stored(backend, 1), ['22', '182', '12.1']);
     expect(_tile('Heure d\'ouverture', '20:10:56'), findsOneWidget);
 
-    // 04 Synthèse : 1 fiche, 3 prélèvements, paramètres contrôlés de tous les prélèvements.
-    for (final (label, value) in const [('Fiche QC', '1'), ('Prélèvements', '3'), ('Paramètres contrôlés', '6'), ('Non-conformités', '0')]) {
+    // 04 Synthèse : 1 fiche, 3 prélèvements, paramètres renseignés de tous les prélèvements (3 + 3 + la valeur reprise).
+    for (final (label, value) in const [('Fiche QC', '1'), ('Prélèvements', '3'), ('Paramètres contrôlés', '7'), ('Non-conformités', '0')]) {
       expect(find.descendant(of: find.ancestor(of: find.text(label), matching: find.byType(QcKpiTile)), matching: find.text(value)), findsOneWidget, reason: label);
     }
     expect(find.text('dernier : 14:17'), findsOneWidget);
@@ -738,6 +736,80 @@ void main() {
     expect(find.byKey(const ValueKey('qc-save-physical')), findsNothing);
   });
 
+  testWidgets('mode de saisie — chaque paramètre : VALEUR + REMARQUE, aucun bouton Conforme / Non conforme / Non contrôlé', (tester) async {
+    backend
+      ..add('08:00', values: {'temperature_machine': '8'}, validated: true, status: 'CONFORME')
+      ..add('11:00');
+    backend.readings[0].values['temperature_machine'] = {'value': '8', 'status': 'CONFORME', 'remark': 'RAS au démarrage'};
+    await _open(tester, size: const Size(1440, 12000));
+    final machine = find.byKey(const ValueKey('qc-reading-section-controle_machine'));
+    Finder remark(String key) => find.byKey(ValueKey('qc-remark-$key'));
+    const keys = ['temperature_machine', 'temperature_eau', 'pression_air_comprime', 'fuite_eau', 'fuite_air_comprime', 'etat_disque_coupe', 'niveau_bain_graines', 'vitesse_impression'];
+
+    // ✓ Aucun des trois statuts dans les paramètres ; un champ Remarque par paramètre.
+    for (final label in ['Conforme', 'Non conforme', 'Non contrôlé']) {
+      expect(find.descendant(of: machine, matching: find.text(label)), findsNothing, reason: label);
+    }
+    for (final key in keys) {
+      final field = tester.widget<TextField>(remark(key));
+      expect(field.decoration!.hintText, 'Remarque', reason: key);
+      expect(field.controller!.text, '', reason: key); // vide par défaut
+      expect(field.enabled, isNot(false), reason: key);
+    }
+    // 4 champs « Valeur » (les 4 autres paramètres gardent leurs choix propres) + 8 remarques.
+    expect(find.descendant(of: machine, matching: find.byType(TextField)), findsNWidgets(12));
+    for (final key in ['temperature_machine', 'temperature_eau', 'pression_air_comprime', 'vitesse_impression']) {
+      expect(tester.widget<TextField>(_field(key)).decoration!.hintText, 'Valeur', reason: key);
+      expect(tester.widget<TextField>(_field(key)).controller!.text, '', reason: key); // vide à la création
+    }
+    for (final choice in ['Absent', 'Présent', 'OK', 'NOK', 'Bien', 'Moyen', 'Mauvais']) {
+      expect(find.descendant(of: machine, matching: find.text(choice)), findsWidgets, reason: choice);
+    }
+    expect(find.textContaining('0 / 8 contrôlé(s)', findRichText: true), findsOneWidget);
+
+    // ✓ Saisie : une valeur suffit pour que le paramètre soit compté ; remarque facultative.
+    await tester.enterText(_field('temperature_machine'), '20');
+    await tester.enterText(remark('temperature_machine'), 'stable');
+    await tester.enterText(_field('pression_air_comprime'), '6');
+    final fuite = find.ancestor(of: find.text('FUITE D\'EAU'), matching: find.byType(Column)).first;
+    await tester.tap(find.descendant(of: fuite, matching: find.text('Présent')));
+    await tester.enterText(remark('fuite_eau'), 'raccord à resserrer');
+    await tester.pump();
+    expect(find.textContaining('3 / 8 contrôlé(s)  ·  1 NC', findRichText: true), findsOneWidget);
+    // Une remarque seule ne rend pas le paramètre « contrôlé ».
+    await tester.enterText(remark('temperature_eau'), 'sonde à vérifier');
+    await tester.pump();
+    expect(find.textContaining('3 / 8 contrôlé(s)', findRichText: true), findsOneWidget);
+
+    // ✓ Sauvegarde : valeur + remarque en base ; le statut découle de la valeur.
+    await _save(tester);
+    final saved = backend.readings[1].values;
+    expect(saved['temperature_machine'], {'value': '20', 'status': 'CONFORME', 'remark': 'stable'});
+    expect(saved['pression_air_comprime'], {'value': '6', 'status': 'CONFORME', 'remark': null});
+    expect(saved['fuite_eau'], {'value': 'Présent', 'status': 'NON_CONFORME', 'remark': 'raccord à resserrer'});
+    expect(saved['temperature_eau'], {'value': null, 'status': 'NON_CONTROLE', 'remark': 'sonde à vérifier'});
+    expect(saved.containsKey('vitesse_impression'), isFalse); // non modifié : non envoyé
+
+    // ✓ Rechargement depuis la base : valeurs et remarques préremplies, modifiables.
+    expect(tester.widget<TextField>(_field('temperature_machine')).controller!.text, '20');
+    expect(tester.widget<TextField>(remark('temperature_machine')).controller!.text, 'stable');
+    expect(tester.widget<TextField>(remark('fuite_eau')).controller!.text, 'raccord à resserrer');
+    expect(tester.widget<TextField>(remark('temperature_eau')).controller!.text, 'sonde à vérifier');
+    await tester.enterText(_field('temperature_machine'), '21');
+    await tester.enterText(remark('temperature_machine'), '');
+    await tester.pump();
+    await _save(tester);
+    expect(backend.readings[1].values['temperature_machine'], {'value': '21', 'status': 'CONFORME', 'remark': null});
+    expect(backend.readings[1].values['fuite_eau']!['value'], 'Présent'); // inchangé : intact
+
+    // ✓ Édition d'un prélèvement existant : sa valeur et sa remarque sont affichées.
+    await tester.tap(_row('r1'));
+    await _settle(tester);
+    expect(tester.widget<TextField>(_field('temperature_machine')).controller!.text, '8');
+    expect(tester.widget<TextField>(remark('temperature_machine')).controller!.text, 'RAS au démarrage');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('PROMESH — deux sections séparées : Contrôle Machine (prélèvement) et Contrôle Produit (fiche, saisi une fois)', (tester) async {
     backend
       ..add('08:00', values: {'temperature_machine': '8'}, validated: true, status: 'CONFORME')
@@ -971,7 +1043,13 @@ void main() {
       expect(field.enabled, isNot(false), reason: key);
       expect(field.controller!.text, '', reason: key);
     }
-    expect(find.descendant(of: form, matching: find.byType(TextField)), findsNWidgets(9));
+    expect(find.descendant(of: form, matching: find.byType(TextField)), findsNWidgets(18)); // 9 valeurs + 9 remarques
+    for (final key in keys) {
+      expect(find.byKey(ValueKey('qc-remark-$key')), findsOneWidget, reason: key);
+    }
+    expect(find.descendant(of: section, matching: find.text('Non contrôlé')), findsNothing);
+    expect(find.descendant(of: section, matching: find.text('Conforme')), findsNothing);
+    expect(find.descendant(of: section, matching: find.text('Non conforme')), findsNothing);
 
     // ✓ CONTRÔLE PRODUIT : section séparée, sous le contrôle machine — 6 paramètres dans l'ordre.
     const productLabels = [
@@ -1142,7 +1220,10 @@ void main() {
     expect(_field(ratio), findsNothing);
     expect(find.descendant(of: ratioOk, matching: find.text('Conforme')), findsOneWidget);
     expect(find.descendant(of: ratioNc, matching: find.text('Non conforme')), findsOneWidget);
-    expect(find.descendant(of: form, matching: find.text('Non contrôlé')), findsNWidgets(14)); // 15 contrôles, sauf le ratio
+    // Plus aucun bouton de statut par paramètre : restent les choix propres à « Alignement des fibres » et au ratio.
+    expect(find.text('Non contrôlé'), findsNothing);
+    expect(find.descendant(of: machineQuality, matching: find.text('Conforme')), findsNWidgets(2));
+    expect(find.descendant(of: machineQuality, matching: find.text('Non conforme')), findsNWidgets(2));
     expect(find.descendant(of: ratioOk, matching: find.byIcon(Icons.radio_button_checked_rounded)), findsNothing);
     // ✓ Conforme → compté ; Non conforme → non-conformité ; compteurs recalculés.
     await tester.tap(ratioOk);
@@ -1381,7 +1462,8 @@ void main() {
       ]) {
         expect(find.text(text), findsWidgets, reason: '$type · $text');
       }
-      expect(find.text('Not checked'), findsWidgets);
+      expect(find.text('Not checked'), findsNothing); // plus de statut par paramètre
+      expect(tester.widget<TextField>(find.byKey(const ValueKey('qc-remark-temperature_eau'))).decoration!.hintText, 'Remark');
       expect(find.text('Shift: Morning'), findsOneWidget);
       if (type == 'PROMESH') {
         for (final text in ['Machine Control', 'Parameters linked to the sample', 'Product Control', 'NUMBER OF BARS LENGTHWISE', 'NUMBER OF BARS WIDTHWISE', 'MESH DIMENSIONS', 'SIDE 2 LENGTH DIMENSIONS', 'PRINTING SPEED', 'PRINT CONDITION', 'CUTTING DISC CONDITION']) {
