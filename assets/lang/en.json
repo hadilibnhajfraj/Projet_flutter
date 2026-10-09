@@ -1701,5 +1701,16 @@
   "CONTRÔLE QUALITÉ": "QUALITY CONTROL",
   "Contrôle Qualité": "Quality Control",
   "Comparaison qualité": "Quality comparison",
-  "Tableau de bord": "Dashboard"
+  "Tableau de bord": "Dashboard",
+  "Lignes par page": "Rows per page",
+  "Lignes": "Rows",
+  "résultats": "results",
+  "résultat": "result",
+  "Première page": "First page",
+  "Page précédente": "Previous page",
+  "Page suivante": "Next page",
+  "Dernière page": "Last page",
+  "Période trop large : affichage limité aux": "Period too wide: display limited to the",
+  "fiches les plus récentes sur": "most recent records out of",
+  "Réduisez la période pour consulter toutes les fiches.": "Narrow the period to see every record."
 }

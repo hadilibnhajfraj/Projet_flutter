@@ -26,6 +26,35 @@ int _toInt(dynamic v) {
 }
 
 /// Un tableau complet (PROMESH ou PROBAR) — fiches individuelles + total général.
+/// Tailles de page proposées par le sélecteur « Lignes par page » des
+/// récapitulatifs PROMESH / PROBAR (15 par défaut).
+const kProductionSummaryPageSizes = [15, 50, 100];
+
+/// Fenêtre d'affichage d'un tableau paginé côté écran : page réellement
+/// affichée (toujours valide), nombre de pages et bornes des lignes.
+class ProductionPageWindow {
+  final int page; // 0 = première page
+  final int totalPages; // ≥ 1
+  final int start; // index de la première ligne (inclus)
+  final int end; // index de fin (exclu)
+  final int total;
+  const ProductionPageWindow({required this.page, required this.totalPages, required this.start, required this.end, required this.total});
+
+  bool get hasPrevious => page > 0;
+  bool get hasNext => page < totalPages - 1;
+
+  /// [page] demandé est ramené dans les pages existantes (ex. après un
+  /// changement de taille de page ou de filtres).
+  factory ProductionPageWindow.of({required int total, required int pageSize, required int page}) {
+    final size = pageSize < 1 ? 1 : pageSize;
+    final totalPages = total <= 0 ? 1 : ((total + size - 1) ~/ size);
+    final current = page < 0 ? 0 : (page > totalPages - 1 ? totalPages - 1 : page);
+    final start = total <= 0 ? 0 : current * size;
+    final end = start + size > total ? (total < 0 ? 0 : total) : start + size;
+    return ProductionPageWindow(page: current, totalPages: totalPages, start: start, end: end, total: total < 0 ? 0 : total);
+  }
+}
+
 class ProductionSummaryTable {
   final List<ProductionRecordModel> rows;
   final double grandTotal;
@@ -38,6 +67,11 @@ class ProductionSummaryTable {
   // (double-compterait une date partagée par plusieurs lignes).
   final double grandTotalWaste;
   final String wasteUnit;
+  // Nombre réel de fiches correspondant aux filtres, et `true` si le backend
+  // a atteint son plafond de lecture (toutes les fiches ne sont pas dans
+  // `rows` — signalé à l'écran, jamais silencieux).
+  final int totalMatching;
+  final bool truncated;
 
   const ProductionSummaryTable({
     this.rows = const [],
@@ -46,6 +80,8 @@ class ProductionSummaryTable {
     this.totalRecords = 0,
     this.grandTotalWaste = 0,
     this.wasteUnit = 'kg',
+    this.totalMatching = 0,
+    this.truncated = false,
   });
 
   factory ProductionSummaryTable.fromJson(Map<String, dynamic> json, {required bool isPromesh}) {
@@ -59,6 +95,8 @@ class ProductionSummaryTable {
       totalRecords: _toInt(json['totalRecords']),
       grandTotalWaste: _toDouble(json['grandTotalWaste']),
       wasteUnit: (json['wasteUnit'] ?? 'kg').toString(),
+      totalMatching: _toInt(json['totalMatching'] ?? json['totalRecords']),
+      truncated: json['truncated'] == true,
     );
   }
 }
@@ -72,6 +110,27 @@ class ProductionSummaryTable {
 String formatCellSize(Object? value) {
   final s = value?.toString() ?? '';
   return s.replaceAll('/', 'X').replaceAll('*', 'X');
+}
+
+// REGROUPEMENT par taille de maille — une même dimension ne doit former qu'UN
+// groupe, quelle que soit la façon dont elle a été saisie : « 20x20 »,
+// « 20X20 », « 20 X 20 », « 20×20 », « 20*20 », « 20/20 » sont la même maille.
+//   - `meshSizeGroupLabel` : libellé normalisé du groupe (« 20X20 »,
+//     « 15X15 MM ») — séparateur unique « X », sans espace autour, majuscules ;
+//   - `meshSizeGroupKey`   : clé de regroupement — le libellé sans aucun espace.
+// Lecture seule : la valeur de la fiche n'est jamais modifiée.
+final _meshGroupSeparator = RegExp(r'\s*[xX×*/]\s*');
+final _whitespace = RegExp(r'\s+');
+String meshSizeGroupLabel(String value) => value.trim().replaceAll(_meshGroupSeparator, 'X').replaceAll(_whitespace, ' ').toUpperCase();
+String meshSizeGroupKey(String value) => meshSizeGroupLabel(value).replaceAll(' ', '');
+
+// Clé de regroupement d'un diamètre : « 8 », « 8.0 », « 8,0 » et « 08 » sont le
+// même diamètre. Valeur non numérique : comparée sans tenir compte de la casse.
+String diameterGroupKey(String? value) {
+  final v = (value ?? '').trim();
+  final n = double.tryParse(v.replaceAll(',', '.'));
+  if (n == null) return v.toUpperCase();
+  return n == n.roundToDouble() ? n.toInt().toString() : n.toString();
 }
 
 // Machine PROMESH — la colonne `machine` en base ne contient que le numéro
@@ -261,13 +320,14 @@ List<MachineSection> aggregateByMachine(List<ProductionRecordModel> rows, {requi
     String? cellSize;
     if (groupByCellSize) {
       final tailleMaille = r.tailleMaille?.trim();
-      cellSize = (tailleMaille != null && tailleMaille.isNotEmpty) ? formatCellSize(tailleMaille).toUpperCase() : null;
+      cellSize = (tailleMaille != null && tailleMaille.isNotEmpty) ? meshSizeGroupLabel(tailleMaille) : null;
     }
-    final key = groupByCellSize ? '${machine ?? ''}|${diametre ?? ''}|${cellSize ?? ''}' : '${machine ?? ''}|${diametre ?? ''}';
+    // Clé : machine + diamètre + maille NORMALISÉE (voir meshSizeGroupKey).
+    final key = groupByCellSize ? '${machine ?? ''}|${diameterGroupKey(diametre)}|${cellSize == null ? '' : meshSizeGroupKey(cellSize)}' : '${machine ?? ''}|${diameterGroupKey(diametre)}';
 
     quantityByGroup[key] = (quantityByGroup[key] ?? 0) + (r.quantite ?? 0);
     machineByGroup[key] = machine;
-    diametreByGroup[key] = diametre;
+    diametreByGroup.putIfAbsent(key, () => diametre);
     cellSizeByGroup[key] = cellSize;
     if (date != null && date.isNotEmpty) {
       (datesByGroup[key] ??= <String>{}).add(date);
@@ -335,11 +395,13 @@ List<MachineDiameterGroup> aggregateByDiameterCellSize(List<ProductionRecordMode
     final tailleMaille = r.tailleMaille?.trim();
     // §8 du ticket : "Not specified" (diamètre/cell size absents) fusionne
     // aussi en un seul groupe — même normalisation que `aggregateByMachine`.
-    final cellSize = (tailleMaille != null && tailleMaille.isNotEmpty) ? formatCellSize(tailleMaille).toUpperCase() : null;
-    final key = '${diametre ?? ''}|${cellSize ?? ''}';
+    final cellSize = (tailleMaille != null && tailleMaille.isNotEmpty) ? meshSizeGroupLabel(tailleMaille) : null;
+    // Clé : diamètre + maille NORMALISÉE (voir meshSizeGroupKey) — une seule
+    // ligne par combinaison, quantités et déchets cumulés.
+    final key = '${diameterGroupKey(diametre)}|${cellSize == null ? '' : meshSizeGroupKey(cellSize)}';
 
     quantityByGroup[key] = (quantityByGroup[key] ?? 0) + (r.quantite ?? 0);
-    diametreByGroup[key] = diametre;
+    diametreByGroup.putIfAbsent(key, () => diametre);
     cellSizeByGroup[key] = cellSize;
     if (date != null && date.isNotEmpty) {
       (datesByGroup[key] ??= <String>{}).add(date);

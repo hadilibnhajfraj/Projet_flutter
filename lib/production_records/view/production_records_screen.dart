@@ -21,6 +21,7 @@ import 'package:dash_master_toolkit/forms/por_promesh/controller/por_promesh_con
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
 
+import 'mesh_size_display.dart';
 import '../model/production_record_model.dart';
 import '../service/production_records_service.dart';
 
@@ -973,7 +974,7 @@ class _RecordCard extends StatelessWidget {
               Row(children: [
                 Icon(Icons.grid_4x4_rounded, size: 12, color: color),
                 const SizedBox(width: 6),
-                Text('${t.translate('Taille de maille pour ProMesh')} : ${item.tailleMaille}',
+                Text('${t.translate('Taille de maille pour ProMesh')} : ${formatMeshSizeForDisplay(item.tailleMaille)}',
                     style: tInter(fontSize: 12, fontWeight: FontWeight.w700, color: kCrmText)),
               ]),
             ],
@@ -1233,7 +1234,7 @@ class _RecordDetailDrawerState extends State<_RecordDetailDrawer> {
       rows.add((t.translate('Diamètre'), diametre == null || diametre.toString().isEmpty ? '—' : '$diametre $diametreUnite'));
     } else {
       rows.add((t.translate('Quantité en m² pour ProMesh'), quantite == null ? '—' : '$quantite $quantiteUnite'));
-      rows.add((t.translate('Taille de maille pour ProMesh'), _s(d['tailleMaille'] ?? widget.preview.tailleMaille)));
+      rows.add((t.translate('Taille de maille pour ProMesh'), formatMeshSizeForDisplay(_s(d['tailleMaille'] ?? widget.preview.tailleMaille))));
       rows.add((t.translate('Diamètre'), diametre == null || diametre.toString().isEmpty ? '—' : '$diametre $diametreUnite'));
     }
     return _SectionCard(
