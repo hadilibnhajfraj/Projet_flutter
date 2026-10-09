@@ -1712,5 +1712,13 @@
   "Dernière page": "Dernière page",
   "Période trop large : affichage limité aux": "Période trop large : affichage limité aux",
   "fiches les plus récentes sur": "fiches les plus récentes sur",
-  "Réduisez la période pour consulter toutes les fiches.": "Réduisez la période pour consulter toutes les fiches."
+  "Réduisez la période pour consulter toutes les fiches.": "Réduisez la période pour consulter toutes les fiches.",
+  "Le traitement du document prend trop de temps. Vérifiez dans la liste s'il a été enregistré avant de réessayer.": "Le traitement du document prend trop de temps. Vérifiez dans la liste s'il a été enregistré avant de réessayer.",
+  "Connexion au serveur impossible. Vérifiez votre réseau puis réessayez.": "Connexion au serveur impossible. Vérifiez votre réseau puis réessayez.",
+  "Le serveur a renvoyé une erreur": "Le serveur a renvoyé une erreur",
+  "Une erreur inattendue a interrompu le traitement du document.": "Une erreur inattendue a interrompu le traitement du document.",
+  "Document reçu — lecture automatique incomplète": "Document reçu — lecture automatique incomplète",
+  "Document reçu et enregistré, mais sa lecture automatique a échoué. Complétez les informations manuellement.": "Document reçu et enregistré, mais sa lecture automatique a échoué. Complétez les informations manuellement.",
+  "Document enregistré. Certaines informations lues sont à vérifier.": "Document enregistré. Certaines informations lues sont à vérifier.",
+  "Le fichier est trop volumineux pour être envoyé.": "Le fichier est trop volumineux pour être envoyé."
 }

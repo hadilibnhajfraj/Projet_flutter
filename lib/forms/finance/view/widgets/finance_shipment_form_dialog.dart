@@ -14,7 +14,6 @@
 // uploaded" → "Reading document..." → "Document analyzed", puis ferme et
 // signale au parent d'ouvrir la fiche Shipment créée.
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -24,6 +23,7 @@ import 'package:dash_master_toolkit/widgets/responsive_dialog_box.dart';
 
 import '../../model/finance_models.dart';
 import '../../service/finance_service.dart';
+import '../../service/finance_upload_error.dart';
 import '../../theme/finance_theme.dart';
 import 'finance_preview_dialog.dart';
 import 'finance_upload_dropzone.dart';
@@ -58,14 +58,6 @@ String _extensionOf(String filename) {
 // d'une DioException ("DioException [bad response]: ..."), illisible pour
 // l'utilisateur. Repli sur `error.toString()` uniquement pour les erreurs
 // SANS réponse serveur (connexion coupée) — jamais masqué, juste plus lisible.
-String _friendlyErrorMessage(Object error) {
-  if (error is DioException) {
-    final data = error.response?.data;
-    if (data is Map && data['message'] is String) return data['message'] as String;
-  }
-  return error.toString();
-}
-
 IconData _iconForFilename(String filename) {
   final ext = _extensionOf(filename);
   if (ext == 'pdf') return Icons.picture_as_pdf_outlined;
@@ -82,7 +74,7 @@ class _FinanceShipmentForm extends StatefulWidget {
   State<_FinanceShipmentForm> createState() => _FinanceShipmentFormState();
 }
 
-enum _UploadStage { idle, uploading, uploaded, reading, extracting, analyzed }
+enum _UploadStage { idle, uploading, uploaded, reading, extracting, analyzed, received }
 
 class _FinanceShipmentFormState extends State<_FinanceShipmentForm> {
   final List<_StagedShipmentFile> _staged = [];
@@ -175,7 +167,7 @@ class _FinanceShipmentFormState extends State<_FinanceShipmentForm> {
       setState(() {
         _saving = false;
         _stage = _UploadStage.idle;
-        _error = '${t.translate('Erreur')} : ${_friendlyErrorMessage(e)}';
+        _error = '${t.translate('Erreur')} : ${friendlyFinanceUploadError(e, t.translate)}';
       });
       return;
     }
@@ -185,7 +177,8 @@ class _FinanceShipmentFormState extends State<_FinanceShipmentForm> {
 
     // "Document analyzed successfully" — état bref mais visible avant de
     // fermer, pour que les étapes annoncées soient réellement perceptibles.
-    setState(() => _stage = _UploadStage.analyzed);
+    // Document reçu mais NON lu (OCR en échec) : jamais annoncé comme analysé.
+    setState(() => _stage = shipment.status == 'OCR_FAILED' ? _UploadStage.received : _UploadStage.analyzed);
     await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
 
@@ -212,6 +205,8 @@ class _FinanceShipmentFormState extends State<_FinanceShipmentForm> {
         return t.translate('Extracting information...');
       case _UploadStage.analyzed:
         return t.translate('Document analyzed successfully');
+      case _UploadStage.received:
+        return t.translate('Document reçu — lecture automatique incomplète');
       default:
         return null;
     }

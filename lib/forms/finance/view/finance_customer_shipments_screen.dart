@@ -134,10 +134,18 @@ class _FinanceCustomerShipmentsScreenState extends State<FinanceCustomerShipment
     // fenêtre d'instabilité qui produisait "Looking up a deactivated
     // widget's ancestor is unsafe" pendant la fermeture du dialog.
     final t = AppLocalizations.of(context);
+    // Le document est enregistré dans tous les cas ; l'état RÉEL de son
+    // traitement est annoncé (jamais « réussi » si la lecture a échoué).
+    final (message, color) = switch (created.status) {
+      'OCR_FAILED' => (t.translate('Document reçu et enregistré, mais sa lecture automatique a échoué. Complétez les informations manuellement.'), kCrmWarning),
+      'NEEDS_REVIEW' => (t.translate('Document enregistré. Certaines informations lues sont à vérifier.'), kCrmWarning),
+      _ => (t.translate('Shipment created successfully'), kCrmSuccess),
+    };
     SafeSnack.messengerKey.currentState?.showSnackBar(
       SnackBar(
-        content: Text('${t.translate('Shipment created successfully')} — ${created.reference}'),
-        backgroundColor: kCrmSuccess,
+        content: Text('$message — ${created.reference}'),
+        backgroundColor: color,
+        duration: Duration(seconds: color == kCrmSuccess ? 4 : 8),
       ),
     );
     // §CORRECTION — WORKFLOW OCR CUSTOMER SHIPMENTS (2026-08-31) : second

@@ -18,6 +18,7 @@ import 'package:dash_master_toolkit/widgets/responsive_dialog_box.dart';
 
 import '../../model/finance_models.dart';
 import '../../service/finance_service.dart';
+import '../../service/finance_upload_error.dart';
 import '../../theme/finance_theme.dart';
 import 'finance_preview_dialog.dart';
 import 'finance_upload_dropzone.dart';
@@ -151,7 +152,7 @@ class _FinanceInvoiceUploadFormState extends State<_FinanceInvoiceUploadForm> {
       setState(() {
         _saving = false;
         _stage = _UploadStage.idle;
-        _error = '${t.translate('Erreur')} : $e';
+        _error = '${t.translate('Erreur')} : ${friendlyFinanceUploadError(e, t.translate)}';
       });
     }
   }

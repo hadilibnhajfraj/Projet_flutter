@@ -28,6 +28,7 @@ import 'package:dash_master_toolkit/widgets/responsive_dialog_box.dart';
 
 import '../model/finance_models.dart';
 import '../service/finance_service.dart';
+import '../service/finance_upload_error.dart';
 import '../theme/finance_theme.dart';
 import 'widgets/finance_documents_table.dart';
 import 'widgets/finance_preview_dialog.dart';
@@ -167,14 +168,14 @@ class _FinanceInflowRawMaterialsScreenState extends State<FinanceInflowRawMateri
   Future<void> _handleFilesSelected(List<FinancePickedFile> files) async {
     setState(() => _uploading = true);
     var successCount = 0;
-    String? lastError;
+    Object? lastFailure;
     FinancePurchaseOrderModel? lastOrder;
     for (final file in files) {
       try {
         lastOrder = await FinanceService.instance.uploadRawMaterial(file);
         successCount++;
       } catch (e) {
-        lastError = e.toString();
+        lastFailure = e;
       }
     }
     if (!mounted) return;
@@ -182,9 +183,11 @@ class _FinanceInflowRawMaterialsScreenState extends State<FinanceInflowRawMateri
     if (successCount > 0) await _load();
     if (!mounted) return;
     final t = AppLocalizations.of(context);
-    if (lastError != null) {
+    if (lastFailure != null) {
+      // Message du backend (ex. « Le fichier dépasse la taille maximale autorisée
+      // de 25 Mo. ») — jamais le texte brut de l'exception.
       SafeSnack.messengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text('${t.translate('Erreur')} : $lastError'), backgroundColor: kCrmDanger),
+        SnackBar(content: Text('${t.translate('Erreur')} : ${friendlyFinanceUploadError(lastFailure, t.translate)}'), backgroundColor: kCrmDanger, duration: const Duration(seconds: 8)),
       );
     } else if (successCount == 1 && lastOrder != null) {
       // Un seul fichier traité : ouvre directement la fiche extraite, comme
