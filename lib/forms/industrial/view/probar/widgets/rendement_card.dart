@@ -30,7 +30,7 @@ class RendementCard extends StatelessWidget {
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(AppLocalizations.of(context).translate('Production'), style: tInter(fontSize: 10, color: kCrmTextSub)),
           const SizedBox(height: 2),
-          Text(productionM2 == null ? '—' : '${_fmtNum(productionM2)} m²',
+          Text(productionM2 == null ? '—' : '${_fmtNum(productionM2)} ml',
               style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmText)),
         ]),
       ]),

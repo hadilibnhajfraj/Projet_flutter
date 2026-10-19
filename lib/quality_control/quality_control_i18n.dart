@@ -335,7 +335,7 @@ const Map<String, String> _exact = {
   "Aucune production": "No production",
   "Aucune fiche sur la période": "No sheet over the period",
   "Production par jour": "Production by day",
-  "Quantité des fiches validées, par date de production · une échelle par ligne (m² et m ne sont pas comparables)": "Quantity of validated sheets, by production date · one scale per line (m² and m are not comparable)",
+  "Quantité des fiches validées, par date de production · une échelle par ligne (m² et ml ne sont pas comparables)": "Quantity of validated sheets, by production date · one scale per line (m² and ml are not comparable)",
   "Aucune production validée sur cette période": "No validated production over this period",
   "Production PROMESH vs PROBAR": "PROMESH vs PROBAR production",
   "Nombre de fiches par statut": "Number of sheets by status",

@@ -31,7 +31,7 @@ class _ProbarRendementScreenState extends State<ProbarRendementScreen> {
   late final ProbarController c;
   bool _loading = true;
   bool _saving = false;
-  // Valide les 2 champs du formulaire ProBar (quantité en mètres, diamètre)
+  // Valide les 2 champs du formulaire ProBar (quantité en ml, diamètre)
   // — voir _save()/_saveAndReturnToModules().
   final _formKey = GlobalKey<FormState>();
 
@@ -136,7 +136,7 @@ class _RendementBody extends StatelessWidget {
       const SizedBox(height: 6),
       Text(
           AppLocalizations.of(context)
-              .translate('Saisissez la quantité produite en m² pour ce poste.'),
+              .translate('Saisissez la quantité produite en mètres linéaires pour ce poste.'),
           style: tInter(fontSize: 13, color: kCrmTextSub)),
       const SizedBox(height: 28),
       _ProbarOutputFieldsCard(c: c),
@@ -158,7 +158,8 @@ String? _requiredPositiveNumberValidator(BuildContext context, String? value) {
 /// Formulaire Output ProBar (2 champs) — remplace l'ancien "Quantité
 /// produite" (une seule mesure géante en m²). Réutilise le mécanisme de
 /// sauvegarde existant du contrôleur ProBar (aucune nouvelle API) :
-///   • Quantité en mètres → `c.productionM2` (champ Rendement historique,
+///   • Quantité en mètres linéaires (ml) → `c.productionM2` (champ
+///     Rendement historique — nom de champ conservé, aucune conversion ;
 ///     déjà sauvegardé/rechargé via `quantiteProduite`).
 ///   • Diamètre           → `c.diameterController` (nouveau, stocké dans le
 ///     JSON compact `description`, clé `dia` — voir ProbarController).
@@ -184,10 +185,10 @@ class _ProbarOutputFieldsCard extends StatelessWidget {
       ),
       _ProbarOutputField(
         icon: Icons.straighten_rounded,
-        label: 'Quantité en mètres pour ProBar',
+        label: 'Quantité en mètres linéaires pour PROBAR (ml)',
         controller: c.productionM2,
         hintKey: 'Ex: 1250',
-        suffixText: AppLocalizations.of(context).translate('m'),
+        suffixText: AppLocalizations.of(context).translate('ml'),
         validator: (v) => _requiredPositiveNumberValidator(context, v),
       ),
     ];

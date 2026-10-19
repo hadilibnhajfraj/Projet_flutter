@@ -42,7 +42,7 @@ class GeneralInfoCard extends StatelessWidget {
           _tile(context, Icons.schedule_outlined, 'Heure Début', safeValue(heureDebut)),
           _tile(context, Icons.update_rounded, 'Heure Fin', safeValue(heureFin)),
           _tile(context, Icons.speed_rounded, 'Quantité Produite',
-              record.quantiteProduite == null ? '' : '${_fmtNum(record.quantiteProduite)} m²'),
+              record.quantiteProduite == null ? '' : '${_fmtNum(record.quantiteProduite)} ml'),
           _tile(context, Icons.flag_outlined, 'Statut Qualité', qualite.label, valueColor: qualite.color),
           _tile(context, Icons.calendar_today_outlined, 'Créée le', _fmtDateTime(record.createdAt)),
           _tile(context, Icons.edit_calendar_outlined, 'Dernière modification', _fmtDateTime(record.updatedAt)),

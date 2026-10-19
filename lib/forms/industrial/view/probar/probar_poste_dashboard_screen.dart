@@ -473,7 +473,7 @@ class _ProbarFicheCard extends StatelessWidget {
               AppLocalizations.of(context).translate(item.poste == 'matin' ? 'Matin' : 'Soir')),
           _chip(context, Icons.person_outline_rounded, item.operateur ?? ''),
           if (item.quantiteProduite != null)
-            _chip(context, Icons.speed_rounded, '${item.quantiteProduite} m²'),
+            _chip(context, Icons.speed_rounded, '${item.quantiteProduite} ml'),
         ]),
         const SizedBox(height: 10),
         Wrap(spacing: 8, runSpacing: 8, children: [

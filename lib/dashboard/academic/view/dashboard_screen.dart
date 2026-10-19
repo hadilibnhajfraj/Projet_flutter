@@ -580,40 +580,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 2A. ADMIN KPI ROW  (5 cards — Revendeurs/Applicateurs supprimés)
+  // 2A. ADMIN KPI ROW  (4 cards — Revendeurs/Applicateurs et Surface m²
+  // supprimés de l'affichage ; le calcul de surface reste disponible)
   // ══════════════════════════════════════════════════════════════════════════
   Widget _buildAdminKpiRow(BuildContext context) {
     final w    = MediaQuery.of(context).size.width;
-    final cols = w > 1100 ? 5 : w > 750 ? 3 : 2;
+    // 4 cartes : une rangée de 4 ou une grille 2×2 — jamais de case vide.
+    final cols = w > 750 ? 4 : 2;
 
     const cfgs = [
       _KpiCfg(label: 'Total Projets',   icon: Icons.folder_copy_rounded,    g1: Color(0xFF4F46E5), g2: Color(0xFF6366F1)),
       _KpiCfg(label: 'Utilisateurs',    icon: Icons.people_alt_rounded,     g1: Color(0xFF0284C7), g2: Color(0xFF38BDF8)),
       _KpiCfg(label: 'Validés',         icon: Icons.check_circle_rounded,   g1: Color(0xFF059669), g2: Color(0xFF10B981)),
       _KpiCfg(label: 'Non validés',     icon: Icons.cancel_rounded,         g1: Color(0xFFDC2626), g2: Color(0xFFEF4444)),
-      _KpiCfg(label: 'Surface m²',      icon: Icons.square_foot_rounded,    g1: Color(0xFF0E7490), g2: Color(0xFF06B6D4)),
     ];
-
-    final surfStr = _surface >= 1000
-        ? '${(_surface / 1000).toStringAsFixed(1)}k'
-        : _surface.toStringAsFixed(0);
 
     final values = [
       '$_total',
       '${_userStats.length}',
       '$_validated',
       '$_nonValidated',
-      surfStr,
     ];
 
     final variations = [
       _variation(_thisMonth, _lastMonth),
-      '—', '—', '—', '—',
+      '—', '—', '—',
     ];
 
     return _ResponsiveGrid(
       cols: cols, gap: 14,
-      children: List.generate(5, (i) => CrmModernKpiCard(
+      children: List.generate(cfgs.length, (i) => CrmModernKpiCard(
         label:    cfgs[i].label,
         value:    values[i],
         icon:     cfgs[i].icon,

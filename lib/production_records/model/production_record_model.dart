@@ -18,7 +18,7 @@ class ProductionRecordModel {
   final String? heureFin;
   final String? operateur;
   final double? quantite;
-  final String quantiteUnite; // 'm' (probar) | 'm²' (promesh)
+  final String quantiteUnite; // 'ml' (probar) | 'm²' (promesh)
   final String? tailleMaille; // promesh uniquement
   final String? diametre;
   final String diametreUnite; // 'mm'

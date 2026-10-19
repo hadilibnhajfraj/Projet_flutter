@@ -67,15 +67,8 @@ class SideBarWidget extends StatelessWidget {
     debugPrint('ROLE CONNECTE = $role');
 
     final topMenus     = buildTopMenus(
-      isAccueil:           isAccueil,
-      isCommercial:        isCommercial,
       isLogistiqueAchat:   isLogistiqueAchat,
       isFinanceProduction: isFinanceProduction,
-      isControleQualite: isControleQualite,
-      canViewCommercialKpi: canViewCommercialKpi,
-      canViewPorPromesh:   canViewPorPromesh,
-      hideIndustrialDashboard: hideIndustrialDashboard,
-      isRestrictedAdmin: isRestrictedAdmin,
     );
     final groupedMenus = buildGroupedMenus(
       isAdmin:      isAdmin,
@@ -85,6 +78,7 @@ class SideBarWidget extends StatelessWidget {
       isFinance: isFinance,
       isFinanceProduction: isFinanceProduction,
       isControleQualite: isControleQualite,
+      canViewCommercialKpi: canViewCommercialKpi,
       canViewPorPromesh: canViewPorPromesh,
       canViewFinance: canViewFinance,
       hideIndustrialDashboard: hideIndustrialDashboard,
@@ -249,17 +243,25 @@ class SideBarWidget extends StatelessWidget {
       // "/production/promesh", mais route SŒUR indépendante, pas une
       // sous-route de PROMESH) — même correction que le `sub` ci-dessus
       // (égalité stricte OU préfixe suivi d'un vrai séparateur "/").
+      // Uniquement quand le parent est lui-même une page (`isPage`, ex.
+      // PROMESH/PROBAR) : sinon "Projects" et "Users" (même parent "/users")
+      // s'allumaient ensemble sur n'importe quelle route /users/...
       final nav = (menu.navigationPath ?? '').trim();
-      if (nav.isNotEmpty && (currentRoute == nav || currentRoute.startsWith('$nav/'))) return (true, null);
+      if (menu.isPage && nav.isNotEmpty && (currentRoute == nav || currentRoute.startsWith('$nav/'))) {
+        return (true, null);
+      }
       return (false, null);
     }
 
+    // Frontière de segment : "/users/commercial-contacts" ne doit pas être
+    // actif sur "/users/commercial-contacts-kpi" (ni "/forms/project" sur
+    // "/forms/project-timeline").
     final nav = (menu.navigationPath ?? '').toLowerCase().trim();
     final isSelectedMenu = nav.isEmpty
         ? false
         : menu.exactMatch
             ? currentRoute == nav
-            : currentRoute.startsWith(nav);
+            : currentRoute == nav || currentRoute.startsWith('$nav/');
     return (isSelectedMenu, null);
   }
 

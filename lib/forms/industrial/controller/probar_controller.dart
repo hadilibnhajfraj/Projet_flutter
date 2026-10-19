@@ -358,7 +358,7 @@ class ProbarController extends GetxController {
 
   List<String> getValidationErrors() {
     final errors = <String>[];
-    if (!rendementSaved) errors.add('Rendement — Quantité en mètres ou Diamètre manquant');
+    if (!rendementSaved) errors.add('Rendement — Quantité en mètres linéaires ou Diamètre manquant');
     if (!personnelSaved) errors.add('Personnel — Au moins un agent doit être renseigné');
     if (!isControleMachineComplete()) errors.add('Contrôle Machine — Champs manquants');
     const slots = ['L1', 'L2', 'L3', 'L4'];

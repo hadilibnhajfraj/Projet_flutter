@@ -42,7 +42,7 @@ const _kModules = <_ModuleSpec>[
   _ModuleSpec(
     icon: Icons.speed_rounded,
     title: 'RENDEMENT',
-    description: 'Production du poste,\nexprimée en m².',
+    description: 'Production du poste,\nexprimée en mètres linéaires (ml).',
     color: kProbarColor,
     routeSegment: 'rendement',
     isCompleted: _rendementCompleted,

@@ -71,7 +71,7 @@ Map<String, dynamic> _dashboard(Map<String, String> q, {bool empty = false, bool
     'probar': {
       'type': 'probar',
       'label': 'PROBAR',
-      'unit': 'm',
+      'unit': 'ml',
       'wasteUnit': 'kg',
       'fiches': has ? 5 : 0,
       'validees': has ? 3 : 0,
@@ -80,7 +80,7 @@ Map<String, dynamic> _dashboard(Map<String, String> q, {bool empty = false, bool
       'quantite': has ? 3145 : 0,
       'dechets': has ? 100 : 0,
       'tauxDechets': has ? 3.18 : null,
-      'tauxDechetsUnit': 'kg / 100 m',
+      'tauxDechetsUnit': 'kg / 100 ml',
       'machines': [
         _machine('1', has ? 3 : 0, has ? 2 : 0, has ? 3145 : 0, has ? 100 : 0, last: has ? '2026-08-28' : null, statut: has ? 'validee' : null),
         for (final m in ['2', '3', '4']) _machine(m, 0, 0, 0, 0),
@@ -101,7 +101,7 @@ Map<String, dynamic> _dashboard(Map<String, String> q, {bool empty = false, bool
     'recent': has
         ? [
             {'id': 'promesh:11111111-1111-1111-1111-111111111111', 'type': 'promesh', 'ligne': 'PROMESH', 'numero': 'PROMESH-2026-000886', 'date': '2026-09-28', 'machine': '1', 'poste': 'matin', 'userEmail': 'production_1@cbi-tunisia.com', 'quantite': 1250, 'quantiteUnite': 'm²', 'dechets': 12, 'dechetsUnite': 'kg', 'statut': 'validee'},
-            {'id': 'probar:22222222-2222-2222-2222-222222222222', 'type': 'probar', 'ligne': 'PROBAR', 'numero': 'PROBAR-2026-E9EAAE', 'date': '2026-09-24', 'machine': '1', 'poste': 'nuit', 'userEmail': 'production_2@cbi-tunisia.com', 'quantite': null, 'quantiteUnite': 'm', 'dechets': null, 'dechetsUnite': 'kg', 'statut': 'archivee'},
+            {'id': 'probar:22222222-2222-2222-2222-222222222222', 'type': 'probar', 'ligne': 'PROBAR', 'numero': 'PROBAR-2026-E9EAAE', 'date': '2026-09-24', 'machine': '1', 'poste': 'nuit', 'userEmail': 'production_2@cbi-tunisia.com', 'quantite': null, 'quantiteUnite': 'ml', 'dechets': null, 'dechetsUnite': 'kg', 'statut': 'archivee'},
             {'id': 'promesh:33333333-3333-3333-3333-333333333333', 'type': 'promesh', 'ligne': 'PROMESH', 'numero': 'PROMESH-2026-000867', 'date': '2026-09-24', 'machine': '2', 'poste': 'nuit', 'userEmail': 'production_1@cbi-tunisia.com', 'quantite': 600, 'quantiteUnite': 'm²', 'dechets': null, 'dechetsUnite': 'kg', 'statut': 'brouillon'},
           ]
         : [],
@@ -231,7 +231,7 @@ void main() {
       expect(find.text('5 / 8'), findsOneWidget);
       expect(find.text('1,46'), findsWidgets);
       expect(find.text('kg / 100 m²'), findsWidgets); // ratio avec son unité, jamais un %
-      expect(find.text('kg / 100 m'), findsWidgets);
+      expect(find.text('kg / 100 ml'), findsWidgets);
 
       // Cartes PROMESH / PROBAR : quatre machines chacune.
       for (final type in ['promesh', 'probar']) {

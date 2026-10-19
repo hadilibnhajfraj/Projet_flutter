@@ -12,7 +12,7 @@
 // Même langage visuel que le Dashboard Industriel et le Contrôle Qualité
 // (cartes à bordure fine, rayon 12, ombre légère, icônes Material). Couleurs
 // réservées à l'identification : PROMESH bleu, PROBAR orange, statuts
-// vert / ambre / gris. Unités différentes (m², m, kg) : jamais deux mesures
+// vert / ambre / gris. Unités différentes (m², ml, kg) : jamais deux mesures
 // sur un même axe.
 
 import 'package:fl_chart/fl_chart.dart';
@@ -442,7 +442,7 @@ class _ProductionDashboardScreenState extends State<ProductionDashboardScreen> {
   Widget _dailySection(ProductionDashboard d) => QcSection(
         icon: Icons.bar_chart_rounded,
         title: 'Production par jour',
-        subtitle: 'Quantité des fiches validées, par date de production · une échelle par ligne (m² et m ne sont pas comparables)',
+        subtitle: 'Quantité des fiches validées, par date de production · une échelle par ligne (m² et ml ne sont pas comparables)',
         color: kProductionColor,
         children: [
           _pair(

@@ -50,7 +50,7 @@ const _kKpiKeys = <String, String>{
   'activeUsers': 'Users with activity',
   'totalFiches': 'Sheets created',
   'promeshProduction': 'PROMESH production (m²)',
-  'probarProduction': 'PROBAR production',
+  'probarProduction': 'PROBAR production (ml)',
 };
 
 const _kPresets = <String>['all', '7d', '30d', 'month', 'year', 'custom'];
@@ -924,7 +924,7 @@ class _ManagementReportScreenState extends State<ManagementReportScreen> {
           if (b != null)
             _totalsCard('PROBAR', kRpGreen, [
               (_t('Sheets'), fmtNum(bt['fiches'])),
-              (_t('Quantity'), fmtNum(bt['quantity'])),
+              (_t('Production (ml)'), fmtNum(bt['quantity'])),
               (_t('Waste (recoverable sheets)'), _n(bt['waste'])),
               (_t('Machines used'), fmtNum(bt['machines'])),
               (_t('Last production'), bt['lastAt'] == null ? _t('Not available') : fmtDate(bt['lastAt'])),

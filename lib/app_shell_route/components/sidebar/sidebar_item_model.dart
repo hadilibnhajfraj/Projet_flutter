@@ -87,22 +87,15 @@ class GroupedMenuModel {
 enum SidebarItemType { tile, submenu }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TOP MENUS  (single Dashboard tile → /kpi = DashboardScreen)
+// TOP MENUS  (sans libellé de groupe — espaces dédiés industriels uniquement)
 // ─────────────────────────────────────────────────────────────────────────────
+// Les tableaux de bord CRM/admin/commercial sont désormais dans le groupe
+// TABLEAU DE BORD (buildDashboardGroup) — une seule source, plus de doublon
+// entre ce menu de tête et l'ancien groupe "SUPER ADMIN".
 List<SidebarItemModel> buildTopMenus({
-  required bool isAccueil,
-  required bool isCommercial,
-  required bool canViewCommercialKpi,
   bool isLogistiqueAchat = false,
   bool isFinanceProduction = false,
-  bool isControleQualite = false,
-  bool canViewPorPromesh = false,
-  bool hideIndustrialDashboard = false,
-  bool isRestrictedAdmin = false,
 }) {
-  // Espace dédié CONTRÔLE QUALITÉ : pas de Dashboard (CRM ni industriel),
-  // uniquement le groupe CONTRÔLE QUALITÉ (buildGroupedMenus).
-  if (isControleQualite) return [];
   // Espace dédié module industriel : un seul tile "Dashboard" (cartes KPI),
   // pas le Dashboard CRM (KPI Projets, etc.) qui ne concerne pas ce rôle.
   // finance_production (§MODIFICATION — INTERFACE PRODUCTION DE
@@ -119,57 +112,43 @@ List<SidebarItemModel> buildTopMenus({
       ),
     ];
   }
-  if (isAccueil) return [];
+  return [];
+}
 
-  // Commercial : Dashboard avec uniquement KPI Commercial Contacts (pas KPI Projets CRM)
-  if (isCommercial) {
-    return [
-      _safeSubmenuItem(
-        name:           'Dashboard',
-        icon:           Icons.dashboard_outlined,
-        navigationPath: '/dashboard',
-        submenus: [
-          SidebarSubmenuModel(
-            name:           'KPI Commercial Contacts',
-            navigationPath: '/users/commercial-contacts-kpi',
-            icon:           Icons.people_alt_outlined,
+// ─────────────────────────────────────────────────────────────────────────────
+// TABLEAU DE BORD — admin / superadmin / user / commercial
+// ─────────────────────────────────────────────────────────────────────────────
+// L'entrée "Tableau de bord général" (MyRoute.superAdminDashboardScreen) a
+// été retirée du menu à la demande du ticket — la page et sa route restent
+// inchangées (accès direct par URL, mêmes permissions).
+GroupedMenuModel buildDashboardGroup({
+  bool canViewCrmKpi = true,
+  bool canViewCommercialKpi = false,
+  bool canViewProductionDashboard = false,
+}) =>
+    GroupedMenuModel(
+      name: 'TABLEAU DE BORD',
+      menus: [
+        if (canViewCrmKpi)
+          SidebarItemModel(
+            name:           'KPI Projets CRM',
+            icon:           Icons.analytics_outlined,
+            navigationPath: MyRoute.dashboardSalesAdmin,
           ),
-        ],
-      ),
-    ];
-  }
-
-  // Admin / superadmin / autres : Dashboard avec KPI Projets CRM
-  // KPI Commercial Contacts uniquement si le rôle y a accès (admin, superadmin, commercial)
-  return [
-    _safeSubmenuItem(
-      name:           'Dashboard',
-      icon:           Icons.dashboard_outlined,
-      navigationPath: '/dashboard',
-      submenus: [
-        SidebarSubmenuModel(
-          name:           'KPI Projets CRM',
-          navigationPath: 'kpi-projects',
-          icon:           Icons.analytics_outlined,
-        ),
         if (canViewCommercialKpi)
-          SidebarSubmenuModel(
+          SidebarItemModel(
             name:           'KPI Commercial Contacts',
-            navigationPath: '/users/commercial-contacts-kpi',
             icon:           Icons.people_alt_outlined,
+            navigationPath: MyRoute.commercialContactsKpiUsers,
           ),
-        if (canViewPorPromesh && !hideIndustrialDashboard && !isRestrictedAdmin)
-          // Remplace l'ancienne entrée « Dashboard Industriel » : ouvre le
-          // Dashboard Production (même page que l'entrée du groupe PRODUCTION).
-          SidebarSubmenuModel(
-            name:           'Dashboard Production',
-            navigationPath: MyRoute.productionDashboardScreen,
+        if (canViewProductionDashboard)
+          SidebarItemModel(
+            name:           'Tableau de bord Production',
             icon:           Icons.precision_manufacturing_outlined,
+            navigationPath: MyRoute.productionDashboardScreen,
           ),
       ],
-    ),
-  ];
-}
+    );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GROUPED MENUS  (role-based)
@@ -182,6 +161,7 @@ List<GroupedMenuModel> buildGroupedMenus({
   bool isFinance = false,
   bool isFinanceProduction = false,
   bool isControleQualite = false,
+  bool canViewCommercialKpi = false,
   bool canViewPorPromesh = false,
   bool canViewFinance = false,
   bool hideIndustrialDashboard = false,
@@ -252,6 +232,9 @@ List<GroupedMenuModel> buildGroupedMenus({
   // ── COMMERCIAL ──────────────────────────────────────────────────────────
   if (isCommercial) {
     return [
+      // KPI Commercial Contacts : une seule entrée (auparavant à la fois dans
+      // le menu Dashboard de tête et dans le groupe COMMERCIAL).
+      buildDashboardGroup(canViewCrmKpi: false, canViewCommercialKpi: true),
       GroupedMenuModel(
         name: 'COMMERCIAL',
         menus: [
@@ -260,12 +243,6 @@ List<GroupedMenuModel> buildGroupedMenus({
             icon:           Icons.contact_page_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: '/users/commercial-contacts',
-          ),
-          SidebarItemModel(
-            name:           'KPI Commercial Contacts',
-            icon:           Icons.analytics_outlined,
-            sidebarItemType: SidebarItemType.tile,
-            navigationPath: '/users/commercial-contacts-kpi',
           ),
           SidebarItemModel(
             name:           'Commercial Profile',
@@ -301,7 +278,17 @@ List<GroupedMenuModel> buildGroupedMenus({
   }
 
   // ── DEFAULT (admin / user / superadmin) ─────────────────────────────────
+  // Ordre : TABLEAU DE BORD → GESTION DE PROJET → PRODUCTION → MÉLANGE →
+  // FINANCE → CONTRÔLE QUALITÉ → modules annexes (Maintenance, RH,
+  // Récupérables, Administration, Rapports, Utilisateurs, Outils).
+  final showIndustrial = canViewPorPromesh && !isRestrictedAdmin;
   return [
+    buildDashboardGroup(
+      canViewCommercialKpi:    canViewCommercialKpi,
+      canViewProductionDashboard:
+          canViewPorPromesh && !hideIndustrialDashboard && !isRestrictedAdmin,
+    ),
+
     GroupedMenuModel(
       name: 'PROJECT MANAGEMENT',
       menus: [
@@ -328,26 +315,24 @@ List<GroupedMenuModel> buildGroupedMenus({
               ),
           ],
         ),
+        // Anciennement un groupe "MY PROJECTS" séparé, dont l'entrée
+        // s'appelait aussi "Projects" (deux "Projets" dans le menu).
+        if (!isAdmin)
+          SidebarItemModel(
+            name:           'Mes Projets',
+            icon:           Icons.folder_outlined,
+            sidebarItemType: SidebarItemType.tile,
+            navigationPath: MyRoute.projectFormScreen,
+          ),
       ],
     ),
 
-    if (canViewPorPromesh && !isRestrictedAdmin) ...buildIndustrialGroups(),
+    if (showIndustrial) buildProductionGroup(),
+    if (showIndustrial) buildMelangeGroup(),
+    if (canViewFinance && !isRestrictedAdmin) buildFinanceGroup(),
     // Admins : consultation seule (la saisie est réservée à controle_qualite).
     if (isAdmin && !isRestrictedAdmin) buildQualityControlGroup(canCreate: false),
-    if (canViewFinance && !isRestrictedAdmin) buildFinanceGroup(),
-
-    if (isAdmin && !hideIndustrialDashboard && !isRestrictedAdmin)
-      GroupedMenuModel(
-        name: 'SUPER ADMIN',
-        menus: [
-          SidebarItemModel(
-            name:           'Dashboard Industriel',
-            icon:           Icons.dashboard_customize_outlined,
-            sidebarItemType: SidebarItemType.tile,
-            navigationPath: MyRoute.superAdminDashboardScreen,
-          ),
-        ],
-      ),
+    if (showIndustrial) buildMaintenanceGroup(),
 
     if (!hideHrAndRecuperables && !isRestrictedAdmin) buildHrGroup(isAdmin: isAdmin),
     if (!hideHrAndRecuperables && !isRestrictedAdmin) buildRecuperableGroup(),
@@ -469,19 +454,6 @@ List<GroupedMenuModel> buildGroupedMenus({
         ),
       ],
     ),
-
-    if (!isAdmin)
-      GroupedMenuModel(
-        name: 'MY PROJECTS',
-        menus: [
-          SidebarItemModel(
-            name:           'Projects',
-            icon:           Icons.folder_outlined,
-            sidebarItemType: SidebarItemType.tile,
-            navigationPath: MyRoute.projectFormScreen,
-          ),
-        ],
-      ),
   ];
 }
 
@@ -511,17 +483,29 @@ List<SidebarSubmenuModel> _machineSubmenus(String lineRoot) => List.generate(
 // fonction `_lineSubmenus` (qui injectait "Production Summary" DANS le
 // sous-menu) est supprimée, remplacée par `_machineSubmenus` seule (machines
 // uniquement, §5).
+//
+// Groupes séparés (Production / Mélange / Maintenance) pour que le menu
+// admin puisse intercaler FINANCE et CONTRÔLE QUALITÉ ; buildIndustrialGroups()
+// conserve l'ordre historique pour les espaces dédiés.
 List<GroupedMenuModel> buildIndustrialGroups() => [
-      GroupedMenuModel(
+      buildProductionGroup(),
+      buildMelangeGroup(),
+      buildMaintenanceGroup(),
+    ];
+
+GroupedMenuModel buildProductionGroup() => GroupedMenuModel(
         name: 'PRODUCTION',
         menus: [
-          // Le Dashboard Production est accessible depuis le groupe DASHBOARD
-          // uniquement (une seule entrée dans le menu).
+          // Le Dashboard Production est accessible depuis le groupe TABLEAU
+          // DE BORD uniquement (une seule entrée dans le menu).
+          // `isPage` : "/production/promesh" est lui-même une page (vue des
+          // machines) — le parent reste actif sur cette route.
           SidebarItemModel(
             name:           'PROMESH',
             icon:           Icons.factory_outlined,
             sidebarItemType: SidebarItemType.submenu,
             navigationPath: MyRoute.productionPromeshRoot,
+            isPage:         true,
             accentColor:    kPromeshColor,
             submenus:       _machineSubmenus(MyRoute.productionPromeshRoot),
           ),
@@ -531,7 +515,7 @@ List<GroupedMenuModel> buildIndustrialGroups() => [
           // (fixedType: 'promesh')` (voir my_route.dart) — clic direct sur
           // la page, aucune navigation intermédiaire.
           SidebarItemModel(
-            name:           'Production Summary PROMESH',
+            name:           'Récapitulatif de production PROMESH',
             icon:           Icons.summarize_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.productionPromeshSummaryScreen,
@@ -542,6 +526,7 @@ List<GroupedMenuModel> buildIndustrialGroups() => [
             icon:           Icons.factory_outlined,
             sidebarItemType: SidebarItemType.submenu,
             navigationPath: MyRoute.productionProbarRoot,
+            isPage:         true,
             accentColor:    kProbarColor,
             submenus:       _machineSubmenus(MyRoute.productionProbarRoot),
           ),
@@ -549,15 +534,16 @@ List<GroupedMenuModel> buildIndustrialGroups() => [
           // `MyRoute.productionProbarSummaryScreen` (`/production/
           // probar-summary`).
           SidebarItemModel(
-            name:           'Production Summary PROBAR',
+            name:           'Récapitulatif de production PROBAR',
             icon:           Icons.summarize_outlined,
             sidebarItemType: SidebarItemType.tile,
             navigationPath: MyRoute.productionProbarSummaryScreen,
             accentColor:    kProbarColor,
           ),
         ],
-      ),
-      GroupedMenuModel(
+      );
+
+GroupedMenuModel buildMelangeGroup() => GroupedMenuModel(
         name: 'MÉLANGE',
         menus: [
           SidebarItemModel(
@@ -575,8 +561,9 @@ List<GroupedMenuModel> buildIndustrialGroups() => [
             accentColor:    kMelangeColor,
           ),
         ],
-      ),
-      GroupedMenuModel(
+      );
+
+GroupedMenuModel buildMaintenanceGroup() => GroupedMenuModel(
         name: 'MAINTENANCE',
         menus: [
           SidebarItemModel(
@@ -594,8 +581,7 @@ List<GroupedMenuModel> buildIndustrialGroups() => [
             accentColor:    kMaintenanceColor,
           ),
         ],
-      ),
-    ];
+      );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ADMINISTRATION — responsable logistique : demandes Production UNIQUEMENT
@@ -687,14 +673,14 @@ GroupedMenuModel buildFinanceGroup() => GroupedMenuModel(
       name: 'FINANCE',
       menus: [
         SidebarItemModel(
-          name:           'Dashboard',
+          name:           'Tableau de bord Finance',
           icon:           Icons.dashboard_outlined,
           sidebarItemType: SidebarItemType.tile,
           navigationPath: MyRoute.financeDashboardScreen,
           accentColor:    kFinanceColor,
         ),
         SidebarItemModel(
-          name:           'Inflow of raw materials',
+          name:           'Inflow of Raw Materials',
           icon:           Icons.inventory_2_outlined,
           sidebarItemType: SidebarItemType.tile,
           navigationPath: MyRoute.financeInflowRawMaterialsScreen,
@@ -717,7 +703,7 @@ GroupedMenuModel buildFinanceGroup() => GroupedMenuModel(
         // finance_customer_shipments_screen.dart. Les autres sous-menus
         // Import (Factured/Paid) restent inchangés ci-dessous.
         SidebarItemModel(
-          name:           'Shipment of products to the customers',
+          name:           'Bons de livraison',
           icon:           Icons.local_shipping_outlined,
           sidebarItemType: SidebarItemType.tile,
           navigationPath: MyRoute.financeCustomerShipmentsScreen,
@@ -743,7 +729,7 @@ GroupedMenuModel buildFinanceGroup() => GroupedMenuModel(
         // supprimés (aucun changement backend/route, uniquement l'entrée de
         // menu latéral) — même principe que les retraits Import précédents.
         SidebarItemModel(
-          name:           'Factured shipments - by facture',
+          name:           'Expéditions facturées',
           icon:           Icons.receipt_long_outlined,
           sidebarItemType: SidebarItemType.tile,
           navigationPath: MyRoute.financeFacturedShipmentsScreen,
@@ -757,7 +743,7 @@ GroupedMenuModel buildFinanceGroup() => GroupedMenuModel(
         // précédents (Inflow of raw materials, Customer Shipments,
         // Factured Shipments).
         SidebarItemModel(
-          name:           'Paid factures',
+          name:           'Factures payées',
           icon:           Icons.verified_outlined,
           sidebarItemType: SidebarItemType.tile,
           navigationPath: MyRoute.financePaidInvoicesScreen,

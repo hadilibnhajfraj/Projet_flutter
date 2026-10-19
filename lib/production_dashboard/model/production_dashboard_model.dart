@@ -58,7 +58,7 @@ class ProductionMachineStats {
 class ProductionLineStats {
   final String type; // promesh | probar
   final String label;
-  final String unit; // m² | m
+  final String unit; // m² | ml
   final String wasteUnit; // kg
   final int fiches;
   final int validees;

@@ -1230,7 +1230,7 @@ class _RecordDetailDrawerState extends State<_RecordDetailDrawer> {
 
     final rows = <(String, String)>[];
     if (type == 'probar') {
-      rows.add((t.translate('Quantité en mètres pour ProBar'), quantite == null ? '—' : '$quantite $quantiteUnite'));
+      rows.add((t.translate('Quantité en mètres linéaires pour PROBAR (ml)'), quantite == null ? '—' : '$quantite $quantiteUnite'));
       rows.add((t.translate('Diamètre'), diametre == null || diametre.toString().isEmpty ? '—' : '$diametre $diametreUnite'));
     } else {
       rows.add((t.translate('Quantité en m² pour ProMesh'), quantite == null ? '—' : '$quantite $quantiteUnite'));
