@@ -197,6 +197,8 @@ class _QualityControlHistoryScreenState extends State<QualityControlHistoryScree
                 loading: _loading,
                 extended: true,
                 emptyText: _hasFilters ? 'Aucun contrôle qualité pour ces critères' : 'Aucun contrôle qualité pour le moment',
+                // Suppression (Super Admin) : liste et total relus via l'API.
+                onDeleted: _load,
               ),
             if (_page.totalPages > 1) _pager(),
           ],

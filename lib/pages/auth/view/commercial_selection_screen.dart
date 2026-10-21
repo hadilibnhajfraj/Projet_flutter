@@ -215,6 +215,7 @@ class _CardContent extends StatelessWidget {
             // ── Bouton Confirmer ───────────────────────────────────────────
             Obx(() {
               final name = ctrl.finalName;
+              ctrl.isSaving.value;
               final enabled = ctrl.canConfirm;
 
               return AnimatedOpacity(
@@ -225,10 +226,23 @@ class _CardContent extends StatelessWidget {
                   height: 50,
                   child: ElevatedButton.icon(
                     onPressed: enabled
-                        ? () {
-                            final ok = ctrl.confirm();
-                            if (ok && context.mounted) {
-                              context.go(MyRoute.commercialContactsKpiUsers);
+                        ? () async {
+                            try {
+                              final ok = await ctrl.confirm();
+                              if (ok && context.mounted) {
+                                context.go(MyRoute.commercialContactsKpiUsers);
+                              }
+                            } catch (e) {
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    "Échec de l'enregistrement du profil : "
+                                    '${e.toString().replaceFirst('Exception: ', '')}',
+                                  ),
+                                  backgroundColor: Colors.red.shade700,
+                                ),
+                              );
                             }
                           }
                         : null,

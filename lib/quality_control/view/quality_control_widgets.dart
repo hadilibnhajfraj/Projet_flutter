@@ -11,9 +11,11 @@ import 'package:go_router/go_router.dart';
 
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 import '../model/quality_control_model.dart';
 import '../quality_control_routes.dart';
 import '../quality_control_i18n.dart';
+import '../service/quality_control_service.dart';
 
 // ═══ Tokens ═════════════════════════════════════════════════════════════
 
@@ -924,12 +926,17 @@ class QcControlsTable extends StatefulWidget {
   final bool extended;
   final String emptyText;
 
+  /// Appelé après une suppression réussie (Super Admin) — l'écran relit sa
+  /// liste via l'API. Les écrans QcSyncMixin se relisent déjà via `revision`.
+  final VoidCallback? onDeleted;
+
   const QcControlsTable({
     super.key,
     required this.controls,
     this.loading = false,
     this.extended = false,
     this.emptyText = 'Aucun contrôle qualité pour le moment',
+    this.onDeleted,
   });
 
   @override
@@ -959,7 +966,9 @@ class _QcControlsTableState extends State<QcControlsTable> {
         ('Contrôleur qualité', 14),
       ];
 
-  static const _actionsWidth = 100.0;
+  final bool _canDelete = AuthService().canDeleteQualityControls;
+
+  double get _actionsWidth => _canDelete ? 136.0 : 100.0;
 
   double get _minWidth => widget.extended ? 1180 : 940;
 
@@ -1053,6 +1062,7 @@ class _QcControlsTableState extends State<QcControlsTable> {
                 icon: const Icon(Icons.visibility_outlined, size: 18, color: kCrmTextSub),
               ),
               _moreMenu(c),
+              if (_canDelete) QcDeleteControlButton(control: c, onDeleted: widget.onDeleted),
             ]),
           ),
         ]),
@@ -1093,5 +1103,86 @@ class _QcControlsTableState extends State<QcControlsTable> {
           const SizedBox(width: 10),
           Text(label, style: tInter(fontSize: 13, color: kCrmText)),
         ]),
+      );
+}
+
+// ═══ Suppression d'une fiche (Super Admin uniquement) ═══════════════════
+
+/// Confirmation puis suppression (logique, côté serveur) d'une fiche de
+/// contrôle qualité. true si la fiche a été supprimée. En cas d'échec, message
+/// explicite et rien n'est retiré de l'interface (la liste n'est relue
+/// qu'après un succès — QualityControlService.revision).
+Future<bool> qcConfirmAndDeleteControl(BuildContext context, QualityControlModel c) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      icon: const Icon(Icons.delete_forever_rounded, color: kCrmDanger, size: 32),
+      title: const Text('Supprimer la fiche de contrôle qualité'),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Voulez-vous vraiment supprimer cette fiche de contrôle qualité ? Cette action est irréversible.'),
+        const SizedBox(height: 12),
+        Text(
+          '${c.reference.isEmpty ? 'Fiche sans référence' : c.reference} · ${c.productionType} · ${c.machineLabel ?? '—'} · ${c.isValidated ? 'validée' : 'brouillon'}',
+          style: tInter(fontSize: 12.5, color: kCrmTextSub, fontWeight: FontWeight.w600),
+        ),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
+        FilledButton.icon(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          style: FilledButton.styleFrom(backgroundColor: kCrmDanger),
+          icon: const Icon(Icons.delete_outline_rounded, size: 18),
+          label: const Text('Confirmer la suppression'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return false;
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await QualityControlService.instance.delete(c.id);
+    messenger.showSnackBar(SnackBar(
+      content: Text('Fiche de contrôle qualité ${c.reference} supprimée.'),
+      backgroundColor: kQcConformeText,
+    ));
+    return true;
+  } catch (e) {
+    messenger.showSnackBar(SnackBar(
+      content: Text('Échec de la suppression : $e'),
+      backgroundColor: kQcNonConformeText,
+    ));
+    return false;
+  }
+}
+
+/// Icône corbeille « Supprimer » — à n'afficher que si
+/// AuthService().canDeleteQualityControls (le backend revérifie toujours).
+class QcDeleteControlButton extends StatefulWidget {
+  final QualityControlModel control;
+  final VoidCallback? onDeleted;
+
+  const QcDeleteControlButton({super.key, required this.control, this.onDeleted});
+
+  @override
+  State<QcDeleteControlButton> createState() => _QcDeleteControlButtonState();
+}
+
+class _QcDeleteControlButtonState extends State<QcDeleteControlButton> {
+  bool _busy = false;
+
+  Future<void> _delete() async {
+    setState(() => _busy = true);
+    final deleted = await qcConfirmAndDeleteControl(context, widget.control);
+    if (mounted) setState(() => _busy = false);
+    if (deleted) widget.onDeleted?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+        tooltip: qcT('Supprimer'),
+        visualDensity: VisualDensity.compact,
+        // Désactivée pendant la confirmation / l'appel API (pas de double envoi).
+        onPressed: _busy ? null : _delete,
+        icon: Icon(Icons.delete_outline_rounded, size: 18, color: _busy ? kCrmTextSub : kCrmDanger),
       );
 }

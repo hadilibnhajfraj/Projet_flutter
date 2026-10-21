@@ -49,12 +49,20 @@ bool get isAdmin {
 bool get isAgent => userRole?.toLowerCase() == 'agent';
 bool get isClient => userRole?.toLowerCase() == 'client';
 
+// Gestion des projets commerciaux PROBAR — mêmes fonctionnalités que
+// info@probardistribution.com pour les comptes @probardistribution.com
+// éligibles. Calculé UNIQUEMENT par le backend (config/probarProjectAccess.js,
+// renvoyé dans user.permissions à la connexion) — jamais déduit ici de
+// l'adresse email ; le backend revérifie ce droit sur chaque route.
+bool get isProbarProjectManager => _box.read<bool>('probarProjectManager') ?? false;
+
 // Accès au dashboard KPI Commercial Contacts :
-// uniquement admin, superadmin, superadmin2 et commercial.
-// Le rôle "user" est explicitement exclu.
+// uniquement admin, superadmin, superadmin2, commercial et les comptes PROBAR
+// éligibles (isProbarProjectManager). Le rôle "user" est sinon exclu.
 bool get canViewCommercialKpi {
   final r = (userRole ?? '').toLowerCase().trim();
-  return r == 'admin' || r == 'superadmin' || r == 'superadmin2' || r == 'commercial';
+  return r == 'admin' || r == 'superadmin' || r == 'superadmin2' || r == 'commercial' ||
+      isProbarProjectManager;
 }
 
 // Accès au module POR PROMESH :
@@ -86,6 +94,14 @@ bool get isRootAdmin {
   final e = (userEmail ?? '').toLowerCase().trim();
   return e == 'cbitunisia@cbi-tunisia.com';
 }
+
+// Suppression d'une fiche de contrôle qualité : Super Admin uniquement =
+// rôle superadmin ET compte racine — même règle que le backend
+// (config/qualityControl.js deleteRoles + requireRootAdmin, revérifiés en
+// base). Ne conditionne que l'affichage du bouton : le backend reste
+// l'autorité (403 pour tout autre compte).
+bool get canDeleteQualityControls =>
+    (userRole ?? '').toLowerCase().trim() == 'superadmin' && isRootAdmin;
 
 // Responsables du contrôle Production Compliance — même liste que le backend
 // (.env PRODUCTION_COMPLIANCE_MANAGERS, lu par config/productionCompliance.js) ;
@@ -194,6 +210,7 @@ Future<List<String>> getUserNames() async {
     await _box.remove('userId');
     await _box.remove('userEmail');
     await _box.remove('userRole');
+    await _box.remove('probarProjectManager');
 
     try {
       final deviceId = await DeviceIdentityService.getDeviceId();
@@ -363,6 +380,11 @@ Future<List<String>> getUserNames() async {
       await _box.write('userId', (user['id'] ?? '').toString());
       await _box.write('userEmail', (user['email'] ?? '').toString());
       await _box.write('userRole', (user['role'] ?? '').toString());
+      final permissions = user['permissions'];
+      await _box.write(
+        'probarProjectManager',
+        permissions is Map && permissions['probarProjectManager'] == true,
+      );
     }
 
     // ✅ set token in dio header
@@ -497,6 +519,7 @@ Future<List<String>> getUserNames() async {
     await _box.remove('userId');
     await _box.remove('userEmail');
     await _box.remove('userRole');
+    await _box.remove('probarProjectManager');
 
     ApiClient.instance.clearToken(); // ✅ remove Authorization header
   }

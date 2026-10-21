@@ -170,6 +170,7 @@ List<GroupedMenuModel> buildGroupedMenus({
   bool isRootAdmin = false,
   bool isComplianceManager = false,
   bool isProductionWorkflowManager = false,
+  bool isProbarProjectManager = false,
 }) {
   // ── ESPACE DÉDIÉ — responsable_logistique_achat ─────────────────────────
   // Rien d'autre que le module industriel n'est visible pour ce rôle : pas
@@ -235,23 +236,7 @@ List<GroupedMenuModel> buildGroupedMenus({
       // KPI Commercial Contacts : une seule entrée (auparavant à la fois dans
       // le menu Dashboard de tête et dans le groupe COMMERCIAL).
       buildDashboardGroup(canViewCrmKpi: false, canViewCommercialKpi: true),
-      GroupedMenuModel(
-        name: 'COMMERCIAL',
-        menus: [
-          SidebarItemModel(
-            name:           'Commercial Contacts',
-            icon:           Icons.contact_page_outlined,
-            sidebarItemType: SidebarItemType.tile,
-            navigationPath: '/users/commercial-contacts',
-          ),
-          SidebarItemModel(
-            name:           'Commercial Profile',
-            icon:           Icons.person_search_outlined,
-            sidebarItemType: SidebarItemType.tile,
-            navigationPath: MyRoute.commercialProfileScreen,
-          ),
-        ],
-      ),
+      buildCommercialGroup(),
       GroupedMenuModel(
         name: 'MES PROJETS',
         menus: [
@@ -326,6 +311,11 @@ List<GroupedMenuModel> buildGroupedMenus({
           ),
       ],
     ),
+
+    // Comptes @probardistribution.com de rôle "user" : mêmes entrées
+    // COMMERCIAL qu'info@probardistribution.com (drapeau calculé par le
+    // backend), en plus de leur menu habituel — rien n'est retiré.
+    if (isProbarProjectManager && !isAdmin) buildCommercialGroup(),
 
     if (showIndustrial) buildProductionGroup(),
     if (showIndustrial) buildMelangeGroup(),
@@ -487,6 +477,26 @@ List<SidebarSubmenuModel> _machineSubmenus(String lineRoot) => List.generate(
 // Groupes séparés (Production / Mélange / Maintenance) pour que le menu
 // admin puisse intercaler FINANCE et CONTRÔLE QUALITÉ ; buildIndustrialGroups()
 // conserve l'ordre historique pour les espaces dédiés.
+// Groupe COMMERCIAL — partagé par le rôle "commercial" et les comptes PROBAR
+// éligibles du menu par défaut (voir isProbarProjectManager).
+GroupedMenuModel buildCommercialGroup() => GroupedMenuModel(
+      name: 'COMMERCIAL',
+      menus: [
+        SidebarItemModel(
+          name:           'Commercial Contacts',
+          icon:           Icons.contact_page_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: '/users/commercial-contacts',
+        ),
+        SidebarItemModel(
+          name:           'Commercial Profile',
+          icon:           Icons.person_search_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.commercialProfileScreen,
+        ),
+      ],
+    );
+
 List<GroupedMenuModel> buildIndustrialGroups() => [
       buildProductionGroup(),
       buildMelangeGroup(),

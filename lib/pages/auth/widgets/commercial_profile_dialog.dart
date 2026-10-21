@@ -188,6 +188,7 @@ class _CommercialProfileDialogWidgetState
                   Obx(() {
                     ctrl.selected.value;
                     ctrl.newNameText.value;
+                    final saving = ctrl.isSaving.value;
 
                     final enabled = ctrl.canConfirm;
 
@@ -196,12 +197,32 @@ class _CommercialProfileDialogWidgetState
                       height: 50,
                       child: FilledButton.icon(
                         onPressed: enabled
-                            ? () {
-                                final saved = ctrl.confirm();
-                                if (saved != null) onConfirmed(saved);
+                            ? () async {
+                                try {
+                                  final saved = await ctrl.confirm();
+                                  if (saved != null) onConfirmed(saved);
+                                } catch (e) {
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Échec de l\'enregistrement du profil : '
+                                        '${e.toString().replaceFirst('Exception: ', '')}',
+                                      ),
+                                      behavior: SnackBarBehavior.floating,
+                                      backgroundColor: Colors.red.shade700,
+                                    ),
+                                  );
+                                }
                               }
                             : null,
-                        icon: const Icon(Icons.check_circle_outline_rounded),
+                        icon: saving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.check_circle_outline_rounded),
                         label: Text(
                           ctrl.confirmLabel,
                           style: const TextStyle(

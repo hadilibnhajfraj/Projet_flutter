@@ -87,6 +87,7 @@ class SideBarWidget extends StatelessWidget {
       isRootAdmin: isRootAdmin,
       isComplianceManager: auth.isComplianceManager,
       isProductionWorkflowManager: auth.isProductionWorkflowManager,
+      isProbarProjectManager: auth.isProbarProjectManager,
     );
 
     final sidebarW = iconOnly

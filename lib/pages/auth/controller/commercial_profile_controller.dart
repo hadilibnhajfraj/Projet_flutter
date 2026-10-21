@@ -10,6 +10,7 @@ class CommercialProfileController extends GetxController {
   // ── State ──────────────────────────────────────────────────────────────────
   final isLoading = true.obs;
   final hasError = false.obs;
+  final isSaving = false.obs;
 
   final profiles = <CommercialProfile>[].obs;
 
@@ -28,7 +29,7 @@ class CommercialProfileController extends GetxController {
     return selected.value?.name;
   }
 
-  bool get canConfirm => finalName != null;
+  bool get canConfirm => finalName != null && !isSaving.value;
 
   /// Label affiché sur le bouton Confirmer.
   String get confirmLabel {
@@ -67,10 +68,28 @@ class CommercialProfileController extends GetxController {
   }
 
   // ── Enregistrement dans GetStorage ────────────────────────────────────────
-  /// Sauvegarde dans GetStorage et retourne le nom, ou null si rien choisi.
-  String? confirm() {
-    final name = finalName;
-    if (name == null) return null;
+  /// Nom saisi dans "Autre commercial" : enregistré d'abord en base via
+  /// l'API (attente de la confirmation) — sinon il disparaîtrait à la
+  /// reconnexion. Puis sauvegarde la sélection dans GetStorage et retourne
+  /// le nom, ou null si rien choisi. Lève une [Exception] si l'enregistrement
+  /// échoue (rien n'est alors sauvegardé localement).
+  Future<String?> confirm() async {
+    var name = finalName;
+    if (name == null || isSaving.value) return null;
+
+    if (newNameController.text.trim().isNotEmpty) {
+      isSaving.value = true;
+      try {
+        final saved = await _service.saveProfile(name);
+        name = saved.name;
+        if (!profiles.contains(saved) &&
+            !profiles.any((p) => p.name.toLowerCase() == saved.name.toLowerCase())) {
+          profiles.add(saved);
+        }
+      } finally {
+        isSaving.value = false;
+      }
+    }
 
     final box = GetStorage();
     box.write('selectedCommercial', name);

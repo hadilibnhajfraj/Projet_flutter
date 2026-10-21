@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import '../../../providers/auth_service.dart';
+import '../../../services/commercial_profile_api_service.dart';
 import '../../../services/commercial_selection_api_service.dart';
 
 class CommercialSelectionController extends GetxController {
@@ -10,6 +11,7 @@ class CommercialSelectionController extends GetxController {
   // ── State ──────────────────────────────────────────────────────────────────
   final isLoading = true.obs;
   final hasError = false.obs;
+  final isSaving = false.obs;
   final users = <CommercialUserItem>[].obs;
 
   // Carte sélectionnée dans la liste API
@@ -39,7 +41,7 @@ class CommercialSelectionController extends GetxController {
     return selectedUser.value?.name;
   }
 
-  bool get canConfirm => finalName != null;
+  bool get canConfirm => finalName != null && !isSaving.value;
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   @override
@@ -90,15 +92,27 @@ class CommercialSelectionController extends GetxController {
     }
   }
 
-  /// Sauvegarde dans GetStorage — la navigation est gérée par l'écran.
-  /// Retourne true si succès.
-  bool confirm() {
-    final name = finalName;
-    if (name == null) return false;
+  /// Nom "Autre commercial" : enregistré d'abord en base via l'API (attente
+  /// de la confirmation), puis sauvegarde dans GetStorage — la navigation est
+  /// gérée par l'écran. Retourne true si succès ; lève une [Exception] si
+  /// l'enregistrement échoue (rien n'est alors sauvegardé localement).
+  Future<bool> confirm() async {
+    var name = finalName;
+    if (name == null || isSaving.value) return false;
 
-    final id = isCustomMode.value
-        ? name
-        : (selectedUser.value?.id ?? name);
+    String id;
+    if (isCustomMode.value) {
+      isSaving.value = true;
+      try {
+        final saved = await CommercialProfileApiService.instance.saveProfile(name);
+        name = saved.name;
+        id = saved.id;
+      } finally {
+        isSaving.value = false;
+      }
+    } else {
+      id = selectedUser.value?.id ?? name;
+    }
 
     final box = GetStorage();
     box.write('selectedCommercial', name);

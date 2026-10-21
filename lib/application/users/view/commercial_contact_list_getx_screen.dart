@@ -7,11 +7,6 @@ import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:excel/excel.dart' as excel;
 import 'dart:html' as html;
 
-// Compte pour lequel le Follow-up déclenche l'automatisation complète
-// (calendrier / notifications / email / WhatsApp) côté backend — le champ
-// "Commercial" n'est affiché/obligatoire que pour ce compte, inchangé pour
-// tous les autres utilisateurs.
-const String _kFollowupAutomationEmail = "info@probardistribution.com";
 class CommercialContactListGetxScreen extends StatefulWidget {
   final String token;
   
@@ -408,8 +403,12 @@ Future<void> _loadContacts({
     return updated;
   }
 
-  bool get _isFollowupAutomationActor =>
-      (AuthService().userEmail ?? '').toLowerCase().trim() == _kFollowupAutomationEmail;
+  // Comptes pour lesquels le Follow-up déclenche l'automatisation complète
+  // (calendrier / notifications / email / WhatsApp) côté backend :
+  // info@probardistribution.com et les autres comptes PROBAR éligibles
+  // (drapeau calculé par le backend) — le champ "Commercial" n'est
+  // affiché/obligatoire que pour eux, inchangé pour tous les autres.
+  bool get _isFollowupAutomationActor => AuthService().isProbarProjectManager;
 
   // Rôles autorisés à voir/utiliser l'action admin "Affecter des contacts" —
   // même périmètre que PRIVILEGED_ROLES côté backend
@@ -2537,8 +2536,10 @@ Widget _buildSearchBar() {
     // cas précis a son propre message, distinct d'une recherche trop
     // restrictive, pour ne jamais laisser croire à un bug de filtrage.
     if (_contacts.isEmpty) {
+      // Même périmètre restreint que le backend (isCommercialScoped).
       final isCommercialRole =
-          (AuthService().userRole ?? '').toLowerCase().trim() == 'commercial';
+          (AuthService().userRole ?? '').toLowerCase().trim() == 'commercial' ||
+              AuthService().isProbarProjectManager;
       final hasActiveFilters = _searchController.text.trim().isNotEmpty ||
           selectedUser != null ||
           selectedType != null;

@@ -667,33 +667,19 @@ class _FicheViewState extends State<_FicheView> {
         context.go(QcPaths.control(control.id));
       });
 
-  /// Suppression d'une fiche BROUILLON (le backend refuse une fiche validée :
-  /// 403 CONTROL_LOCKED). Retour à la machine, données relues via l'API.
+  /// Suppression d'une fiche (brouillon ou validée) — Super Admin uniquement,
+  /// revérifié par le backend. Après succès : retour à la machine, données
+  /// relues via l'API ; en cas d'échec, la fiche reste affichée.
+  final bool _canDelete = AuthService().canDeleteQualityControls;
+
   Future<void> _delete() async {
     final c = _control;
-    if (c == null || _saving || c.isValidated || _isCreate) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Supprimer le brouillon'),
-        content: Text('La fiche qualité ${c.reference} (brouillon) de la ${c.machineLabel ?? 'machine'} et ses ${c.readings.length} prélèvement(s) seront supprimés.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: kCrmDanger),
-            child: const Text('Supprimer'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    await _run(() async {
-      await QualityControlService.instance.delete(c.id);
-      if (!mounted) return;
-      _snack(context, 'Brouillon supprimé.');
-      context.go(c.machine != null ? QcPaths.machine(c.productionType, c.machine!) : QcPaths.history);
-    });
+    if (c == null || _saving || _isCreate || !_canDelete) return;
+    setState(() => _saving = true);
+    final deleted = await qcConfirmAndDeleteControl(context, c);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (deleted) context.go(c.machine != null ? QcPaths.machine(c.productionType, c.machine!) : QcPaths.history);
   }
 
   // ── Étapes : navigation, nouveau prélèvement, suppression ───────────────────
@@ -851,6 +837,18 @@ class _FicheViewState extends State<_FicheView> {
       trailing: Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
         if (c.reference.isNotEmpty) QcReferenceBadge(c.reference, productionType: c.productionType, key: const ValueKey('qc-reference-badge')),
         if (c.isValidated) ...[QcStatusBadge(c.status), const QcStatusBadge('VALIDE')] else const QcStatusBadge('BROUILLON'),
+        // Super Admin uniquement (brouillon ou fiche validée).
+        if (_canDelete && !_isCreate)
+          OutlinedButton.icon(
+            onPressed: _saving ? null : _delete,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: kCrmDanger,
+              side: BorderSide(color: kCrmDanger.withValues(alpha: 0.5)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+            ),
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            label: const Text('Supprimer'),
+          ),
       ]),
     );
 
@@ -1373,12 +1371,6 @@ class _FicheViewState extends State<_FicheView> {
   /// Barre d'actions de la FICHE, toujours visible en bas de l'écran (les
   /// actions du prélèvement sont dans la page, avant les paramètres physiques).
   Widget _actionBar(QualityControlModel c, EdgeInsets padding) {
-    ButtonStyle outlined([Color fg = kCrmText, Color side = kCrmBorder]) => OutlinedButton.styleFrom(
-          foregroundColor: fg,
-          side: BorderSide(color: side),
-          minimumSize: const Size(0, 42),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-        );
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -1394,13 +1386,6 @@ class _FicheViewState extends State<_FicheView> {
             child: Padding(
               padding: EdgeInsets.fromLTRB(padding.left, 10, padding.right, 10),
               child: Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: 10, runSpacing: 8, children: [
-                if (!_isCreate)
-                  OutlinedButton.icon(
-                    onPressed: _saving ? null : _delete,
-                    style: outlined(kCrmDanger, kCrmDanger.withValues(alpha: 0.5)),
-                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                    label: const Text('Supprimer'),
-                  ),
                 FilledButton.icon(
                   onPressed: _saving ? null : _validate,
                   style: FilledButton.styleFrom(

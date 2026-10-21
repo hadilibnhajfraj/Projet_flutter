@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../providers/api_client.dart';
 
@@ -49,5 +50,31 @@ class CommercialProfileApiService {
       if (e is Map<String, dynamic>) return CommercialProfile.fromJson(e);
       return CommercialProfile.fromString(e.toString());
     }).toList();
+  }
+
+  /// POST /commercial-contacts/user-names — enregistre en base le profil
+  /// "Autre commercial" du compte connecté (idempotent côté backend : aucun
+  /// doublon si le nom existe déjà). Retourne le profil confirmé par l'API ;
+  /// lève une [Exception] au message explicite en cas d'échec.
+  Future<CommercialProfile> saveProfile(String name) async {
+    debugPrint('[CommercialProfileApi] POST /commercial-contacts/user-names name=$name');
+    try {
+      final response = await ApiClient.instance.dio.post(
+        '/commercial-contacts/user-names',
+        data: {'name': name},
+      );
+      final profile = response.data is Map ? response.data['profile'] : null;
+      if (profile is! Map || (profile['name'] ?? '').toString().isEmpty) {
+        throw Exception('Réponse inattendue du serveur');
+      }
+      final savedName = profile['name'].toString();
+      return CommercialProfile(id: (profile['id'] ?? savedName).toString(), name: savedName);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      final msg = (data is Map && data['message'] != null)
+          ? data['message'].toString()
+          : 'Impossible d\'enregistrer le profil commercial';
+      throw Exception(msg);
+    }
   }
 }

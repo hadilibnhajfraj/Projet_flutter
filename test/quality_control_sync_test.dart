@@ -47,6 +47,9 @@ class _FakeDb implements HttpClientAdapter {
   late final List<Map<String, dynamic>> controls;
   int _seq = 3;
 
+  /// Simule un échec serveur de la suppression (la fiche doit rester affichée).
+  bool failDelete = false;
+
   _FakeDb() {
     params = (jsonDecode(kQualityControlConfig)['parameters'] as List).cast<Map<String, dynamic>>();
     controls = [
@@ -210,12 +213,14 @@ class _FakeDb implements HttpClientAdapter {
     if (match != null) {
       final c = controls.firstWhere((x) => x['id'] == match[1]);
       if (o.method == 'GET') return _json({'success': true, 'data': c});
-      // Fiche VALIDÉE : lecture seule (403), comme le backend.
-      if (c['isValidated'] == true) return _json({'success': false, 'code': 'CONTROL_LOCKED', 'message': 'Lecture seule'}, 403);
+      // Suppression (Super Admin, brouillon OU validée), comme le backend.
       if (o.method == 'DELETE') {
+        if (failDelete) return _json({'success': false, 'code': 'SERVER_ERROR', 'message': 'Base de données indisponible'}, 500);
         controls.remove(c);
         return _json({'success': true, 'data': {'id': c['id']}});
       }
+      // Fiche VALIDÉE : lecture seule (403), comme le backend.
+      if (c['isValidated'] == true) return _json({'success': false, 'code': 'CONTROL_LOCKED', 'message': 'Lecture seule'}, 403);
       final body = Map<String, dynamic>.from(o.data as Map);
       if (match[2] != null) {
         c['status'] = body['status'] ?? 'CONFORME';
@@ -267,6 +272,17 @@ Future<void> _settle(WidgetTester tester) async {
 void _expectFigure(String label, String value) {
   final column = find.ancestor(of: find.text(label).first, matching: find.byType(Column)).first;
   expect(find.descendant(of: column, matching: find.text(value)), findsOneWidget, reason: '$label = $value');
+}
+
+/// Session Super Admin (rôle superadmin + compte racine) le temps d'un test.
+void _asSuperAdmin() {
+  final box = GetStorage();
+  box.write('userRole', 'superadmin');
+  box.write('userEmail', 'cbitunisia@cbi-tunisia.com');
+  addTearDown(() {
+    box.write('userRole', 'controle_qualite');
+    box.write('userEmail', 'controle_qualite@cbi-tunisia.com');
+  });
 }
 
 Future<GoRouter> _pump(WidgetTester tester) async {
@@ -323,7 +339,8 @@ void main() {
     expect(db.posts, isEmpty);
     expect(find.text('Contrôle qualité QC-2026-00003'), findsOneWidget);
     expect(find.text('Enregistrer le prélèvement'), findsWidgets);
-    expect(find.text('Supprimer'), findsWidgets);
+    // Suppression réservée au Super Admin : jamais proposée à controle_qualite.
+    expect(find.text('Supprimer'), findsNothing);
 
     // Résultat CONFORME (proposé par défaut) → Valider le contrôle qualité.
     expect(find.text('08:00'), findsWidgets); // prélèvement existant de la fiche
@@ -471,20 +488,98 @@ void main() {
     expect(find.textContaining('Aucune fiche qualité pour cette machine'), findsOneWidget);
   });
 
-  testWidgets('suppression d\'un BROUILLON : DELETE, retour à la machine, fiche retirée', (tester) async {
+  testWidgets('controle_qualite : aucune action de suppression (machine, historique, fiche)', (tester) async {
     final router = await _pump(tester);
-    router.go(QcPaths.control('c886'));
+    for (final path in [QcPaths.machine('PROMESH', '1'), QcPaths.history, QcPaths.control('c886')]) {
+      router.go(path);
+      await _settle(tester);
+      expect(find.byTooltip('Supprimer'), findsNothing, reason: path);
+      expect(find.text('Supprimer'), findsNothing, reason: path);
+    }
+    expect(db.requests.where((r) => r.startsWith('DELETE')), isEmpty);
+  });
+
+  testWidgets('Super Admin — machine : corbeille, confirmation (Annuler / Confirmer), DELETE, liste et compteurs relus', (tester) async {
+    _asSuperAdmin();
+    final router = await _pump(tester);
+    _expectFigure('Total contrôles qualité', '3');
+    router.go(QcPaths.machine('PROMESH', '1'));
     await _settle(tester);
-    await tester.tap(find.text('Supprimer').first);
+    expect(find.text('QC-2026-00003'), findsWidgets);
+
+    // Annuler : rien n'est supprimé.
+    await tester.tap(find.byTooltip('Supprimer'));
     await tester.pumpAndSettle();
-    expect(find.text('Supprimer le brouillon'), findsOneWidget);
-    await tester.tap(find.text('Supprimer').last);
+    expect(find.text('Voulez-vous vraiment supprimer cette fiche de contrôle qualité ? Cette action est irréversible.'), findsOneWidget);
+    expect(find.text('Confirmer la suppression'), findsOneWidget);
+    await tester.tap(find.text('Annuler'));
+    await _settle(tester);
+    expect(db.requests.where((r) => r.startsWith('DELETE')), isEmpty);
+    expect(find.text('QC-2026-00003'), findsWidgets);
+
+    // Confirmer la suppression : DELETE, message, liste et compteurs relus via l'API.
+    await tester.tap(find.byTooltip('Supprimer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmer la suppression'));
     await _settle(tester);
     expect(tester.takeException(), isNull);
     expect(db.requests, contains('DELETE /quality-control/c886'));
-    expect(_uri(router), QcPaths.machine('PROMESH', '1'));
+    expect(find.text('Fiche de contrôle qualité QC-2026-00003 supprimée.'), findsOneWidget);
     expect(find.text('QC-2026-00003'), findsNothing);
     expect(find.textContaining('Aucune fiche qualité pour cette machine'), findsOneWidget);
+    router.go(QcPaths.root);
+    await _settle(tester);
+    _expectFigure('Total contrôles qualité', '2');
+  });
+
+  testWidgets('Super Admin — fiche VALIDÉE : « Supprimer » depuis la fiche, retour à la machine', (tester) async {
+    _asSuperAdmin();
+    final router = await _pump(tester);
+    router.go(QcPaths.control('c867'));
+    await _settle(tester);
+    expect(find.textContaining('Contrôle qualité validé — Lecture seule'), findsWidgets);
+    await tester.tap(find.text('Supprimer'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmer la suppression'));
+    await _settle(tester);
+    expect(tester.takeException(), isNull);
+    expect(db.requests, contains('DELETE /quality-control/c867'));
+    expect(_uri(router), QcPaths.machine('PROMESH', '2'));
+    expect(find.text('QC-2026-00001'), findsNothing);
+  });
+
+  testWidgets('Super Admin — historique : suppression puis liste relue ; échec serveur : message, fiche conservée', (tester) async {
+    _asSuperAdmin();
+    final router = await _pump(tester);
+    router.go(QcPaths.history);
+    await _settle(tester);
+    expect(find.text('QC-2026-00002'), findsWidgets);
+    Finder c887Delete() => find.descendant(
+          of: find.ancestor(of: find.text('QC-2026-00002').first, matching: find.byType(InkWell)).first,
+          matching: find.byTooltip('Supprimer'),
+        );
+
+    // Échec : message explicite, la fiche reste affichée.
+    db.failDelete = true;
+    await tester.tap(c887Delete());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmer la suppression'));
+    await _settle(tester);
+    expect(find.textContaining('Échec de la suppression'), findsOneWidget);
+    expect(find.textContaining('Base de données indisponible'), findsOneWidget);
+    expect(find.text('QC-2026-00002'), findsWidgets);
+
+    // Succès : la liste est relue sans la fiche.
+    db.failDelete = false;
+    final getsBefore = db.requests.where((r) => r == 'GET /quality-control').length;
+    await tester.tap(c887Delete());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmer la suppression'));
+    await _settle(tester);
+    expect(db.requests, contains('DELETE /quality-control/c887'));
+    expect(db.requests.where((r) => r == 'GET /quality-control').length, greaterThan(getsBefore));
+    expect(find.text('QC-2026-00002'), findsNothing);
+    expect(find.text('QC-2026-00001'), findsWidgets);
   });
 
   testWidgets('fiche VALIDÉE ouverte directement : lecture seule, aucune action', (tester) async {

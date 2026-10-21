@@ -39,6 +39,7 @@ class _QualityControlMachineScreenState extends State<QualityControlMachineScree
   final _svc = QualityControlService.instance;
   late final String _type = widget.type.toUpperCase();
   final bool _canCreate = AuthService().isControleQualite;
+  final bool _canDelete = AuthService().canDeleteQualityControls;
 
   int _page = 1;
   QualityControlPage? _controls; // fiches qualité de la machine (période)
@@ -164,7 +165,8 @@ class _QualityControlMachineScreenState extends State<QualityControlMachineScree
 
   // ── Fiches qualité de la machine ───────────────────────────────────────
 
-  static const _cols = [('Référence', 14), ('Date / Heure', 14), ('Poste · prélèvements', 16), ('Contrôleur qualité', 12), ('Statut', 10), ('Résultat', 12), ('', 12)];
+  // Colonne d'actions élargie pour la corbeille du Super Admin.
+  List<(String, int)> get _cols => [('Référence', 14), ('Date / Heure', 14), ('Poste · prélèvements', 16), ('Contrôleur qualité', 12), ('Statut', 10), ('Résultat', 12), ('', _canDelete ? 17 : 12)];
 
   Widget _cell(int flex, Widget child) => Expanded(
         flex: flex,
@@ -267,16 +269,20 @@ class _QualityControlMachineScreenState extends State<QualityControlMachineScree
           _cell(_cols[5].$2, c.isValidated ? QcStatusBadge(c.status, dense: true) : Text('À vérifier', style: tInter(fontSize: 12, color: kQcAVerifierText))),
           _cell(
             _cols[6].$2,
-            SizedBox(
-              height: 32,
-              // BROUILLON : modifiable ; VALIDÉ : lecture seule.
-              child: FilledButton.tonalIcon(
-                onPressed: open,
-                style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10)),
-                icon: Icon(c.isValidated || !_canCreate ? Icons.lock_outline_rounded : Icons.edit_note_rounded, size: 16),
-                label: Text(c.isValidated || !_canCreate ? 'Consulter' : 'Modifier', style: const TextStyle(fontSize: 12)),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              SizedBox(
+                height: 32,
+                // BROUILLON : modifiable ; VALIDÉ : lecture seule.
+                child: FilledButton.tonalIcon(
+                  onPressed: open,
+                  style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10)),
+                  icon: Icon(c.isValidated || !_canCreate ? Icons.lock_outline_rounded : Icons.edit_note_rounded, size: 16),
+                  label: Text(c.isValidated || !_canCreate ? 'Consulter' : 'Modifier', style: const TextStyle(fontSize: 12)),
+                ),
               ),
-            ),
+              // Super Admin uniquement — liste et compteurs relus via QcSyncMixin.
+              if (_canDelete) QcDeleteControlButton(control: c),
+            ]),
           ),
         ]),
       ),
