@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+
+import 'package:dash_master_toolkit/core/config/api_config.dart';
+import 'package:dash_master_toolkit/services/socket_service.dart';
 
 import 'package:dash_master_toolkit/theme/theme_controller.dart';
 import 'package:dash_master_toolkit/services/notification_api.dart';
@@ -17,12 +22,76 @@ final RxBool hasMore = true.obs;
 
   String get token => AuthService().accessToken ?? "";
 
+  // ── Temps réel ─────────────────────────────────────────────────────────
+  // Événement « notification:new » (Socket.IO, salle de l'utilisateur
+  // connecté uniquement) → badge incrémenté immédiatement puis liste relue
+  // depuis l'API (seule source affichée : l'historique durable en base).
+  // Après chaque (re)connexion, la liste est relue : aucun événement manqué
+  // pendant une coupure n'est perdu. Filet de sécurité : relecture toutes les
+  // 60 s si le temps réel est indisponible, et reconnexion avec le jeton
+  // courant (jeton renouvelé ou autre utilisateur connecté).
+  final SocketService _socket = SocketService.instance;
+  Timer? _fallback;
+  static const fallbackInterval = Duration(seconds: 60);
+
  @override
 void onInit() {
   super.onInit();
   print("🔥 NotificationController INIT");
   fetchNotifications();
+  _startRealtime();
+  _lastToken = token;
+  AuthService().addListener(_onAuthChanged);
 }
+
+  @override
+  void onClose() {
+    AuthService().removeListener(_onAuthChanged);
+    _fallback?.cancel();
+    _socket.off('notification:new');
+    super.onClose();
+  }
+
+  // Connexion / déconnexion / changement de compte : la cloche (créée avant
+  // la connexion) se met à jour immédiatement — notifications du compte
+  // connecté et temps réel, sans attendre le prochain cycle de 60 s ; à la
+  // déconnexion, plus aucune notification du compte précédent affichée.
+  String _lastToken = '';
+  void _onAuthChanged() {
+    final t = token;
+    if (t == _lastToken) return;
+    _lastToken = t;
+    _syncSocket();
+    if (t.isEmpty) {
+      listOfNotification.clear();
+      unreadCount.value = 0;
+      return;
+    }
+    fetchNotifications(silent: true);
+  }
+
+  void _startRealtime() {
+    _socket.on('notification:new', (_) {
+      unreadCount.value++;
+      fetchNotifications(silent: true);
+    });
+    _socket.on('connect', (_) => fetchNotifications(silent: true));
+    _syncSocket();
+    _fallback = Timer.periodic(fallbackInterval, (_) {
+      _syncSocket();
+      if (!_socket.isConnected) fetchNotifications(silent: true);
+    });
+  }
+
+  /// Connexion temps réel avec le jeton courant (aucune si déconnecté).
+  void _syncSocket() {
+    final t = token;
+    if (t.isEmpty) {
+      if (_socket.currentToken != null) _socket.disconnect();
+      return;
+    }
+    _socket.connect(ApiConfig.wsBaseUrl, t);
+  }
 
   // =========================
   // 📥 FETCH

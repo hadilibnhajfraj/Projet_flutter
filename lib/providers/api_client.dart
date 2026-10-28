@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_master_toolkit/core/config/api_config.dart';
+import 'package:dash_master_toolkit/providers/auth_storage.dart';
 
 class ApiClient {
   ApiClient._internal() {
@@ -52,7 +53,10 @@ class ApiClient {
 
           if (kDebugMode) {
             debugPrint("➡️ [${options.method}] ${options.baseUrl}${options.path}");
-            debugPrint("Headers: ${options.headers}");
+            // Jamais le jeton dans les journaux : seule sa présence est indiquée.
+            final shown = Map<String, dynamic>.from(options.headers);
+            if (shown.containsKey('Authorization')) shown['Authorization'] = 'Bearer ***';
+            debugPrint("Headers: $shown");
             if (options.data != null) debugPrint("Body: ${options.data}");
           }
 
@@ -138,6 +142,14 @@ void clearToken() {
   // ✅ Clear Auth (GetStorage + SharedPreferences)
   // =====================================================
   Future<void> clearAuth() async {
+    // Session refusée par le backend (401) : plus aucune requête ne doit
+    // partir avec ce jeton — ni via l'en-tête par défaut de Dio, ni après un
+    // rechargement de la page (stockage sécurisé).
+    clearToken();
+    await AuthStorage.instance.clear();
+    await _box.remove('tokenExpiryMs');
+    await _box.remove('sessionId');
+
     // GetStorage
     await _box.remove('accessToken');
     await _box.write('isLoggedIn', false);

@@ -135,7 +135,7 @@ void main() {
       expect(names('TABLEAU DE BORD'), [
         'KPI Projets CRM',
         'KPI Commercial Contacts',
-        'Tableau de bord Production',
+        'Tableau de bord industriel',
       ]);
       expect(names('PRODUCTION'), [
         'PROMESH',

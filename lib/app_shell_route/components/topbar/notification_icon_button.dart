@@ -397,6 +397,16 @@ class _NotificationPanelState extends State<_NotificationPanel> {
                     widget.parentCtx.go('/forms/project?id=${n.projectId}');
                   }
                 : null,
+            // Fiche de production ou demande de matières premières : ouverte
+            // directement (et marquée comme lue, historique conservé).
+            viewTargetLabel: n.target?.$2,
+            onViewFiche: n.target == null
+                ? null
+                : () {
+                    widget.ctrl.markOneRead(n.id);
+                    Navigator.of(context).pop();
+                    widget.parentCtx.go(n.target!.$1);
+                  },
           );
         },
       );
@@ -479,11 +489,15 @@ class _NotifCard extends StatefulWidget {
     required this.onMarkRead,
     required this.onDismiss,
     this.onViewProject,
+    this.onViewFiche,
+    this.viewTargetLabel,
   });
   final NotificationData notification;
   final VoidCallback      onMarkRead;
   final VoidCallback      onDismiss;
   final VoidCallback?     onViewProject;
+  final VoidCallback?     onViewFiche;
+  final String?           viewTargetLabel;
 
   @override
   State<_NotifCard> createState() => _NotifCardState();
@@ -604,6 +618,14 @@ class _NotifCardState extends State<_NotifCard> {
                                     label: 'Voir projet',
                                     color: style.fg,
                                     onTap: widget.onViewProject!,
+                                  ),
+                                  const SizedBox(width: 7),
+                                ],
+                                if (widget.onViewFiche != null) ...[
+                                  _ActionChip(
+                                    label: widget.viewTargetLabel ?? 'Voir la fiche',
+                                    color: style.fg,
+                                    onTap: widget.onViewFiche!,
                                   ),
                                   const SizedBox(width: 7),
                                 ],

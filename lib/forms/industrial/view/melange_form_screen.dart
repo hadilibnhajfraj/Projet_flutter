@@ -28,6 +28,7 @@ import '../model/industrial_record_model.dart';
 import '../service/industrial_record_service.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/forms/raw_material_request/raw_material_request_screen.dart';
 
 // §MODIFICATION — FICHE MÉLANGE : valeurs EXACTES du dropdown PROMESH,
 // imposées par le ticket — jamais une valeur inventée/normalisée.
@@ -77,10 +78,19 @@ class _MelangeFormScreenState extends State<MelangeFormScreen> {
     // fiche, jamais modifiable non plus).
     if (widget.id == null) {
       _operateur.text = AuthService().displayName;
+      // Ouverture directe d'une fiche vide (menu latéral, URL) : même
+      // contrôle que le bouton « Nouvelle fiche » de l'historique.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _checkRawMaterialRequest());
     } else {
       _loadingEdit = true;
       _loadForEdit(widget.id!);
     }
+  }
+
+  Future<void> _checkRawMaterialRequest() async {
+    if (!mounted) return;
+    final result = await checkMelangeRawMaterialRequest(context, returnTo: MyRoute.melangeHistoriqueScreen);
+    if (result == RawMaterialGateResult.cancelled && mounted) context.go(MyRoute.melangeHistoriqueScreen);
   }
 
   // ── Chargement d'une fiche existante (mode édition) ─────────────────────────

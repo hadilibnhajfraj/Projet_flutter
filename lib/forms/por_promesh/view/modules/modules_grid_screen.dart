@@ -13,6 +13,7 @@ import 'package:intl/intl.dart';
 import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart';
+import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_widgets.dart';
 import '../../controller/por_promesh_controller.dart';
 import 'industrial_context_header.dart';
 
@@ -155,7 +156,9 @@ class _ModulesGridScreenState extends State<ModulesGridScreen> {
     // du contrôleur permanent, cause des "anciennes valeurs" réécrites).
     await c.bootstrapWithId(widget.machine, widget.poste, widget.ficheId, forceRefresh: true);
     if (!mounted) return;
-    if (c.isLocked.value || c.status.value == 'submitted') {
+    // Exception : une fiche refusée par le responsable logistique se corrige
+    // ici avant d'être soumise de nouveau.
+    if ((c.isLocked.value || c.status.value == 'submitted') && !c.isCorrecting) {
       context.go(_fichePath);
       return;
     }
@@ -231,6 +234,17 @@ class _ModulesGridScreenState extends State<ModulesGridScreen> {
               ),
               const SizedBox(height: 16),
               IndustrialContextHeader(machine: widget.machine, poste: widget.poste, color: kPromeshColor),
+              if (c.isCorrecting && c.approval.value != null && c.recordId != null) ...[
+                const SizedBox(height: 16),
+                FicheApprovalNotice(
+                  approval: c.approval.value!,
+                  action: FicheResubmitButton(
+                    ficheType: 'promesh',
+                    ficheId: c.recordId!,
+                    onResubmitted: (_) => context.go(_fichePath),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               Text('Que souhaitez-vous saisir ?', style: tInter(fontSize: 22, fontWeight: FontWeight.w900, color: kCrmText)),
               const SizedBox(height: 16),
@@ -257,6 +271,9 @@ class _ModulesGridScreenState extends State<ModulesGridScreen> {
                 },
               ),
               const SizedBox(height: 28),
+              // Fiche terminée puis refusée : « Soumettre de nouveau » (plus
+              // haut) remplace « Terminer la saisie ».
+              if (!(c.isCorrecting && c.status.value == 'submitted'))
               SizedBox(
                 width: double.infinity,
                 height: 64,

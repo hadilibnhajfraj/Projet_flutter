@@ -80,7 +80,7 @@ class ArchiveRequestProvider extends GetxController {
   // ── Load — direct Dio call with full logs ──────────────────────────────────
   Future<void> load() async {
     await loadArchiveRequests();
-    if (isAdmin) await loadStats();
+    if (isAdmin && _auth.canUseProjectArchiveRequests) await loadStats();
   }
 
   Future<void> loadStats() async {
@@ -88,13 +88,19 @@ class ArchiveRequestProvider extends GetxController {
   }
 
   Future<void> loadArchiveRequests() async {
+    // Pas de session (déconnexion, session expirée) ou rôle sans accès à ce
+    // module : aucune requête — évite les 401 « Missing token » répétés par
+    // le rafraîchissement périodique et les 403 inutiles.
+    if (!_auth.canUseProjectArchiveRequests) {
+      requests.clear();
+      loading.value = false;
+      return;
+    }
     loading.value = true;
 
-    final token    = _auth.accessToken;
     final endpoint = isAdmin ? '/archive-requests/admin' : '/archive-requests/my';
 
     debugPrint('LOAD ARCHIVE REQUESTS');
-    debugPrint('TOKEN = $token');
     debugPrint('ENDPOINT = $endpoint');
 
     try {

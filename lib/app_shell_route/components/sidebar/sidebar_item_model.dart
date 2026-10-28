@@ -143,7 +143,7 @@ GroupedMenuModel buildDashboardGroup({
           ),
         if (canViewProductionDashboard)
           SidebarItemModel(
-            name:           'Tableau de bord Production',
+            name:           'Tableau de bord industriel',
             icon:           Icons.precision_manufacturing_outlined,
             navigationPath: MyRoute.productionDashboardScreen,
           ),
@@ -171,6 +171,9 @@ List<GroupedMenuModel> buildGroupedMenus({
   bool isComplianceManager = false,
   bool isProductionWorkflowManager = false,
   bool isProbarProjectManager = false,
+  bool canViewRawMaterialRequests = false,
+  bool canValidateRawMaterialRequests = false,
+  bool canViewFicheApprovals = false,
 }) {
   // ── ESPACE DÉDIÉ — responsable_logistique_achat ─────────────────────────
   // Rien d'autre que le module industriel n'est visible pour ce rôle : pas
@@ -179,10 +182,14 @@ List<GroupedMenuModel> buildGroupedMenus({
   // congé ou une autorisation de sortie, quel que soit son rôle.
   if (isLogistiqueAchat) {
     return [
-      ...buildIndustrialGroups(),
+      ...buildIndustrialGroups(
+        showRawMaterials: canViewRawMaterialRequests,
+        showRawMaterialValidation: canValidateRawMaterialRequests,
+        showFicheApproval: canViewFicheApprovals,
+      ),
       buildHrGroup(),
       buildRecuperableGroup(),
-      // Uniquement responsable_logistique@cbi-tunisia.com (jamais
+      // Uniquement les responsables logistique et production (jamais
       // production_1..5, qui partagent ce rôle) : ADMINISTRATION réduite aux
       // demandes Production — ni RH, ni Maintenance, ni autres demandes.
       if (isProductionWorkflowManager) buildProductionRequestsAdminGroup(),
@@ -203,7 +210,13 @@ List<GroupedMenuModel> buildGroupedMenus({
   // structure différente/dupliquée. Ni RH ni Récupérables ni CRM/
   // Administration (non demandés par ce ticket).
   if (isFinanceProduction) {
-    return [...buildIndustrialGroups(), buildFinanceGroup()];
+    return [
+      ...buildIndustrialGroups(
+        showRawMaterials: canViewRawMaterialRequests,
+        showRawMaterialValidation: canValidateRawMaterialRequests,
+      ),
+      buildFinanceGroup(),
+    ];
   }
 
   // ── ESPACE DÉDIÉ — controle_qualite ─────────────────────────────────────
@@ -317,7 +330,12 @@ List<GroupedMenuModel> buildGroupedMenus({
     // backend), en plus de leur menu habituel — rien n'est retiré.
     if (isProbarProjectManager && !isAdmin) buildCommercialGroup(),
 
-    if (showIndustrial) buildProductionGroup(),
+    if (showIndustrial)
+      buildProductionGroup(
+        showRawMaterials: canViewRawMaterialRequests,
+        showRawMaterialValidation: canValidateRawMaterialRequests,
+        showFicheApproval: canViewFicheApprovals,
+      ),
     if (showIndustrial) buildMelangeGroup(),
     if (canViewFinance && !isRestrictedAdmin) buildFinanceGroup(),
     // Admins : consultation seule (la saisie est réservée à controle_qualite).
@@ -497,13 +515,33 @@ GroupedMenuModel buildCommercialGroup() => GroupedMenuModel(
       ],
     );
 
-List<GroupedMenuModel> buildIndustrialGroups() => [
-      buildProductionGroup(),
+List<GroupedMenuModel> buildIndustrialGroups({
+  bool showRawMaterials = false,
+  bool showRawMaterialValidation = false,
+  bool showFicheApproval = false,
+}) =>
+    [
+      buildProductionGroup(
+        showRawMaterials: showRawMaterials,
+        showRawMaterialValidation: showRawMaterialValidation,
+        showFicheApproval: showFicheApproval,
+      ),
       buildMelangeGroup(),
       buildMaintenanceGroup(),
     ];
 
-GroupedMenuModel buildProductionGroup() => GroupedMenuModel(
+// `showRawMaterials` : entrée « Matières premières » (suivi des demandes de
+// matières premières) — demandeur et gestionnaires uniquement
+// (AuthService.canViewRawMaterialRequests ; le backend reste l'autorité).
+// `showRawMaterialValidation` : sous-menu « Demandes à valider » (gestionnaires).
+// `showFicheApproval` : « Validation des fiches de production » (responsable
+// logistique, comptes de production concernés, admins en lecture).
+GroupedMenuModel buildProductionGroup({
+  bool showRawMaterials = false,
+  bool showRawMaterialValidation = false,
+  bool showFicheApproval = false,
+}) =>
+    GroupedMenuModel(
         name: 'PRODUCTION',
         menus: [
           // Le Dashboard Production est accessible depuis le groupe TABLEAU
@@ -550,6 +588,40 @@ GroupedMenuModel buildProductionGroup() => GroupedMenuModel(
             navigationPath: MyRoute.productionProbarSummaryScreen,
             accentColor:    kProbarColor,
           ),
+          if (showRawMaterials && showRawMaterialValidation)
+            SidebarItemModel(
+              name:           'Matières premières',
+              icon:           Icons.inventory_2_outlined,
+              sidebarItemType: SidebarItemType.submenu,
+              navigationPath: MyRoute.rawMaterialRequestsTrackingScreen,
+              isPage:         true,
+              submenus: [
+                SidebarSubmenuModel(
+                  name:           'Toutes les demandes',
+                  icon:           Icons.list_alt_outlined,
+                  navigationPath: MyRoute.rawMaterialRequestsTrackingScreen,
+                ),
+                SidebarSubmenuModel(
+                  name:           'Demandes à valider',
+                  icon:           Icons.fact_check_outlined,
+                  navigationPath: MyRoute.rawMaterialRequestsToValidateScreen,
+                ),
+              ],
+            )
+          else if (showRawMaterials)
+            SidebarItemModel(
+              name:           'Matières premières',
+              icon:           Icons.inventory_2_outlined,
+              sidebarItemType: SidebarItemType.tile,
+              navigationPath: MyRoute.rawMaterialRequestsTrackingScreen,
+            ),
+          if (showFicheApproval)
+            SidebarItemModel(
+              name:           'Validation des fiches de production',
+              icon:           Icons.fact_check_outlined,
+              sidebarItemType: SidebarItemType.tile,
+              navigationPath: MyRoute.ficheApprovalScreen,
+            ),
         ],
       );
 

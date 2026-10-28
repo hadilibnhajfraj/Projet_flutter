@@ -5,6 +5,8 @@ import 'package:dash_master_toolkit/providers/archive_request_provider.dart';
 import 'package:dash_master_toolkit/providers/maintenance_request_provider.dart';
 import 'package:dash_master_toolkit/providers/production_compliance_request_provider.dart';
 import 'package:dash_master_toolkit/providers/production_unarchive_request_provider.dart';
+import 'package:dash_master_toolkit/providers/raw_material_pending_provider.dart';
+import 'package:dash_master_toolkit/providers/fiche_approval_pending_provider.dart';
 import 'package:dash_master_toolkit/core/theme/app_text_styles.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart'
     show kPromeshColor, kProbarColor, kMelangeColor, kMaintenanceColor;
@@ -88,6 +90,9 @@ class SideBarWidget extends StatelessWidget {
       isComplianceManager: auth.isComplianceManager,
       isProductionWorkflowManager: auth.isProductionWorkflowManager,
       isProbarProjectManager: auth.isProbarProjectManager,
+      canViewRawMaterialRequests: auth.canViewRawMaterialRequests,
+      canValidateRawMaterialRequests: auth.isRawMaterialRequestManager,
+      canViewFicheApprovals: auth.canViewFicheApprovals,
     );
 
     final sidebarW = iconOnly
@@ -586,6 +591,24 @@ class SidebarMenuItem extends StatelessWidget {
                       if (count == 0) return const SizedBox.shrink();
                       return _Badge(count: count, selected: isSelected);
                     })
+                  // « Matières premières » : demandes en attente de validation,
+                  // en direct, pour le seul responsable logistique achats.
+                  else if (menuTile.navigationPath == MyRoute.rawMaterialRequestsTrackingScreen &&
+                      AuthService().isRawMaterialRequestValidator)
+                    Obx(() {
+                      final count = RawMaterialPendingProvider.to.pendingCount.value;
+                      if (count == 0) return const SizedBox.shrink();
+                      return _Badge(count: count, selected: isSelected);
+                    })
+                  // « Validation des fiches de production » : fiches en attente,
+                  // en direct, pour le seul responsable logistique.
+                  else if (menuTile.navigationPath == MyRoute.ficheApprovalScreen &&
+                      AuthService().isFicheApprovalValidator)
+                    Obx(() {
+                      final count = FicheApprovalPendingProvider.to.pendingCount.value;
+                      if (count == 0) return const SizedBox.shrink();
+                      return _Badge(count: count, selected: isSelected);
+                    })
                   else if (menuTile.badge != null)
                     _Badge(count: menuTile.badge!, selected: isSelected),
                   // Chevron (submenu)
@@ -662,6 +685,13 @@ class SidebarMenuItem extends StatelessWidget {
               else if (sub.navigationPath == MyRoute.productionComplianceScreen)
                 Obx(() {
                   final count = ProductionComplianceRequestProvider.to.pendingCount;
+                  if (count == 0) return const SizedBox.shrink();
+                  return _Badge(count: count, selected: false);
+                })
+              else if (sub.navigationPath == MyRoute.rawMaterialRequestsToValidateScreen &&
+                  AuthService().isRawMaterialRequestValidator)
+                Obx(() {
+                  final count = RawMaterialPendingProvider.to.pendingCount.value;
                   if (count == 0) return const SizedBox.shrink();
                   return _Badge(count: count, selected: false);
                 })

@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'package:dash_master_toolkit/core/config/logistics_managers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:uuid/uuid.dart';
 
 import '../services/device_identity_service.dart';
 import 'api_client.dart';
@@ -41,6 +44,20 @@ String get displayName {
   String? get userId => _box.read<String>('userId');
   String? get userEmail => _box.read<String>('userEmail');
   String? get userRole => _box.read<String>('userRole');
+
+  /// Identifiant de la session authentifiée : nouveau à chaque connexion,
+  /// conservé à l'actualisation de la page (restoreSession), effacé à la
+  /// déconnexion. Sert aux actions « une fois par session ».
+  String? get sessionId => _box.read<String>('sessionId');
+
+  /// Sessions ouvertes avant l'ajout de [sessionId] : en crée un à la volée.
+  Future<String> ensureSessionId() async {
+    final current = sessionId;
+    if (current != null && current.isNotEmpty) return current;
+    final id = const Uuid().v4();
+    await _box.write('sessionId', id);
+    return id;
+  }
   // Ajouter à la fin de AuthService (avant la fin de la classe)
 bool get isAdmin {
     final r = userRole?.toLowerCase();
@@ -115,21 +132,67 @@ bool get isComplianceManager {
   return e == 'hadil.ibnhajfraj@gmail.com' || e == 'manegerofficecbi@gmail.com' || e == 'cbitunisia@cbi-tunisia.com';
 }
 
-// Responsable logistique — gère UNIQUEMENT les demandes Production
+// Responsables logistique et production (lib/core/config/logistics_managers.dart)
+// — gèrent UNIQUEMENT les demandes Production
 // (autorisation de backfill, désarchivage) + leurs statistiques. Exception
 // NOMINATIVE : son rôle responsable_logistique_achat est partagé avec
 // production_1..5, qui ne doivent jamais gérer ces demandes. Même liste que
 // le backend (config/productionWorkflow.js, PRODUCTION_WORKFLOW_MANAGERS) —
 // le backend reste l'autorité (permissions production.* revérifiées).
-bool get isProductionWorkflowManager {
-  final e = (userEmail ?? '').toLowerCase().trim();
-  return e == 'responsable_logistique@cbi-tunisia.com';
+bool get isProductionWorkflowManager => isLogisticsManagerEmail(userEmail);
+
+// Module « demandes d'archivage des projets CRM » (/archive-requests) : refusé
+// par le backend (moduleAccessGuard) aux rôles des espaces dédiés — même
+// liste, le backend restant l'autorité. Aucune requête sans session ouverte.
+static const Set<String> kRolesWithoutProjectArchiveRequests = {
+  'responsable_logistique_achat',
+  'finance_probar',
+  'finance_production',
+  'controle_qualite',
+};
+
+bool get canUseProjectArchiveRequests {
+  final token = accessToken;
+  if (token == null || token.isEmpty) return false;
+  return !kRolesWithoutProjectArchiveRequests.contains((userRole ?? '').toLowerCase().trim());
 }
 
 // Accès aux écrans des demandes Production : responsables historiques
 // (tous les droits Production Compliance) ou responsable logistique
 // (demandes uniquement).
 bool get canManageProductionRequests => isComplianceManager || isProductionWorkflowManager;
+
+// Menu « Matières premières » (suivi des demandes de matières premières) —
+// mêmes règles que le backend (config/rawMaterialRequest.js : isManager,
+// requiredEmails), qui reste l'autorité sur chaque route. Gestionnaires :
+// toutes les demandes + changement de statut ; demandeur (production_1) :
+// ses propres demandes en lecture.
+bool get isRawMaterialRequestManager => isAdmin || isLogisticsManagerEmail(userEmail);
+
+// Comptes qui valident / rejettent les demandes en attente (backend :
+// RAW_MATERIAL_REQUEST_VALIDATORS) — popup à la connexion et badge du menu.
+bool get isRawMaterialRequestValidator => isLogisticsManagerEmail(userEmail);
+
+// Shift soir (backend : RAW_MATERIAL_REQUEST_EVENING_HANDLERS) : prise en
+// charge des demandes validées, popup à la connexion.
+bool get isRawMaterialEveningHandler =>
+    (userEmail ?? '').toLowerCase().trim() == 'production_2@cbi-tunisia.com';
+
+// Validation des fiches de production PROMESH / PROBAR (backend :
+// FICHE_APPROVAL_VALIDATORS / FICHE_APPROVAL_CREATORS, seule autorité).
+bool get isFicheApprovalValidator => isLogisticsManagerEmail(userEmail);
+
+bool get isFicheApprovalCreator => const {
+      'production_1@cbi-tunisia.com',
+      'production_2@cbi-tunisia.com',
+    }.contains((userEmail ?? '').toLowerCase().trim());
+
+bool get canViewFicheApprovals => isFicheApprovalValidator || isFicheApprovalCreator || isAdmin;
+
+bool get canViewRawMaterialRequests {
+  final e = (userEmail ?? '').toLowerCase().trim();
+  return isRawMaterialRequestManager || e == 'production_1@cbi-tunisia.com' || isRawMaterialEveningHandler;
+}
 
 // Gestion complète des demandes de maintenance (Administration > Demandes >
 // Maintenance) : accepter/refuser/affecter un technicien/passer en cours/
@@ -374,6 +437,7 @@ Future<List<String>> getUserNames() async {
     await _box.write('accessToken', token);
     await _box.write('tokenExpiryMs', expiry.millisecondsSinceEpoch);
     await _box.write('isLoggedIn', true);
+    await _box.write('sessionId', const Uuid().v4());
 
     // ✅ stock user
     if (user is Map) {
@@ -414,6 +478,22 @@ Future<List<String>> getUserNames() async {
       await _box.write('accessToken', token);
       await _box.write('tokenExpiryMs', expiry.millisecondsSinceEpoch);
       await _box.write('isLoggedIn', true);
+
+      // Identité TOUJOURS celle du jeton restauré (jamais celle d'un compte
+      // précédent restée dans GetStorage). Lecture du contenu du JWT pour
+      // l'affichage uniquement — le backend vérifie la signature à chaque appel.
+      final identity = jwtIdentity(token);
+      if (identity == null) {
+        await _cleanupSession();
+        return false;
+      }
+      if (_box.read<String>('userId') != identity.id) {
+        await _box.remove('probarProjectManager');
+        await _box.remove('sessionId');
+      }
+      await _box.write('userId', identity.id);
+      await _box.write('userEmail', identity.email);
+      await _box.write('userRole', identity.role);
 
       notifyListeners();
       return true;
@@ -520,7 +600,27 @@ Future<List<String>> getUserNames() async {
     await _box.remove('userEmail');
     await _box.remove('userRole');
     await _box.remove('probarProjectManager');
+    await _box.remove('sessionId');
 
     ApiClient.instance.clearToken(); // ✅ remove Authorization header
+  }
+}
+
+/// Identité (sub, email, role) contenue dans un JWT — lecture seule pour
+/// l'affichage, sans vérification de signature (faite par le backend).
+/// null si le jeton est illisible.
+({String id, String email, String role})? jwtIdentity(String token) {
+  try {
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+    final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
+    if (payload is! Map) return null;
+    final id = payload['sub']?.toString() ?? '';
+    final email = payload['email']?.toString() ?? '';
+    final role = payload['role']?.toString() ?? '';
+    if (id.isEmpty || email.isEmpty) return null;
+    return (id: id, email: email.toLowerCase().trim(), role: role);
+  } catch (_) {
+    return null;
   }
 }

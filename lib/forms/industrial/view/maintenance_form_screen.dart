@@ -3,6 +3,7 @@
 // Demande MAINTENANCE — un seul écran-carte, équipement + type de panne +
 // urgence (3 gros choix colorés) + description.
 
+import 'package:dash_master_toolkit/core/config/logistics_managers.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -56,16 +57,14 @@ class _MaintenanceFormScreenState extends State<MaintenanceFormScreen> {
     if (picked != null) setState(() => _date.text = DateFormat('yyyy-MM-dd').format(picked));
   }
 
-  static const _authorizedRequesterEmail = 'responsable_logistique@cbi-tunisia.com';
-
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    // Seul responsable_logistique@cbi-tunisia.com peut créer une demande de
+    // Seuls les responsables logistique et production peuvent créer une demande de
     // maintenance — vérifié avant tout appel API (le backend revalide aussi,
     // ne jamais faire confiance uniquement au frontend).
     final currentEmail = (AuthService().userEmail ?? '').toLowerCase().trim();
-    if (currentEmail != _authorizedRequesterEmail) {
+    if (!isLogisticsManagerEmail(currentEmail)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(AppLocalizations.of(context)

@@ -109,14 +109,17 @@ class ModuleScaffold extends StatelessWidget {
                 controller: controller,
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 0),
-              child: ProductionComplianceBanner(),
-            ),
+            // Le bandeau des dates manquantes / autorisations défile avec le
+            // contenu : hors de la zone défilante, une longue liste de dates
+            // dépassait la hauteur de l'écran (RenderFlex overflow) et
+            // repoussait les boutons Enregistrer / Suivant hors de la page.
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
-                child: loading ? const ModuleContentSkeleton() : child,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const ProductionComplianceBanner(),
+                  loading ? const ModuleContentSkeleton() : child,
+                ]),
               ),
             ),
             Padding(

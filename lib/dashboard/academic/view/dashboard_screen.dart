@@ -143,8 +143,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     print("=== [DASHBOARD DIAG] ========================================");
     print("USER_ID       : '$_currentUserId'");
     print("IS_ADMIN      : $_isAdmin");
-    print("WIDGET_TOKEN  : '${widget.token.isEmpty ? 'VIDE !!!' : widget.token.substring(0, widget.token.length.clamp(0, 30))}...'");
-    print("GETSTORE_TOKEN: '${ApiClient.instance.getAccessToken()?.substring(0, (ApiClient.instance.getAccessToken()?.length ?? 0).clamp(0, 30)) ?? 'NULL !!!'}...'");
+    print("WIDGET_TOKEN  : ${widget.token.isEmpty ? 'VIDE !!!' : 'présent'}");
+    print("GETSTORE_TOKEN: ${(ApiClient.instance.getAccessToken() ?? '').isEmpty ? 'NULL !!!' : 'présent'}");
     print("=============================================================");
 
     try {

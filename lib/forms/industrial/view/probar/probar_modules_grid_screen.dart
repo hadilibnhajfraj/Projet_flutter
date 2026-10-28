@@ -14,6 +14,7 @@ import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/modules/industrial_context_header.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_widgets.dart';
 import '../../controller/probar_controller.dart';
 
 class _ModuleSpec {
@@ -134,6 +135,9 @@ class _ProbarModulesGridScreenState extends State<ProbarModulesGridScreen> {
   // identifier la fiche — plus de résolution implicite par date du jour ici.
   Future<void> _bootstrap() async {
     await c.bootstrapWithId(widget.machine, widget.poste, widget.ficheId);
+    // Statut de validation à jour (fiche peut-être refusée depuis le
+    // dernier chargement) avant de décider du verrouillage.
+    if (c.isLocked.value) await c.loadById(widget.ficheId);
     if (!mounted) return;
     if (c.isLocked.value) {
       // Fiche verrouillée (déjà validée) : la grille des modules ne peut
@@ -226,6 +230,20 @@ class _ProbarModulesGridScreenState extends State<ProbarModulesGridScreen> {
               ),
               const SizedBox(height: 16),
               IndustrialContextHeader(machine: widget.machine, poste: widget.poste, color: kProbarColor, lineLabel: 'PROBAR'),
+              if (c.isCorrecting && c.approval.value != null && c.recordId != null) ...[
+                const SizedBox(height: 16),
+                FicheApprovalNotice(
+                  approval: c.approval.value!,
+                  action: FicheResubmitButton(
+                    ficheType: 'probar',
+                    ficheId: c.recordId!,
+                    onResubmitted: (_) {
+                      c.isLocked.value = true;
+                      context.go('${MyRoute.productionProbarRoot}/machine/${widget.machine}/poste/${widget.poste}/dashboard');
+                    },
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               Text(AppLocalizations.of(context).translate('Que souhaitez-vous saisir ?'),
                   style: tInter(fontSize: 22, fontWeight: FontWeight.w900, color: kCrmText)),
@@ -253,6 +271,9 @@ class _ProbarModulesGridScreenState extends State<ProbarModulesGridScreen> {
                 },
               ),
               const SizedBox(height: 28),
+              // Fiche terminée puis refusée : « Soumettre de nouveau » (plus
+              // haut) remplace « Terminer la saisie ».
+              if (!(c.isCorrecting && c.statut.value == 'validee'))
               SizedBox(
                 width: double.infinity,
                 height: 64,

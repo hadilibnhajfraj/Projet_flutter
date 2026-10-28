@@ -62,69 +62,187 @@ Future<bool> showProductionError(BuildContext context, Object error, {String? pr
 }
 
 Future<void> _showMissingDialog(BuildContext context, ProductionApiException e) async {
-  final t = AppLocalizations.of(context).translate;
   final data = e.data ?? {};
   final dates = _dates(data)..sort();
-  final requested = _fmt(data['requestedDate']);
-  final prod = productionLabel(data['production']);
 
   await showDialog<void>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: Row(children: [
-        const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            e.isMissingPreviousSheet ? t(dates.length > 1 ? 'MISSING PRODUCTION SHEETS' : 'MISSING PRODUCTION SHEET') : t('PREVIOUS DATE'),
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-          ),
-        ),
-      ]),
-      content: SizedBox(
-        width: 460,
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (e.isMissingPreviousSheet) ...[
-            if (requested.isNotEmpty) ...[
-              Text('${t('You cannot create the sheet of')} $requested'),
-              const SizedBox(height: 6),
-            ],
-            Text(t(dates.length > 1 ? 'because the following sheets are missing:' : 'because the following sheet is missing:')),
-            const SizedBox(height: 8),
-            for (final d in dates)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Row(children: [
-                  const Text('•  '),
-                  Text(_fmt(d), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
-                ]),
-              ),
-          ] else ...[
-            Text('${t('This date is in the past')} (${dates.isNotEmpty ? _fmt(dates.first) : requested}).'),
-            const SizedBox(height: 6),
-            Text(t('A backfill authorization is required.')),
-          ],
-          const SizedBox(height: 12),
-          Text(t('An authorization request must be sent to the Super Admin to regularize these dates.')),
-          const SizedBox(height: 4),
-          Text('$prod · ${AuthService().userEmail ?? ''}', style: const TextStyle(fontSize: 12)),
-        ]),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(t('CANCEL'))),
-        FilledButton.icon(
-          onPressed: () async {
-            Navigator.of(ctx).pop();
-            if (context.mounted) {
-              await showAuthorizationRequestDialog(context, missingDates: dates, production: data['production']?.toString(), requestedDate: data['requestedDate']?.toString());
-            }
-          },
-          icon: const Icon(Icons.send_rounded, size: 18),
-          label: Text(t('REQUEST AN AUTHORIZATION')),
-        ),
-      ],
+    builder: (ctx) => MissingProductionSheetsDialog(
+      isMissingPreviousSheet: e.isMissingPreviousSheet,
+      dates: dates,
+      requestedDate: data['requestedDate']?.toString(),
+      production: data['production']?.toString(),
+      userEmail: AuthService().userEmail,
+      onRequestAuthorization: () async {
+        Navigator.of(ctx).pop();
+        if (context.mounted) {
+          await showAuthorizationRequestDialog(context, missingDates: dates, production: data['production']?.toString(), requestedDate: data['requestedDate']?.toString());
+        }
+      },
     ),
   );
+}
+
+/// Popup « FICHES DE PRODUCTION MANQUANTES » : en-tête fixe, contenu central
+/// défilable (la liste des dates a sa propre zone à hauteur maximale) et pied
+/// fixe avec ANNULER / DEMANDER UNE AUTORISATION — jamais plus haute que la
+/// fenêtre, quel que soit le nombre de dates (toutes restent consultables).
+class MissingProductionSheetsDialog extends StatefulWidget {
+  final bool isMissingPreviousSheet;
+  /// Dates manquantes (YYYY-MM-DD), déjà triées.
+  final List<String> dates;
+  final String? requestedDate;
+  final String? production;
+  final String? userEmail;
+  final VoidCallback onRequestAuthorization;
+
+  const MissingProductionSheetsDialog({
+    super.key,
+    required this.isMissingPreviousSheet,
+    required this.dates,
+    required this.onRequestAuthorization,
+    this.requestedDate,
+    this.production,
+    this.userEmail,
+  });
+
+  @override
+  State<MissingProductionSheetsDialog> createState() => _MissingProductionSheetsDialogState();
+}
+
+class _MissingProductionSheetsDialogState extends State<MissingProductionSheetsDialog> {
+  final _datesScroll = ScrollController();
+
+  @override
+  void dispose() {
+    _datesScroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = AppLocalizations.of(context).translate;
+    final dates = widget.dates;
+    final requested = _fmt(widget.requestedDate);
+    final media = MediaQuery.of(context);
+    // Hauteur réellement disponible (clavier et zones de sécurité déduits),
+    // dont la popup n'occupe jamais plus de 88 %.
+    final available = media.size.height - media.viewInsets.vertical - media.padding.vertical;
+    final maxHeight = available * 0.88;
+    // Zone des dates : bornée, pour laisser visibles le message et les boutons.
+    final datesMaxHeight = (available * 0.35).clamp(96.0, 300.0);
+
+    return Dialog(
+      key: const ValueKey('missing-sheets-dialog'),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 520, maxHeight: maxHeight),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          // ── En-tête fixe ──────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
+            child: Row(children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.isMissingPreviousSheet
+                      ? t(dates.length > 1 ? 'MISSING PRODUCTION SHEETS' : 'MISSING PRODUCTION SHEET')
+                      : t('PREVIOUS DATE'),
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+                ),
+              ),
+            ]),
+          ),
+          // ── Contenu central défilable ─────────────────────────────────
+          Flexible(
+            child: SingleChildScrollView(
+              key: const ValueKey('missing-sheets-body'),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (widget.isMissingPreviousSheet) ...[
+                  if (requested.isNotEmpty) ...[
+                    Text('${t('You cannot create the sheet of')} $requested'),
+                    const SizedBox(height: 6),
+                  ],
+                  Text(t(dates.length > 1 ? 'because the following sheets are missing:' : 'because the following sheet is missing:')),
+                  const SizedBox(height: 8),
+                  if (dates.length > 1)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        '${dates.length} ${t('fiches manquantes')}',
+                        key: const ValueKey('missing-sheets-count'),
+                        style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.orange),
+                      ),
+                    ),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: datesMaxHeight),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.orange.withOpacity(0.35)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Scrollbar(
+                        controller: _datesScroll,
+                        thumbVisibility: dates.length > 6,
+                        child: ListView.builder(
+                          key: const ValueKey('missing-sheets-dates'),
+                          controller: _datesScroll,
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.fromLTRB(10, 6, 14, 6),
+                          itemCount: dates.length,
+                          itemBuilder: (_, i) => Padding(
+                            padding: const EdgeInsets.only(bottom: 3),
+                            child: Row(children: [
+                              const Text('•  '),
+                              Text(_fmt(dates[i]), style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  Text('${t('This date is in the past')} (${dates.isNotEmpty ? _fmt(dates.first) : requested}).'),
+                  const SizedBox(height: 6),
+                  Text(t('A backfill authorization is required.')),
+                ],
+                const SizedBox(height: 12),
+                Text(t('An authorization request must be sent to the Super Admin to regularize these dates.')),
+                const SizedBox(height: 4),
+                Text('${productionLabel(widget.production)} · ${widget.userEmail ?? ''}', style: const TextStyle(fontSize: 12)),
+                const SizedBox(height: 4),
+              ]),
+            ),
+          ),
+          // ── Pied fixe : boutons toujours visibles, passent à la ligne ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+            child: OverflowBar(
+              alignment: MainAxisAlignment.end,
+              overflowAlignment: OverflowBarAlignment.end,
+              spacing: 8,
+              overflowSpacing: 8,
+              children: [
+                TextButton(
+                  key: const ValueKey('missing-sheets-cancel'),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(t('CANCEL')),
+                ),
+                FilledButton.icon(
+                  key: const ValueKey('missing-sheets-request'),
+                  onPressed: widget.onRequestAuthorization,
+                  icon: const Icon(Icons.send_rounded, size: 18),
+                  label: Text(t('REQUEST AN AUTHORIZATION')),
+                ),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
 /// Fiche archivée automatiquement (brouillon > 2h sans finalisation, voir

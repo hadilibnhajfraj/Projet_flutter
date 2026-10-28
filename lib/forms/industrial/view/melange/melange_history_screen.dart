@@ -19,6 +19,7 @@ import 'package:dash_master_toolkit/forms/por_promesh/view/widgets/shimmer_box.d
 import 'package:dash_master_toolkit/forms/industrial/model/industrial_record_model.dart';
 import 'package:dash_master_toolkit/forms/industrial/service/industrial_record_service.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/forms/raw_material_request/raw_material_request_screen.dart';
 
 import 'melange_history_card.dart';
 
@@ -193,6 +194,13 @@ class _MelangeHistoryScreenState extends State<MelangeHistoryScreen> {
     }
   }
 
+  // Demande de matières premières exigée (production_1, poste Matin) :
+  // popup « Créer la demande / Annuler » avant d'ouvrir le formulaire.
+  Future<void> _openNewFiche() async {
+    final result = await checkMelangeRawMaterialRequest(context, returnTo: MyRoute.melangeHistoriqueScreen);
+    if (result == RawMaterialGateResult.proceed && mounted) context.go(MyRoute.melangeFormScreen);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -220,7 +228,7 @@ class _MelangeHistoryScreenState extends State<MelangeHistoryScreen> {
                           label: 'Nouvelle fiche',
                           icon: Icons.add_rounded,
                           color: kMelangeColor,
-                          onTap: () => context.go(MyRoute.melangeFormScreen),
+                          onTap: _openNewFiche,
                         ),
                       ]),
                       const SizedBox(height: 20),

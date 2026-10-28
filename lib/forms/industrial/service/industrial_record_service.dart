@@ -6,9 +6,12 @@
 // Cache mémoire par session : fetchAll() ne rappelle jamais le réseau pour
 // une combinaison module/machine/poste déjà chargée (invalidée uniquement
 // par create/update/delete ou par `forceRefresh: true`, ex. pull-to-refresh).
+// La clé inclut l'utilisateur connecté : après un changement de compte dans
+// le même onglet, les fiches de l'ancien compte ne sont jamais réutilisées.
 
 import 'package:dio/dio.dart';
 import 'package:dash_master_toolkit/providers/api_client.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dash_master_toolkit/production_compliance/service/production_compliance_service.dart';
 import '../model/industrial_record_model.dart';
 
@@ -21,7 +24,7 @@ class IndustrialRecordService {
   final Map<String, List<IndustrialRecordModel>> _listCache = {};
 
   String _cacheKey({String? module, String? machine, String? poste}) =>
-      '${module ?? ''}|${machine ?? ''}|${poste ?? ''}';
+      '${module ?? ''}|${machine ?? ''}|${poste ?? ''}|${AuthService().userId ?? ''}';
 
   Future<List<IndustrialRecordModel>> fetchAll({
     String? module,

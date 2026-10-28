@@ -11,8 +11,9 @@ class ApiConfig {
   /// API base URL - change to production URL or environment variable as needed
   static const String baseUrl = 'https://api.crmprobar.com';
 
-  /// WebSocket base URL
-  static const String wsBaseUrl = 'wss://api.crmprobar.com';
+  /// WebSocket (Socket.IO) : même serveur que l'API — le client passe
+  /// automatiquement en ws:// (http) ou wss:// (https).
+  static const String wsBaseUrl = baseUrl;
 
   /// Convenience getters
   static String get apiPath => baseUrl;

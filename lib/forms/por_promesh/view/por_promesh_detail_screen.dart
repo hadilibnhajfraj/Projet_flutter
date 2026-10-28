@@ -1,46 +1,41 @@
 // lib/forms/por_promesh/view/por_promesh_detail_screen.dart
 //
-// Détail (lecture seule) d'une fiche POR PROMESH — refonte visuelle pour
-// suivre exactement le design des écrans-module actuels (cq_theme.dart :
-// CqCardSurface/CqCardHeader/CqSectionHeading + les nouveaux widgets
-// `view/detail/*.dart` : DetailInfoCard/DetailKpiCard/DetailPersonCard/
-// DetailMachineValueCard/QualityMeasuresTable/DetailActionsBar).
+// Détail (lecture seule) d'une fiche de production PROMESH. Mise en page
+// commune avec PROBAR (forms/industrial/view/detail/fiche_detail_layout.dart) :
+// en-tête (numéro, statut, date, heure, machine, poste, actions), bannière
+// de verrouillage, barre de résumé, panneaux Informations générales /
+// Production / Contrôle qualité, puis onglets Paramètres de production,
+// Contrôle qualité, Matières premières, Documents, Historique.
 //
-// Refonte STRICTEMENT visuelle : mêmes données (`PorPromeshModel`), même
-// ordre de sections, aucune route/modèle/contrôleur/service/API modifié.
-//
-// Charge la fiche UNE SEULE FOIS (`_load()`), toutes les sections lisent la
-// même instance `PorPromeshModel` en mémoire — aucun appel réseau
-// supplémentaire par section.
+// Mêmes données qu'avant (`PorPromeshModel`, chargé UNE SEULE FOIS par
+// `_load()`), mêmes actions (Modifier, Imprimer, Export PDF, Export Excel,
+// Supprimer — désactivées sur une fiche verrouillée), même resoumission d'une
+// fiche refusée. Aucune route, aucun modèle, aucun service ni API modifié.
+// Seul ajout de lecture : l'historique de validation (GET
+// /production-fiche-approvals/:type/:id, API existante) pour les comptes qui
+// y ont accès — sinon l'historique se limite aux dates de la fiche.
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/providers/api_client.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart';
-import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/forms/industrial/view/detail/fiche_detail_layout.dart';
+import 'package:dash_master_toolkit/forms/industrial/view/poste_dashboard_layout.dart' show pdT, pdPosteLabel, kPosteAccepted, kPosteRejected, kPostePending;
 
+import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_record.dart';
+import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_service.dart';
+import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_widgets.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 import '../model/por_promesh_model.dart';
 import '../service/por_promesh_service.dart';
 import '../service/por_promesh_pdf_service.dart';
 import '../service/por_promesh_excel_service.dart';
-import '../utils/por_promesh_safe_value.dart';
-import 'modules/controle_qualite/cq_theme.dart';
-import 'detail/detail_info_card.dart';
-import 'detail/detail_kpi_card.dart';
-import 'detail/detail_person_card.dart';
 import 'detail/detail_machine_value_card.dart';
-import 'detail/detail_quality_table.dart';
-import 'detail/detail_actions_bar.dart';
 
 const _imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-
-// Rouge foncé réservé au statut "VERROUILLÉE", distinct de kCrmDanger
-// (utilisé pour "Refusée").
-const Color _kLockedColor = Color(0xFF7F1D1D);
 
 class PorPromeshDetailScreen extends StatefulWidget {
   final String id;
@@ -54,6 +49,7 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
   bool _loading = true;
   String? _error;
   PorPromeshModel? _item;
+  List<FicheApprovalStep> _approvalHistory = const [];
 
   @override
   void initState() {
@@ -61,8 +57,8 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
     _load();
   }
 
-  // Un seul appel réseau pour toute la page — toutes les sections lisent
-  // ensuite `_item` (même instance mémoire, jamais re-fetché par section).
+  // Un seul appel réseau pour la fiche — toutes les sections lisent ensuite
+  // `_item` (même instance mémoire, jamais re-fetché par section).
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -72,11 +68,24 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
       final item = await PorPromeshService.instance.fetchById(widget.id);
       if (!mounted) return;
       setState(() => _item = item);
+      _loadApprovalHistory(item);
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  // Historique de validation (lecture seule, comptes autorisés uniquement ;
+  // indisponible → l'historique de la fiche reste affiché sans lui).
+  Future<void> _loadApprovalHistory(PorPromeshModel item) async {
+    if (item.approval == null || item.id == null || !AuthService().canViewFicheApprovals) return;
+    try {
+      final detail = await FicheApprovalService.instance.detail('promesh', item.id!);
+      if (mounted) setState(() => _approvalHistory = detail.history);
+    } catch (e) {
+      debugPrint('[PorPromeshDetail] historique de validation indisponible : $e');
     }
   }
 
@@ -155,296 +164,254 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
     }
   }
 
+  void _back() => context.go(MyRoute.porPromeshListScreen);
+
   @override
   Widget build(BuildContext context) {
-    final item = _item;
     return Scaffold(
       backgroundColor: kCrmBg,
-      body: SafeArea(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-            child: Row(children: [
-              InkWell(
-                onTap: () => context.go(MyRoute.porPromeshListScreen),
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration:
-                      BoxDecoration(border: Border.all(color: kCrmBorder), borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.arrow_back_rounded, size: 16, color: kCrmTextSub),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text('Détail Fiche POR PROMESH',
-                    style: tInter(fontSize: 16, fontWeight: FontWeight.w800, color: kCrmText)),
-              ),
-            ]),
-          ),
-          Expanded(child: _buildBody()),
-          if (item != null)
-            DetailActionsBar(
-              isLocked: item.isLocked,
-              onBack: () => context.go(MyRoute.porPromeshListScreen),
-              onEdit: item.isLocked ? null : () => context.go(_editRoute(item)),
-              onPrint: _printPdf,
-              onExportPdf: _exportPdf,
-              onExportExcel: _exportExcel,
-              onDelete: item.isLocked ? null : _delete,
-            ),
-        ]),
-      ),
+      body: SafeArea(child: _buildBody()),
     );
   }
 
   Widget _buildBody() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) {
-      return Center(child: Text('Erreur : $_error', style: tInter(fontSize: 13, color: kCrmDanger)));
-    }
     final m = _item;
-    if (m == null) return const SizedBox.shrink();
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: kIndustrialMaxContentWidth),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (m.isLocked) ...[_lockedBanner(), const SizedBox(height: kCqSectionGap)],
-
-          // 1. Informations générales
-          const CqSectionHeading(
-            icon: Icons.info_outline_rounded,
-            title: '1. Informations Générales',
-            subtitle: 'Identification de la fiche',
-            color: kMaintenanceColor,
-          ),
+    if (_loading && m == null) return const Center(child: CircularProgressIndicator());
+    if (_error != null && m == null) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('${pdT(context, 'Erreur de chargement')} : $_error', textAlign: TextAlign.center, style: tInter(fontSize: 13, color: kCrmDanger)),
           const SizedBox(height: 10),
-          _headerGrid(m),
-          const SizedBox(height: kCqSectionGap),
-
-          // 2. Rendement
-          const CqSectionHeading(
-            icon: Icons.speed_rounded,
-            title: '2. Rendement',
-            subtitle: 'Production du poste',
-            color: kPromeshColor,
-          ),
-          const SizedBox(height: 10),
-          _rendementSection(m),
-          const SizedBox(height: kCqSectionGap),
-
-          // 3. Personnel
-          const CqSectionHeading(
-            icon: Icons.groups_2_outlined,
-            title: '3. Personnel',
-            subtitle: 'Équipe présente sur le poste',
-            color: kPersonnelColor,
-          ),
-          const SizedBox(height: 10),
-          _personnelSection(m),
-          const SizedBox(height: kCqSectionGap),
-
-          // 4. Observation
-          const CqSectionHeading(
-            icon: Icons.chat_bubble_outline_rounded,
-            title: '4. Observation',
-            subtitle: 'Remarques, photos, pièces jointes',
-            color: kMelangeColor,
-          ),
-          const SizedBox(height: 10),
-          _observationCard(m),
-          const SizedBox(height: kCqSectionGap),
-
-          // 5. Non-Conformité
-          const CqSectionHeading(
-            icon: Icons.warning_amber_rounded,
-            title: '5. Non-Conformité',
-            subtitle: 'Conformité du poste',
-            color: kProbarColor,
-          ),
-          const SizedBox(height: 10),
-          _nonConformiteCard(m),
-          const SizedBox(height: kCqSectionGap),
-
-          // 6. Contrôle Machine
-          const CqSectionHeading(
-            icon: Icons.precision_manufacturing_rounded,
-            title: '6. Contrôle Machine',
-            subtitle: 'État machine et températures',
-            color: kMaintenanceColor,
-          ),
-          const SizedBox(height: 10),
-          _controleMachineSection(m),
-          const SizedBox(height: kCqSectionGap),
-
-          // 7. Contrôle Qualité
-          const CqSectionHeading(
-            icon: Icons.straighten_rounded,
-            title: '7. Contrôle Qualité',
-            subtitle: 'Mesures toutes les 3 heures, observation',
-            color: kMaintenanceColor,
-          ),
-          const SizedBox(height: 10),
-          _qualiteProduitCard(m),
-          const SizedBox(height: 10),
-          _observationResponsableCard(m),
-          const SizedBox(height: kCqSectionGap),
-
-          // 8. Historique
-          const CqSectionHeading(
-            icon: Icons.history_rounded,
-            title: '8. Historique',
-            subtitle: 'Traçabilité de la fiche',
-            color: kCrmTextSub,
-          ),
-          const SizedBox(height: 10),
-          _historiqueSection(m),
+          Wrap(spacing: 8, children: [
+            OutlinedButton.icon(onPressed: _back, icon: const Icon(Icons.arrow_back_rounded, size: 16), label: Text(pdT(context, 'Retour'))),
+            FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh_rounded, size: 16), label: Text(pdT(context, 'Réessayer'))),
+          ]),
         ]),
-      ),
-    );
-  }
-
-  // ── 1. INFORMATIONS GÉNÉRALES ──────────────────────────────────────────
-
-  Widget _headerGrid(PorPromeshModel m) {
-    final info = porPromeshStatusInfo(m.status);
-    final heure = _heureRange(m.heureDebut, m.heureFin);
-    return Wrap(spacing: 12, runSpacing: 12, children: [
-      DetailInfoCard(icon: Icons.confirmation_number_outlined, label: 'Numéro Fiche', value: safeValue(m.numero)),
-      DetailInfoCard(
-          icon: info.icon,
-          label: 'Statut',
-          value: AppLocalizations.of(context).translate(info.label),
-          valueColor: info.color,
-          accentColor: info.color),
-      DetailInfoCard(
-        icon: Icons.precision_manufacturing_outlined,
-        label: 'Machine',
-        value: m.machine == null ? '' : 'Machine ${m.machine}',
-      ),
-      DetailInfoCard(
-        icon: m.poste == 'matin' ? Icons.wb_sunny_rounded : Icons.nightlight_round,
-        label: 'Poste',
-        value: m.poste == 'matin'
-            ? AppLocalizations.of(context).translate('Matin')
-            : (m.poste == 'nuit' ? AppLocalizations.of(context).translate('Nuit') : safeValue(m.poste)),
-      ),
-      DetailInfoCard(icon: Icons.event_outlined, label: 'Date', value: safeValue(m.dateProduction)),
-      DetailInfoCard(icon: Icons.schedule_outlined, label: 'Heure', value: heure),
-      DetailInfoCard(icon: Icons.person_outline_rounded, label: 'Opérateur', value: safeValue(m.operateur)),
-      DetailInfoCard(
-        icon: Icons.supervisor_account_outlined,
-        label: 'Responsable',
-        value: safeValue(m.personnelActif['responsable1']),
-      ),
-      DetailInfoCard(icon: Icons.calendar_today_outlined, label: 'Date de Création', value: _formatDateTime(m.createdAt)),
-      DetailInfoCard(icon: Icons.verified_outlined, label: 'Date de Validation', value: safeValue(m.dateValidationProcess)),
-    ]);
-  }
-
-  String _heureRange(String? debut, String? fin) {
-    final d = (debut ?? '').trim();
-    final f = (fin ?? '').trim();
-    if (d.isEmpty && f.isEmpty) return '';
-    if (d.isEmpty) return f;
-    if (f.isEmpty) return d;
-    return '$d – $f';
-  }
-
-  // ── 2. RENDEMENT ────────────────────────────────────────────────────────
-  //
-  // Seuls deux champs existent réellement dans le modèle pour ce module
-  // (`productionM2`, `diametreMaille1/2/3`) — "Largeur"/"Longueur" ne sont
-  // pas des données de Rendement (elles vivent dans les mesures Contrôle
-  // Qualité, section 7) : pas de KPI fabriquée pour elles ici.
-
-  Widget _rendementSection(PorPromeshModel m) {
-    final diametre =
-        [m.diametreMaille1, m.diametreMaille2, m.diametreMaille3].where((v) => (v ?? '').trim().isNotEmpty).join(' / ');
-    return Wrap(spacing: 12, runSpacing: 12, children: [
-      DetailKpiCard(
-        icon: Icons.trending_up_rounded,
-        value: m.productionM2 == null ? '—' : '${_fmtNum(m.productionM2)} m²',
-        label: 'Production',
-        color: kPromeshColor,
-      ),
-      DetailKpiCard(
-        icon: Icons.straighten_rounded,
-        value: diametre.isEmpty ? '—' : diametre,
-        label: 'Diamètre Maille',
-        color: kCrmInfo,
-      ),
-    ]);
-  }
-
-  // ── 3. PERSONNEL ────────────────────────────────────────────────────────
-
-  Widget _personnelSection(PorPromeshModel m) {
-    const roles = [
-      ('responsable1', 'Responsable 1', Icons.supervisor_account_rounded),
-      ('responsable2', 'Responsable 2', Icons.supervisor_account_rounded),
-      ('operateur1', 'Opérateur 1', Icons.engineering_rounded),
-      ('operateur2', 'Opérateur 2', Icons.engineering_rounded),
-      ('aideOperateur', 'Aide Opérateur', Icons.person_add_alt_1_rounded),
-      ('manoeuvre', 'Manœuvre', Icons.handyman_rounded),
-      ('stagiaire1', 'Stagiaire 1', Icons.school_rounded),
-      ('stagiaire2', 'Stagiaire 2', Icons.school_rounded),
-    ];
-    final cards = <Widget>[];
-    for (final r in roles) {
-      final name = (m.personnelActif[r.$1] ?? '').trim();
-      if (name.isNotEmpty) cards.add(DetailPersonCard(icon: r.$3, fonction: r.$2, name: name));
-    }
-    if (cards.isEmpty) {
-      return CqCardSurface(
-        child: Text('Aucun personnel renseigné', style: tInter(fontSize: 12, color: kCrmTextSub)),
       );
     }
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Wrap(spacing: 12, runSpacing: 12, children: cards),
-      if ((m.observationPersonnel ?? '').trim().isNotEmpty) ...[
-        const SizedBox(height: 12),
-        CqCardSurface(
-          child: Text(m.observationPersonnel!, style: tInter(fontSize: 12, color: kCrmTextSub)),
+    if (m == null) return const SizedBox.shrink();
+
+    final status = ficheStatus(isDraft: m.status == 'draft', approvalStatus: m.approval?.status);
+    final lockReason = m.approval?.isApproved ?? false
+        ? 'Cette fiche est verrouillée : elle a été acceptée par le responsable et ne peut plus être modifiée ni supprimée.'
+        : 'Cette fiche est verrouillée : sa saisie est terminée, elle ne peut plus être modifiée ni supprimée.';
+    final qc = _qualityCounts(m);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: kIndustrialMaxContentWidth),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            FicheDetailHeader(
+              title: 'Fiche de production PROMESH',
+              color: kPromeshColor,
+              badges: [
+                if (m.isLocked) const FicheBadge(label: 'Verrouillée', color: kFicheLocked, icon: Icons.lock_rounded),
+              ],
+              onBack: _back,
+              actions: [
+                FicheAction('edit', label: 'Modifier', icon: Icons.edit_outlined, color: kCrmInfo, onTap: m.isLocked ? null : () => context.go(_editRoute(m)), disabledReason: 'Fiche verrouillée'),
+                FicheAction('print', label: 'Imprimer', icon: Icons.print_outlined, color: kCrmText, onTap: _printPdf),
+                FicheAction('pdf', label: 'Export PDF', icon: Icons.picture_as_pdf_outlined, color: kCrmSecondary, onTap: _exportPdf),
+                FicheAction('excel', label: 'Export Excel', icon: Icons.grid_on_rounded, color: kCrmSuccess, onTap: _exportExcel),
+                FicheAction('delete', label: 'Supprimer', icon: Icons.delete_outline_rounded, color: kCrmDanger, onTap: m.isLocked ? null : _delete, disabledReason: 'Fiche verrouillée'),
+              ],
+            ),
+            if (m.isLocked) FicheLockBanner(lockReason),
+            if (m.approval != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: FicheApprovalNotice(
+                  approval: m.approval!,
+                  action: m.approval!.isRejected && AuthService().isFicheApprovalCreator && m.id != null
+                      ? FicheResubmitButton(ficheType: 'promesh', ficheId: m.id!, onResubmitted: (_) => _load())
+                      : null,
+                ),
+              ),
+            FicheSummaryBar(items: [
+              FicheSummaryItem(Icons.confirmation_number_outlined, 'Numéro de fiche', fdValue(m.numero), color: kPromeshColor),
+              FicheSummaryItem(status.icon, 'Statut', pdT(context, status.label), color: status.color),
+              FicheSummaryItem(Icons.event_outlined, 'Date de production', fdDate(m.dateProduction)),
+              FicheSummaryItem(Icons.schedule_outlined, 'Heure de production', fdHours(m.heureDebut, m.heureFin)),
+              FicheSummaryItem(Icons.precision_manufacturing_outlined, 'Machine', m.machine == null ? '—' : '${pdT(context, 'Machine')} ${m.machine}'),
+              FicheSummaryItem(m.poste == 'matin' ? Icons.wb_sunny_outlined : Icons.nightlight_outlined, 'Poste', pdT(context, pdPosteLabel(m.poste))),
+            ]),
+            FicheRow(children: [
+              FichePanel(
+                panelKey: 'info',
+                icon: Icons.info_outline_rounded,
+                title: 'Informations générales',
+                color: kPromeshColor,
+                child: FicheInfoGrid(entries: [
+                  ('Numéro de fiche', fdValue(m.numero)),
+                  ('Statut', pdT(context, status.label)),
+                  ('Machine', m.machine == null ? '—' : '${pdT(context, 'Machine')} ${m.machine}'),
+                  ('Poste', pdT(context, pdPosteLabel(m.poste))),
+                  ('Date de production', fdDate(m.dateProduction)),
+                  ('Heure de production', fdHours(m.heureDebut, m.heureFin)),
+                  ('Opérateur', fdValue(m.operateur)),
+                  ('Responsable', fdValue(m.personnelActif['responsable1'])),
+                  ('Producteur (compte)', fdValue(m.creator?['email'])),
+                  ('Date de création', fdDateTime(m.createdAt)),
+                  ('Dernière modification', fdDateTime(m.updatedAt)),
+                  if ((m.validatedAt ?? '').isNotEmpty) ('Fin de saisie', fdDateTime(m.validatedAt)),
+                  if ((m.dateValidationProcess ?? '').isNotEmpty) ('Date de validation', fdDate(m.dateValidationProcess)),
+                  if (m.approval?.decidedByEmail != null) ('Validateur', m.approval!.decidedByEmail!),
+                  if (m.approval?.decidedAt != null) ('Date de décision', faDateTime(m.approval!.decidedAt)),
+                ]),
+              ),
+              Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                FicheProductionPanel(
+                  color: kPromeshColor,
+                  label: 'Quantité produite',
+                  quantity: m.productionM2,
+                  unit: 'm²',
+                  extras: [
+                    // Champs du module Rendement (unités de saisie : mm).
+                    if ((m.diametreMaille2 ?? '').trim().isNotEmpty) ('Diamètre', '${m.diametreMaille2!.trim()} mm'),
+                    if ((m.diametreMaille1 ?? '').trim().isNotEmpty) ('Taille de maille', '${m.diametreMaille1!.trim()} mm'),
+                    if ((m.diametreMaille3 ?? '').trim().isNotEmpty) ('Maille 3', m.diametreMaille3!.trim()),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                FicheQualityPanel(
+                  globalConforme: m.conformite == null ? null : m.conformite != 'non_conforme',
+                  conformes: qc.$1,
+                  aVerifier: qc.$2,
+                  nonConformes: qc.$3,
+                  note: _filledMeasures(m).isEmpty ? null : 'Mesures du contrôle qualité produit ; « À vérifier » : mesure sans statut.',
+                ),
+              ]),
+            ]),
+            FicheDetailTabs(color: kPromeshColor, tabs: [
+              FicheTab('parameters', label: 'Paramètres de production', icon: Icons.tune_rounded, builder: () => _parametersTab(m)),
+              FicheTab('quality', label: 'Contrôle qualité', icon: Icons.verified_user_outlined, count: _filledMeasures(m).length, builder: () => _qualityTab(m)),
+              FicheTab('materials', label: 'Matières premières', icon: Icons.inventory_2_outlined, count: m.consommations.length, builder: () => _materialsTab(m)),
+              FicheTab('documents', label: 'Documents', icon: Icons.attach_file_rounded, count: m.attachments.length, builder: () => _documentsTab(m)),
+              FicheTab('history', label: 'Historique', icon: Icons.history_rounded, builder: () => FicheHistoryTimeline(entries: _history(m))),
+            ]),
+          ]),
         ),
-      ],
+      ),
+    );
+  }
+
+  /// (conformes, sans statut, non conformes) des mesures du contrôle qualité.
+  (int, int, int) _qualityCounts(PorPromeshModel m) {
+    var ok = 0, check = 0, nok = 0;
+    for (final r in _filledMeasures(m)) {
+      final s = (r['statutCOQ'] ?? r['statut'])?.toString();
+      if (s == 'C') {
+        ok++;
+      } else if (s == 'NC') {
+        nok++;
+      } else {
+        check++;
+      }
+    }
+    return (ok, check, nok);
+  }
+
+  /// Mesures réellement saisies (au moins une valeur ou un statut).
+  List<Map<String, dynamic>> _filledMeasures(PorPromeshModel m) => [
+        for (final r in m.controlesQualite)
+          if (['numeroPlaque', 'maille', 'longueur', 'largeur', 'statutCOQ', 'statut'].any((k) => (r[k]?.toString().trim() ?? '').isNotEmpty)) r,
+      ];
+
+  // ── Onglet 1 : paramètres de production ─────────────────────────────────
+
+  Widget _parametersTab(PorPromeshModel m) {
+    final people = [
+      for (final r in kFichePersonnelRoles)
+        if ((m.personnelActif[r.$1] ?? '').trim().isNotEmpty) (r.$2, m.personnelActif[r.$1]!.trim(), null as Color?),
+    ];
+    final justification = (m.justificationControleMachine ?? '').trim();
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const FicheSubheading('Contrôle machine', icon: Icons.precision_manufacturing_outlined),
+      FicheValueGrid(values: [
+        ('Air', fdValue(m.air), detailAirColor(m.air)),
+        ('Niveau Bain Eau', fdValue(m.niveauBainEau), detailNiveauBainEauColor(m.niveauBainEau)),
+        ('Température des Pistons', m.temperaturePistons == null ? '—' : '${fdNumber(m.temperaturePistons)} °C', kCrmInfo),
+        ('État Pistons', fdValue(m.etatPistons), detailEtatPistonsColor(m.etatPistons)),
+        ('Fluide Visuel', fdValue(m.fluideVisuel), detailFluideVisuelColor(m.fluideVisuel)),
+      ]),
+      if (justification.isNotEmpty) FicheNote(label: 'Justification', text: justification, color: kPostePending),
+      const SizedBox(height: 14),
+      const FicheSubheading('Personnel', icon: Icons.groups_2_outlined),
+      if (people.isEmpty) const FicheEmpty('Aucun personnel renseigné', icon: Icons.groups_2_outlined) else FicheValueGrid(values: people),
+      if ((m.observationPersonnel ?? '').trim().isNotEmpty) FicheNote(label: 'Observation personnel', text: m.observationPersonnel!.trim()),
+      const SizedBox(height: 14),
+      const FicheSubheading('Arrêts machine', icon: Icons.pause_circle_outline_rounded),
+      FicheTable(
+        tableKey: 'stops',
+        columns: const [('Arrêt', 3), ('Observation', 5)],
+        rows: [for (final a in m.arretsMachine) [FicheTable.text(fdValue(a['tArret']), strong: true), FicheTable.text(fdValue(a['observationMachine']))]],
+        emptyMessage: 'Aucun arrêt machine enregistré',
+      ),
     ]);
   }
 
-  // ── 4. OBSERVATION ──────────────────────────────────────────────────────
+  // ── Onglet 2 : contrôle qualité ─────────────────────────────────────────
 
-  Widget _observationCard(PorPromeshModel m) {
-    return CqCardSurface(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: 32,
-            height: 32,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(color: kMelangeColor.withOpacity(0.12), borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: kMelangeColor),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: kCrmBg, borderRadius: BorderRadius.circular(kCqInnerRadius)),
-              child: Text(
-                (m.observationsGenerales ?? '').trim().isEmpty ? 'Aucune observation.' : m.observationsGenerales!,
-                style: tInter(fontSize: 12.5, color: kCrmText, height: 1.4),
+  Widget _qualityTab(PorPromeshModel m) {
+    final nonConforme = m.conformite == 'non_conforme';
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const FicheSubheading('Conformité du poste', icon: Icons.fact_check_outlined),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: m.conformite == null
+            ? Text(pdT(context, 'Statut non renseigné'), style: tInter(fontSize: 12.5, color: kCrmTextSub))
+            : FicheBadge(
+                label: nonConforme ? 'Non conforme' : 'Conforme',
+                color: nonConforme ? kPosteRejected : kPosteAccepted,
+                icon: nonConforme ? Icons.cancel_rounded : Icons.check_circle_rounded,
               ),
-            ),
-          ),
-        ]),
-        if (m.attachments.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Wrap(spacing: 10, runSpacing: 10, children: [for (final a in m.attachments) _attachmentTile(a)]),
+      ),
+      if (nonConforme) ...[
+        FicheNote(label: 'Description', text: fdValue(m.descriptionNonConformite), color: kPosteRejected),
+        FicheNote(label: 'Actions correctives', text: fdValue(m.actionsCorrectives), color: kPosteRejected),
+      ],
+      const SizedBox(height: 14),
+      const FicheSubheading('Contrôle qualité produit', icon: Icons.straighten_rounded),
+      // Mêmes colonnes et mêmes clés que le tableau existant (Heure, N° Plaque,
+      // Maille, Longueur, Largeur, Statut C / NC).
+      FicheTable(
+        tableKey: 'promesh-measures',
+        columns: const [('Heure', 2), ('N° Plaque', 3), ('Maille', 2), ('Longueur', 2), ('Largeur', 2), ('Statut', 3)],
+        rows: [
+          for (final r in _filledMeasures(m))
+            [
+              FicheTable.text(fdTime(r['heure']?.toString()).isEmpty ? '—' : fdTime(r['heure']?.toString()), strong: true),
+              FicheTable.text(fdValue(r['numeroPlaque'])),
+              FicheTable.text(fdMeasure(r['maille'])),
+              FicheTable.text(fdMeasure(r['longueur'])),
+              FicheTable.text(fdMeasure(r['largeur'])),
+              ficheMeasureStatus((r['statutCOQ'] ?? r['statut'])?.toString()),
+            ],
         ],
-      ]),
-    );
+        emptyMessage: 'Aucune mesure enregistrée.',
+      ),
+    ]);
   }
+
+  // ── Onglet 3 : matières premières (consommations de la fiche) ───────────
+
+  Widget _materialsTab(PorPromeshModel m) => FicheTable(
+        tableKey: 'materials',
+        columns: const [('Désignation article', 5), ('Métrage', 2), ('Observation', 5)],
+        rows: [
+          for (final c in m.consommations)
+            [
+              FicheTable.text(fdValue(c['designationArticle']), strong: true),
+              FicheTable.text(fdMeasure(c['metrage'])),
+              FicheTable.text(fdValue(c['observation'])),
+            ],
+        ],
+        emptyMessage: 'Aucune consommation de matière enregistrée sur cette fiche',
+      );
+
+  // ── Onglet 4 : documents et observations ────────────────────────────────
 
   bool _isImage(String fileUrl) => _imageExtensions.any((ext) => fileUrl.toLowerCase().endsWith(ext));
   String _fullUrl(String fileUrl) => '${ApiClient.instance.dio.options.baseUrl}$fileUrl';
@@ -453,245 +420,78 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
     final fileUrl = (a['fileUrl'] ?? '').toString();
     final fileName = (a['fileName'] ?? '').toString();
     return Container(
-      width: 110,
+      width: 120,
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: kCrmBg, borderRadius: BorderRadius.circular(kCqInnerRadius), border: Border.all(color: kCrmBorder)),
+      decoration: BoxDecoration(color: kCrmBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: kCrmBorder)),
       child: Column(children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(6),
           child: _isImage(fileUrl)
               ? Image.network(_fullUrl(fileUrl),
-                  height: 64, width: 90, fit: BoxFit.cover,
+                  height: 70, width: 100, fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, size: 32, color: kCrmTextSub))
-              : Container(
-                  height: 64,
-                  width: 90,
-                  color: kCrmSurface,
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.insert_drive_file_outlined, size: 28, color: kCrmTextSub),
-                ),
+              : Container(height: 70, width: 100, color: kCrmSurface, alignment: Alignment.center, child: const Icon(Icons.insert_drive_file_outlined, size: 28, color: kCrmTextSub)),
         ),
         const SizedBox(height: 4),
-        Text(fileName.isEmpty ? 'Fichier' : fileName,
-            maxLines: 1, overflow: TextOverflow.ellipsis, style: tInter(fontSize: 9.5, color: kCrmTextSub)),
+        Text(fileName.isEmpty ? pdT(context, 'Fichier') : fileName, maxLines: 1, overflow: TextOverflow.ellipsis, style: tInter(fontSize: 10, color: kCrmTextSub)),
       ]),
     );
   }
 
-  // ── 5. NON-CONFORMITÉ ───────────────────────────────────────────────────
-
-  Widget _nonConformiteCard(PorPromeshModel m) {
-    final isNonConforme = m.conformite == 'non_conforme';
-    final hasStatus = m.conformite != null;
-    return CqCardSurface(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (hasStatus)
-          _badge(
-            isNonConforme ? 'Non Conforme' : 'Conforme',
-            isNonConforme ? kCrmDanger : kCrmSuccess,
-            isNonConforme ? Icons.cancel_rounded : Icons.check_circle_rounded,
-          )
-        else
-          Text('Statut non renseigné', style: tInter(fontSize: 12, color: kCrmTextSub)),
-        if (isNonConforme) ...[
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: kCrmDanger.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(kCqInnerRadius),
-              border: Border.all(color: kCrmDanger.withOpacity(0.3)),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const Icon(Icons.report_gmailerrorred_rounded, size: 16, color: kCrmDanger),
-                const SizedBox(width: 8),
-                Text('Détail de la non-conformité',
-                    style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: kCrmDanger)),
-              ]),
-              const SizedBox(height: 10),
-              _alertField('Description', safeValue(m.descriptionNonConformite)),
-              const SizedBox(height: 8),
-              _alertField('Actions Correctives', safeValue(m.actionsCorrectives)),
-            ]),
-          ),
-          if ((m.photoNonConformite ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 10),
-            _attachmentTile({'fileUrl': m.photoNonConformite, 'fileName': 'Photo'}),
-          ],
-        ],
-      ]),
-    );
-  }
-
-  Widget _alertField(String label, String value) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: tInter(fontSize: 10.5, fontWeight: FontWeight.w700, color: kCrmDanger)),
-      const SizedBox(height: 2),
-      Text(value.isEmpty ? '—' : value, style: tInter(fontSize: 12.5, color: kCrmText)),
+  Widget _documentsTab(PorPromeshModel m) {
+    final photo = (m.photoNonConformite ?? '').trim();
+    final files = [
+      ...m.attachments,
+      if (photo.isNotEmpty) {'fileUrl': photo, 'fileName': pdT(context, 'Photo non-conformité')},
+    ];
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      const FicheSubheading('Observation', icon: Icons.chat_bubble_outline_rounded),
+      (m.observationsGenerales ?? '').trim().isEmpty
+          ? Text(pdT(context, 'Aucune observation.'), style: tInter(fontSize: 12.5, color: kCrmTextSub))
+          : FicheNote(label: 'Observation responsable production', text: m.observationsGenerales!.trim()),
+      const SizedBox(height: 14),
+      const FicheSubheading('Pièces jointes et photos', icon: Icons.attach_file_rounded),
+      if (files.isEmpty) const FicheEmpty('Aucun document joint', icon: Icons.attach_file_rounded) else Wrap(spacing: 10, runSpacing: 10, children: [for (final a in files) _attachmentTile(a)]),
     ]);
   }
 
-  // ── 6. CONTRÔLE MACHINE ─────────────────────────────────────────────────
+  // ── Onglet 5 : historique ───────────────────────────────────────────────
 
-  Widget _controleMachineSection(PorPromeshModel m) {
-    final justification = (m.justificationControleMachine ?? '').trim();
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Wrap(spacing: 12, runSpacing: 12, children: [
-        DetailMachineValueCard(
-          icon: Icons.air_rounded,
-          title: 'Air',
-          value: safeValue(m.air),
-          color: detailAirColor(m.air),
-        ),
-        DetailMachineValueCard(
-          icon: Icons.water_drop_outlined,
-          title: 'Niveau Bain Eau',
-          value: safeValue(m.niveauBainEau),
-          color: detailNiveauBainEauColor(m.niveauBainEau),
-        ),
-        DetailMachineValueCard(
-          icon: Icons.local_fire_department_rounded,
-          title: 'Température des Pistons',
-          value: m.temperaturePistons == null ? '' : '${_fmtNum(m.temperaturePistons)} °C',
-          color: kCrmInfo,
-        ),
-        DetailMachineValueCard(
-          icon: Icons.settings_outlined,
-          title: 'État Pistons',
-          value: safeValue(m.etatPistons),
-          color: detailEtatPistonsColor(m.etatPistons),
-        ),
-        DetailMachineValueCard(
-          icon: Icons.visibility_outlined,
-          title: 'Fluide Visuel',
-          value: safeValue(m.fluideVisuel),
-          color: detailFluideVisuelColor(m.fluideVisuel),
-        ),
-      ]),
-      if (justification.isNotEmpty) ...[
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: kCrmWarning.withOpacity(0.06),
-            borderRadius: BorderRadius.circular(kCqInnerRadius),
-            border: Border.all(color: kCrmWarning.withOpacity(0.3)),
-          ),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.note_alt_outlined, size: 15, color: kCrmWarning),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Justification', style: tInter(fontSize: 10.5, fontWeight: FontWeight.w700, color: kCrmWarning)),
-                const SizedBox(height: 2),
-                Text(justification, style: tInter(fontSize: 12, color: kCrmText)),
-              ]),
-            ),
-          ]),
-        ),
-      ],
-    ]);
-  }
-
-  // ── 7. CONTRÔLE QUALITÉ ─────────────────────────────────────────────────
-
-  Widget _qualiteProduitCard(PorPromeshModel m) {
-    return CqCardSurface(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const CqCardHeader(
-          icon: Icons.straighten_rounded,
-          title: 'Contrôle Qualité Produit',
-          subtitle: 'Heure, numéro de plaque, maille, longueur, largeur, statut',
-          color: kMaintenanceColor,
-        ),
-        const SizedBox(height: 10),
-        QualityMeasuresTable(rows: m.controlesQualite),
-      ]),
-    );
-  }
-
-  Widget _observationResponsableCard(PorPromeshModel m) {
-    return CqCardSurface(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const CqCardHeader(icon: Icons.notes_rounded, title: 'Observation Responsable Production', color: kCrmInfo),
-        const SizedBox(height: 6),
-        Text(
-          (m.observationsGenerales ?? '').trim().isEmpty ? 'Aucune observation.' : m.observationsGenerales!,
-          style: tInter(fontSize: 12, color: kCrmText),
-        ),
-      ]),
-    );
-  }
-
-  // Les sections "Contrôle Process" (14 paramètres × 08h20/10h20/14h20) et
-  // "Paramètres du Poste" (P1/P2) ont été retirées de l'affichage : toutes
-  // les informations utiles sont déjà visibles dans la section "Contrôle
-  // Machine" ci-dessus, plus besoin de dupliquer ces données. Aucune donnée
-  // backend supprimée — `m.processControl` continue de les contenir, cet
-  // écran ne les affiche simplement plus.
-
-  // ── 10. HISTORIQUE ──────────────────────────────────────────────────────
-
-  Widget _historiqueSection(PorPromeshModel m) {
-    final createdLabel =
-        (m.creator?['email']?.trim().isNotEmpty ?? false) ? m.creator!['email']! : safeValue(m.createdBy);
-    return Wrap(spacing: 12, runSpacing: 12, children: [
-      DetailInfoCard(icon: Icons.person_outline_rounded, label: 'Créé par', value: createdLabel),
-      DetailInfoCard(icon: Icons.calendar_today_outlined, label: 'Créé le', value: _formatDateTime(m.createdAt)),
-      DetailInfoCard(icon: Icons.edit_calendar_outlined, label: 'Modifié le', value: _formatDateTime(m.updatedAt)),
-      DetailInfoCard(icon: Icons.verified_outlined, label: 'Validé le', value: safeValue(m.dateValidationProcess)),
-    ]);
-  }
-
-  // ── BANNIÈRE VERROUILLÉE ─────────────────────────────────────────────────
-
-  Widget _lockedBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: _kLockedColor.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(kCqInnerRadius),
-        border: Border.all(color: _kLockedColor.withOpacity(0.4)),
-      ),
-      child: Row(children: [
-        const Icon(Icons.lock_rounded, size: 18, color: _kLockedColor),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text('Cette fiche est verrouillée et ne peut plus être modifiée ni supprimée.',
-              style: tInter(fontSize: 13, fontWeight: FontWeight.w600, color: _kLockedColor)),
-        ),
-      ]),
-    );
-  }
-
-  // ── HELPERS PARTAGÉS ────────────────────────────────────────────────────
-
-  Widget _badge(String label, Color color, IconData icon) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 15, color: color),
-        const SizedBox(width: 6),
-        Text(label, style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: color)),
-      ]),
-    );
-  }
-
-  String _fmtNum(num? v) {
-    if (v == null || v.isNaN) return '';
-    if (v == v.roundToDouble()) return v.toInt().toString();
-    return v.toStringAsFixed(2);
-  }
-
-  String _formatDateTime(String? iso) {
-    if (iso == null || iso.isEmpty) return '';
-    final d = DateTime.tryParse(iso);
-    if (d == null) return safeValue(iso);
-    return DateFormat('dd/MM/yyyy HH:mm').format(d);
+  List<FicheHistoryEntry> _history(PorPromeshModel m) {
+    final creator = (m.creator?['email']?.trim().isNotEmpty ?? false) ? m.creator!['email']! : fdValue(m.createdBy);
+    final out = <FicheHistoryEntry>[
+      FicheHistoryEntry(icon: Icons.add_circle_outline_rounded, color: kPromeshColor, title: 'Fiche créée', detail: creator, when: fdDateTime(m.createdAt)),
+      if ((m.updatedAt ?? '').isNotEmpty && m.updatedAt != m.createdAt)
+        FicheHistoryEntry(icon: Icons.edit_calendar_outlined, color: kCrmTextSub, title: 'Dernière modification', when: fdDateTime(m.updatedAt)),
+      // Fin de saisie : `validatedAt` (horodatage réel) ; à défaut, la date
+      // du visa process si elle a été saisie.
+      if ((m.validatedAt ?? '').isNotEmpty)
+        FicheHistoryEntry(icon: Icons.task_alt_rounded, color: kFicheSubmitted, title: 'Saisie terminée', when: fdDateTime(m.validatedAt))
+      else if ((m.dateValidationProcess ?? '').isNotEmpty)
+        FicheHistoryEntry(icon: Icons.task_alt_rounded, color: kFicheSubmitted, title: 'Saisie terminée', when: fdDate(m.dateValidationProcess)),
+    ];
+    if (_approvalHistory.isNotEmpty) {
+      for (final h in _approvalHistory) {
+        final s = ficheStatus(isDraft: false, approvalStatus: h.toStatus);
+        out.add(FicheHistoryEntry(
+          icon: s.icon,
+          color: s.color,
+          title: '${pdT(context, 'Validation')} : ${pdT(context, s.label)}',
+          detail: [if (h.changedByEmail != null) h.changedByEmail!, if ((h.comment ?? '').isNotEmpty) '« ${h.comment} »'].join(' · '),
+          when: faDateTime(h.createdAt),
+        ));
+      }
+    } else if (m.approval != null) {
+      final a = m.approval!;
+      final s = ficheStatus(isDraft: false, approvalStatus: a.status);
+      out.add(FicheHistoryEntry(
+        icon: s.icon,
+        color: s.color,
+        title: '${pdT(context, 'Validation')} : ${pdT(context, s.label)}',
+        detail: [if (a.decidedByEmail != null) a.decidedByEmail!, if ((a.rejectionComment ?? '').isNotEmpty) '« ${a.rejectionComment} »'].join(' · '),
+        when: faDateTime(a.decidedAt ?? a.submittedAt),
+      ));
+    }
+    return out;
   }
 }

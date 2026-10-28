@@ -14,6 +14,7 @@ import 'package:intl/intl.dart';
 
 import 'package:dash_master_toolkit/utils/common.dart';
 
+import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_record.dart';
 import '../model/por_promesh_model.dart';
 import '../service/por_promesh_service.dart';
 import '../utils/por_promesh_diff.dart';
@@ -30,7 +31,12 @@ class PorPromeshController extends GetxController {
   // Verrouillée dès le premier enregistrement côté backend — `false`
   // uniquement tant que la fiche n'a jamais été sauvegardée.
   final RxBool isLocked = false.obs;
+  // Validation par le responsable logistique (null : fiche hors circuit).
+  final Rxn<FicheApproval> approval = Rxn<FicheApproval>();
   String? recordId;
+
+  /// Fiche refusée en cours de correction (avant nouvelle soumission).
+  bool get isCorrecting => approval.value?.isRejected ?? false;
 
   // Horodatage de la dernière sauvegarde de LA FICHE (pas de granularité
   // par module côté backend — un seul enregistrement partagé par tous les
@@ -524,6 +530,7 @@ class PorPromeshController extends GetxController {
     _loadedSnapshot = null;
     status.value = 'draft';
     isLocked.value = false;
+    approval.value = null;
     lastUpdatedAt.value = null;
     machine.value = null;
     poste.value = null;
@@ -641,6 +648,7 @@ class PorPromeshController extends GetxController {
     recordId = (id != null && id.isNotEmpty) ? id : m.id;
     status.value = m.status;
     isLocked.value = m.isLocked;
+    approval.value = m.approval;
     lastUpdatedAt.value = DateTime.tryParse(m.updatedAt ?? '');
     machine.value = m.machine;
     poste.value = m.poste;

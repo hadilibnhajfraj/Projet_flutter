@@ -4,6 +4,8 @@
 // plan / quality control sheet. Mirrors the payload sent to / received
 // from the (future) `/por-promesh` backend.
 
+import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_record.dart';
+
 class PorPromeshModel {
   final String? id;
   // Numéro de fiche lisible (ex. "PROMESH-2026-000001") — jamais afficher
@@ -13,6 +15,8 @@ class PorPromeshModel {
   // Verrouillée dès la création côté backend — `false` uniquement avant
   // le premier enregistrement (fiche pas encore créée).
   final bool isLocked;
+  // Validation par le responsable logistique (null : fiche hors circuit).
+  final FicheApproval? approval;
   final String? createdBy;
   final Map<String, String>? creator; // {id, email, role} — résolu par le backend
   final String? createdAt;
@@ -104,12 +108,16 @@ class PorPromeshModel {
   final String? visaControleQualiteProcess;
   final String? visaProductionProcess;
   final String? dateValidationProcess; // yyyy-MM-dd
+  // Fin de saisie (ISO) — renvoyé par GET /por-promesh/:id ; lecture seule,
+  // jamais renvoyé au backend (absent de toJson).
+  final String? validatedAt;
 
   const PorPromeshModel({
     this.id,
     this.numero,
     this.status = 'draft',
     this.isLocked = false,
+    this.approval,
     this.createdBy,
     this.creator,
     this.createdAt,
@@ -161,6 +169,7 @@ class PorPromeshModel {
     this.visaControleQualiteProcess,
     this.visaProductionProcess,
     this.dateValidationProcess,
+    this.validatedAt,
   });
 
   /// Le backend renvoie `status` en français ("BROUILLON" / "VALIDE"), mais
@@ -199,7 +208,10 @@ class PorPromeshModel {
       id: json['id']?.toString() ?? json['_id']?.toString(),
       numero: json['numero']?.toString(),
       status: _normalizeStatus(json['status']),
-      isLocked: json['isLocked'] == true,
+      // Fiche refusée par le responsable logistique : modifiable pour
+      // correction (le backend l'autorise pour son créateur uniquement).
+      isLocked: json['isLocked'] == true && !(FicheApproval.fromJson(json['approval'])?.isRejected ?? false),
+      approval: FicheApproval.fromJson(json['approval']),
       createdBy: json['createdBy']?.toString(),
       creator: _toNullableMapOfString(json['creator']),
       createdAt: json['createdAt']?.toString(),
@@ -251,6 +263,7 @@ class PorPromeshModel {
       visaControleQualiteProcess: json['visaControleQualiteProcess']?.toString(),
       visaProductionProcess: json['visaProductionProcess']?.toString(),
       dateValidationProcess: json['dateValidationProcess']?.toString(),
+      validatedAt: json['validatedAt']?.toString(),
     );
   }
 

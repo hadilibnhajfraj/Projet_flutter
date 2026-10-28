@@ -23,7 +23,11 @@ class ProductionMachineStats {
   final double? tauxDechets; // kg pour 100 unités — null sans production validée
   final String? lastDate; // AAAA-MM-JJ
   final String? lastStatut; // validee | brouillon | archivee
+  /// Au moins une fiche sur la période — une ACTIVITÉ, pas un état de la
+  /// machine (aucun état de machine n'est enregistré en base).
   final bool active;
+  final DateTime? lastActivityAt; // dernière fiche enregistrée
+  final ProductionApprovalCounts approval;
 
   const ProductionMachineStats({
     required this.machine,
@@ -37,6 +41,8 @@ class ProductionMachineStats {
     this.lastDate,
     this.lastStatut,
     this.active = false,
+    this.lastActivityAt,
+    this.approval = const ProductionApprovalCounts(),
   });
 
   factory ProductionMachineStats.fromJson(Map<String, dynamic> j) => ProductionMachineStats(
@@ -51,7 +57,120 @@ class ProductionMachineStats {
         lastDate: j['lastDate']?.toString(),
         lastStatut: j['lastStatut']?.toString(),
         active: j['active'] == true,
+        lastActivityAt: _dateTime(j['lastActivityAt']),
+        approval: ProductionApprovalCounts.fromJson(j),
       );
+}
+
+DateTime? _dateTime(dynamic v) => v == null ? null : DateTime.tryParse(v.toString())?.toLocal();
+
+/// Statuts de validation des fiches NON archivées (circuit de validation des
+/// fiches de production) — `horsCircuit` : fiches antérieures au circuit,
+/// jamais comptées comme acceptées.
+class ProductionApprovalCounts {
+  final int actives;
+  final int acceptees;
+  final int enAttente;
+  final int refusees;
+  final int horsCircuit;
+
+  const ProductionApprovalCounts({this.actives = 0, this.acceptees = 0, this.enAttente = 0, this.refusees = 0, this.horsCircuit = 0});
+
+  factory ProductionApprovalCounts.fromJson(Map<String, dynamic> j) => ProductionApprovalCounts(
+        actives: _int(j['actives']),
+        acceptees: _int(j['acceptees']),
+        enAttente: _int(j['enAttente']),
+        refusees: _int(j['refusees']),
+        horsCircuit: _int(j['horsCircuit']),
+      );
+}
+
+/// Décision de validation d'une fiche (null : fiche hors circuit).
+class ProductionApproval {
+  final String status; // APPROVED | PENDING | REJECTED
+  final String? comment; // motif du refus
+  final String? decidedByEmail;
+  final DateTime? decidedAt;
+
+  const ProductionApproval({required this.status, this.comment, this.decidedByEmail, this.decidedAt});
+
+  static ProductionApproval? fromJson(dynamic v) {
+    if (v is! Map || v['status'] == null) return null;
+    return ProductionApproval(
+      status: v['status'].toString(),
+      comment: v['comment']?.toString(),
+      decidedByEmail: v['decidedByEmail']?.toString(),
+      decidedAt: _dateTime(v['decidedAt']),
+    );
+  }
+}
+
+/// Fiche refusée (alertes) : motif et accès direct.
+class ProductionRejectedFiche {
+  final String id; // « promesh:<uuid> »
+  final String type;
+  final String? numero;
+  final String? machine;
+  final String? poste;
+  final String? date;
+  final String? userEmail;
+  final ProductionApproval approval;
+
+  const ProductionRejectedFiche({required this.id, required this.type, this.numero, this.machine, this.poste, this.date, this.userEmail, required this.approval});
+
+  factory ProductionRejectedFiche.fromJson(Map<String, dynamic> j) => ProductionRejectedFiche(
+        id: j['id'].toString(),
+        type: (j['type'] ?? '').toString(),
+        numero: j['numero']?.toString(),
+        machine: j['machine']?.toString(),
+        poste: j['poste']?.toString(),
+        date: j['date']?.toString(),
+        userEmail: j['userEmail']?.toString(),
+        approval: ProductionApproval(
+          status: 'REJECTED',
+          comment: j['comment']?.toString(),
+          decidedByEmail: j['decidedByEmail']?.toString(),
+          decidedAt: _dateTime(j['decidedAt']),
+        ),
+      );
+
+  String get recordId => id.contains(':') ? id.substring(id.indexOf(':') + 1) : id;
+}
+
+/// Fiches à traiter, TOUTES DATES (indépendantes de la période affichée).
+class ProductionAlerts {
+  final int fichesEnAttente;
+  final int fichesRefusees;
+  final List<ProductionRejectedFiche> rejected;
+
+  const ProductionAlerts({this.fichesEnAttente = 0, this.fichesRefusees = 0, this.rejected = const []});
+
+  factory ProductionAlerts.fromJson(Map<String, dynamic> j) => ProductionAlerts(
+        fichesEnAttente: _int(j['fichesEnAttente']),
+        fichesRefusees: _int(j['fichesRefusees']),
+        rejected: _maps(j['rejected']).map(ProductionRejectedFiche.fromJson).toList(),
+      );
+}
+
+/// Période précédente de même durée (fiches non archivées).
+class ProductionPrevious {
+  final String? start;
+  final String? end;
+  final int promesh;
+  final int probar;
+  final int actives;
+
+  const ProductionPrevious({this.start, this.end, this.promesh = 0, this.probar = 0, this.actives = 0});
+
+  static ProductionPrevious? fromJson(dynamic v) => v is Map
+      ? ProductionPrevious(
+          start: v['start']?.toString(),
+          end: v['end']?.toString(),
+          promesh: _int(v['promesh']),
+          probar: _int(v['probar']),
+          actives: _int(v['actives']),
+        )
+      : null;
 }
 
 /// Une ligne de production (PROMESH ou PROBAR) sur la période.
@@ -69,6 +188,7 @@ class ProductionLineStats {
   final double? tauxDechets;
   final String tauxDechetsUnit; // « kg / 100 m² »
   final List<ProductionMachineStats> machines;
+  final ProductionApprovalCounts approval;
 
   const ProductionLineStats({
     required this.type,
@@ -84,7 +204,11 @@ class ProductionLineStats {
     this.tauxDechets,
     this.tauxDechetsUnit = '',
     this.machines = const [],
+    this.approval = const ProductionApprovalCounts(),
   });
+
+  /// Fiches non archivées (mêmes fiches que les listes PROMESH / PROBAR).
+  int get actives => approval.actives;
 
   factory ProductionLineStats.fromJson(Map<String, dynamic> j, String fallbackType) => ProductionLineStats(
         type: (j['type'] ?? fallbackType).toString(),
@@ -100,6 +224,7 @@ class ProductionLineStats {
         tauxDechets: _dblOrNull(j['tauxDechets']),
         tauxDechetsUnit: (j['tauxDechetsUnit'] ?? '').toString(),
         machines: _maps(j['machines']).map(ProductionMachineStats.fromJson).toList(),
+        approval: ProductionApprovalCounts.fromJson(j),
       );
 }
 
@@ -141,6 +266,7 @@ class ProductionRecentRow {
   final double? dechets;
   final String dechetsUnite;
   final String statut;
+  final ProductionApproval? approval;
 
   const ProductionRecentRow({
     required this.id,
@@ -156,6 +282,7 @@ class ProductionRecentRow {
     this.dechets,
     this.dechetsUnite = 'kg',
     this.statut = 'brouillon',
+    this.approval,
   });
 
   factory ProductionRecentRow.fromJson(Map<String, dynamic> j) => ProductionRecentRow(
@@ -172,6 +299,7 @@ class ProductionRecentRow {
         dechets: _dblOrNull(j['dechets']),
         dechetsUnite: (j['dechetsUnite'] ?? 'kg').toString(),
         statut: (j['statut'] ?? 'brouillon').toString(),
+        approval: ProductionApproval.fromJson(j['approval']),
       );
 
   /// Identifiant de la fiche dans sa table (sans le préfixe de ligne).
@@ -191,6 +319,10 @@ class ProductionDashboard {
   final int machinesTotal;
   final List<ProductionDay> daily;
   final List<ProductionRecentRow> recent;
+  final ProductionApprovalCounts approval; // deux lignes, fiches non archivées
+  final int archivees;
+  final ProductionPrevious? previous; // null : « toutes périodes »
+  final ProductionAlerts alerts;
 
   const ProductionDashboard({
     this.periodKey = 'month',
@@ -205,6 +337,10 @@ class ProductionDashboard {
     this.machinesTotal = 0,
     this.daily = const [],
     this.recent = const [],
+    this.approval = const ProductionApprovalCounts(),
+    this.archivees = 0,
+    this.previous,
+    this.alerts = const ProductionAlerts(),
   });
 
   factory ProductionDashboard.fromJson(Map<String, dynamic> j) {
@@ -224,6 +360,10 @@ class ProductionDashboard {
       machinesTotal: _int(machines['total']),
       daily: _maps(_map(j['charts'])['daily']).map(ProductionDay.fromJson).toList(),
       recent: _maps(j['recent']).map(ProductionRecentRow.fromJson).toList(),
+      approval: ProductionApprovalCounts.fromJson(production),
+      archivees: _int(production['archivees']),
+      previous: ProductionPrevious.fromJson(j['previous']),
+      alerts: ProductionAlerts.fromJson(_map(j['alerts'])),
     );
   }
 
@@ -238,6 +378,7 @@ const kProductionPeriods = <(String, String)>[
   ('week', 'Cette semaine'),
   ('month', 'Ce mois'),
   ('year', 'Cette année'),
+  ('all', 'Toutes périodes'),
   ('custom', 'Personnalisée'),
 ];
 

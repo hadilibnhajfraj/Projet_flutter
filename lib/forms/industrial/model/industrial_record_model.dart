@@ -4,6 +4,8 @@
 // `/industrial-records` côté backend. Mêmes conventions que PorPromeshModel
 // (fromJson/toJson tolérants, _toDouble helper).
 
+import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_record.dart';
+
 class IndustrialRecordModel {
   final String? id;
   final String module; // 'probar' | 'melange' | 'maintenance'
@@ -42,6 +44,9 @@ class IndustrialRecordModel {
 
   final String statut;
 
+  // Validation par le responsable logistique (PROBAR ; null : hors circuit).
+  final FicheApproval? approval;
+
   final String? createdBy;
   final Map<String, String>? creator;
   final String? createdAt;
@@ -67,6 +72,7 @@ class IndustrialRecordModel {
     this.melangeData,
     this.melangeSummary,
     this.statut = 'enregistree',
+    this.approval,
     this.createdBy,
     this.creator,
     this.createdAt,
@@ -111,6 +117,7 @@ class IndustrialRecordModel {
       melangeData: _toNullableJsonMap(json['melangeData']),
       melangeSummary: _toNullableJsonMap(json['melangeSummary']),
       statut: (json['statut'] ?? 'enregistree').toString(),
+      approval: FicheApproval.fromJson(json['approval']),
       createdBy: json['createdBy']?.toString(),
       creator: _toNullableMapOfString(json['creator']),
       createdAt: json['createdAt']?.toString(),

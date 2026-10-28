@@ -19,6 +19,12 @@ class ProdPaths {
   static const promeshSummary = '/production/promesh-summary';
   static const probarSummary = '/production/probar-summary';
 
+  /// Demandes d'autorisation Production (MyRoute.productionComplianceScreen).
+  static const productionRequests = '/production-compliance';
+
+  /// Page d'une machine (fiches par poste) : `$promesh/machine/1`.
+  static String machine(String type, String machine) => '${type == 'probar' ? probar : promesh}/machine/$machine';
+
   /// Fiche PROMESH existante (écran des modules de la fiche).
   static String promeshFiche(String machine, String poste, String id) => '$promesh/machine/$machine/poste/$poste/modules?ficheId=$id';
 

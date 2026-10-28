@@ -79,6 +79,7 @@ import 'package:dash_master_toolkit/production_compliance/view/production_unarch
 import 'package:dash_master_toolkit/production_compliance/view/production_request_statistics_screen.dart';
 import 'package:dash_master_toolkit/production_records/view/production_summary_screen.dart';
 import 'package:dash_master_toolkit/production_dashboard/view/production_dashboard_screen.dart';
+import 'package:dash_master_toolkit/forms/industrial/view/probar/probar_list_screen.dart';
 import 'package:dash_master_toolkit/production_dashboard/production_dashboard_routes.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_detail_screen.dart';
 import 'package:dash_master_toolkit/quality_control/view/quality_control_comparison_screen.dart';
@@ -101,6 +102,14 @@ import 'package:dash_master_toolkit/forms/industrial/view/probar_form_screen.dar
 import 'package:dash_master_toolkit/forms/industrial/view/melange_form_screen.dart';
 import 'package:dash_master_toolkit/forms/industrial/view/melange/melange_history_screen.dart';
 import 'package:dash_master_toolkit/forms/industrial/view/melange/melange_details_screen.dart';
+import 'package:dash_master_toolkit/forms/raw_material_request/raw_material_request_screen.dart';
+import 'package:dash_master_toolkit/forms/raw_material_request/raw_material_request_paths.dart';
+import 'package:dash_master_toolkit/forms/raw_material_request/raw_material_requests_screen.dart';
+import 'package:dash_master_toolkit/forms/raw_material_request/raw_material_to_validate_screen.dart';
+import 'package:dash_master_toolkit/providers/raw_material_pending_provider.dart';
+import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_record.dart' show FicheApprovalPaths;
+import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_screen.dart';
+import 'package:dash_master_toolkit/providers/fiche_approval_pending_provider.dart';
 import 'package:dash_master_toolkit/forms/industrial/view/maintenance_form_screen.dart';
 import 'package:dash_master_toolkit/forms/industrial/view/industrial_historique_screen.dart';
 import 'package:dash_master_toolkit/forms/hr/view/hr_type_screen.dart';
@@ -193,6 +202,8 @@ class MyRoute {
   static const productionRoot = '/production';
   static const productionPromeshRoot = '/production/promesh';
   static const productionProbarRoot = '/production/probar';
+  // Liste de toutes les fiches PROBAR (filtres, statistiques, pagination).
+  static const probarListScreen = '/production/probar/fiches';
   static const productionRecordsScreen = '/production/records';
   // Dashboard Production : page d'accueil du module (KPI, machines,
   // graphiques, dernières productions) — voir production_dashboard/.
@@ -210,6 +221,13 @@ class MyRoute {
   static const melangeFormScreen = '/melange/form';
   static const melangeHistoriqueScreen = '/melange/historique';
   static const melangeDetailScreen = '/melange/detail';
+  // Demande de matières premières exigée avant une nouvelle
+  // fiche — `?module=melange&retour=<chemin>` ; sans module : demande générale.
+  static const rawMaterialRequestScreen = RawMaterialPaths.request;
+  static const rawMaterialRequestsTrackingScreen = RawMaterialPaths.tracking;
+  static const rawMaterialRequestsToValidateScreen = RawMaterialPaths.toValidate;
+  // Validation des fiches de production par le responsable logistique.
+  static const ficheApprovalScreen = FicheApprovalPaths.root;
   static const maintenanceRoot = '/maintenance';
   static const maintenanceFormScreen = '/maintenance/form';
   static const maintenanceHistoriqueScreen = '/maintenance/historique';
@@ -355,7 +373,7 @@ static const clientsProfileScreen = '/users/client';
         // industriel (POR PROMESH, PRODUCTION, MÉLANGE, MAINTENANCE).
         final isOnIndustrialRoute = industrialRoutePrefixes
             .any((p) => loc == p || loc.startsWith('$p/'));
-        // Exception nominative : responsable_logistique@cbi-tunisia.com accède
+        // Exception nominative : responsables logistique et production accèdent
         // aussi aux écrans des demandes Production (jamais production_1..5).
         final isOnProductionRequestRoute = AuthService().isProductionWorkflowManager &&
             productionRequestRoutes.any((p) => loc == p || loc.startsWith('$p/'));
@@ -737,7 +755,7 @@ GoRoute(
     final userId = (box.read('userId') ?? '').toString();
     final userEmail = (box.read('userEmail') ?? '').toString();
 
-    print('DEBUG route token = $token');
+    print('DEBUG route token = ${token.isEmpty ? 'absent' : 'présent'}');
     print('DEBUG route role = $role');
     print('DEBUG route userId = $userId');
     print('DEBUG route userEmail = $userEmail');
@@ -997,6 +1015,50 @@ GoRoute(
               return state.uri.path == productionRoot ? productionDashboardScreen : null;
             },
             routes: [
+              // Menu « Matières premières » : suivi des demandes (le backend
+              // revérifie la visibilité et les droits sur chaque appel).
+              GoRoute(
+                path: 'matieres-premieres',
+                redirect: (context, state) => AuthService().canViewRawMaterialRequests ? null : productionDashboardScreen,
+                // `?id=<demande>` (notification) : ouvre directement la demande.
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: ValueKey('raw-material-requests-${state.uri.queryParameters['id'] ?? ''}'),
+                  child: RawMaterialRequestsScreen(initialRequestId: state.uri.queryParameters['id']),
+                ),
+                routes: [
+                  // Demandes à valider (gestionnaires ; le backend revérifie
+                  // chaque décision : validation réservée au responsable).
+                  GoRoute(
+                    path: 'a-valider',
+                    redirect: (context, state) =>
+                        AuthService().isRawMaterialRequestManager ? null : rawMaterialRequestsTrackingScreen,
+                    pageBuilder: (context, state) => NoTransitionPage(
+                      key: const ValueKey('raw-material-to-validate'),
+                      child: RawMaterialToValidateScreen(
+                        onCountChanged: (n) {
+                          if (AuthService().isRawMaterialRequestValidator) RawMaterialPendingProvider.to.pendingCount.value = n;
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              // Validation des fiches de production (le backend revérifie
+              // chaque décision : responsable logistique uniquement).
+              GoRoute(
+                path: 'validation-fiches',
+                redirect: (context, state) => AuthService().canViewFicheApprovals ? null : productionDashboardScreen,
+                // `?fiche=promesh:<id>` (notification) : ouvre directement la fiche.
+                pageBuilder: (context, state) => NoTransitionPage(
+                  key: ValueKey('fiche-approvals-${state.uri.queryParameters['fiche'] ?? ''}'),
+                  child: FicheApprovalScreen(
+                    initialFiche: state.uri.queryParameters['fiche'],
+                    onPendingChanged: (n) {
+                      if (AuthService().isFicheApprovalValidator) FicheApprovalPendingProvider.to.pendingCount.value = n;
+                    },
+                  ),
+                ),
+              ),
               GoRoute(
                 path: 'dashboard',
                 pageBuilder: (context, state) => const NoTransitionPage(
@@ -1149,6 +1211,13 @@ GoRoute(
                   ),
                 ),
                 routes: [
+                  // « Fiches de production PROBAR » (même présentation que
+                  // PROMESH : /por-promesh/list). Hérite du redirect
+                  // canViewPorPromesh de productionRoot.
+                  GoRoute(
+                    path: 'fiches',
+                    pageBuilder: (context, state) => const NoTransitionPage(child: ProbarListScreen()),
+                  ),
                   GoRoute(
                     path: 'machine/:num',
                     pageBuilder: (context, state) => NoTransitionPage(
@@ -1382,6 +1451,22 @@ GoRoute(
                 pageBuilder: (context, state) => NoTransitionPage(
                   child: MelangeDetailsScreen(id: state.uri.queryParameters['id'] ?? ''),
                 ),
+              ),
+              GoRoute(
+                path: 'demande-matieres-premieres',
+                pageBuilder: (context, state) {
+                  final module = state.uri.queryParameters['module'];
+                  final isMelange = module == 'melange';
+                  final defaultReturn = isMelange ? melangeHistoriqueScreen : porPromeshDashboardScreen;
+                  return NoTransitionPage(
+                    child: RawMaterialRequestScreen(
+                      module: module,
+                      returnTo: state.uri.queryParameters['retour'] ?? defaultReturn,
+                      continueTo: isMelange ? melangeFormScreen : porPromeshDashboardScreen,
+                      continueLabel: isMelange ? 'Créer la fiche Mélange' : 'Retour à la production',
+                    ),
+                  );
+                },
               ),
             ],
           ),

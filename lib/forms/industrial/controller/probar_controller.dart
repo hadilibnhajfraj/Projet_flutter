@@ -13,6 +13,7 @@ import 'package:intl/intl.dart';
 
 import 'package:dash_master_toolkit/utils/common.dart';
 
+import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_record.dart';
 import '../model/industrial_record_model.dart';
 import '../service/industrial_record_service.dart';
 
@@ -20,7 +21,12 @@ class ProbarController extends GetxController {
   final RxBool isLoading = false.obs;
   final RxBool isLocked = false.obs;
   final RxString statut = 'enregistree'.obs;
+  // Validation par le responsable logistique (null : fiche hors circuit).
+  final Rxn<FicheApproval> approval = Rxn<FicheApproval>();
   String? recordId;
+
+  /// Fiche refusée en cours de correction (avant nouvelle soumission).
+  bool get isCorrecting => approval.value?.isRejected ?? false;
 
   // Horodatage de la dernière sauvegarde de LA FICHE (pas de granularité
   // par module côté backend — un seul enregistrement partagé par tous les
@@ -479,6 +485,7 @@ class ProbarController extends GetxController {
     recordId = null;
     statut.value = 'enregistree';
     isLocked.value = false;
+    approval.value = null;
     lastUpdatedAt.value = null;
     machine.value = null;
     poste.value = null;
@@ -544,7 +551,10 @@ class ProbarController extends GetxController {
   void loadFromModel(IndustrialRecordModel m) {
     recordId = m.id;
     statut.value = m.statut;
-    isLocked.value = m.statut == 'validee';
+    approval.value = m.approval;
+    // Une fiche refusée par le responsable logistique reste modifiable par
+    // son créateur pour correction.
+    isLocked.value = m.statut == 'validee' && !isCorrecting;
     lastUpdatedAt.value = DateTime.tryParse(m.updatedAt ?? '');
     machine.value = m.machine;
     poste.value = m.poste;
@@ -805,12 +815,16 @@ class ProbarController extends GetxController {
 
   // ── Sauvegarde / Validation ────────────────────────────────────────────
   Future<IndustrialRecordModel> saveDraft() async {
-    final model = buildModel(forStatut: 'enregistree');
+    // Correction d'une fiche refusée déjà terminée : elle reste « validee »
+    // (jamais renvoyée en brouillon, donc jamais archivée automatiquement).
+    final keepFinished = isCorrecting && statut.value == 'validee';
+    final model = buildModel(forStatut: keepFinished ? 'validee' : 'enregistree');
     final saved = recordId == null
         ? await IndustrialRecordService.instance.create(model)
         : await IndustrialRecordService.instance.update(recordId!, model);
     recordId = saved.id ?? recordId;
-    statut.value = 'enregistree';
+    statut.value = keepFinished ? 'validee' : 'enregistree';
+    approval.value = saved.approval ?? approval.value;
     isLocked.value = false;
     lastUpdatedAt.value = DateTime.tryParse(saved.updatedAt ?? '') ?? DateTime.now();
     return saved;

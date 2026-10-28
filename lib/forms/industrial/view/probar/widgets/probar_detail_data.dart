@@ -7,10 +7,9 @@
 // aucun TextEditingController puisque l'écran détail est entièrement lecture
 // seule.
 //
-// La page Détail PROBAR n'affiche plus la section Contrôle Qualité (4
-// créneaux L1-L4) — `cq`/`controlesQualite` n'est donc plus décodé ici (les
-// données restent inchangées côté fiche/écran de saisie, seule cette lecture
-// a été retirée).
+// `cq` (contrôle qualité par créneau) et `dia` (diamètre, module Rendement)
+// sont décodés en lecture seule pour l'onglet Contrôle qualité et le panneau
+// Production du détail (mêmes clés que ProbarController).
 
 import 'dart:convert';
 
@@ -31,6 +30,14 @@ class ProbarDetailData {
   final String? descriptionNonConformite;
   final String? actionsCorrectives;
 
+  /// Diamètre saisi au module Rendement (clé compacte `dia`, en mm).
+  final String? diametre;
+
+  /// Contrôle qualité par créneau (clé compacte `cq`) : heure, statutCOQ
+  /// (OK / NOK / null), nbBobines, vitesse, mesure, diametre, poids,
+  /// longueurBarre, longueurDechet — mêmes clés que l'écran de saisie.
+  final List<Map<String, dynamic>> controlesQualite;
+
   const ProbarDetailData({
     this.heureDebut,
     this.heureFin,
@@ -40,6 +47,8 @@ class ProbarDetailData {
     this.qualiteMesures = const {},
     this.descriptionNonConformite,
     this.actionsCorrectives,
+    this.diametre,
+    this.controlesQualite = const [],
   });
 
   factory ProbarDetailData.fromModel(IndustrialRecordModel m) {
@@ -122,6 +131,8 @@ class ProbarDetailData {
       qualiteMesures: qualiteMesures,
       descriptionNonConformite: d['dnc']?.toString(),
       actionsCorrectives: d['ac']?.toString(),
+      diametre: d['dia']?.toString(),
+      controlesQualite: [for (final e in (d['cq'] as List? ?? const [])) if (e is Map) Map<String, dynamic>.from(e)],
     );
   }
 

@@ -35,7 +35,8 @@ class MachineControlCard extends StatelessWidget {
   // _lineIndexForMachine) : Machine 1→L1, 2→L2, 3→L3, 4→L4.
   int get _lineIndex => ((int.tryParse(machine) ?? 1) - 1).clamp(0, 3);
 
-  static const _fields = [
+  // Public : réutilisé par la grille compacte du détail PROBAR.
+  static const fields = [
     ('air', 'Air'),
     ('niveauBainEau', 'Niveau Bain Eau'),
     ('temperatureEau', 'Température Eau'),
@@ -85,7 +86,7 @@ class MachineControlCard extends StatelessWidget {
     return CqCardSurface(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Wrap(spacing: 10, runSpacing: 10, children: [
-          for (final f in _fields) ProbarValueChip(label: f.$2, value: machineControl[f.$1]),
+          for (final f in fields) ProbarValueChip(label: f.$2, value: machineControl[f.$1]),
         ]),
         if (justification.isNotEmpty) ...[
           const SizedBox(height: 14),

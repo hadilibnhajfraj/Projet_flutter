@@ -2,6 +2,10 @@
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'components/common_imports.dart';
 import 'package:dash_master_toolkit/quality_control/quality_control_routes.dart' show qcBreadcrumb;
+import 'package:dash_master_toolkit/forms/raw_material_request/raw_material_request_login_prompt.dart';
+import 'package:dash_master_toolkit/forms/raw_material_request/raw_material_pending_prompt.dart';
+import 'package:dash_master_toolkit/forms/raw_material_request/raw_material_evening_prompt.dart';
+import 'package:dash_master_toolkit/providers/raw_material_pending_provider.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.child});
@@ -15,6 +19,26 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   final scaffoldKey = GlobalKey<ScaffoldState>();
   bool isSidebarExpanded = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Premier écran authentifié affiché : session et navigation prêtes.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      // Demandeur (production_1, vendredi) puis responsable logistique achats
+      // (demandes en attente) — chaque popup ne concerne que son compte.
+      await RawMaterialLoginPrompt.maybeShow(context);
+      if (!mounted) return;
+      await RawMaterialPendingPrompt.maybeShow(
+        context,
+        onCountChanged: (n) => RawMaterialPendingProvider.to.pendingCount.value = n,
+      );
+      if (!mounted) return;
+      // Shift soir (production_2) : demande validée à prendre en charge.
+      await RawMaterialEveningPrompt.maybeShow(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
