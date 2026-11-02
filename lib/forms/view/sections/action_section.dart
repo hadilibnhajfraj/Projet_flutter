@@ -11,6 +11,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:dash_master_toolkit/calculation_notes/view/project_calculation_notes_section.dart';
 import 'package:dash_master_toolkit/forms/controller/project_form_controller.dart';
 import 'package:dash_master_toolkit/forms/view/bon_de_commande_form_section.dart';
 import 'package:dash_master_toolkit/forms/view/devis_form_section.dart';
@@ -22,12 +23,15 @@ class ActionSection extends StatelessWidget {
   final ProjectFormController c;
   final String? projectId;
   final Future<void> Function() onRefreshColors;
+  // false : formulaire ouvert depuis une note de calcul (pas de note imbriquée).
+  final bool showCalculationNotes;
 
   const ActionSection({
     super.key,
     required this.c,
     required this.projectId,
     required this.onRefreshColors,
+    this.showCalculationNotes = true,
   });
 
   static const _actionLabels = <String, String>{
@@ -196,6 +200,17 @@ class ActionSection extends StatelessWidget {
                 side: const BorderSide(color: kCrmPrimary)),
           ),
         ],
+
+        // ── Documents techniques – Notes de calcul (création et modification) ──
+        // Facultatif : à la création, les documents choisis sont enregistrés
+        // dans une note liée au projet juste après sa création.
+        if (showCalculationNotes) const SizedBox(height: 24),
+        if (showCalculationNotes) ProjectCalculationNotesSection(
+          key: ValueKey('project-notes-${projectId ?? 'new'}'),
+          projectId: projectId,
+          projectName: c.nomProjet.text,
+          drafts: c.calculationNoteDrafts,
+        ),
 
         const SizedBox(height: 32),
 

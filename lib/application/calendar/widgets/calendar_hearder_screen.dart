@@ -2,6 +2,7 @@ import 'package:dash_master_toolkit/application/calendar/calendar_imports.dart';
 import 'package:dash_master_toolkit/application/calendar/widgets/add_new_task_dialog.dart';
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import 'package:intl/intl.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 class CalendarHeader extends StatefulWidget {
   const CalendarHeader({super.key});
@@ -108,6 +109,8 @@ class _CalendarHeaderState extends State<CalendarHeader> {
 
   /// "Add New Task" Button
   Widget _buildAddTaskButton(ThemeData theme, AppLocalizations lang) {
+    // Compte back-office (consultation) : aucune création de tâche.
+    if (AuthService().isReadOnly) return const SizedBox.shrink();
     return IntrinsicWidth(
       child: CommonButtonWithIcon(
         backgroundColor: colorPrimary100,

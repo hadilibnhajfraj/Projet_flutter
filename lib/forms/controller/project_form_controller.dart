@@ -13,6 +13,7 @@ import 'package:get_storage/get_storage.dart';
 import '../model/architect_model.dart';
 import '../model/company_model.dart';
 import '../model/engineer_model.dart';
+import 'package:dash_master_toolkit/calculation_notes/model/calculation_note.dart';
 
 class ProjectFormController extends GetxController {
 
@@ -25,6 +26,11 @@ class ProjectFormController extends GetxController {
 
   // ── Devis validity (set by DevisFormSection callback) ─────────────────────
   final RxBool devisIsValid = false.obs;
+
+  // ── Notes de calcul choisies AVANT la création du projet (facultatif) ─────
+  // Envoyées dans une note liée au projet juste après sa création
+  // (project_form_screen.dart#_submit) ; ignorées si le projet n'est pas créé.
+  final List<PendingNoteDocument> calculationNoteDrafts = [];
 
   void setFile(Uint8List bytes, String name) {
     fileBytes.value = bytes;
@@ -153,6 +159,7 @@ String formatDate(String? isoDate) {
   return DateFormat("dd/MM/yyyy").format(date);
 }
 void resetForm() {
+  calculationNoteDrafts.clear();
   nomProjet.clear();
   dateDemarrage.clear();
   statut.clear();

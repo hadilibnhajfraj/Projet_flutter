@@ -3,6 +3,8 @@ import 'package:responsive_framework/responsive_framework.dart' as rf;
 
 import '../common_imports.dart';
 import 'package:dash_master_toolkit/quality_control/view/quality_control_topbar.dart';
+import 'read_only_profile_badge.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 class TopBarWidget extends StatelessWidget implements PreferredSizeWidget {
   const TopBarWidget({super.key, this.onMenuTap});
@@ -61,6 +63,8 @@ class TopBarWidget extends StatelessWidget implements PreferredSizeWidget {
 
         // User Avatar (+ identité du compte Contrôle Qualité)
         if (width >= 1000) const QcTopbarIdentity(),
+        // Compte back-office : profil « consultation uniquement » toujours visible.
+        if (AuthService().isReadOnly) const ReadOnlyProfileBadge(),
         const UserProfileAvatar(),
         const SizedBox(width: 16),
       ],

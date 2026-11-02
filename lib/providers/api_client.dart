@@ -5,6 +5,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dash_master_toolkit/core/config/api_config.dart';
 import 'package:dash_master_toolkit/providers/auth_storage.dart';
+import 'package:dash_master_toolkit/core/config/read_only_access.dart';
 
 class ApiClient {
   ApiClient._internal() {
@@ -37,6 +38,19 @@ class ApiClient {
           final token = _box.read<String>('accessToken');
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
+          }
+
+          // Compte back-office en consultation seule : aucune écriture n'est
+          // envoyée (le backend la refuserait de toute façon — 403).
+          if (isReadOnlyAccount(role: _box.read<String>('userRole'), readOnlyFlag: _box.read<bool>('readOnly')) &&
+              readOnlyBlocksRequest(options.method, options.path)) {
+            const message = 'Compte back-office : consultation uniquement. Aucune création, modification ou suppression.';
+            return handler.reject(DioException(
+              requestOptions: options,
+              type: DioExceptionType.badResponse,
+              message: message,
+              response: Response(requestOptions: options, statusCode: 403, data: const {'code': 'READ_ONLY_ACCOUNT', 'message': message}),
+            ));
           }
 
           // Belt-and-suspenders: if FormData slipped through with a stale

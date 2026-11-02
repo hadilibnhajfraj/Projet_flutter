@@ -1,6 +1,7 @@
 import 'package:responsive_framework/responsive_framework.dart' as rf;
 import '../common_imports.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/calculation_notes/model/calculation_note.dart' show isCalculationNoteValidator;
 import 'package:dash_master_toolkit/providers/archive_request_provider.dart';
 import 'package:dash_master_toolkit/providers/maintenance_request_provider.dart';
 import 'package:dash_master_toolkit/providers/production_compliance_request_provider.dart';
@@ -33,7 +34,8 @@ class SideBarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth    = context.watch<AuthService>();
-    final role    = (auth.userRole ?? '').toString().trim().toLowerCase();
+    // Compte back-office : menus de consultation du compte de référence.
+    final role    = auth.uiRole;
     final isAdmin = role == 'admin' || role == 'superadmin' || role == 'superadmin2';
     final isCommercial = role == 'commercial';
     final isAccueil    = role == 'accueil';
@@ -93,6 +95,7 @@ class SideBarWidget extends StatelessWidget {
       canViewRawMaterialRequests: auth.canViewRawMaterialRequests,
       canValidateRawMaterialRequests: auth.isRawMaterialRequestManager,
       canViewFicheApprovals: auth.canViewFicheApprovals,
+      isReadOnly: auth.isReadOnly,
     );
 
     final sidebarW = iconOnly

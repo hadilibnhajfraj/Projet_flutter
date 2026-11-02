@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dash_master_toolkit/application/calendar/model/relance_calendar_item.dart';
 import 'package:dash_master_toolkit/services/relance_api.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 
 const _kPrimary = Color(0xFF4F46E5);
 
@@ -251,7 +252,8 @@ class _FollowupDetailDialogState extends State<_FollowupDetailDialog> {
           Wrap(
             spacing: 6,
             children: [
-              if (_isPlanifiee) ...[
+              // Compte back-office (consultation) : détails seuls, aucune action.
+              if (_isPlanifiee && !AuthService().isReadOnly) ...[
                 _actionBtn("Modifier", Icons.edit_outlined, _kPrimary, () => _openEditDialog(dateOnly: false)),
                 _actionBtn("Reporter", Icons.event_repeat_rounded, const Color(0xFFF59E0B),
                     () => _openEditDialog(dateOnly: true)),

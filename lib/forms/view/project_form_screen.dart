@@ -46,6 +46,8 @@ import 'sections/location_section.dart';
 import 'sections/action_section.dart';
 import 'widgets/crm_widgets.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/calculation_notes/service/calculation_note_service.dart';
+import 'package:dash_master_toolkit/calculation_notes/view/project_calculation_notes_section.dart';
 
 // ── Wizard step descriptor ────────────────────────────────────────────────────
 
@@ -67,7 +69,12 @@ const _kSteps = <_WizardStep>[
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 class ProjectFormScreen extends StatefulWidget {
-  const ProjectFormScreen({super.key});
+  /// Mode intégré (création d'un projet depuis une note de calcul) : même
+  /// formulaire, mêmes validations, même POST /projects ; appelé avec le projet
+  /// créé au lieu de rester sur la page. Absent = comportement inchangé.
+  final void Function(Map<String, dynamic> project)? onProjectCreated;
+
+  const ProjectFormScreen({super.key, this.onProjectCreated});
 
   @override
   State<ProjectFormScreen> createState() => _ProjectFormScreenState();
@@ -113,7 +120,8 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
     if (_loadedOnce) return;
     _loadedOnce = true;
 
-    final id = GoRouterState.of(context).uri.queryParameters['id'];
+    // Mode intégré : toujours une création (pas de route GoRouter ici).
+    final id = widget.onProjectCreated != null ? null : GoRouterState.of(context).uri.queryParameters['id'];
     if (id != null && id.isNotEmpty) {
       _projectId = id;
       _loadForEdit(id);
@@ -278,6 +286,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
           '${jsonEncode(payload)}');
     }
 
+    String? calculationNoteWarning;
     try {
       dynamic data;
       if (_projectId == null) {
@@ -305,6 +314,15 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
           }
           await ApiClient.instance.dio.post(
               '/projects/$projectId/actions', data: fd);
+        }
+        // Notes de calcul choisies avant la création (facultatif) : une
+        // erreur ici n'annule jamais la création du projet (simple avertissement).
+        if (c.calculationNoteDrafts.isNotEmpty) {
+          try {
+            await submitProjectCalculationNoteDrafts(projectId.toString(), c.calculationNoteDrafts);
+          } catch (e) {
+            calculationNoteWarning = noteErrorMessage(e);
+          }
         }
       } else {
         // ── UPDATE ────────────────────────────────────────────────────────────
@@ -358,12 +376,22 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
         Get.find<PipelineProvider>().load(silent: true);
       }
 
+      if (_projectId == null && widget.onProjectCreated != null) {
+        widget.onProjectCreated!(projectMap);
+        return;
+      }
+
       if (_projectId == null) {
         setState(() => _projectId = project.id);
         await c.loadProject(project.id);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text(AppLocalizations.of(context).translate('Project created successfully'))));
+        if (calculationNoteWarning != null) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('${AppLocalizations.of(context).translate('Projet créé, mais la note de calcul n’a pas pu être enregistrée')} : $calculationNoteWarning'),
+              backgroundColor: Colors.orange.shade800));
+        }
         if (goBackAfterSave) context.go(MyRoute.userGridScreen);
         c.clearFile();
         return;
@@ -416,6 +444,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
           steps:       _kSteps,
           currentStep: _currentStep,
           projectId:   _projectId,
+          onBack: widget.onProjectCreated != null ? () => Navigator.of(context).pop() : null,
         ),
         Expanded(
           child: Form(
@@ -432,6 +461,7 @@ class _ProjectFormScreenState extends State<ProjectFormScreen> {
                   c:               c,
                   projectId:       _projectId,
                   onRefreshColors: _refreshCardColors,
+                  showCalculationNotes: widget.onProjectCreated == null,
                 ),
               ],
             ),
@@ -460,11 +490,14 @@ class _WizardHeader extends StatelessWidget {
   final List<_WizardStep> steps;
   final int currentStep;
   final String? projectId;
+  // Mode intégré (fenêtre) : la flèche ferme la fenêtre au lieu de naviguer.
+  final VoidCallback? onBack;
 
   const _WizardHeader({
     required this.steps,
     required this.currentStep,
     required this.projectId,
+    this.onBack,
   });
 
   @override
@@ -476,7 +509,7 @@ class _WizardHeader extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
           child: Row(children: [
             InkWell(
-              onTap: () => context.canPop()
+              onTap: onBack ?? () => context.canPop()
                   ? context.pop()
                   : context.go(MyRoute.userGridScreen),
               borderRadius: BorderRadius.circular(8),

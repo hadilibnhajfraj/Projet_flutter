@@ -12,6 +12,8 @@ class NotificationData {
   final String productionFicheId;
   // Demande de matières premières concernée.
   final String rawMaterialRequestId;
+  // Note de calcul concernée (validation des notes de calcul).
+  final String calculationNoteId;
 
   NotificationData({
     required this.id,
@@ -25,6 +27,7 @@ class NotificationData {
     this.productionFicheType = '',
     this.productionFicheId = '',
     this.rawMaterialRequestId = '',
+    this.calculationNoteId = '',
   });
 
   /// Lien vers la demande dans « Production → Matières premières ».
@@ -36,7 +39,12 @@ class NotificationData {
       ? (productionFicheLink!, 'Voir la fiche')
       : rawMaterialRequestLink != null
           ? (rawMaterialRequestLink!, 'Voir la demande')
-          : null;
+          : calculationNoteLink != null
+              ? (calculationNoteLink!, 'Voir la note')
+              : null;
+
+  /// Lien vers la note de calcul (détail, avec décision pour le validateur).
+  String? get calculationNoteLink => calculationNoteId.isEmpty || calculationNoteId == 'null' ? null : '/notes-calcul/detail?id=$calculationNoteId';
 
   /// Lien vers la fiche dans « Validation des fiches de production ».
   String? get productionFicheLink => productionFicheType.isEmpty || productionFicheId.isEmpty
@@ -57,6 +65,7 @@ class NotificationData {
       productionFicheType: (json['productionFicheType'] ?? '').toString(),
       productionFicheId: (json['productionFicheId'] ?? '').toString(),
       rawMaterialRequestId: (json['rawMaterialRequestId'] ?? '').toString(),
+      calculationNoteId: (json['calculationNoteId'] ?? '').toString(),
     );
   }
 }

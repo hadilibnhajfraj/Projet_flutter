@@ -174,6 +174,8 @@ List<GroupedMenuModel> buildGroupedMenus({
   bool canViewRawMaterialRequests = false,
   bool canValidateRawMaterialRequests = false,
   bool canViewFicheApprovals = false,
+  // Compte back-office en consultation seule : aucun formulaire de création.
+  bool isReadOnly = false,
 }) {
   // ── ESPACE DÉDIÉ — responsable_logistique_achat ─────────────────────────
   // Rien d'autre que le module industriel n'est visible pour ce rôle : pas
@@ -249,8 +251,9 @@ List<GroupedMenuModel> buildGroupedMenus({
       // KPI Commercial Contacts : une seule entrée (auparavant à la fois dans
       // le menu Dashboard de tête et dans le groupe COMMERCIAL).
       buildDashboardGroup(canViewCrmKpi: false, canViewCommercialKpi: true),
-      buildCommercialGroup(),
-      GroupedMenuModel(
+      buildCommercialGroup(readOnly: isReadOnly),
+      // « Mes Projets » ouvre le formulaire de création d'un projet.
+      if (!isReadOnly) GroupedMenuModel(
         name: 'MES PROJETS',
         menus: [
           SidebarItemModel(
@@ -261,6 +264,12 @@ List<GroupedMenuModel> buildGroupedMenus({
           ),
         ],
       ),
+      // Notes de calcul : consultation pour le back-office (le backend
+      // refuse toute écriture de ce compte).
+      GroupedMenuModel(name: 'DOCUMENTS TECHNIQUES', menus: [
+        buildCalculationNotesItem(),
+        if (showCalculationNoteValidation) buildCalculationNoteValidationItem(),
+      ]),
       GroupedMenuModel(
         name: 'TOOLS',
         menus: [
@@ -313,6 +322,8 @@ List<GroupedMenuModel> buildGroupedMenus({
               ),
           ],
         ),
+        buildCalculationNotesItem(),
+        if (showCalculationNoteValidation) buildCalculationNoteValidationItem(),
         // Anciennement un groupe "MY PROJECTS" séparé, dont l'entrée
         // s'appelait aussi "Projects" (deux "Projets" dans le menu).
         if (!isAdmin)
@@ -495,9 +506,30 @@ List<SidebarSubmenuModel> _machineSubmenus(String lineRoot) => List.generate(
 // Groupes séparés (Production / Mélange / Maintenance) pour que le menu
 // admin puisse intercaler FINANCE et CONTRÔLE QUALITÉ ; buildIndustrialGroups()
 // conserve l'ordre historique pour les espaces dédiés.
+// Module « Notes de calcul » (documents techniques des projets).
+SidebarItemModel buildCalculationNotesItem() => SidebarItemModel(
+      name:           'Notes de calcul',
+      icon:           Icons.calculate_outlined,
+      sidebarItemType: SidebarItemType.tile,
+      navigationPath: MyRoute.calculationNotesScreen,
+    );
+
+// « Validation des notes de calcul » : validateur désigné et compte
+// back-office (qui peut valider / refuser dans ce seul module). Le backend
+// vérifie chaque décision : ce menu n'est qu'un raccourci.
+bool get showCalculationNoteValidation => AuthService().isReadOnly || isCalculationNoteValidator(AuthService().userEmail);
+
+SidebarItemModel buildCalculationNoteValidationItem() => SidebarItemModel(
+      name:           'Validation des notes de calcul',
+      icon:           Icons.fact_check_outlined,
+      sidebarItemType: SidebarItemType.tile,
+      navigationPath: MyRoute.calculationNotesValidationScreen,
+    );
+
 // Groupe COMMERCIAL — partagé par le rôle "commercial" et les comptes PROBAR
 // éligibles du menu par défaut (voir isProbarProjectManager).
-GroupedMenuModel buildCommercialGroup() => GroupedMenuModel(
+// [readOnly] : sans « Commercial Profile » (formulaire de création de contact).
+GroupedMenuModel buildCommercialGroup({bool readOnly = false}) => GroupedMenuModel(
       name: 'COMMERCIAL',
       menus: [
         SidebarItemModel(
@@ -506,7 +538,7 @@ GroupedMenuModel buildCommercialGroup() => GroupedMenuModel(
           sidebarItemType: SidebarItemType.tile,
           navigationPath: '/users/commercial-contacts',
         ),
-        SidebarItemModel(
+        if (!readOnly) SidebarItemModel(
           name:           'Commercial Profile',
           icon:           Icons.person_search_outlined,
           sidebarItemType: SidebarItemType.tile,

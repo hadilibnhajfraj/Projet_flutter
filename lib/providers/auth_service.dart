@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dash_master_toolkit/core/config/logistics_managers.dart';
+import 'package:dash_master_toolkit/core/config/read_only_access.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get_storage/get_storage.dart';
@@ -73,13 +74,27 @@ bool get isClient => userRole?.toLowerCase() == 'client';
 // l'adresse email ; le backend revérifie ce droit sur chaque route.
 bool get isProbarProjectManager => _box.read<bool>('probarProjectManager') ?? false;
 
+// Compte back-office en consultation seule (backoffice_readonly) : mêmes
+// écrans de consultation que le compte de référence (rôle commercial), aucune
+// action d'écriture — le backend refuse toute écriture (403) et exécute les
+// lectures avec la visibilité du compte de référence.
+bool get isReadOnly => isReadOnlyAccount(role: userRole, readOnlyFlag: _box.read<bool>('readOnly'));
+
+/// Compte dont la visibilité est reproduite (renvoyé par le backend).
+String? get readOnlyReferenceEmail => _box.read<String>('referenceEmail');
+
+/// Rôle utilisé par l'INTERFACE (menus, écrans) : « commercial » pour le
+/// compte back-office (écrans de consultation du compte de référence),
+/// le rôle réel sinon. Jamais utilisé pour un contrôle d'accès.
+String get uiRole => isReadOnly ? 'commercial' : (userRole ?? '').toLowerCase().trim();
+
 // Accès au dashboard KPI Commercial Contacts :
 // uniquement admin, superadmin, superadmin2, commercial et les comptes PROBAR
 // éligibles (isProbarProjectManager). Le rôle "user" est sinon exclu.
 bool get canViewCommercialKpi {
   final r = (userRole ?? '').toLowerCase().trim();
   return r == 'admin' || r == 'superadmin' || r == 'superadmin2' || r == 'commercial' ||
-      isProbarProjectManager;
+      isProbarProjectManager || isReadOnly;
 }
 
 // Accès au module POR PROMESH :
@@ -274,6 +289,8 @@ Future<List<String>> getUserNames() async {
     await _box.remove('userEmail');
     await _box.remove('userRole');
     await _box.remove('probarProjectManager');
+    await _box.remove('readOnly');
+    await _box.remove('referenceEmail');
 
     try {
       final deviceId = await DeviceIdentityService.getDeviceId();
@@ -449,6 +466,13 @@ Future<List<String>> getUserNames() async {
         'probarProjectManager',
         permissions is Map && permissions['probarProjectManager'] == true,
       );
+      await _box.write('readOnly', permissions is Map && permissions['readOnly'] == true);
+      final reference = permissions is Map ? permissions['referenceEmail'] : null;
+      if (reference != null) {
+        await _box.write('referenceEmail', reference.toString());
+      } else {
+        await _box.remove('referenceEmail');
+      }
     }
 
     // ✅ set token in dio header
@@ -489,6 +513,8 @@ Future<List<String>> getUserNames() async {
       }
       if (_box.read<String>('userId') != identity.id) {
         await _box.remove('probarProjectManager');
+    await _box.remove('readOnly');
+    await _box.remove('referenceEmail');
         await _box.remove('sessionId');
       }
       await _box.write('userId', identity.id);
@@ -600,6 +626,8 @@ Future<List<String>> getUserNames() async {
     await _box.remove('userEmail');
     await _box.remove('userRole');
     await _box.remove('probarProjectManager');
+    await _box.remove('readOnly');
+    await _box.remove('referenceEmail');
     await _box.remove('sessionId');
 
     ApiClient.instance.clearToken(); // ✅ remove Authorization header

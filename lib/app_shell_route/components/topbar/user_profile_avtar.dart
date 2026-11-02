@@ -50,8 +50,9 @@ class UserProfileAvatar extends StatelessWidget {
         }
       },
       itemBuilder: (context) {
+        // Compte back-office : jamais « changer de commercial » (écriture).
         final isCommercial =
-            AuthService().userRole?.toLowerCase().trim() == 'commercial';
+            AuthService().userRole?.toLowerCase().trim() == 'commercial' && !AuthService().isReadOnly;
         return [
           const PopupMenuItem(
             value: 1,

@@ -1267,7 +1267,11 @@ Future<void> _showRelanceDialog(CommercialContact contact) async {
   }
 }
 
-  Future<void> _showEditDialog(CommercialContact contact) async {
+  /// [readOnly] : MÊME formulaire, en consultation (compte back-office) —
+  /// toutes les valeurs affichées avec leur formatage, aucune saisie, ni
+  /// ajout / suppression, ni enregistrement (le backend refuse de toute façon
+  /// toute écriture de ce compte — 403).
+  Future<void> _showEditDialog(CommercialContact contact, {bool readOnly = false}) async {
     final nomSocieteCtrl = TextEditingController(text: contact.nomSociete ?? "");
     final nomCtrl = TextEditingController(text: contact.nom);
     final prenomCtrl = TextEditingController(text: contact.prenom);
@@ -1408,14 +1412,33 @@ final projects = (contact.projects.isEmpty
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "Edit contact",
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
+                      Row(children: [
+                        Expanded(
+                          child: Text(
+                            readOnly ? "Détails du contact" : "Edit contact",
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (readOnly)
+                          Container(
+                            key: const ValueKey('contact-read-only-chip'),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(color: const Color(0xFF0E7490).withValues(alpha: 0.10), borderRadius: BorderRadius.circular(20)),
+                            child: const Text("Consultation uniquement", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0E7490))),
+                          ),
+                      ]),
                       const SizedBox(height: 18),
+                      // Consultation : aucune saisie possible dans le formulaire
+                      // (le défilement reste actif), valeurs inchangées.
+                      AbsorbPointer(
+                        key: const ValueKey('contact-form-fields'),
+                        absorbing: readOnly,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                       Wrap(
                         spacing: 12,
                         runSpacing: 12,
@@ -1442,7 +1465,7 @@ Container(
         ),
       ),
 
-      IconButton(
+      if (!readOnly) IconButton(
         icon: const Icon(Icons.edit, size: 18),
         onPressed: () async {
           final newUser = await _showUserDialog();
@@ -1687,7 +1710,7 @@ const SizedBox(height: 18),
                                   ),
                                 ),
                                 const SizedBox(width: 10),
-                                IconButton(
+                                if (!readOnly) IconButton(
                                   onPressed: () {
                                     if (produits.length > 1) {
                                       setDialogState(() {
@@ -1705,7 +1728,7 @@ const SizedBox(height: 18),
                           );
                         }),
                       ),
-                      Align(
+                      if (!readOnly) Align(
                         alignment: Alignment.centerLeft,
                         child: OutlinedButton.icon(
                           onPressed: () {
@@ -1750,7 +1773,7 @@ Column(
                   decoration: _inputDecoration("Project name"),
                 ),
               ),
-              IconButton(
+              if (!readOnly) IconButton(
                 onPressed: () {
                   if (projects.length > 1) {
                     setDialogState(() => projects.removeAt(index));
@@ -1788,7 +1811,7 @@ Column(
   }),
 ),
 
-OutlinedButton.icon(
+if (!readOnly) OutlinedButton.icon(
   onPressed: () {
     setDialogState(() {
       projects.add({
@@ -1879,6 +1902,9 @@ OutlinedButton.icon(
                             ],
                           ),
                         ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 22),
                       _buildStatusHistorySection(statusHistory),
                       const SizedBox(height: 22),
@@ -1886,12 +1912,13 @@ OutlinedButton.icon(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           TextButton(
+                            key: const ValueKey('contact-dialog-close'),
                             onPressed: () =>
                                 Navigator.of(dialogContext).pop(false),
-                            child: const Text("Cancel"),
+                            child: Text(readOnly ? "Fermer" : "Cancel"),
                           ),
-                          const SizedBox(width: 8),
-                          ElevatedButton(
+                          if (!readOnly) const SizedBox(width: 8),
+                          if (!readOnly) ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: kPrimary,
                               foregroundColor: Colors.white,
@@ -2255,15 +2282,27 @@ if (saved == true) {
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  IconButton(
-                                    tooltip: 'Edit',
-                                    onPressed: () => _showEditDialog(contact),
-                                    icon: const Icon(
-                                      Icons.edit_outlined,
-                                      color: Color(0xFF2563EB),
-                                    ),
-                                  ),
-                                  IconButton(
+                                  // Consultation seule : le même formulaire, en
+                                  // lecture ; ni relance, ni suppression.
+                                  AuthService().isReadOnly
+                                      ? IconButton(
+                                          key: ValueKey('contact-view-${contact.id}'),
+                                          tooltip: 'Consulter les détails',
+                                          onPressed: () => _showEditDialog(contact, readOnly: true),
+                                          icon: const Icon(
+                                            Icons.visibility_outlined,
+                                            color: Color(0xFF0E7490),
+                                          ),
+                                        )
+                                      : IconButton(
+                                          tooltip: 'Edit',
+                                          onPressed: () => _showEditDialog(contact),
+                                          icon: const Icon(
+                                            Icons.edit_outlined,
+                                            color: Color(0xFF2563EB),
+                                          ),
+                                        ),
+                                  if (!AuthService().isReadOnly) IconButton(
                                     tooltip: 'Calendar',
                                     onPressed: () => _showRelanceDialog(contact),
                                     icon: const Icon(
@@ -2271,7 +2310,7 @@ if (saved == true) {
                                       color: Color(0xFF059669),
                                     ),
                                   ),
-                                  IconButton(
+                                  if (!AuthService().isReadOnly) IconButton(
                                     tooltip: 'Delete',
                                     onPressed: () => _confirmDelete(contact),
                                     icon: const Icon(
@@ -2538,7 +2577,7 @@ Widget _buildSearchBar() {
     if (_contacts.isEmpty) {
       // Même périmètre restreint que le backend (isCommercialScoped).
       final isCommercialRole =
-          (AuthService().userRole ?? '').toLowerCase().trim() == 'commercial' ||
+          AuthService().uiRole == 'commercial' ||
               AuthService().isProbarProjectManager;
       final hasActiveFilters = _searchController.text.trim().isNotEmpty ||
           selectedUser != null ||

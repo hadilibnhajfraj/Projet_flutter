@@ -54,6 +54,9 @@ import 'package:dash_master_toolkit/application/users/view/commercial_contact_li
 import 'package:dash_master_toolkit/application/users/view/users_table.dart';
 import 'package:dash_master_toolkit/application/users/view/user_project_screen.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dash_master_toolkit/calculation_notes/view/calculation_notes_screen.dart';
+import 'package:dash_master_toolkit/calculation_notes/view/calculation_note_detail_screen.dart';
+import 'package:dash_master_toolkit/calculation_notes/view/project_create_dialog.dart';
 
 import '../providers/auth_service.dart';
 import '../providers/language_provider.dart';
@@ -191,6 +194,10 @@ class MyRoute {
  static const dashboardScreen = '/kpi';
   // ✅ IMPORTANT : c’est bien /forms/project (pas null)
   static const projectFormScreen = '/forms/project';
+  // Module « Notes de calcul » (documents techniques des projets CRM).
+  static const calculationNotesScreen = kCalculationNotesRoute;
+  static const calculationNoteDetailScreen = '$kCalculationNotesRoute/detail';
+  static const calculationNotesValidationScreen = kCalculationNotesValidationRoute;
   static const porPromeshRoot = '/por-promesh';
   static const porPromeshDashboardScreen = '/por-promesh/dashboard';
   static const porPromeshListScreen = '/por-promesh/list';
@@ -365,7 +372,8 @@ static const clientsProfileScreen = '/users/client';
       if (!loggedIn && !isAuthRoute) return signInScreen;
 
       if (loggedIn) {
-        final role = (AuthService().userRole ?? '').toLowerCase().trim();
+        // Compte back-office : navigation du compte de référence (commercial).
+        final role = AuthService().uiRole;
 
         // ── Espace dédié responsable_logistique_achat ───────────────────
         // Cette personne ne doit jamais voir le CRM (Dashboard, KPI, Commercial,
@@ -742,6 +750,8 @@ GoRoute(
           ),
 GoRoute(
   path: MyRoute.commercialProfileScreen,
+  // Formulaire de création : jamais pour le compte back-office (consultation).
+  redirect: (context, state) => AuthService().isReadOnly ? commercialContactsKpiUsers : null,
   pageBuilder: (context, state) =>
       NoTransitionPage(child: CommercialContactCreateScreen()),
 ),
@@ -825,6 +835,8 @@ GoRoute(
               // ✅ /forms/project?id=...
               GoRoute(
                 path: 'project',
+                // Formulaire de création : jamais pour le compte back-office.
+                redirect: (context, state) => AuthService().isReadOnly ? commercialContactsKpiUsers : null,
                 pageBuilder: (context, state) =>
                     const NoTransitionPage(child: ProjectFormScreen()),
               ),
@@ -1003,6 +1015,36 @@ GoRoute(
             redirect: (context, state) => AuthService().isAdmin ? null : dashboard,
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: ManagementReportScreen()),
+          ),
+
+          // ── NOTES DE CALCUL — rôles CRM (user, commercial, admins) ; le
+          // compte back-office y accède en consultation. Les rôles industriels /
+          // finance / qualité sont déjà redirigés vers leur espace ci-dessus, et
+          // le backend refuse le module aux autres rôles.
+          GoRoute(
+            path: calculationNotesScreen,
+            redirect: (context, state) => AuthService().uiRole == 'accueil' ? dashboard : null,
+            pageBuilder: (context, state) => const NoTransitionPage(child: CalculationNotesScreen(createProject: showProjectCreateDialog)),
+            routes: [
+              // Rubrique du validateur (le backend refuse la liste aux autres).
+              GoRoute(
+                path: 'validation',
+                pageBuilder: (context, state) => const NoTransitionPage(
+                  key: ValueKey('calculation-notes-validation'),
+                  child: CalculationNotesScreen(validationMode: true),
+                ),
+              ),
+              GoRoute(
+                path: 'detail',
+                pageBuilder: (context, state) {
+                  final q = state.uri.queryParameters;
+                  return NoTransitionPage(
+                    key: ValueKey('calculation-note-${q['id']}'),
+                    child: CalculationNoteDetailScreen(noteId: int.tryParse(q['id'] ?? ''), openEdit: q['edit'] == '1'),
+                  );
+                },
+              ),
+            ],
           ),
 
           // ── MODULE INDUSTRIEL — PRODUCTION (PROMESH/PROBAR) ──────────────

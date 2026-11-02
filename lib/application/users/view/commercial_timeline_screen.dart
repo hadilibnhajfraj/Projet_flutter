@@ -7,6 +7,7 @@ import 'package:dash_master_toolkit/core/config/api_config.dart';
 import '../model/commercial_action_model.dart';
 import 'package:dash_master_toolkit/services/commercial_action_service.dart';
 import 'add_commercial_action_screen.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'package:dio/dio.dart';
 class CommercialTimelineScreen extends StatefulWidget {
   final String contactId;
@@ -150,7 +151,7 @@ Widget build(BuildContext context) {
       body: const Center(child: Text("No CRM actions")),
 
       /// ✅ FAB ICI AUSSI (même si vide)
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: AuthService().isReadOnly ? null : FloatingActionButton.extended(
         icon: const Icon(Icons.add),
         label: const Text("Add Action"),
         onPressed: () async {
@@ -226,7 +227,8 @@ Widget build(BuildContext context) {
 
                     IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteAction(action.id),
+                      // Consultation seule : suppression non proposée.
+                      onPressed: AuthService().isReadOnly ? null : () => _deleteAction(action.id),
                     ),
                   ],
                 ),
@@ -281,7 +283,7 @@ Widget build(BuildContext context) {
     ),
 
     /// ✅ ✅ ICI LE BON ENDROIT
-    floatingActionButton: FloatingActionButton.extended(
+    floatingActionButton: AuthService().isReadOnly ? null : FloatingActionButton.extended(
       icon: const Icon(Icons.add),
       label: const Text("Add Action"),
       onPressed: () async {
