@@ -23,6 +23,10 @@ class CommercialContactListGetxScreen extends StatefulWidget {
 class _CommercialContactListGetxScreenState
     extends State<CommercialContactListGetxScreen> {
       List<String> users = [];
+      // Créateurs réels (createdBy) : valeur du filtre préfixée par
+      // _creatorPrefix pour la distinguer d'un nom de commercial (user_nom).
+      List<CommercialContactCreator> creators = [];
+      static const String _creatorPrefix = 'creator:';
       Future<void> _loadUsers() async {
   try {
     final list = await _service.getUserNames(widget.token);
@@ -34,6 +38,12 @@ class _CommercialContactListGetxScreenState
     }
   } catch (e) {
     debugPrint("LOAD USERS ERROR: $e");
+  }
+  try {
+    final list = await _service.fetchCreators(widget.token);
+    if (mounted) setState(() => creators = list);
+  } catch (e) {
+    debugPrint("LOAD CREATORS ERROR: $e");
   }
 }
   final CommercialContactService _service = CommercialContactService();
@@ -360,10 +370,12 @@ Future<void> _loadContacts({
       });
     }
 
+    final byCreator = userNom != null && userNom.startsWith(_creatorPrefix);
     final data = await _service.fetchMyContacts(
       token: widget.token,
       query: query,
-      userNom: userNom,
+      userNom: byCreator ? null : userNom,
+      createdBy: byCreator ? userNom.substring(_creatorPrefix.length) : null,
       typeClient: typeClient,
     );
 
@@ -2188,7 +2200,7 @@ if (saved == true) {
             const SizedBox(height: 4),
 
             Text(
-              "👤 Created by: ${contact.userNom ?? contact.userNomCustom ?? '-'}",
+              "👤 Created by: ${contact.createdByLabel}",
               style: const TextStyle(
                 fontSize: 11,
                 color: Colors.grey,
@@ -2437,12 +2449,19 @@ Widget _buildSearchBar() {
               child: DropdownButtonFormField<String>(
                 value: selectedUser,
                 hint: const Text("Filter by User"),
-             items: users.map((u) {
-  return DropdownMenuItem(
-    value: u,
-    child: Text(u),
-  );
-}).toList(),
+                isExpanded: true,
+                items: [
+                  // Créateurs réels d'abord (filtre createdBy), puis les noms
+                  // de commerciaux saisis (comptes partagés comme info@).
+                  ...creators.map((c) => DropdownMenuItem(
+                        value: '$_creatorPrefix${c.id}',
+                        child: Text(c.label, overflow: TextOverflow.ellipsis),
+                      )),
+                  ...users.map((u) => DropdownMenuItem(
+                        value: u,
+                        child: Text(u, overflow: TextOverflow.ellipsis),
+                      )),
+                ],
                 onChanged: (v) {
                   setState(() {
                     selectedUser = v;

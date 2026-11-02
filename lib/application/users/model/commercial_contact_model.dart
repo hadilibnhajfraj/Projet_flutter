@@ -128,6 +128,31 @@ class CommercialUserOption {
   String get label => '$fullName ($email)';
 }
 
+// Créateur RÉEL de contacts (createdBy → users.id) visible par le compte
+// connecté — alimente « Filter by User » (GET /commercial-contacts/creators/list,
+// filtre ?createdBy=<id>).
+class CommercialContactCreator {
+  final String id;
+  final String? email;
+  final String name;
+  final int count;
+
+  CommercialContactCreator({required this.id, this.email, required this.name, required this.count});
+
+  factory CommercialContactCreator.fromJson(Map<String, dynamic> json) {
+    final email = json['email']?.toString();
+    final name = json['name']?.toString().trim();
+    return CommercialContactCreator(
+      id: json['id']?.toString() ?? '',
+      email: email,
+      name: (name != null && name.isNotEmpty) ? name : (email ?? '-'),
+      count: json['count'] is num ? (json['count'] as num).toInt() : int.tryParse('${json['count']}') ?? 0,
+    );
+  }
+
+  String get label => email == null || email == name ? '$name ($count)' : '$name – $email ($count)';
+}
+
 // Résultat de l'automatisation Follow-up renvoyé par le backend (calendrier /
 // notifications / email / WhatsApp) — reflète ce qui a réellement réussi,
 // null si l'automatisation ne s'est pas déclenchée (utilisateur autre que
@@ -195,6 +220,11 @@ class CommercialContact {
   final String telephone;
   final String? message;
   final String? createdBy;
+  // Créateur RÉEL (relation createdBy → users, renvoyé par le backend) et
+  // commercial choisi sur un compte partagé (ex. info@probardistribution.com).
+  final String? createdByName;
+  final String? createdByEmail;
+  final String? commercialName;
   final int nbAppels;
   final String? sujetDiscussion;
   final String? email;
@@ -222,6 +252,9 @@ final String? userNomCustom;
     required this.telephone,
     this.message,
     this.createdBy,
+    this.createdByName,
+    this.createdByEmail,
+    this.commercialName,
     required this.nbAppels,
     this.sujetDiscussion,
     this.email,
@@ -237,6 +270,18 @@ final String? userNomCustom;
         this.userNomCustom,
     this.automation,
   });
+
+  /// « Created by » : personne (nom du profil du créateur, sinon commercial
+  /// choisi à la création) et compte créateur réel entre parenthèses.
+  String get createdByLabel {
+    final account = createdByEmail;
+    final profileName = (createdByName != null && createdByName != createdByEmail) ? createdByName : null;
+    final commercial = commercialName ?? userNom ?? userNomCustom;
+    final person = profileName ??
+        (commercial == null || commercial.isEmpty ? null : '${commercial[0].toUpperCase()}${commercial.substring(1)}');
+    if (person == null) return account ?? '-';
+    return account == null ? person : '$person ($account)';
+  }
 
   factory CommercialContact.fromJson(Map<String, dynamic> json) {
     return CommercialContact(
@@ -257,6 +302,9 @@ final String? userNomCustom;
 
       message: json['message']?.toString(),
       createdBy: json['createdBy']?.toString(),
+      createdByName: json['createdByName']?.toString(),
+      createdByEmail: json['createdByEmail']?.toString(),
+      commercialName: json['commercialName']?.toString(),
 
       nbAppels: int.tryParse(json['nbAppels']?.toString() ?? '0') ?? 0,
       sujetDiscussion: json['sujetDiscussion']?.toString(),

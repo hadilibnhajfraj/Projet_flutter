@@ -13,6 +13,7 @@ Future<List<CommercialContact>> fetchMyContacts({
   String? query,
   String? userNom,
   String? typeClient,
+  String? createdBy,
 }) async {
   final queryParams = <String, String>{};
 
@@ -21,6 +22,9 @@ Future<List<CommercialContact>> fetchMyContacts({
   }
   if (userNom != null && userNom.isNotEmpty) {
     queryParams['user_nom'] = userNom;
+  }
+  if (createdBy != null && createdBy.isNotEmpty) {
+    queryParams['createdBy'] = createdBy;
   }
   if (typeClient != null && typeClient.isNotEmpty) {
     queryParams['typeClient'] = typeClient;
@@ -202,6 +206,24 @@ Future<List<CommercialContact>> fetchMyContacts({
     throw Exception('Failed to load user names');
   }
 }
+
+  // Créateurs réels des contacts visibles (filtre ?createdBy=<id>).
+  Future<List<CommercialContactCreator>> fetchCreators(String token) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/creators/list'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load contact creators');
+    }
+    final data = jsonDecode(response.body);
+    return data is List
+        ? data.whereType<Map>().map((e) => CommercialContactCreator.fromJson(Map<String, dynamic>.from(e))).toList()
+        : <CommercialContactCreator>[];
+  }
 
   // ── Helpers internes ───────────────────────────────────────────────────────
 
