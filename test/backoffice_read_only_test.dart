@@ -111,8 +111,9 @@ void main() {
       await _session(box, role: 'backoffice_readonly', readOnly: true, reference: 'info@probardistribution.com');
       final a = AuthService();
       expect(a.isReadOnly, isTrue);
-      expect(a.uiRole, 'commercial'); // menus de consultation d'info@
+      expect(a.usesCommercialScreens, isTrue); // menus de consultation commerciaux
       expect(a.userRole, 'backoffice_readonly'); // rôle réel inchangé
+      expect(a.normalizedRole, 'backoffice_readonly'); // jamais converti en commercial
       expect(a.readOnlyReferenceEmail, 'info@probardistribution.com');
       expect(a.canViewCommercialKpi, isTrue);
       expect(a.isAdmin, isFalse);
@@ -121,16 +122,43 @@ void main() {
     test('autres comptes : aucun changement (rôle réel, pas de consultation seule)', () async {
       for (final role in ['commercial', 'superadmin', 'responsable_logistique_achat', 'user']) {
         await _session(box, role: role);
-        expect([role, AuthService().isReadOnly, AuthService().uiRole], [role, false, role]);
+        expect([role, AuthService().isReadOnly, AuthService().normalizedRole, AuthService().usesCommercialScreens], [role, false, role, role == 'commercial']);
       }
     });
 
     test('déconnexion : drapeau de consultation et compte de référence effacés', () async {
       await _session(box, role: 'backoffice_readonly', readOnly: true, reference: 'info@probardistribution.com');
+      await box.write('grantedPermissions', [kProductionReadAll]);
       await AuthService().logout();
       expect(box.read('readOnly'), isNull);
       expect(box.read('referenceEmail'), isNull);
+      expect(box.read('grantedPermissions'), isNull);
       expect(AuthService().isReadOnly, isFalse);
+      expect(AuthService().canConsultProductionReadOnly, isFalse);
+    });
+
+    test('Production : production.read_all renvoyé par le backend → consultation ; identité jamais remplacée', () async {
+      await _session(box, role: 'backoffice_readonly', readOnly: true, reference: 'info@probardistribution.com');
+      await box.write('grantedPermissions', [kProductionReadAll]);
+      final a = AuthService();
+      expect(a.hasPermission(kProductionReadAll), isTrue);
+      expect(a.canConsultProductionReadOnly, isTrue);
+      expect(a.userRole, 'backoffice_readonly'); // identité réelle
+      expect(a.usesCommercialScreens, isTrue); // contacts commerciaux inchangés
+      expect(a.canViewCommercialKpi, isTrue);
+    });
+
+    test('Production : menus et écrans conservés même sans `granted` (serveur pas encore à jour, ancienne session)', () async {
+      await _session(box, role: 'backoffice_readonly', readOnly: true, reference: 'info@probardistribution.com');
+      await box.remove('grantedPermissions');
+      expect(AuthService().canConsultProductionReadOnly, isTrue);
+      await box.write('grantedPermissions', <String>['autre.permission']);
+      expect(AuthService().canConsultProductionReadOnly, isTrue);
+      // Un compte non back-office ne passe jamais par cette consultation.
+      await _session(box, role: 'commercial');
+      await box.write('grantedPermissions', [kProductionReadAll]);
+      expect(AuthService().canConsultProductionReadOnly, isFalse);
+      await box.remove('grantedPermissions');
     });
   });
 

@@ -15,6 +15,7 @@ import 'package:intl/intl.dart';
 import 'package:dash_master_toolkit/utils/common.dart';
 
 import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_record.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 import '../model/por_promesh_model.dart';
 import '../service/por_promesh_service.dart';
 import '../utils/por_promesh_diff.dart';
@@ -37,6 +38,16 @@ class PorPromeshController extends GetxController {
 
   /// Fiche refusée en cours de correction (avant nouvelle soumission).
   bool get isCorrecting => approval.value?.isRejected ?? false;
+
+  /// Verrouillage appliqué aux écrans de saisie : celui de la fiche, sauf
+  /// pour le root admin (droit vérifié par le backend, qui peut seul modifier
+  /// une fiche validée — jamais une fiche archivée).
+  bool _editLock(bool ficheLocked) => ficheLocked && !AuthService().canManageAllProductionFiches;
+
+  /// Saisie bloquée (fiche verrouillée ou saisie terminée — status
+  /// 'submitted' pour une fiche VALIDE) : écrans de saisie inaccessibles,
+  /// sauf pour le root admin. Même règle qu'avant pour tous les autres comptes.
+  bool get editingBlocked => (isLocked.value || status.value == 'submitted') && !AuthService().canManageAllProductionFiches;
 
   // Horodatage de la dernière sauvegarde de LA FICHE (pas de granularité
   // par module côté backend — un seul enregistrement partagé par tous les
@@ -386,6 +397,27 @@ class PorPromeshController extends GetxController {
     return true;
   }
 
+  // ── Données RÉELLEMENT présentes par module (≠ complétude) ─────────────
+  // Lecture seule des valeurs chargées depuis la fiche : un module peut
+  // contenir des données sans être complet (ex. m² saisi, diamètres absents).
+  // Sert à ne jamais annoncer « Aucune donnée enregistrée » quand la fiche
+  // en contient. Les 6 lignes qualité pré-remplies (seule l'heure, voir
+  // _seedDefaultQualiteRowsIfEmpty) ne comptent pas comme des données.
+  static bool _filled(TextEditingController c) => c.text.trim().isNotEmpty;
+  static bool _set(RxnString v) => (v.value ?? '').trim().isNotEmpty;
+
+  bool get rendementHasData => [diametreMaille1, diametreMaille2, diametreMaille3, productionM2, demarrageProductionQuantite1, demarrageProductionQuantite2].any(_filled);
+  bool get personnelHasData => personnelSaved || _filled(observationPersonnel);
+  bool get observationHasData => _filled(observationsGenerales);
+  bool get nonConformiteHasData => _set(conformite) || _filled(descriptionNonConformite) || _filled(actionsCorrectives);
+  bool get controleMachineHasData =>
+      [air, niveauBainEau, etatPistons, fluideVisuel].any(_set) ||
+      _filled(temperaturePistons) ||
+      _filled(justificationControleMachine) ||
+      processControlBlocs.values.expand((rows) => rows).any((r) => _filled(r.p1) || _filled(r.p2));
+  bool get qualiteHasData => controlesQualite.any((r) =>
+      ['numeroPlaque', 'maille', 'longueur', 'largeur'].any((k) => (r[k] ?? '').toString().trim().isNotEmpty) || r['statutCOQ'] != null);
+
   // ── Complétude par section ─────────────────────────────────────────────
 
   /// Étape 1 — Contrôle Qualité (mesures heure/numéro de plaque/maille/
@@ -647,7 +679,7 @@ class PorPromeshController extends GetxController {
     // "PUT /por-promesh/" (404) au lieu de POST /por-promesh (création).
     recordId = (id != null && id.isNotEmpty) ? id : m.id;
     status.value = m.status;
-    isLocked.value = m.isLocked;
+    isLocked.value = _editLock(m.isLocked);
     approval.value = m.approval;
     lastUpdatedAt.value = DateTime.tryParse(m.updatedAt ?? '');
     machine.value = m.machine;
@@ -848,7 +880,7 @@ class PorPromeshController extends GetxController {
         : await PorPromeshService.instance.update(recordId!, model);
     recordId = saved.id ?? recordId;
     status.value = 'draft';
-    isLocked.value = saved.isLocked;
+    isLocked.value = _editLock(saved.isLocked);
     lastUpdatedAt.value = DateTime.tryParse(saved.updatedAt ?? '') ?? DateTime.now();
     if (recordId != null && recordId!.isNotEmpty) loadFromModel(saved, id: recordId);
     return saved;
@@ -867,7 +899,7 @@ class PorPromeshController extends GetxController {
     final saved = await PorPromeshService.instance.validate(recordId!);
     recordId = saved.id ?? recordId;
     status.value = saved.status;
-    isLocked.value = saved.isLocked;
+    isLocked.value = _editLock(saved.isLocked);
     lastUpdatedAt.value = DateTime.tryParse(saved.updatedAt ?? '') ?? DateTime.now();
     return saved;
   }

@@ -2596,7 +2596,7 @@ Widget _buildSearchBar() {
     if (_contacts.isEmpty) {
       // Même périmètre restreint que le backend (isCommercialScoped).
       final isCommercialRole =
-          AuthService().uiRole == 'commercial' ||
+          AuthService().usesCommercialScreens ||
               AuthService().isProbarProjectManager;
       final hasActiveFilters = _searchController.text.trim().isNotEmpty ||
           selectedUser != null ||

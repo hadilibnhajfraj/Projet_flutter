@@ -80,13 +80,39 @@ bool get isProbarProjectManager => _box.read<bool>('probarProjectManager') ?? fa
 // lectures avec la visibilité du compte de référence.
 bool get isReadOnly => isReadOnlyAccount(role: userRole, readOnlyFlag: _box.read<bool>('readOnly'));
 
+/// Root admin (cbitunisia@cbi-tunisia.com) : modification / suppression des
+/// fiches de production PROBAR et PROMESH, y compris validées (jamais
+/// archivées). Calculé UNIQUEMENT par le backend (compte relu en base, renvoyé
+/// dans user.permissions.productionFicheAdmin) — jamais déduit ici de
+/// l'adresse ; chaque route le revérifie.
+bool get canManageAllProductionFiches => _box.read<bool>('productionFicheAdmin') ?? false;
+
+/// Permissions nommées du rôle, lues en base par le backend (table
+/// role_permissions) et renvoyées à la connexion (`user.permissions.granted`).
+List<String> get grantedPermissions => (_box.read<List>('grantedPermissions') ?? const []).map((e) => e.toString()).toList();
+bool hasPermission(String permission) => grantedPermissions.contains(permission);
+
+/// Module Production en CONSULTATION seule (back-office) : listes, détails,
+/// récapitulatifs et historique des fiches — jamais la saisie ni la
+/// validation. Menus et écrans TOUJOURS visibles pour le compte back-office :
+/// ils ne dépendent pas de `granted` (absent d'un serveur pas encore mis à
+/// jour, ou d'une session ouverte avant la mise à jour) ; le backend reste la
+/// seule autorité (production.read_all, table role_permissions) et un refus
+/// éventuel s'affiche explicitement dans la page (HTTP 403 + motif).
+bool get canConsultProductionReadOnly => isReadOnly;
+
 /// Compte dont la visibilité est reproduite (renvoyé par le backend).
 String? get readOnlyReferenceEmail => _box.read<String>('referenceEmail');
 
-/// Rôle utilisé par l'INTERFACE (menus, écrans) : « commercial » pour le
-/// compte back-office (écrans de consultation du compte de référence),
-/// le rôle réel sinon. Jamais utilisé pour un contrôle d'accès.
-String get uiRole => isReadOnly ? 'commercial' : (userRole ?? '').toLowerCase().trim();
+/// Rôle authentifié, normalisé — TOUJOURS le rôle réel du jeton / de la
+/// connexion (backoffice_readonly reste backoffice_readonly : aucune
+/// conversion, nulle part).
+String get normalizedRole => (userRole ?? '').toLowerCase().trim();
+
+/// Menus et écrans commerciaux (contacts, KPI) : rôle commercial, ou compte
+/// back-office qui consulte ces écrans en lecture seule. N'altère jamais le
+/// rôle lui-même.
+bool get usesCommercialScreens => normalizedRole == 'commercial' || isReadOnly;
 
 // Accès au dashboard KPI Commercial Contacts :
 // uniquement admin, superadmin, superadmin2, commercial et les comptes PROBAR
@@ -291,6 +317,8 @@ Future<List<String>> getUserNames() async {
     await _box.remove('probarProjectManager');
     await _box.remove('readOnly');
     await _box.remove('referenceEmail');
+    await _box.remove('grantedPermissions');
+    await _box.remove('productionFicheAdmin');
 
     try {
       final deviceId = await DeviceIdentityService.getDeviceId();
@@ -473,6 +501,9 @@ Future<List<String>> getUserNames() async {
       } else {
         await _box.remove('referenceEmail');
       }
+      final granted = permissions is Map ? permissions['granted'] : null;
+      await _box.write('grantedPermissions', granted is List ? granted.map((e) => e.toString()).toList() : <String>[]);
+      await _box.write('productionFicheAdmin', permissions is Map && permissions['productionFicheAdmin'] == true);
     }
 
     // ✅ set token in dio header
@@ -515,6 +546,8 @@ Future<List<String>> getUserNames() async {
         await _box.remove('probarProjectManager');
     await _box.remove('readOnly');
     await _box.remove('referenceEmail');
+        await _box.remove('grantedPermissions');
+        await _box.remove('productionFicheAdmin');
         await _box.remove('sessionId');
       }
       await _box.write('userId', identity.id);
@@ -628,6 +661,8 @@ Future<List<String>> getUserNames() async {
     await _box.remove('probarProjectManager');
     await _box.remove('readOnly');
     await _box.remove('referenceEmail');
+    await _box.remove('grantedPermissions');
+    await _box.remove('productionFicheAdmin');
     await _box.remove('sessionId');
 
     ApiClient.instance.clearToken(); // ✅ remove Authorization header

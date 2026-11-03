@@ -270,6 +270,8 @@ List<GroupedMenuModel> buildGroupedMenus({
         buildCalculationNotesItem(),
         if (showCalculationNoteValidation) buildCalculationNoteValidationItem(),
       ]),
+      // Back-office : module Production en consultation seule.
+      if (isReadOnly) buildReadOnlyProductionGroup(),
       GroupedMenuModel(
         name: 'TOOLS',
         menus: [
@@ -524,6 +526,55 @@ SidebarItemModel buildCalculationNoteValidationItem() => SidebarItemModel(
       icon:           Icons.fact_check_outlined,
       sidebarItemType: SidebarItemType.tile,
       navigationPath: MyRoute.calculationNotesValidationScreen,
+    );
+
+// Rubrique PRODUCTION du compte back-office (consultation seule) — pages
+// EXISTANTES uniquement (aucun second module) : fiches PROBAR / PROMESH,
+// récapitulatifs, vue centralisée et historique. Ni saisie, ni validation.
+GroupedMenuModel buildReadOnlyProductionGroup() => GroupedMenuModel(
+      name: 'PRODUCTION',
+      menus: [
+        SidebarItemModel(
+          name:           'Production PROBAR',
+          icon:           Icons.factory_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.probarListScreen,
+          accentColor:    kProbarColor,
+        ),
+        SidebarItemModel(
+          name:           'Production PROMESH',
+          icon:           Icons.factory_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.porPromeshListScreen,
+          accentColor:    kPromeshColor,
+        ),
+        SidebarItemModel(
+          name:           'Récapitulatif de production PROBAR',
+          icon:           Icons.summarize_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.productionProbarSummaryScreen,
+          accentColor:    kProbarColor,
+        ),
+        SidebarItemModel(
+          name:           'Récapitulatif de production PROMESH',
+          icon:           Icons.summarize_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.productionPromeshSummaryScreen,
+          accentColor:    kPromeshColor,
+        ),
+        SidebarItemModel(
+          name:           'Consultation des fiches de production',
+          icon:           Icons.manage_search_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.productionRecordsScreen,
+        ),
+        SidebarItemModel(
+          name:           'Historique de production',
+          icon:           Icons.history_outlined,
+          sidebarItemType: SidebarItemType.tile,
+          navigationPath: MyRoute.porPromeshHistoriqueScreen,
+        ),
+      ],
     );
 
 // Groupe COMMERCIAL — partagé par le rôle "commercial" et les comptes PROBAR

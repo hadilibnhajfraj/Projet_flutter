@@ -244,6 +244,15 @@ Future<List<CommercialContact>> fetchMyContacts({
         .toList();
   }
 
+  // ── Enveloppe des réponses KPI ─────────────────────────────────────────────
+  // Le backend renvoie { success: true, data: { totalContacts, ... } } : les
+  // indicateurs sont dans `data`. Une réponse à plat ({ totalContacts, ... },
+  // ancien format) reste acceptée telle quelle.
+  static Map<String, dynamic> unwrapKpiPayload(Map<String, dynamic> body) {
+    final data = body['data'];
+    return data is Map ? Map<String, dynamic>.from(data) : body;
+  }
+
   // ── GET /commercial-contacts/my-kpi — données personnelles ────────────────
   // Retourne CommercialAnalyticsModel si le backend envoie {totalContacts,...}
   // Retourne null si le format est inattendu (le screen fera un fallback)
@@ -287,7 +296,7 @@ Future<List<CommercialContact>> fetchMyContacts({
         return null;
       }
 
-      final json = decoded;
+      final json = unwrapKpiPayload(decoded);
 
       if (json['totalContacts'] == null) {
         debugPrint('KPI JSON MAL FORMÉ — clé totalContacts absente');

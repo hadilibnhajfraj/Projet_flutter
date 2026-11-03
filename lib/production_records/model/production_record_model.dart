@@ -24,6 +24,9 @@ class ProductionRecordModel {
   final String diametreUnite; // 'mm'
   final String statut; // 'brouillon' | 'validee'
   final bool isLocked;
+  // Fiche archivée (backend : status ARCHIVED / statut archivee) — jamais
+  // modifiable ni supprimable, même par le root admin.
+  final bool archived;
   final String? createdBy;
   final Map<String, String>? creator;
   final String? createdAt;
@@ -53,6 +56,7 @@ class ProductionRecordModel {
     this.diametreUnite = 'mm',
     this.statut = 'brouillon',
     this.isLocked = false,
+    this.archived = false,
     this.createdBy,
     this.creator,
     this.createdAt,
@@ -109,6 +113,7 @@ class ProductionRecordModel {
       diametreUnite: (json['diametreUnite'] ?? 'mm').toString(),
       statut: (json['statut'] ?? 'brouillon').toString(),
       isLocked: json['isLocked'] == true,
+      archived: json['archived'] == true,
       createdBy: json['createdBy']?.toString(),
       creator: _toNullableMapOfString(json['creator']),
       createdAt: json['createdAt']?.toString(),

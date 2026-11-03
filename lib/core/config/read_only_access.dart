@@ -9,6 +9,11 @@
 
 const String kBackofficeReadOnlyRole = 'backoffice_readonly';
 
+/// Permission (backend : table role_permissions) ouvrant la consultation
+/// globale du module Production, renvoyée à la connexion dans
+/// `user.permissions.granted`.
+const String kProductionReadAll = 'production.read_all';
+
 /// Libellé du profil affiché dans l'application.
 const String kBackofficeReadOnlyLabel = 'Back-office — Consultation uniquement';
 
@@ -25,6 +30,33 @@ const Set<String> kReadOnlyAllowedWrites = {
 /// (même exception que le backend, config/backofficeReadOnly.js). Aucune autre
 /// écriture, dans aucun module.
 final List<RegExp> kReadOnlyAllowedWritePatterns = [RegExp(r'^/calculation-notes/\d+/(validate|reject)$')];
+
+/// MODULE PRODUCTION — écrans de CONSULTATION ouverts au back-office (listes,
+/// détails, récapitulatifs, historique). Les écrans de saisie (machines,
+/// postes, modules, formulaires) et la validation des fiches restent fermés ;
+/// le backend n'accepte de ce compte que les lectures (config/
+/// backofficeReadOnly.js, PRODUCTION_READ_PREFIXES).
+const List<String> kReadOnlyProductionRoutes = [
+  '/production/records',
+  '/production/probar/fiches',
+  '/production/promesh-summary',
+  '/production/probar-summary',
+  '/por-promesh/list',
+  '/por-promesh/detail',
+  '/por-promesh/historique',
+];
+
+/// Page d'arrivée du module Production pour le back-office.
+const String kReadOnlyProductionHome = '/production/records';
+
+// Détail d'une fiche PROBAR (consultation seule ; même écran que les autres rôles).
+final RegExp _readOnlyProbarDetail = RegExp(r'^/production/probar/machine/[^/]+/poste/[^/]+/detail$');
+
+/// Écran Production accessible au compte en consultation seule.
+bool readOnlyProductionRouteAllowed(String path) {
+  final p = readOnlyNormalizePath(path);
+  return kReadOnlyProductionRoutes.contains(p) || _readOnlyProbarDetail.hasMatch(p);
+}
 
 /// Compte en consultation seule : rôle dédié, ou drapeau `readOnly` renvoyé
 /// par le backend à la connexion.

@@ -34,10 +34,11 @@ class SideBarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth    = context.watch<AuthService>();
-    // Compte back-office : menus de consultation du compte de référence.
-    final role    = auth.uiRole;
+    // Rôle RÉEL (jamais converti). Le compte back-office reçoit aussi les
+    // menus commerciaux (consultation) via `usesCommercialScreens`.
+    final role    = auth.normalizedRole;
     final isAdmin = role == 'admin' || role == 'superadmin' || role == 'superadmin2';
-    final isCommercial = role == 'commercial';
+    final isCommercial = auth.usesCommercialScreens;
     final isAccueil    = role == 'accueil';
     final isLogistiqueAchat = role == 'responsable_logistique_achat';
     final isFinance = role == 'finance_probar';
@@ -54,7 +55,7 @@ class SideBarWidget extends StatelessWidget {
 
     // "user" et "commercial" ne doivent plus voir les groupes RH et
     // Récupérables — inchangé pour tous les autres rôles.
-    final bool hideHrAndRecuperables = role == 'user' || role == 'commercial';
+    final bool hideHrAndRecuperables = role == 'user' || isCommercial;
 
     // issam@gmail.com et bayrem@gmail.com — comptes admin-tier restreints à
     // Dashboard/Projects/Tools : aucun menu industriel (Dashboard Industriel,
@@ -68,7 +69,7 @@ class SideBarWidget extends StatelessWidget {
     // visible uniquement pour cbitunisia@cbi-tunisia.com.
     final bool isRootAdmin = auth.isRootAdmin;
 
-    debugPrint('ROLE CONNECTE = $role');
+    debugPrint('ROLE CONNECTE = $role${auth.isReadOnly ? ' (consultation seule : menus commerciaux + PRODUCTION)' : ''}');
 
     final topMenus     = buildTopMenus(
       isLogistiqueAchat:   isLogistiqueAchat,

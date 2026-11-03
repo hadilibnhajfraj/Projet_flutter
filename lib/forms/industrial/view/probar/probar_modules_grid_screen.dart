@@ -15,6 +15,8 @@ import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart
 import 'package:dash_master_toolkit/forms/por_promesh/view/modules/industrial_context_header.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_widgets.dart';
+import 'package:dash_master_toolkit/production_records/fiche_edit_session.dart';
+import 'package:dash_master_toolkit/production_records/view/fiche_edit_mode_widgets.dart';
 import '../../controller/probar_controller.dart';
 
 class _ModuleSpec {
@@ -27,6 +29,8 @@ class _ModuleSpec {
   // présence de données déjà saisies pour ce module (pas de nouveau champ
   // de statut backend), donc toujours fidèle aux vraies données.
   final bool Function(ProbarController c) isCompleted;
+  // Le module contient-il des données enregistrées, même incomplètes ?
+  final bool Function(ProbarController c) hasData;
 
   const _ModuleSpec({
     required this.icon,
@@ -35,6 +39,7 @@ class _ModuleSpec {
     required this.color,
     required this.routeSegment,
     required this.isCompleted,
+    required this.hasData,
   });
 }
 
@@ -47,6 +52,7 @@ const _kModules = <_ModuleSpec>[
     color: kProbarColor,
     routeSegment: 'rendement',
     isCompleted: _rendementCompleted,
+    hasData: _rendementHasData,
   ),
   _ModuleSpec(
     icon: Icons.groups_outlined,
@@ -55,6 +61,7 @@ const _kModules = <_ModuleSpec>[
     color: kPersonnelColor,
     routeSegment: 'personnel',
     isCompleted: _personnelCompleted,
+    hasData: _personnelHasData,
   ),
   _ModuleSpec(
     icon: Icons.chat_bubble_outline_rounded,
@@ -63,6 +70,7 @@ const _kModules = <_ModuleSpec>[
     color: kMelangeColor,
     routeSegment: 'observation',
     isCompleted: _observationCompleted,
+    hasData: _observationHasData,
   ),
   _ModuleSpec(
     icon: Icons.warning_amber_rounded,
@@ -71,6 +79,7 @@ const _kModules = <_ModuleSpec>[
     color: Color(0xFFF97316),
     routeSegment: 'nc',
     isCompleted: _ncCompleted,
+    hasData: _ncHasData,
   ),
   _ModuleSpec(
     icon: Icons.precision_manufacturing_rounded,
@@ -79,6 +88,7 @@ const _kModules = <_ModuleSpec>[
     color: kMaintenanceColor,
     routeSegment: 'controle-machine',
     isCompleted: _controleMachineCompleted,
+    hasData: _controleMachineHasData,
   ),
   _ModuleSpec(
     icon: Icons.shield_outlined,
@@ -87,6 +97,7 @@ const _kModules = <_ModuleSpec>[
     color: kMaintenanceColor,
     routeSegment: 'qualite',
     isCompleted: _qualiteCompleted,
+    hasData: _qualiteHasData,
   ),
 ];
 
@@ -100,6 +111,14 @@ bool _observationCompleted(ProbarController c) => c.isObservationComplete();
 bool _ncCompleted(ProbarController c) => c.isNonConformiteComplete();
 bool _controleMachineCompleted(ProbarController c) => c.isControleMachineComplete();
 bool _qualiteCompleted(ProbarController c) => c.isControleQualiteComplete();
+
+bool _rendementHasData(ProbarController c) => c.rendementHasData;
+bool _personnelHasData(ProbarController c) => c.personnelHasData;
+bool _observationHasData(ProbarController c) => c.observationHasData;
+bool _ncHasData(ProbarController c) => c.nonConformiteHasData;
+bool _controleMachineHasData(ProbarController c) => c.controleMachineHasData;
+bool _qualiteHasData(ProbarController c) => c.qualiteHasData;
+
 
 class ProbarModulesGridScreen extends StatefulWidget {
   final String machine;
@@ -133,8 +152,12 @@ class _ProbarModulesGridScreenState extends State<ProbarModulesGridScreen> {
 
   // Le ficheId (créé dès "Nouvelle fiche") est la source de vérité pour
   // identifier la fiche — plus de résolution implicite par date du jour ici.
+  // Modification d'une fiche existante par le root admin (bouton Modifier) :
+  // fiche relue en base, bandeau, retour à la liste d'origine.
+  bool get _editing => FicheEditSession.isEditing(widget.ficheId);
+
   Future<void> _bootstrap() async {
-    await c.bootstrapWithId(widget.machine, widget.poste, widget.ficheId);
+    await c.bootstrapWithId(widget.machine, widget.poste, widget.ficheId, forceRefresh: _editing);
     // Statut de validation à jour (fiche peut-être refusée depuis le
     // dernier chargement) avant de décider du verrouillage.
     if (c.isLocked.value) await c.loadById(widget.ficheId);
@@ -219,8 +242,9 @@ class _ProbarModulesGridScreenState extends State<ProbarModulesGridScreen> {
             padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               InkWell(
-                onTap: () => context.go(
-                    '${MyRoute.productionProbarRoot}/machine/${widget.machine}/poste/${widget.poste}/dashboard'),
+                onTap: () => _editing
+                    ? finishFicheEdit(context, widget.ficheId, fallbackRoute: MyRoute.probarListScreen, showConfirmation: false)
+                    : context.go('${MyRoute.productionProbarRoot}/machine/${widget.machine}/poste/${widget.poste}/dashboard'),
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   padding: const EdgeInsets.all(7),
@@ -230,6 +254,10 @@ class _ProbarModulesGridScreenState extends State<ProbarModulesGridScreen> {
               ),
               const SizedBox(height: 16),
               IndustrialContextHeader(machine: widget.machine, poste: widget.poste, color: kProbarColor, lineLabel: 'PROBAR'),
+              if (_editing) ...[
+                const SizedBox(height: 16),
+                const FicheEditModeBanner(lineLabel: 'PROBAR', color: kProbarColor),
+              ],
               if (c.isCorrecting && c.approval.value != null && c.recordId != null) ...[
                 const SizedBox(height: 16),
                 FicheApprovalNotice(
@@ -265,15 +293,20 @@ class _ProbarModulesGridScreenState extends State<ProbarModulesGridScreen> {
                   return _PremiumModuleCard(
                     spec: m,
                     completed: m.isCompleted(c),
+                    hasData: m.hasData(c),
                     lastUpdatedAt: c.lastUpdatedAt.value,
                     onTap: () => context.go(_modulePath(m.routeSegment)),
                   );
                 },
               ),
               const SizedBox(height: 28),
+              // Modification d'une fiche existante : aucune nouvelle
+              // validation, retour à la liste d'origine.
+              if (_editing)
+                FicheEditFinishButton(ficheId: widget.ficheId, fallbackRoute: MyRoute.probarListScreen)
               // Fiche terminée puis refusée : « Soumettre de nouveau » (plus
               // haut) remplace « Terminer la saisie ».
-              if (!(c.isCorrecting && c.statut.value == 'validee'))
+              else if (!(c.isCorrecting && c.statut.value == 'validee'))
               SizedBox(
                 width: double.infinity,
                 height: 64,
@@ -399,12 +432,14 @@ class _RemainingModulesPanel extends StatelessWidget {
 class _PremiumModuleCard extends StatefulWidget {
   final _ModuleSpec spec;
   final bool completed;
+  final bool hasData;
   final DateTime? lastUpdatedAt;
   final VoidCallback onTap;
 
   const _PremiumModuleCard({
     required this.spec,
     required this.completed,
+    required this.hasData,
     required this.lastUpdatedAt,
     required this.onTap,
   });
@@ -416,10 +451,16 @@ class _PremiumModuleCard extends StatefulWidget {
 class _PremiumModuleCardState extends State<_PremiumModuleCard> {
   bool _hover = false;
 
+  // Trois états RÉELS : complet (date de modification), données présentes
+  // mais incomplètes, ou aucune donnée en base pour ce module.
   String _lastModifiedLabel(BuildContext context) {
+    final t = AppLocalizations.of(context).translate;
     final dt = widget.lastUpdatedAt;
-    if (!widget.completed || dt == null) return AppLocalizations.of(context).translate('Aucune donnée enregistrée');
-    return '${AppLocalizations.of(context).translate('Modifié le')} ${DateFormat('dd/MM/yyyy à HH:mm').format(dt)}';
+    if (widget.completed) {
+      return dt == null ? t('Données enregistrées') : '${t('Modifié le')} ${DateFormat('dd/MM/yyyy à HH:mm').format(dt)}';
+    }
+    if (widget.hasData) return t('Données partielles enregistrées — à compléter');
+    return t('Aucune donnée enregistrée');
   }
 
   @override

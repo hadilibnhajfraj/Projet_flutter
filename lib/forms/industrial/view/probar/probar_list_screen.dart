@@ -20,6 +20,7 @@ import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
 import 'package:dash_master_toolkit/production_records/model/production_fiche_list.dart';
 import 'package:dash_master_toolkit/production_records/view/production_fiches_list_screen.dart';
+import 'package:dash_master_toolkit/production_records/fiche_edit_session.dart';
 
 import '../../controller/probar_controller.dart';
 import '../../service/industrial_record_service.dart';
@@ -34,8 +35,9 @@ class ProbarListScreen extends StatelessWidget {
     String t(String k) => AppLocalizations.of(context).translate(k);
 
     Future<void> edit(FicheListRow r) async {
+      FicheEditSession.start(r.recordId, returnTo: MyRoute.probarListScreen);
       final c = Get.isRegistered<ProbarController>() ? Get.find<ProbarController>() : Get.put(ProbarController(), permanent: true);
-      await c.bootstrapWithId(r.machine ?? '1', r.poste ?? 'matin', r.recordId);
+      await c.bootstrapWithId(r.machine ?? '1', r.poste ?? 'matin', r.recordId, forceRefresh: FicheEditSession.isEditing(r.recordId));
       if (context.mounted) context.go('${_base(r)}/modules?ficheId=${r.recordId}');
     }
 
@@ -72,8 +74,9 @@ class ProbarListScreen extends StatelessWidget {
       viewRoute: (r) => '${_base(r)}/detail?id=${r.recordId}',
       canWrite: ficheListCanWrite,
       actions: [
-        FicheListAction('edit', label: 'Modifier', icon: Icons.edit_outlined, color: kCrmInfo, requiresWrite: true, handler: (r) => r.isLocked ? null : edit),
-        FicheListAction('delete', label: 'Supprimer', icon: Icons.delete_outline_rounded, color: kCrmDanger, reloadAfter: true, requiresWrite: true, handler: (r) => r.isLocked ? null : delete),
+        // Fiche verrouillée : Modifier / Supprimer réservés au root admin (droit du backend).
+        FicheListAction('edit', label: 'Modifier', icon: Icons.edit_outlined, color: kCrmInfo, requiresWrite: true, handler: (r) => ficheLockBlocksWrite(r.isLocked) ? null : edit),
+        FicheListAction('delete', label: 'Supprimer', icon: Icons.delete_outline_rounded, color: kCrmDanger, reloadAfter: true, requiresWrite: true, handler: (r) => ficheLockBlocksWrite(r.isLocked) ? null : delete),
       ],
     );
   }

@@ -14,8 +14,11 @@ import 'package:dash_master_toolkit/route/my_route.dart';
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart';
 import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_widgets.dart';
+import 'package:dash_master_toolkit/production_records/fiche_edit_session.dart';
+import 'package:dash_master_toolkit/production_records/view/fiche_edit_mode_widgets.dart';
 import '../../controller/por_promesh_controller.dart';
 import 'industrial_context_header.dart';
+import 'module_data_label.dart';
 
 class _ModuleSpec {
   final IconData icon;
@@ -27,6 +30,8 @@ class _ModuleSpec {
   // présence de données déjà saisies pour ce module (pas de nouveau champ
   // de statut backend), donc toujours fidèle aux vraies données.
   final bool Function(PorPromeshController c) isCompleted;
+  // Le module contient-il des données enregistrées, même incomplètes ?
+  final bool Function(PorPromeshController c) hasData;
 
   const _ModuleSpec({
     required this.icon,
@@ -35,6 +40,7 @@ class _ModuleSpec {
     required this.color,
     required this.routeSegment,
     required this.isCompleted,
+    required this.hasData,
   });
 }
 
@@ -53,6 +59,7 @@ const _kModules = <_ModuleSpec>[
     color: kPromeshColor,
     routeSegment: 'rendement',
     isCompleted: _rendementCompleted,
+    hasData: _rendementHasData,
   ),
   _ModuleSpec(
     icon: Icons.groups_outlined,
@@ -61,6 +68,7 @@ const _kModules = <_ModuleSpec>[
     color: kPersonnelColor,
     routeSegment: 'personnel',
     isCompleted: _personnelCompleted,
+    hasData: _personnelHasData,
   ),
   _ModuleSpec(
     icon: Icons.chat_bubble_outline_rounded,
@@ -69,6 +77,7 @@ const _kModules = <_ModuleSpec>[
     color: kMelangeColor,
     routeSegment: 'observation',
     isCompleted: _observationCompleted,
+    hasData: _observationHasData,
   ),
   _ModuleSpec(
     icon: Icons.warning_amber_rounded,
@@ -77,6 +86,7 @@ const _kModules = <_ModuleSpec>[
     color: kProbarColor,
     routeSegment: 'nc',
     isCompleted: _ncCompleted,
+    hasData: _ncHasData,
   ),
   _ModuleSpec(
     icon: Icons.precision_manufacturing_rounded,
@@ -89,6 +99,7 @@ const _kModules = <_ModuleSpec>[
     // champs alimentent toujours `canFinish`.
     routeSegment: 'controle-machine',
     isCompleted: _controleMachineCompleted,
+    hasData: _controleMachineHasData,
   ),
   _ModuleSpec(
     icon: Icons.shield_outlined,
@@ -100,6 +111,7 @@ const _kModules = <_ModuleSpec>[
     // c.canFinish), voir _finishEntry ci-dessous.
     routeSegment: 'qualite',
     isCompleted: _qualiteCompleted,
+    hasData: _qualiteHasData,
   ),
 ];
 
@@ -109,6 +121,13 @@ bool _observationCompleted(PorPromeshController c) => c.isObservationComplete();
 bool _ncCompleted(PorPromeshController c) => c.isNonConformiteComplete();
 bool _controleMachineCompleted(PorPromeshController c) => c.controleMachineSaved;
 bool _qualiteCompleted(PorPromeshController c) => c.isQualiteComplete();
+
+bool _rendementHasData(PorPromeshController c) => c.rendementHasData;
+bool _personnelHasData(PorPromeshController c) => c.personnelHasData;
+bool _observationHasData(PorPromeshController c) => c.observationHasData;
+bool _ncHasData(PorPromeshController c) => c.nonConformiteHasData;
+bool _controleMachineHasData(PorPromeshController c) => c.controleMachineHasData;
+bool _qualiteHasData(PorPromeshController c) => c.qualiteHasData;
 
 class ModulesGridScreen extends StatefulWidget {
   final String machine;
@@ -150,6 +169,10 @@ class _ModulesGridScreenState extends State<ModulesGridScreen> {
   // `c.recordId`) n'est pas résolu.
   // Le ficheId (créé dès "Nouvelle fiche") est la source de vérité pour
   // identifier la fiche — plus de résolution implicite par date du jour ici.
+  // Modification d'une fiche existante par le root admin (bouton Modifier) :
+  // bandeau, retour à la liste d'origine (fiche déjà relue en base ci-dessous).
+  bool get _editing => FicheEditSession.isEditing(widget.ficheId);
+
   Future<void> _bootstrap() async {
     // forceRefresh : point d'entrée d'une édition — toujours relire la fiche
     // en base (jamais l'état laissé en mémoire par une session précédente
@@ -158,7 +181,7 @@ class _ModulesGridScreenState extends State<ModulesGridScreen> {
     if (!mounted) return;
     // Exception : une fiche refusée par le responsable logistique se corrige
     // ici avant d'être soumise de nouveau.
-    if ((c.isLocked.value || c.status.value == 'submitted') && !c.isCorrecting) {
+    if (c.editingBlocked && !c.isCorrecting) {
       context.go(_fichePath);
       return;
     }
@@ -224,7 +247,9 @@ class _ModulesGridScreenState extends State<ModulesGridScreen> {
             padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               InkWell(
-                onTap: () => context.go('${MyRoute.productionPromeshRoot}/machine/${widget.machine}/poste/${widget.poste}?ficheId=${widget.ficheId}'),
+                onTap: () => _editing
+                    ? finishFicheEdit(context, widget.ficheId, fallbackRoute: MyRoute.porPromeshListScreen, showConfirmation: false)
+                    : context.go('${MyRoute.productionPromeshRoot}/machine/${widget.machine}/poste/${widget.poste}?ficheId=${widget.ficheId}'),
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   padding: const EdgeInsets.all(7),
@@ -234,6 +259,10 @@ class _ModulesGridScreenState extends State<ModulesGridScreen> {
               ),
               const SizedBox(height: 16),
               IndustrialContextHeader(machine: widget.machine, poste: widget.poste, color: kPromeshColor),
+              if (_editing) ...[
+                const SizedBox(height: 16),
+                const FicheEditModeBanner(lineLabel: 'PROMESH', color: kPromeshColor),
+              ],
               if (c.isCorrecting && c.approval.value != null && c.recordId != null) ...[
                 const SizedBox(height: 16),
                 FicheApprovalNotice(
@@ -265,15 +294,20 @@ class _ModulesGridScreenState extends State<ModulesGridScreen> {
                   return _PremiumModuleCard(
                     spec: m,
                     completed: m.isCompleted(c),
+                    hasData: m.hasData(c),
                     lastUpdatedAt: c.lastUpdatedAt.value,
                     onTap: () => context.go(_modulePath(m.routeSegment)),
                   );
                 },
               ),
               const SizedBox(height: 28),
+              // Modification d'une fiche existante : aucune nouvelle
+              // validation, retour à la liste d'origine.
+              if (_editing)
+                FicheEditFinishButton(ficheId: widget.ficheId, fallbackRoute: MyRoute.porPromeshListScreen)
               // Fiche terminée puis refusée : « Soumettre de nouveau » (plus
               // haut) remplace « Terminer la saisie ».
-              if (!(c.isCorrecting && c.status.value == 'submitted'))
+              else if (!(c.isCorrecting && c.status.value == 'submitted'))
               SizedBox(
                 width: double.infinity,
                 height: 64,
@@ -400,12 +434,14 @@ class _RemainingModulesPanel extends StatelessWidget {
 class _PremiumModuleCard extends StatefulWidget {
   final _ModuleSpec spec;
   final bool completed;
+  final bool hasData;
   final DateTime? lastUpdatedAt;
   final VoidCallback onTap;
 
   const _PremiumModuleCard({
     required this.spec,
     required this.completed,
+    required this.hasData,
     required this.lastUpdatedAt,
     required this.onTap,
   });
@@ -417,11 +453,9 @@ class _PremiumModuleCard extends StatefulWidget {
 class _PremiumModuleCardState extends State<_PremiumModuleCard> {
   bool _hover = false;
 
-  String get _lastModifiedLabel {
-    final dt = widget.lastUpdatedAt;
-    if (!widget.completed || dt == null) return 'Aucune donnée enregistrée';
-    return 'Modifié le ${DateFormat('dd/MM/yyyy à HH:mm').format(dt)}';
-  }
+  // Trois états RÉELS : complet (date de modification), données présentes
+  // mais incomplètes, ou aucune donnée en base pour ce module.
+  String get _lastModifiedLabel => moduleDataLabel(completed: widget.completed, hasData: widget.hasData, lastUpdatedAt: widget.lastUpdatedAt);
 
   @override
   Widget build(BuildContext context) {

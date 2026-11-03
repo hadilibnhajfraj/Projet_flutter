@@ -12,6 +12,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
@@ -24,6 +25,10 @@ import 'package:dash_master_toolkit/providers/auth_service.dart';
 import 'mesh_size_display.dart';
 import '../model/production_record_model.dart';
 import '../service/production_records_service.dart';
+import '../service/production_load_error.dart';
+import 'fiche_admin_actions.dart';
+import '../fiche_edit_session.dart';
+import 'package:dash_master_toolkit/production_dashboard/production_dashboard_routes.dart';
 
 const _kPageSizes = [20, 50, 100];
 
@@ -81,7 +86,8 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
   ProductionRecordPage _pageData = const ProductionRecordPage();
   ProductionRecordFilters _filters = const ProductionRecordFilters();
 
-  bool get _isAdmin => AuthService().isAdmin;
+  // Filtre par créateur : administrateurs et back-office (consultation globale).
+  bool get _isAdmin => AuthService().isAdmin || AuthService().isReadOnly;
 
   @override
   void initState() {
@@ -130,7 +136,7 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
       setState(() => _pageData = page);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = productionLoadErrorText(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -150,6 +156,35 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
   }
 
   Future<void> _refreshAll() => Future.wait([_loadFilters(), if (_isAdmin) _loadCreators(), _loadList()]);
+
+  // ── ROOT ADMIN : MODIFIER / SUPPRIMER ────────────────────────────────
+  // Droit renvoyé par le backend à la connexion (compte relu en base) et
+  // revérifié par chaque route ; aucun autre compte ne voit ces actions.
+  FicheAdminActions _adminActions(ProductionRecordModel r) =>
+      FicheAdminActions.of(r, isFicheAdmin: AuthService().canManageAllProductionFiches);
+
+  // Écrans de saisie existants, fiche rechargée par son id.
+  void _editFiche(ProductionRecordModel r) {
+    final route = _adminActions(r).editRoute;
+    if (route == null) return;
+    // Mode modification de CETTE fiche (id réel) : relue en base, retour ici.
+    FicheEditSession.start(r.id, returnTo: ProdPaths.records);
+    context.go(route);
+  }
+
+  Future<void> _deleteFiche(ProductionRecordModel r) async {
+    if (!await confirmFicheDeletion(context, r) || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await deleteProductionFiche(r);
+      messenger.showSnackBar(SnackBar(content: Text('Fiche ${r.numero ?? ''} (${ficheTypeLabel(r)}) supprimée.'), backgroundColor: kCrmSuccess));
+      // Liste, statistiques et totaux rechargés (les récapitulatifs sont
+      // recalculés par le backend à chaque ouverture).
+      await _refreshAll();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Suppression impossible : ${productionLoadErrorText(e)}'), backgroundColor: kCrmDanger, duration: const Duration(seconds: 6)));
+    }
+  }
 
   void _onFilterChanged() {
     _page = 1;
@@ -656,13 +691,13 @@ class _ProductionRecordsScreenState extends State<ProductionRecordsScreen> {
     if (isMobile) {
       return Column(children: [
         for (final item in items) ...[
-          _RecordCard(item: item, onView: () => _openDetail(item)),
+          _RecordCard(item: item, onView: () => _openDetail(item), actions: _adminActions(item), onEdit: () => _editFiche(item), onDelete: () => _deleteFiche(item)),
           const SizedBox(height: 12),
         ],
       ]);
     }
 
-    return _RecordTable(items: items, compact: isTablet, onView: _openDetail);
+    return _RecordTable(items: items, compact: isTablet, onView: _openDetail, actionsFor: _adminActions, onEdit: _editFiche, onDelete: _deleteFiche);
   }
 
   // ── PAGINATION ────────────────────────────────────────────────────────
@@ -826,12 +861,51 @@ class _ViewButton extends StatelessWidget {
 
 // ── TABLEAU (DESKTOP / TABLETTE) — style ERP ──────────────────────────
 
+// Actions d'une ligne : « Voir » pour tous ; + Modifier / Supprimer pour le
+// root admin (désactivés, avec la raison, sur une fiche archivée).
+class _RowActions extends StatelessWidget {
+  final FicheAdminActions actions;
+  final VoidCallback onView;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final String keySuffix;
+  const _RowActions({required this.actions, required this.onView, required this.onEdit, required this.onDelete, required this.keySuffix});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!actions.visible) return _ViewButton(onTap: onView);
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      _ViewButton(onTap: onView),
+      const SizedBox(width: 4),
+      IconButton(
+        key: ValueKey('fiche-edit-$keySuffix'),
+        tooltip: actions.canEdit ? 'Modifier' : (actions.blockedReason ?? 'Modifier'),
+        onPressed: actions.canEdit ? onEdit : null,
+        icon: const Icon(Icons.edit_outlined, size: 18),
+        color: kCrmInfo,
+        visualDensity: VisualDensity.compact,
+      ),
+      IconButton(
+        key: ValueKey('fiche-delete-$keySuffix'),
+        tooltip: actions.canDelete ? 'Supprimer' : (actions.blockedReason ?? 'Supprimer'),
+        onPressed: actions.canDelete ? onDelete : null,
+        icon: const Icon(Icons.delete_outline_rounded, size: 18),
+        color: kCrmDanger,
+        visualDensity: VisualDensity.compact,
+      ),
+    ]);
+  }
+}
+
 class _RecordTable extends StatelessWidget {
   final List<ProductionRecordModel> items;
   final bool compact;
   final ValueChanged<ProductionRecordModel> onView;
+  final FicheAdminActions Function(ProductionRecordModel) actionsFor;
+  final ValueChanged<ProductionRecordModel> onEdit;
+  final ValueChanged<ProductionRecordModel> onDelete;
 
-  const _RecordTable({required this.items, required this.compact, required this.onView});
+  const _RecordTable({required this.items, required this.compact, required this.onView, required this.actionsFor, required this.onEdit, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -895,7 +969,13 @@ class _RecordTable extends StatelessWidget {
                     DataCell(Text(item.diametre == null || item.diametre!.isEmpty ? '—' : '${item.diametre} ${item.diametreUnite}')),
                     DataCell(_StatusBadge(statut: item.statut)),
                     DataCell(_CreatorCell(shortLabel: item.creatorShortLabel, email: item.creatorEmail)),
-                    DataCell(_ViewButton(onTap: () => onView(item))),
+                    DataCell(_RowActions(
+                      actions: actionsFor(item),
+                      onView: () => onView(item),
+                      onEdit: () => onEdit(item),
+                      onDelete: () => onDelete(item),
+                      keySuffix: item.id,
+                    )),
                   ],
                 ),
             ],
@@ -911,7 +991,10 @@ class _RecordTable extends StatelessWidget {
 class _RecordCard extends StatelessWidget {
   final ProductionRecordModel item;
   final VoidCallback onView;
-  const _RecordCard({required this.item, required this.onView});
+  final FicheAdminActions actions;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  const _RecordCard({required this.item, required this.onView, required this.actions, required this.onEdit, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -988,6 +1071,35 @@ class _RecordCard extends StatelessWidget {
                 style: OutlinedButton.styleFrom(side: BorderSide(color: color.withOpacity(0.4))),
               ),
             ),
+            if (actions.visible) ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: ValueKey('fiche-edit-${item.id}'),
+                    onPressed: actions.canEdit ? onEdit : null,
+                    icon: const Icon(Icons.edit_outlined, size: 16),
+                    label: const Text('Modifier'),
+                    style: OutlinedButton.styleFrom(foregroundColor: kCrmInfo),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: ValueKey('fiche-delete-${item.id}'),
+                    onPressed: actions.canDelete ? onDelete : null,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 16),
+                    label: const Text('Supprimer'),
+                    style: OutlinedButton.styleFrom(foregroundColor: kCrmDanger),
+                  ),
+                ),
+              ]),
+              if (actions.blockedReason != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(actions.blockedReason!, style: tInter(fontSize: 11.5, color: kCrmTextSub)),
+                ),
+            ],
           ]),
         ),
       ),
@@ -1039,7 +1151,7 @@ class _RecordDetailDrawerState extends State<_RecordDetailDrawer> {
       setState(() => _d = data);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = productionLoadErrorText(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

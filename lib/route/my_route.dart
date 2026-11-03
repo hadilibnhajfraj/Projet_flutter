@@ -59,6 +59,7 @@ import 'package:dash_master_toolkit/calculation_notes/view/calculation_note_deta
 import 'package:dash_master_toolkit/calculation_notes/view/project_create_dialog.dart';
 
 import '../providers/auth_service.dart';
+import '../core/config/read_only_access.dart' show readOnlyProductionRouteAllowed;
 import '../providers/language_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:dash_master_toolkit/forms/view/devis_upload_screen.dart';
@@ -372,8 +373,8 @@ static const clientsProfileScreen = '/users/client';
       if (!loggedIn && !isAuthRoute) return signInScreen;
 
       if (loggedIn) {
-        // Compte back-office : navigation du compte de référence (commercial).
-        final role = AuthService().uiRole;
+        // Rôle RÉEL (backoffice_readonly n'est jamais converti).
+        final role = AuthService().normalizedRole;
 
         // ── Espace dédié responsable_logistique_achat ───────────────────
         // Cette personne ne doit jamais voir le CRM (Dashboard, KPI, Commercial,
@@ -441,7 +442,8 @@ static const clientsProfileScreen = '/users/client';
           if (role == 'controle_qualite') {
             return qualityControlRoot;
           }
-          if (role == 'commercial') {
+          // Commercial, et back-office (consultation) : même page d'accueil.
+          if (AuthService().usesCommercialScreens) {
             debugPrint('REDIRECTION → $commercialContactsKpiUsers');
             return commercialContactsKpiUsers;
           }
@@ -930,6 +932,10 @@ GoRoute(
           GoRoute(
             path: porPromeshRoot,
             redirect: (context, state) {
+              // Back-office : écrans de consultation uniquement.
+              if (AuthService().canConsultProductionReadOnly) {
+                return readOnlyProductionRouteAllowed(state.uri.path) ? null : porPromeshListScreen;
+              }
               final ok = AuthService().canViewPorPromesh;
               if (!ok) return dashboard;
               if (state.fullPath == porPromeshRoot) return porPromeshDashboardScreen;
@@ -1023,7 +1029,7 @@ GoRoute(
           // le backend refuse le module aux autres rôles.
           GoRoute(
             path: calculationNotesScreen,
-            redirect: (context, state) => AuthService().uiRole == 'accueil' ? dashboard : null,
+            redirect: (context, state) => AuthService().normalizedRole == 'accueil' ? dashboard : null,
             pageBuilder: (context, state) => const NoTransitionPage(child: CalculationNotesScreen(createProject: showProjectCreateDialog)),
             routes: [
               // Rubrique du validateur (le backend refuse la liste aux autres).
@@ -1053,6 +1059,12 @@ GoRoute(
             // `/production` seul : ouvre le Dashboard Production (les routes
             // enfants existantes ne sont pas redirigées).
             redirect: (context, state) {
+              // Back-office : consultation seule — listes, détails,
+              // récapitulatifs ; jamais la saisie (machines, postes, modules,
+              // formulaires) ni la validation des fiches.
+              if (AuthService().canConsultProductionReadOnly) {
+                return readOnlyProductionRouteAllowed(state.uri.path) ? null : productionRecordsScreen;
+              }
               if (!AuthService().canViewPorPromesh) return dashboard;
               return state.uri.path == productionRoot ? productionDashboardScreen : null;
             },

@@ -6,6 +6,7 @@
 // audit / traceability, sorted by creation date.
 
 import 'package:flutter/material.dart';
+import 'package:dash_master_toolkit/production_records/service/production_load_error.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
@@ -51,7 +52,7 @@ class _PorPromeshHistoriqueScreenState extends State<PorPromeshHistoriqueScreen>
       setState(() => _items = items);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = productionLoadErrorText(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

@@ -85,7 +85,7 @@ class _ControleMachineScreenState extends State<ControleMachineScreen> {
   Future<void> _bootstrap() async {
     await c.bootstrapWithId(widget.machine, widget.poste, widget.ficheId);
     if (!mounted) return;
-    if (c.isLocked.value || c.status.value == 'submitted') {
+    if (c.editingBlocked) {
       context.go(_fichePath);
       return;
     }

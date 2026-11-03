@@ -29,6 +29,8 @@ import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approv
 import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_service.dart';
 import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_widgets.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/production_records/fiche_edit_session.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../model/por_promesh_model.dart';
 import '../service/por_promesh_service.dart';
 import '../service/por_promesh_pdf_service.dart';
@@ -80,7 +82,7 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
   // Historique de validation (lecture seule, comptes autorisés uniquement ;
   // indisponible → l'historique de la fiche reste affiché sans lui).
   Future<void> _loadApprovalHistory(PorPromeshModel item) async {
-    if (item.approval == null || item.id == null || !AuthService().canViewFicheApprovals) return;
+    if (item.approval == null || item.id == null || !(AuthService().canViewFicheApprovals || AuthService().isReadOnly)) return;
     try {
       final detail = await FicheApprovalService.instance.detail('promesh', item.id!);
       if (mounted) setState(() => _approvalHistory = detail.history);
@@ -211,11 +213,16 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
               ],
               onBack: _back,
               actions: [
-                FicheAction('edit', label: 'Modifier', icon: Icons.edit_outlined, color: kCrmInfo, onTap: m.isLocked ? null : () => context.go(_editRoute(m)), disabledReason: 'Fiche verrouillée'),
+                // Consultation seule (back-office) : ni Modifier ni Supprimer.
+                // Fiche verrouillée : Modifier / Supprimer réservés au root admin (droit du backend).
+                if (!AuthService().isReadOnly) FicheAction('edit', label: 'Modifier', icon: Icons.edit_outlined, color: kCrmInfo, onTap: ficheLockBlocksWrite(m.isLocked) ? null : () {
+                  FicheEditSession.start(m.id ?? '', returnTo: MyRoute.porPromeshListScreen);
+                  context.go(_editRoute(m));
+                }, disabledReason: 'Fiche verrouillée'),
                 FicheAction('print', label: 'Imprimer', icon: Icons.print_outlined, color: kCrmText, onTap: _printPdf),
                 FicheAction('pdf', label: 'Export PDF', icon: Icons.picture_as_pdf_outlined, color: kCrmSecondary, onTap: _exportPdf),
                 FicheAction('excel', label: 'Export Excel', icon: Icons.grid_on_rounded, color: kCrmSuccess, onTap: _exportExcel),
-                FicheAction('delete', label: 'Supprimer', icon: Icons.delete_outline_rounded, color: kCrmDanger, onTap: m.isLocked ? null : _delete, disabledReason: 'Fiche verrouillée'),
+                if (!AuthService().isReadOnly) FicheAction('delete', label: 'Supprimer', icon: Icons.delete_outline_rounded, color: kCrmDanger, onTap: ficheLockBlocksWrite(m.isLocked) ? null : _delete, disabledReason: 'Fiche verrouillée'),
               ],
             ),
             if (m.isLocked) FicheLockBanner(lockReason),
@@ -419,7 +426,7 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
   Widget _attachmentTile(Map<String, dynamic> a) {
     final fileUrl = (a['fileUrl'] ?? '').toString();
     final fileName = (a['fileName'] ?? '').toString();
-    return Container(
+    final tile = Container(
       width: 120,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(color: kCrmBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: kCrmBorder)),
@@ -435,6 +442,16 @@ class _PorPromeshDetailScreenState extends State<PorPromeshDetailScreen> {
         const SizedBox(height: 4),
         Text(fileName.isEmpty ? pdT(context, 'Fichier') : fileName, maxLines: 1, overflow: TextOverflow.ellipsis, style: tInter(fontSize: 10, color: kCrmTextSub)),
       ]),
+    );
+    if (fileUrl.isEmpty) return tile;
+    // Consulter / télécharger le document (nouvel onglet).
+    return Tooltip(
+      message: pdT(context, 'Ouvrir / télécharger'),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => launchUrl(Uri.parse(_fullUrl(fileUrl)), webOnlyWindowName: '_blank'),
+        child: tile,
+      ),
     );
   }
 

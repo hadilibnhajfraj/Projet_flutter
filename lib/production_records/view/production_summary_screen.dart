@@ -15,16 +15,19 @@
 // propre tableau (voir _buildKpiRow / _ProductionSection).
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart';
 import 'package:dash_master_toolkit/forms/por_promesh/view/widgets/shimmer_box.dart';
 import 'package:dash_master_toolkit/localization/app_localizations.dart';
+import 'package:dash_master_toolkit/production_dashboard/production_dashboard_routes.dart';
 
 import '../model/production_record_model.dart';
 import '../model/production_summary_model.dart';
 import '../service/production_records_service.dart';
+import '../service/production_load_error.dart';
 import '../service/production_summary_export_service.dart';
 import 'production_summary_table_card.dart';
 
@@ -195,7 +198,7 @@ class _ProductionSummaryScreenState extends State<ProductionSummaryScreen> {
       setState(() => _summary = summary);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      setState(() => _error = productionLoadErrorText(e));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -920,6 +923,13 @@ class _ProductionSection extends StatelessWidget {
         grandTotalLabelKey: totalLabelKey,
         sort: sort,
         onSortChanged: onSortChanged,
+        // Chaque ligne ouvre la fiche originale (écran de détail existant,
+        // id réel de la fiche) — jamais une fiche reconstruite depuis le
+        // récapitulatif.
+        onOpenFiche: (r) {
+          final route = ProdPaths.ficheDetail(compositeId: r.id, type: r.type, machine: r.machine, poste: r.poste);
+          if (route != null) context.go(route);
+        },
       ),
     ]);
   }

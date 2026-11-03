@@ -28,6 +28,7 @@ import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approv
 import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_service.dart';
 import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_widgets.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/production_records/fiche_edit_session.dart';
 import '../../controller/probar_controller.dart';
 import '../../model/industrial_record_model.dart';
 import '../../service/industrial_record_service.dart';
@@ -84,7 +85,7 @@ class _ProbarDetailScreenState extends State<ProbarDetailScreen> {
 
   // Historique de validation (API existante, comptes autorisés uniquement).
   Future<void> _loadApprovalHistory(IndustrialRecordModel r) async {
-    if (r.approval == null || r.id == null || !AuthService().canViewFicheApprovals) return;
+    if (r.approval == null || r.id == null || !(AuthService().canViewFicheApprovals || AuthService().isReadOnly)) return;
     try {
       final detail = await FicheApprovalService.instance.detail('probar', r.id!);
       if (mounted) setState(() => _approvalHistory = detail.history);
@@ -93,16 +94,20 @@ class _ProbarDetailScreenState extends State<ProbarDetailScreen> {
     }
   }
 
-  String get _backRoute =>
-      '${MyRoute.productionProbarRoot}/machine/${widget.machine}/poste/${widget.poste}/dashboard';
+  // Back-office (consultation seule) : retour à la liste des fiches PROBAR,
+  // les écrans de poste étant des écrans de saisie.
+  String get _backRoute => AuthService().isReadOnly
+      ? MyRoute.probarListScreen
+      : '${MyRoute.productionProbarRoot}/machine/${widget.machine}/poste/${widget.poste}/dashboard';
   String get _modulesRoute =>
       '${MyRoute.productionProbarRoot}/machine/${widget.machine}/poste/${widget.poste}/modules';
 
   Future<void> _openForEdit() async {
+    FicheEditSession.start(widget.id, returnTo: MyRoute.probarListScreen);
     final c = Get.isRegistered<ProbarController>()
         ? Get.find<ProbarController>()
         : Get.put(ProbarController(), permanent: true);
-    await c.bootstrapWithId(widget.machine, widget.poste, widget.id);
+    await c.bootstrapWithId(widget.machine, widget.poste, widget.id, forceRefresh: FicheEditSession.isEditing(widget.id));
     if (mounted) context.go('$_modulesRoute?ficheId=${widget.id}');
   }
 
@@ -221,11 +226,13 @@ class _ProbarDetailScreenState extends State<ProbarDetailScreen> {
               ],
               onBack: () => context.go(_backRoute),
               actions: [
-                FicheAction('edit', label: 'Modifier', icon: Icons.edit_outlined, color: kCrmInfo, onTap: isLocked ? null : _openForEdit, disabledReason: 'Fiche verrouillée'),
+                // Consultation seule (back-office) : ni Modifier ni Supprimer.
+                // Fiche verrouillée : Modifier / Supprimer réservés au root admin (droit du backend).
+                if (!AuthService().isReadOnly) FicheAction('edit', label: 'Modifier', icon: Icons.edit_outlined, color: kCrmInfo, onTap: ficheLockBlocksWrite(isLocked) ? null : _openForEdit, disabledReason: 'Fiche verrouillée'),
                 FicheAction('print', label: 'Imprimer', icon: Icons.print_outlined, color: kCrmText, onTap: _print),
                 FicheAction('pdf', label: 'Export PDF', icon: Icons.picture_as_pdf_outlined, color: kCrmSecondary, onTap: _exportPdf),
                 FicheAction('excel', label: 'Export Excel', icon: Icons.grid_on_rounded, color: kCrmSuccess, onTap: _exportExcel),
-                FicheAction('delete', label: 'Supprimer', icon: Icons.delete_outline_rounded, color: kCrmDanger, onTap: (isLocked || _deleting) ? null : _delete, disabledReason: 'Fiche verrouillée'),
+                if (!AuthService().isReadOnly) FicheAction('delete', label: 'Supprimer', icon: Icons.delete_outline_rounded, color: kCrmDanger, onTap: (ficheLockBlocksWrite(isLocked) || _deleting) ? null : _delete, disabledReason: 'Fiche verrouillée'),
               ],
             ),
             if (isLocked) FicheLockBanner(lockReason),

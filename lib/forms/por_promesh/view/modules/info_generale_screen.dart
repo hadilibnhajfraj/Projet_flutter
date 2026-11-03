@@ -62,7 +62,7 @@ class _InfoGeneraleScreenState extends State<InfoGeneraleScreen> {
       await c.bootstrapForMachinePoste(widget.machine, widget.poste);
     }
     if (!mounted) return;
-    if (c.isLocked.value || c.status.value == 'submitted') {
+    if (c.editingBlocked) {
       context.go(_fichePath);
     }
   }

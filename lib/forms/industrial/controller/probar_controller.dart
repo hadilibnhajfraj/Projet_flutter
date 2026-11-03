@@ -14,6 +14,7 @@ import 'package:intl/intl.dart';
 import 'package:dash_master_toolkit/utils/common.dart';
 
 import 'package:dash_master_toolkit/forms/production_fiche_approval/fiche_approval_record.dart';
+import 'package:dash_master_toolkit/providers/auth_service.dart';
 import '../model/industrial_record_model.dart';
 import '../service/industrial_record_service.dart';
 
@@ -329,6 +330,22 @@ class ProbarController extends GetxController {
   bool isObservationComplete() => observationSaved;
   bool isNonConformiteComplete() => nonConformiteSaved;
 
+  // ── Données RÉELLEMENT présentes par module (≠ complétude) ─────────────
+  // Mêmes champs que les règles de complétude ci-dessus : un module peut
+  // contenir des données sans être complet — jamais annoncé « vide ».
+  static bool _filled(TextEditingController c) => c.text.trim().isNotEmpty;
+  static bool _set(RxnString v) => (v.value ?? '').trim().isNotEmpty;
+
+  bool get rendementHasData => _filled(productionM2) || _filled(diameterController);
+  bool get personnelHasData => personnelSaved;
+  bool get observationHasData => _filled(observationsGenerales);
+  bool get nonConformiteHasData => _set(conformite) || _filled(descriptionNonConformite) || _filled(actionsCorrectives);
+  bool get controleMachineHasData =>
+      [_qmHeureCurrentLine, _qmLongueurCurrentLine, _qmGrammageCurrentLine, _qmDiametreCurrentLine, qmTemperature, fourZone1, fourZone2, fourZone3, temperatureEau, nombreBobines, justificationControleMachine].any(_filled) ||
+      [air, niveauBainEau, bobine, resistance, bainEauFiltre, machineCeinture, machineBobinage, etatPistons, fluideVisuel, etatDisqueCoupe].any(_set);
+  bool get qualiteHasData => controlesQualite.any((slot) =>
+      (slot['statutCOQ'] as String?) != null || _kQualiteNumericFields.any((k) => ((slot[k] as String?) ?? '').trim().isNotEmpty));
+
   bool get canFinish =>
       rendementSaved &&
       personnelSaved &&
@@ -426,8 +443,10 @@ class ProbarController extends GetxController {
     }
   }
 
-  Future<void> bootstrapWithId(String machineNum, String posteValue, String id) async {
-    if (recordId == id) return;
+  /// [forceRefresh] : relit toujours la fiche en base (modification d'une
+  /// fiche existante — jamais l'état resté en mémoire d'une session précédente).
+  Future<void> bootstrapWithId(String machineNum, String posteValue, String id, {bool forceRefresh = false}) async {
+    if (recordId == id && !forceRefresh) return;
     isLoading.value = true;
     try {
       final model = await IndustrialRecordService.instance.fetchById(id);
@@ -553,8 +572,9 @@ class ProbarController extends GetxController {
     statut.value = m.statut;
     approval.value = m.approval;
     // Une fiche refusée par le responsable logistique reste modifiable par
-    // son créateur pour correction.
-    isLocked.value = m.statut == 'validee' && !isCorrecting;
+    // son créateur pour correction ; une fiche validée, par le root admin
+    // (droit vérifié par le backend, jamais une fiche archivée).
+    isLocked.value = m.statut == 'validee' && !isCorrecting && !AuthService().canManageAllProductionFiches;
     lastUpdatedAt.value = DateTime.tryParse(m.updatedAt ?? '');
     machine.value = m.machine;
     poste.value = m.poste;

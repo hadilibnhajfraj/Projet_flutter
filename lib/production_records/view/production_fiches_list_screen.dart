@@ -25,9 +25,11 @@ import 'package:dash_master_toolkit/forms/industrial/view/poste_dashboard_layout
 import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/services/socket_service.dart';
 import 'package:dash_master_toolkit/providers/auth_service.dart';
+import 'package:dash_master_toolkit/core/config/read_only_access.dart' show kBackofficeReadOnlyRole;
 
 import '../model/production_fiche_list.dart';
 import '../service/production_fiches_service.dart';
+import '../service/production_load_error.dart';
 
 const kFicheListPageSizes = [10, 20, 50, 100];
 
@@ -80,7 +82,9 @@ const Color kFicheUnknownColor = Color(0xFF475569);
 /// n'écrit que ses propres fiches ; les autres rôles autorisés ne sont pas
 /// restreints. Le backend reste seul juge.
 bool ficheCanWrite(FicheListRow r, {required String? role, required String? userId}) {
-  if ((role ?? '').toLowerCase().trim() != 'responsable_logistique_achat') return true;
+  final normalized = (role ?? '').toLowerCase().trim();
+  if (normalized == kBackofficeReadOnlyRole) return false; // consultation seule
+  if (normalized != 'responsable_logistique_achat') return true;
   return userId != null && userId.isNotEmpty && r.createdBy == userId;
 }
 
@@ -196,7 +200,7 @@ class _ProductionFichesListScreenState extends State<ProductionFichesListScreen>
         if (!f.isFiltered) _allFiches = page.total;
       });
     } catch (e) {
-      if (mounted && seq == _seq) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+      if (mounted && seq == _seq) setState(() => _error = productionLoadErrorText(e));
     } finally {
       if (mounted && seq == _seq) setState(() => _loading = false);
     }
@@ -314,7 +318,7 @@ class _ProductionFichesListScreenState extends State<ProductionFichesListScreen>
               icon: _loading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.refresh_rounded, size: 18),
               label: Text(pdT(context, 'Actualiser')),
             ),
-            FilledButton.icon(
+            if (!AuthService().isReadOnly) FilledButton.icon(
               key: const ValueKey('fiches-new'),
               onPressed: () => context.go(widget.newFicheRoute),
               style: FilledButton.styleFrom(backgroundColor: widget.color, minimumSize: const Size(0, 42), padding: const EdgeInsets.symmetric(horizontal: 18), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9))),

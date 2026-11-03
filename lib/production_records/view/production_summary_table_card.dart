@@ -35,6 +35,10 @@ class ProductionSummaryTableCard extends StatefulWidget {
   final String grandTotalLabelKey;
   final ProductionRowSort? sort;
   final ValueChanged<ProductionRowSort?> onSortChanged;
+  // « Consulter la fiche » : ouvre la fiche ORIGINALE de la ligne (écran de
+  // détail existant, chargé par l'id réel de la fiche). `null` : lignes non
+  // cliquables, pas de colonne d'action.
+  final ValueChanged<ProductionRecordModel>? onOpenFiche;
 
   const ProductionSummaryTableCard({
     super.key,
@@ -44,6 +48,7 @@ class ProductionSummaryTableCard extends StatefulWidget {
     required this.grandTotalLabelKey,
     required this.sort,
     required this.onSortChanged,
+    this.onOpenFiche,
   });
 
   @override
@@ -65,7 +70,12 @@ class _ProductionSummaryTableCardState extends State<ProductionSummaryTableCard>
   static const _hPadding = 18.0;
 
   int get _flexSum => _flexIndex + _flexDate + _flexMachine + _flexShift + _flexDiameter + (widget.isPromesh ? _flexMesh : 0) + _flexQty + _flexWaste;
-  double get _minTableWidth => _flexSum * _minFlexUnit + 2 * _hPadding;
+  double get _minTableWidth => _flexSum * _minFlexUnit + 2 * _hPadding + _actionWidth;
+
+  // Colonne d'action « Consulter la fiche » (largeur fixe, en fin de ligne) —
+  // réservée aussi sur l'en-tête et les lignes de total pour rester alignés.
+  double get _actionWidth => widget.onOpenFiche == null ? 0 : 40;
+  Widget get _actionSpacer => SizedBox(width: _actionWidth);
 
   @override
   void dispose() {
@@ -226,6 +236,7 @@ class _ProductionSummaryTableCardState extends State<ProductionSummaryTableCard>
           flex: _flexWaste,
           child: _sortableHeader(t, '${t.translate('Waste')} (${widget.table.wasteUnit})', ProductionSortColumn.waste, alignRight: true),
         ),
+        _actionSpacer,
       ]),
     );
   }
@@ -274,7 +285,8 @@ class _ProductionSummaryTableCardState extends State<ProductionSummaryTableCard>
 
     final textStyle = tInter(fontSize: 12.5, fontWeight: isPromesh4 ? FontWeight.w700 : FontWeight.w500, color: kCrmText);
 
-    return Container(
+    final open = widget.onOpenFiche;
+    final row = Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
       decoration: BoxDecoration(
         color: isPromesh4 ? _promesh4Bg : null,
@@ -295,7 +307,29 @@ class _ProductionSummaryTableCardState extends State<ProductionSummaryTableCard>
         if (widget.isPromesh) Expanded(flex: _flexMesh, child: _cell(meshLabel, textStyle)),
         Expanded(flex: _flexQty, child: _cell(qtyLabel, textStyle, alignRight: true)),
         Expanded(flex: _flexWaste, child: _cell(wasteLabel, textStyle, alignRight: true)),
+        if (open != null)
+          SizedBox(
+            width: _actionWidth,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                key: ValueKey('summary-open-fiche-${r.id}'),
+                tooltip: t.translate('Consulter la fiche'),
+                icon: const Icon(Icons.visibility_outlined, size: 18, color: kCrmPrimary),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                onPressed: () => open(r),
+              ),
+            ),
+          ),
       ]),
+    );
+    if (open == null) return row;
+    // Toute la ligne ouvre aussi la fiche.
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(key: ValueKey('summary-row-${r.id}'), onTap: () => open(r), child: row),
     );
   }
 
@@ -697,6 +731,7 @@ class _ProductionSummaryTableCardState extends State<ProductionSummaryTableCard>
         // s'affiche sur la ligne dédiée juste en dessous (_grandTotalWasteRow,
         // §6/§7 : jamais mélangé avec Quantity, unités différentes).
         Expanded(flex: _flexWaste, child: const SizedBox.shrink()),
+        _actionSpacer,
       ]),
     );
   }
@@ -767,6 +802,7 @@ class _ProductionSummaryTableCardState extends State<ProductionSummaryTableCard>
           child: Text('${wasteTotal.toStringAsFixed(2)} ${widget.table.wasteUnit}',
               textAlign: TextAlign.right, style: tInter(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
         ),
+        _actionSpacer,
       ]),
     );
   }

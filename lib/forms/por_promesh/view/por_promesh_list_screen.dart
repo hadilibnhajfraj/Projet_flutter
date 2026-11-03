@@ -20,6 +20,7 @@ import 'package:dash_master_toolkit/forms/view/pipeline_theme.dart';
 import 'package:dash_master_toolkit/forms/industrial/theme/industrial_theme.dart';
 import 'package:dash_master_toolkit/production_records/model/production_fiche_list.dart';
 import 'package:dash_master_toolkit/production_records/view/production_fiches_list_screen.dart';
+import 'package:dash_master_toolkit/production_records/fiche_edit_session.dart';
 
 import '../service/por_promesh_service.dart';
 import '../service/por_promesh_pdf_service.dart';
@@ -106,10 +107,14 @@ class PorPromeshListScreen extends StatelessWidget {
       onReport: exportPdf,
       canWrite: ficheListCanWrite,
       actions: [
-        FicheListAction('edit', label: 'Modifier', icon: Icons.edit_outlined, color: kCrmInfo, requiresWrite: true, handler: (r) => r.isLocked ? null : (r) async => context.go(editRoute(r))),
+        // Fiche verrouillée : Modifier / Supprimer réservés au root admin (droit du backend).
+        FicheListAction('edit', label: 'Modifier', icon: Icons.edit_outlined, color: kCrmInfo, requiresWrite: true, handler: (r) => ficheLockBlocksWrite(r.isLocked) ? null : (r) async {
+          FicheEditSession.start(r.recordId, returnTo: MyRoute.porPromeshListScreen);
+          context.go(editRoute(r));
+        }),
         FicheListAction('print', label: 'Imprimer', icon: Icons.print_outlined, color: kCrmText, handler: (r) => printPdf),
         FicheListAction('excel', label: 'Export Excel', icon: Icons.grid_on_rounded, color: kCrmSuccess, handler: (r) => exportExcel),
-        FicheListAction('delete', label: 'Supprimer', icon: Icons.delete_outline_rounded, color: kCrmDanger, reloadAfter: true, requiresWrite: true, handler: (r) => r.isLocked ? null : delete),
+        FicheListAction('delete', label: 'Supprimer', icon: Icons.delete_outline_rounded, color: kCrmDanger, reloadAfter: true, requiresWrite: true, handler: (r) => ficheLockBlocksWrite(r.isLocked) ? null : delete),
       ],
     );
   }
