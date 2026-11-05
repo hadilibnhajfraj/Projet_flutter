@@ -18,6 +18,19 @@ class CommercialAnalyticsModel {
   final List<CompanyCount>     topCompanies;
   final List<MonthlyCount>     monthlyActivity;
 
+  // La réponse du serveur contient-elle cette section ? (false : non fournie
+  // — à distinguer d'une liste réellement vide).
+  final bool providesByCommercial;
+  final bool providesTopCompanies;
+  final bool providesMonthly;
+
+  // Appels répartis par mois disponibles ? (false : seul le total cumulé
+  // nbAppels existe — série « Appels » masquée, jamais inventée) + motif.
+  final bool    monthlyCallsAvailable;
+  final String? monthlyCallsNote;
+  // Contacts sans entreprise (comptés à part, jamais une fausse entreprise).
+  final int?    contactsWithoutCompany;
+
   const CommercialAnalyticsModel({
     required this.totalContacts,
     required this.totalCalls,
@@ -30,7 +43,17 @@ class CommercialAnalyticsModel {
     required this.contactsByCommercial,
     required this.topCompanies,
     required this.monthlyActivity,
+    this.providesByCommercial = true,
+    this.providesTopCompanies = true,
+    this.providesMonthly = true,
+    this.monthlyCallsAvailable = false,
+    this.monthlyCallsNote,
+    this.contactsWithoutCompany,
   });
+
+  /// Motif affiché quand les appels ne peuvent pas être répartis par mois.
+  static const kNoMonthlyCallsNote =
+      'Appels non répartis par mois : seul le total cumulé par contact (nbAppels) est enregistré, sans date pour chaque appel.';
 
   // ── Construit les analytics à partir de la liste brute des contacts ─────────
   // Utilisé comme fallback quand GET /commercial-contacts/analytics n'existe pas.
@@ -116,10 +139,11 @@ class CommercialAnalyticsModel {
         final d = c.createdAt;
         return d != null && d.year == month.year && d.month == month.month;
       }).toList();
+      // Appels : aucun historique daté (nbAppels cumulé) → non répartis par mois.
       return MonthlyCount(
         month:    months[month.month - 1],
         contacts: list.length,
-        calls:    list.fold(0, (s, c) => s + c.nbAppels),
+        calls:    null,
       );
     });
 
@@ -190,24 +214,53 @@ class CommercialAnalyticsModel {
     return raw.map((e) => MonthlyCount.fromJson(e as Map<String, dynamic>)).toList();
   }
 
-  factory CommercialAnalyticsModel.fromJson(Map<String, dynamic> j) =>
-      CommercialAnalyticsModel(
-        totalContacts:    (j['totalContacts']    as num? ?? 0).toInt(),
-        totalCalls:       (j['totalCalls']       as num? ?? 0).toInt(),
-        // accepte totalCompanies OU totalEntreprises
-        totalCompanies:   ((j['totalCompanies']  ?? j['totalEntreprises']) as num? ?? 0).toInt(),
-        totalCommerciaux: (j['totalCommerciaux'] as num? ?? 0).toInt(),
-        totalActifs:      (j['totalActifs']      as num? ?? 0).toInt(),
-        totalNonValides:  (j['totalNonValides']  as num? ?? 0).toInt(),
-        // accepte contactsByStatut OU contactsByStatus — Map ou List
-        contactsByStatut:    _parseStatuts(j['contactsByStatut'] ?? j['contactsByStatus']),
-        // accepte Map ou List
-        contactsByType:      _parseTypes(j['contactsByType']),
-        contactsByCommercial: _parseCommercials(j['contactsByCommercial']),
-        topCompanies:        _parseCompanies(j['topCompanies']),
-        // accepte monthlyActivity OU monthly
-        monthlyActivity:     _parseMonthly(j['monthlyActivity'] ?? j['monthly']),
-      );
+  // Somme des statuts renvoyés par le serveur (contactsByStatus) — mêmes
+  // définitions que le backend (_getGlobalKPIs : actifs = ok ; non validés =
+  // client_refuse + user_injoignable), utilisée seulement si le serveur ne
+  // fournit pas lui-même totalActifs / totalNonValides.
+  static int _statusTotal(List<StatutCount> statuts, Set<String> keys) =>
+      statuts.where((s) => keys.contains(s.statut)).fold(0, (sum, s) => sum + s.count);
+
+  /// Accepte les DEUX formats de GET /commercial-contacts/kpi et /my-kpi :
+  /// - version déployée : totalCommercials + topCommercials (comptes de saisie,
+  ///   score CRM du backend), sans topCompanies ni monthlyActivity ;
+  /// - version à jour : contactsByCommercial (commercial = nom enregistré sur la
+  ///   fiche), topCompanies, monthlyActivity, totalCommerciaux, totalActifs…
+  /// Une donnée ABSENTE de la réponse reste signalée absente (provides*),
+  /// jamais confondue avec une liste vide.
+  factory CommercialAnalyticsModel.fromJson(Map<String, dynamic> j) {
+    final statuts = _parseStatuts(j['contactsByStatut'] ?? j['contactsByStatus']);
+    final monthly = _parseMonthly(j['monthlyActivity'] ?? j['monthly']);
+    final byCommercial = j['contactsByCommercial'] is List
+        ? _parseCommercials(j['contactsByCommercial'])
+        : (j['topCommercials'] is List
+            ? (j['topCommercials'] as List).whereType<Map>().map((e) => CommercialCount.fromTopCommercial(Map<String, dynamic>.from(e))).toList()
+            : <CommercialCount>[]);
+    return CommercialAnalyticsModel(
+      totalContacts:    (j['totalContacts']    as num? ?? 0).toInt(),
+      totalCalls:       (j['totalCalls']       as num? ?? 0).toInt(),
+      // accepte totalCompanies OU totalEntreprises
+      totalCompanies:   ((j['totalCompanies']  ?? j['totalEntreprises']) as num? ?? 0).toInt(),
+      // accepte totalCommerciaux OU totalCommercials (version déployée)
+      totalCommerciaux: ((j['totalCommerciaux'] ?? j['totalCommercials']) as num? ?? 0).toInt(),
+      totalActifs:      (j['totalActifs'] as num?)?.toInt() ?? _statusTotal(statuts, const {'ok'}),
+      totalNonValides:  (j['totalNonValides'] as num?)?.toInt() ?? _statusTotal(statuts, const {'client_refuse', 'user_injoignable'}),
+      // accepte contactsByStatut OU contactsByStatus — Map ou List
+      contactsByStatut:    statuts,
+      // accepte Map ou List
+      contactsByType:      _parseTypes(j['contactsByType']),
+      contactsByCommercial: byCommercial,
+      topCompanies:        _parseCompanies(j['topCompanies']),
+      // accepte monthlyActivity OU monthly
+      monthlyActivity:     monthly,
+      providesByCommercial: j['contactsByCommercial'] is List || j['topCommercials'] is List,
+      providesTopCompanies: j['topCompanies'] is List,
+      providesMonthly:      j['monthlyActivity'] is List || j['monthly'] is List,
+      monthlyCallsAvailable: monthly.isNotEmpty && monthly.every((m) => m.calls != null) && j['monthlyCallsAvailable'] != false,
+      monthlyCallsNote:      j['monthlyCallsNote'] as String?,
+      contactsWithoutCompany: (j['contactsWithoutCompany'] as num?)?.toInt(),
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'totalContacts':         totalContacts,
@@ -231,8 +284,9 @@ class StatutCount {
   final int    count;
   const StatutCount({required this.statut, required this.count});
 
+  // Le backend (/my-kpi, /kpi) renvoie la clé `status`.
   factory StatutCount.fromJson(Map<String, dynamic> j) => StatutCount(
-        statut: j['statut'] as String? ?? '',
+        statut: j['statut'] as String? ?? j['status'] as String? ?? '',
         count:  (j['count'] as num? ?? 0).toInt(),
       );
   Map<String, dynamic> toJson() => {'statut': statut, 'count': count};
@@ -243,8 +297,9 @@ class TypeCount {
   final int    count;
   const TypeCount({required this.type, required this.count});
 
+  // Le backend (/my-kpi, /kpi) renvoie la clé `clientType`.
   factory TypeCount.fromJson(Map<String, dynamic> j) => TypeCount(
-        type:  j['type']  as String? ?? j['typeClient'] as String? ?? '',
+        type:  j['type']  as String? ?? j['typeClient'] as String? ?? j['clientType'] as String? ?? '',
         count: (j['count'] as num? ?? 0).toInt(),
       );
   Map<String, dynamic> toJson() => {'type': type, 'count': count};
@@ -255,8 +310,11 @@ class CommercialCount {
   final int    contacts;
   final int    calls;
   final int    actifs;
-  final int    nonValides;
-  final int    entreprises;
+  // null : valeur NON FOURNIE par le serveur (affichée « — », jamais 0).
+  final int?   nonValides;
+  final int?   entreprises;
+  // Score CRM calculé par le backend (topCommercials) — null s'il n'en fournit pas.
+  final double? score;
 
   const CommercialCount({
     required this.commercial,
@@ -265,6 +323,7 @@ class CommercialCount {
     this.actifs      = 0,
     this.nonValides  = 0,
     this.entreprises = 0,
+    this.score,
   });
 
   factory CommercialCount.fromJson(Map<String, dynamic> j) => CommercialCount(
@@ -272,9 +331,24 @@ class CommercialCount {
         contacts:     (j['contacts']    as num? ?? 0).toInt(),
         calls:        (j['calls']       as num? ?? j['nbAppels'] as num? ?? 0).toInt(),
         actifs:       (j['actifs']      as num? ?? 0).toInt(),
-        nonValides:   (j['nonValides']  as num? ?? 0).toInt(),
-        entreprises:  (j['entreprises'] as num? ?? 0).toInt(),
+        nonValides:   (j['nonValides']  as num?)?.toInt(),
+        entreprises:  (j['entreprises'] as num?)?.toInt(),
+        score:        (j['score']       as num?)?.toDouble(),
       );
+
+  /// Élément de `topCommercials` (version déployée de GET /commercial-contacts/kpi) :
+  /// { userName, email, score, contactsCount, callsCount, activeContacts }.
+  /// Ni « non validés » ni « entreprises » par commercial dans ce format → null.
+  factory CommercialCount.fromTopCommercial(Map<String, dynamic> j) => CommercialCount(
+        commercial:  (j['userName'] ?? j['email'] ?? '').toString(),
+        contacts:    (j['contactsCount']  as num? ?? 0).toInt(),
+        calls:       (j['callsCount']     as num? ?? 0).toInt(),
+        actifs:      (j['activeContacts'] as num? ?? 0).toInt(),
+        nonValides:  null,
+        entreprises: null,
+        score:       (j['score'] as num?)?.toDouble(),
+      );
+
   Map<String, dynamic> toJson() => {
         'commercial':  commercial,
         'contacts':    contacts,
@@ -282,6 +356,7 @@ class CommercialCount {
         'actifs':      actifs,
         'nonValides':  nonValides,
         'entreprises': entreprises,
+        if (score != null) 'score': score,
       };
 }
 
@@ -292,10 +367,11 @@ class CompanyCount {
   const CompanyCount(
       {required this.name, required this.contacts, required this.calls});
 
+  // Backend : { companyName, contactsCount, callsCount } (anciens noms acceptés).
   factory CompanyCount.fromJson(Map<String, dynamic> j) => CompanyCount(
-        name:     j['name']     as String? ?? j['nomSociete'] as String? ?? '',
-        contacts: (j['contacts'] as num? ?? 0).toInt(),
-        calls:    (j['calls']    as num? ?? 0).toInt(),
+        name:     j['companyName'] as String? ?? j['name'] as String? ?? j['nomSociete'] as String? ?? '',
+        contacts: ((j['contactsCount'] ?? j['contacts']) as num? ?? 0).toInt(),
+        calls:    ((j['callsCount']    ?? j['calls'])    as num? ?? 0).toInt(),
       );
   Map<String, dynamic> toJson() =>
       {'name': name, 'contacts': contacts, 'calls': calls};
@@ -304,14 +380,19 @@ class CompanyCount {
 class MonthlyCount {
   final String month;
   final int    contacts;
-  final int    calls;
+  // null : appels non répartis par mois (aucun historique daté en base).
+  final int?   calls;
   const MonthlyCount(
       {required this.month, required this.contacts, required this.calls});
 
+  // Backend : { month: 'YYYY-MM', label: 'Avr', newContacts, callsCount|null }
+  // (anciens noms month/contacts/calls acceptés). `month` = libellé affiché.
   factory MonthlyCount.fromJson(Map<String, dynamic> j) => MonthlyCount(
-        month:    j['month'] as String? ?? '',
-        contacts: (j['contacts'] as num? ?? 0).toInt(),
-        calls:    (j['calls']    as num? ?? 0).toInt(),
+        month:    (j['label'] ?? j['month'] ?? '').toString(),
+        contacts: ((j['newContacts'] ?? j['contacts']) as num? ?? 0).toInt(),
+        calls:    (j.containsKey('callsCount') ? j['callsCount'] : j['calls']) is num
+            ? ((j.containsKey('callsCount') ? j['callsCount'] : j['calls']) as num).toInt()
+            : null,
       );
   Map<String, dynamic> toJson() =>
       {'month': month, 'contacts': contacts, 'calls': calls};

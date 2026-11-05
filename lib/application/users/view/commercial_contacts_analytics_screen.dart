@@ -11,6 +11,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 
 import 'package:dash_master_toolkit/application/users/model/commercial_contact_model.dart';
+import 'package:dash_master_toolkit/application/users/model/commercial_analytics_model.dart';
 import 'package:dash_master_toolkit/services/commercial_contact_service.dart';
 import 'package:dash_master_toolkit/core/theme/app_text_styles.dart';
 import 'package:dash_master_toolkit/dashboard/academic/widgets/crm_dashboard_widgets.dart';
@@ -36,9 +37,12 @@ class _UserStat {
   final int       contacts;
   final int       calls;
   final int       actifs;
-  final int       nonValides;
-  final int       entreprises;
+  // null : non fourni par le serveur (affiché « — », jamais 0).
+  final int?      nonValides;
+  final int?      entreprises;
   final DateTime? lastActivity;
+  // Score CRM fourni par le backend (prioritaire sur le calcul local).
+  final double?   backendScore;
 
   const _UserStat({
     required this.name,
@@ -49,6 +53,7 @@ class _UserStat {
     required this.nonValides,
     required this.entreprises,
     this.lastActivity,
+    this.backendScore,
   });
 
   double get tauxReussite =>
@@ -61,7 +66,7 @@ class _UserStat {
   }) {
     final cN = maxContacts == 0 ? 0.0 : contacts / maxContacts * 100;
     final kN = maxCalls    == 0 ? 0.0 : calls    / maxCalls    * 100;
-    final eN = maxEnts     == 0 ? 0.0 : entreprises / maxEnts  * 100;
+    final eN = maxEnts     == 0 ? 0.0 : (entreprises ?? 0) / maxEnts  * 100;
     return (cN * 0.25 + kN * 0.25 + tauxReussite * 0.30 + eN * 0.20)
         .clamp(0, 100);
   }
@@ -78,7 +83,8 @@ class _CompanyStat {
 class _MonthData {
   final String label;
   final int    contacts;
-  final int    calls;
+  // null : appels non répartis par mois (aucun historique daté).
+  final int?   calls;
   const _MonthData(
       {required this.label, required this.contacts, required this.calls});
 }
@@ -180,6 +186,18 @@ class _CommercialContactsAnalyticsScreenState
   List<_CompanyStat> _companyStats = [];
   List<_MonthData>   _monthlyData  = [];
 
+  // Sections présentes dans la réponse du serveur (false : non fournies par
+  // cette version du backend — message explicite, jamais « aucune donnée »).
+  bool _byCommercialProvided = true;
+  bool _companiesProvided    = true;
+  bool _monthlyProvided      = true;
+  static const _notProvided = 'Non fourni par le serveur (mise à jour du backend requise)';
+  // Appels mensuels réels disponibles ? Sinon la série « Appels » est masquée
+  // et le motif affiché (jamais une répartition inventée).
+  bool    _monthlyCallsAvailable = false;
+  String? _monthlyCallsNote;
+  int?    _contactsWithoutCompany;
+
   // Computed scores (need max values across all users)
   int _maxContacts = 1;
   int _maxCalls    = 1;
@@ -249,15 +267,23 @@ class _CommercialContactsAnalyticsScreenState
               .toList();
         }
 
-        // Per-user stats — pour admin (podium + classement)
+        // Per-user stats — pour admin (podium + classement). Valeurs du
+        // serveur telles quelles (score CRM inclus quand il le fournit).
         _userStats = kpiModel.contactsByCommercial.map((c) => _UserStat(
-          name:        c.commercial,
-          contacts:    c.contacts,
-          calls:       c.calls,
-          actifs:      c.actifs,
-          nonValides:  c.nonValides,
-          entreprises: c.entreprises,
+          name:         c.commercial,
+          contacts:     c.contacts,
+          calls:        c.calls,
+          actifs:       c.actifs,
+          nonValides:   c.nonValides,
+          entreprises:  c.entreprises,
+          backendScore: c.score,
         )).toList();
+        _byCommercialProvided = kpiModel.providesByCommercial;
+        _companiesProvided    = kpiModel.providesTopCompanies;
+        _monthlyProvided      = kpiModel.providesMonthly;
+        _monthlyCallsAvailable  = kpiModel.monthlyCallsAvailable;
+        _monthlyCallsNote       = kpiModel.monthlyCallsNote ?? CommercialAnalyticsModel.kNoMonthlyCallsNote;
+        _contactsWithoutCompany = kpiModel.contactsWithoutCompany;
 
         _companyStats = kpiModel.topCompanies.map((c) => _CompanyStat(
           name:     c.name,
@@ -267,7 +293,7 @@ class _CommercialContactsAnalyticsScreenState
 
         _maxContacts = _userStats.isEmpty ? 1 : _userStats.map((u) => u.contacts).reduce(math.max).clamp(1, 1 << 30);
         _maxCalls    = _userStats.isEmpty ? 1 : _userStats.map((u) => u.calls).reduce(math.max).clamp(1, 1 << 30);
-        _maxEnts     = _userStats.isEmpty ? 1 : _userStats.map((u) => u.entreprises).reduce(math.max).clamp(1, 1 << 30);
+        _maxEnts     = _userStats.isEmpty ? 1 : _userStats.map((u) => u.entreprises ?? 0).reduce(math.max).clamp(1, 1 << 30);
         _filtered    = List.from(_userStats);
         _allContacts = [];
 
@@ -276,6 +302,10 @@ class _CommercialContactsAnalyticsScreenState
         debugPrint('Endpoint KPI non disponible — chargement liste contacts');
         final data = await _svc.fetchMyContacts(token: widget.token);
         _allContacts = data;
+        _byCommercialProvided = _companiesProvided = _monthlyProvided = true;
+        // Liste brute : nbAppels cumulé, aucun historique daté → pas d'appels par mois.
+        _monthlyCallsAvailable = false;
+        _monthlyCallsNote = CommercialAnalyticsModel.kNoMonthlyCallsNote;
         _compute();
       }
 
@@ -362,7 +392,7 @@ class _CommercialContactsAnalyticsScreenState
 
     _maxContacts = _userStats.isEmpty ? 1 : _userStats.map((u) => u.contacts).reduce(math.max).clamp(1, 1 << 30);
     _maxCalls    = _userStats.isEmpty ? 1 : _userStats.map((u) => u.calls).reduce(math.max).clamp(1, 1 << 30);
-    _maxEnts     = _userStats.isEmpty ? 1 : _userStats.map((u) => u.entreprises).reduce(math.max).clamp(1, 1 << 30);
+    _maxEnts     = _userStats.isEmpty ? 1 : _userStats.map((u) => u.entreprises ?? 0).reduce(math.max).clamp(1, 1 << 30);
 
     // ── Companies ──────────────────────────────────────────────────────────
     final byComp = <String, List<CommercialContact>>{};
@@ -390,14 +420,15 @@ class _CommercialContactsAnalyticsScreenState
       return _MonthData(
         label:    _kMonths[month.month - 1],
         contacts: list.length,
-        calls:    list.fold(0, (s, c) => s + c.nbAppels),
+        calls:    null, // non répartissable par mois (voir _monthlyCallsNote)
       );
     });
 
     _filtered = List.from(_userStats);
   }
 
-  double _score(_UserStat u) => u.scoreWith(
+  // Score du backend quand il le fournit ; sinon calcul local (inchangé).
+  double _score(_UserStat u) => u.backendScore ?? u.scoreWith(
     maxContacts: _maxContacts, maxCalls: _maxCalls, maxEnts: _maxEnts);
 
   List<String> _whyTop(_UserStat u) {
@@ -405,7 +436,7 @@ class _CommercialContactsAnalyticsScreenState
     if (u.contacts == _maxContacts && _maxContacts > 0) reasons.add('Plus grand portefeuille contacts');
     if (u.calls    == _maxCalls    && _maxCalls > 0)    reasons.add('Plus grand nombre d\'appels');
     if (u.tauxReussite >= 70)  reasons.add('Excellent taux de validation (${u.tauxReussite.toStringAsFixed(0)}%)');
-    if (u.entreprises == _maxEnts && _maxEnts > 0)      reasons.add('Gestion de plusieurs entreprises');
+    if (u.entreprises != null && u.entreprises == _maxEnts && _maxEnts > 0) reasons.add('Gestion de plusieurs entreprises');
     if (_score(u) >= 80)       reasons.add('Score CRM exceptionnel');
     if (reasons.isEmpty)       reasons.add('Performance globale solide');
     return reasons.take(4).toList();
@@ -439,9 +470,9 @@ class _CommercialContactsAnalyticsScreenState
       case 0: return u.name;
       case 1: return u.contacts;
       case 2: return u.calls;
-      case 3: return u.entreprises;
+      case 3: return u.entreprises ?? -1; // non fourni : trié en dernier
       case 4: return u.actifs;
-      case 5: return u.nonValides;
+      case 5: return u.nonValides ?? -1;
       case 6: return u.tauxReussite;
       case 7: return _score(u);
       default: return 0;
@@ -459,7 +490,7 @@ class _CommercialContactsAnalyticsScreenState
     final sb = StringBuffer();
     sb.writeln('Commercial,Contacts,Appels,Entreprises,Validés,Non Validés,Taux Validation (%),Score CRM');
     for (final u in _userStats) {
-      sb.writeln('${u.name},${u.contacts},${u.calls},${u.entreprises},${u.actifs},${u.nonValides},${u.tauxReussite.toStringAsFixed(1)},${_score(u).toStringAsFixed(0)}');
+      sb.writeln('${u.name},${u.contacts},${u.calls},${u.entreprises ?? ''},${u.actifs},${u.nonValides ?? ''},${u.tauxReussite.toStringAsFixed(1)},${_score(u).toStringAsFixed(0)}');
     }
     Clipboard.setData(ClipboardData(text: sb.toString()));
     _snack(ctx, AppLocalizations.of(ctx).translate('Export Excel — Données CSV copiées. Collez dans Excel ou Google Sheets.'), const Color(0xFF059669));
@@ -709,7 +740,7 @@ class _CommercialContactsAnalyticsScreenState
   // ══════════════════════════════════════════════════════════════════════════
   Widget _section2Podium() {
     if (_userStats.isEmpty) {
-      return Container(padding: const EdgeInsets.all(24), decoration: _card(), child: const _Empty('Aucun commercial disponible'));
+      return Container(padding: const EdgeInsets.all(24), decoration: _card(), child: _Empty(_byCommercialProvided ? 'Aucun commercial disponible' : _notProvided));
     }
     final top3 = _userStats.take(3).toList();
     final w    = MediaQuery.of(context).size.width;
@@ -819,9 +850,16 @@ class _CommercialContactsAnalyticsScreenState
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _SH(title: 'Top Entreprises', badge: '${_companyStats.length}'),
+      // Contacts sans entreprise : comptés à part, jamais une fausse entreprise.
+      if ((_contactsWithoutCompany ?? 0) > 0) ...[
+        const SizedBox(height: 6),
+        Text('$_contactsWithoutCompany contact(s) sans entreprise renseignée (non classés)',
+            key: const ValueKey('contacts-without-company'),
+            style: const TextStyle(fontFamily: 'InterTight', fontSize: 12, color: Color(0xFF64748B))),
+      ],
       const SizedBox(height: 14),
       _companyStats.isEmpty
-          ? Container(padding: const EdgeInsets.all(24), decoration: _card(), child: const _Empty('Aucune entreprise'))
+          ? Container(padding: const EdgeInsets.all(24), decoration: _card(), child: _Empty(_companiesProvided ? 'Aucune entreprise' : _notProvided))
           : _ResponsiveGrid(cols, 14, [
               for (int i = 0; i < _companyStats.length; i++)
                 _CompanyCard(rank: i, stat: _companyStats[i], maxContacts: _companyStats.first.contacts),
@@ -903,9 +941,9 @@ class _CommercialContactsAnalyticsScreenState
                     ])),
                     DataCell(Text('${u.contacts}', style: const TextStyle(fontFamily: 'InterTight', fontWeight: FontWeight.w700, color: _kIndigo))),
                     DataCell(Text('${u.calls}')),
-                    DataCell(Text('${u.entreprises}')),
+                    DataCell(Text('${u.entreprises ?? '—'}')),
                     DataCell(_ColorBadge(value: '${u.actifs}', color: const Color(0xFF22C55E))),
-                    DataCell(_ColorBadge(value: '${u.nonValides}', color: const Color(0xFFEF4444))),
+                    DataCell(_ColorBadge(value: '${u.nonValides ?? '—'}', color: const Color(0xFFEF4444))),
                     DataCell(_TauxBadge(u.tauxReussite)),
                     DataCell(_ScoreBar(sc)),
                   ],
@@ -966,23 +1004,31 @@ class _CommercialContactsAnalyticsScreenState
   // §9 — ACTIVITÉ MENSUELLE (Line Chart)
   // ══════════════════════════════════════════════════════════════════════════
   Widget _section9Monthly() {
-    final maxY = _monthlyData.fold<int>(0, (m, d) => math.max(math.max(d.contacts, d.calls), m)) + 2;
-    final allZ = _monthlyData.every((d) => d.contacts == 0 && d.calls == 0);
+    // Série « Appels » uniquement si les appels mensuels réels existent.
+    final showCalls = _monthlyCallsAvailable && _monthlyData.every((d) => d.calls != null);
+    final maxY = _monthlyData.fold<int>(0, (m, d) => math.max(math.max(d.contacts, showCalls ? d.calls! : 0), m)) + 2;
+    final allZ = _monthlyData.every((d) => d.contacts == 0 && (!showCalls || d.calls == 0));
 
     return Container(
       padding: const EdgeInsets.all(24), decoration: _card(),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Expanded(child: _SH(title: _isAdmin ? 'Activité Mensuelle' : 'Mes Appels Mensuels')),
+          Expanded(child: _SH(title: _isAdmin ? 'Activité Mensuelle' : (showCalls ? 'Mes Appels Mensuels' : 'Mon Activité Mensuelle'))),
           _Leg(_kIndigo,                   'Nouveaux contacts'),
-          const SizedBox(width: 12),
-          _Leg(const Color(0xFF0EA5E9),    'Appels'),
+          if (showCalls) ...[
+            const SizedBox(width: 12),
+            _Leg(const Color(0xFF0EA5E9),    'Appels'),
+          ],
         ]),
+        if (!showCalls && _monthlyProvided && _monthlyCallsNote != null) ...[
+          const SizedBox(height: 8),
+          Text(_monthlyCallsNote!, key: const ValueKey('monthly-calls-note'), style: const TextStyle(fontFamily: 'InterTight', fontSize: 12, color: Color(0xFF64748B))),
+        ],
         const SizedBox(height: 24),
         SizedBox(
           height: 230,
           child: allZ
-              ? const _Empty('Aucune donnée mensuelle')
+              ? _Empty(_monthlyProvided ? 'Aucune donnée mensuelle' : _notProvided)
               : LineChart(LineChartData(
                   minY: 0, maxY: maxY.toDouble(),
                   gridData: FlGridData(
@@ -1028,7 +1074,7 @@ class _CommercialContactsAnalyticsScreenState
                   ),
                   lineBarsData: [
                     _line(_monthlyData.map((d) => d.contacts.toDouble()).toList(), _kIndigo),
-                    _line(_monthlyData.map((d) => d.calls.toDouble()).toList(), const Color(0xFF0EA5E9)),
+                    if (showCalls) _line(_monthlyData.map((d) => d.calls!.toDouble()).toList(), const Color(0xFF0EA5E9)),
                   ],
                 )),
         ),
@@ -1199,7 +1245,7 @@ class _PodiumCardState extends State<_PodiumCard> {
                 _MetTile('Contacts',    '${u.contacts}',    _kIndigo),
                 _MetTile('Appels',      '${u.calls}',       const Color(0xFF0EA5E9)),
                 _MetTile('Actifs',      '${u.actifs}',      const Color(0xFF22C55E)),
-                _MetTile('Entreprises', '${u.entreprises}', const Color(0xFFF59E0B)),
+                _MetTile('Entreprises', '${u.entreprises ?? '—'}', const Color(0xFFF59E0B)),
               ]),
             ),
 
@@ -1524,8 +1570,8 @@ class _DetailDrawer extends StatelessWidget {
               _DKpi(Icons.people_alt_rounded,   'Contacts',    '${user.contacts}',    _kIndigo),
               _DKpi(Icons.phone_rounded,        'Appels',      '${user.calls}',       const Color(0xFF0EA5E9)),
               _DKpi(Icons.verified_rounded,     'Validés',     '${user.actifs}',      const Color(0xFF22C55E)),
-              _DKpi(Icons.cancel_rounded,       'Non validés', '${user.nonValides}',  const Color(0xFFEF4444)),
-              _DKpi(Icons.business_rounded,     'Entreprises', '${user.entreprises}', const Color(0xFFF59E0B)),
+              _DKpi(Icons.cancel_rounded,       'Non validés', '${user.nonValides ?? '—'}',  const Color(0xFFEF4444)),
+              _DKpi(Icons.business_rounded,     'Entreprises', '${user.entreprises ?? '—'}', const Color(0xFFF59E0B)),
             ]),
             const SizedBox(height: 20),
 
