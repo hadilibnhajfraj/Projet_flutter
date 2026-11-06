@@ -335,6 +335,27 @@ const Map<String, String> _exact = {
   "Aucune production": "No production",
   "Aucune fiche sur la période": "No sheet over the period",
   "Production par jour": "Production by day",
+  // Tableau de bord Contrôle Qualité (Super Admin)
+  "Tableau de bord Contrôle Qualité": "Quality Control dashboard",
+  "Toutes les fiches de contrôle qualité, tous contrôleurs confondus (consultation).": "All quality control sheets, from every controller (read-only).",
+  "Numéro de fiche (QC-…)": "Sheet number (QC-…)",
+  "Tous les produits": "All products",
+  "Toutes les périodes": "All periods",
+  "Fiches de contrôle qualité": "Quality control sheets",
+  "En attente (brouillons)": "Pending (drafts)",
+  "Répartition par produit": "Breakdown by product",
+  "Toutes les fiches de contrôle qualité": "All quality control sheets",
+  "Aucune fiche pour ces critères": "No sheets match these criteria",
+  "Aucune fiche de contrôle qualité": "No quality control sheets",
+  "N° de fiche": "Sheet no.",
+  "Produit": "Product",
+  "Date de contrôle": "Control date",
+  "Responsable": "Controller",
+  "Dernière modification": "Last modified",
+  "Voir le détail": "View details",
+  "Répartition indisponible : les indicateurs n'ont pas pu être chargés.": "Breakdown unavailable: the indicators could not be loaded.",
+  "Accès réservé au Super Administrateur (HTTP 403).": "Super Administrator access only (HTTP 403).",
+  "Session expirée (HTTP 401) : reconnectez-vous.": "Session expired (HTTP 401): please sign in again.",
   "Quantité des fiches validées, par date de production · une échelle par ligne (m² et ml ne sont pas comparables)": "Quantity of validated sheets, by production date · one scale per line (m² and ml are not comparable)",
   "Aucune production validée sur cette période": "No validated production over this period",
   "Production PROMESH vs PROBAR": "PROMESH vs PROBAR production",
@@ -756,6 +777,11 @@ const Map<String, String> _exact = {
 };
 
 final List<_Template> _templates = [
+  // Tableau de bord industriel — production par jour
+  _tpl("{} jours · {}", "{0} days · {1}"),
+  _tpl("{} jour · {}", "{0} day · {1}"),
+  _tpl("1 date sur {} affichée sur l'axe — survolez ou touchez une barre pour le détail de chaque jour",
+      "1 date in {0} shown on the axis — hover or tap a bar for each day's details"),
   // Fiche — titres et identification
   _tpl("Contrôle qualité indisponible : {}", "Quality control unavailable: {0}"),
   _tpl("Nouveau contrôle qualité {}", "New Quality Control {0}"),
@@ -911,4 +937,20 @@ final List<_Template> _templates = [
   _tpl("Période B — {}", "Period B — {0}"),
   _tpl("Contrôle qualité {}", "Quality control {0}"),
   _tpl("Machine {}", "Machine {0}"),
+  // (en dernier : priorité aux modèles existants)
+  // Tableau de bord Contrôle Qualité (Super Admin)
+  _tpl("{} % du total", "{0} % of total"),
+  _tpl("Fiches par ligne de production · {}", "Sheets per production line · {0}"),
+  _tpl("{} fiches", "{0} sheets"),
+  _tpl("{} fiche", "{0} sheet"),
+  _tpl("{} validées", "{0} validated"),
+  _tpl("{} validée", "{0} validated"),
+  _tpl("Conformes : {}", "Compliant: {0}"),
+  _tpl("En attente : {}", "Pending: {0}"),
+  _tpl("{}–{} sur {}", "{0}–{1} of {2}"),
+  _tpl("Tableau de bord Contrôle Qualité indisponible sur {} (HTTP 404 sur {}) : la version déployée du backend ne contient pas encore cette fonctionnalité.",
+      "Quality Control dashboard unavailable on {0} (HTTP 404 on {1}): the deployed backend version does not include this feature yet."),
+  _tpl("API injoignable ({}) : vérifiez la connexion ou l'état du serveur.", "API unreachable ({0}): check the connection or the server status."),
+  _tpl("Réponse inattendue du serveur pour {} : format non reconnu.", "Unexpected server response for {0}: unrecognized format."),
+  _tpl("Erreur serveur (HTTP {}) : {}", "Server error (HTTP {0}): {1}"),
 ];

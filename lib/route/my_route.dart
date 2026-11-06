@@ -88,6 +88,7 @@ import 'package:dash_master_toolkit/production_dashboard/production_dashboard_ro
 import 'package:dash_master_toolkit/forms/por_promesh/view/por_promesh_detail_screen.dart';
 import 'package:dash_master_toolkit/quality_control/view/quality_control_comparison_screen.dart';
 import 'package:dash_master_toolkit/quality_control/view/quality_control_history_screen.dart';
+import 'package:dash_master_toolkit/quality_control/view/quality_control_superadmin_screen.dart';
 import 'package:dash_master_toolkit/quality_control/view/quality_control_screen.dart';
 import 'package:dash_master_toolkit/quality_control/view/quality_control_home_screen.dart';
 import 'package:dash_master_toolkit/quality_control/view/quality_control_line_screen.dart';
@@ -265,6 +266,7 @@ class MyRoute {
   static const qualityControlRoot = QcPaths.root;
   static const qualityControlHistoryScreen = QcPaths.history;
   static const qualityControlComparisonScreen = QcPaths.comparison;
+  static const qualityControlSuperAdminScreen = QcPaths.superAdmin;
   static const qualityControlPromeshScreen = QcPaths.promesh;
   static const qualityControlProbarScreen = QcPaths.probar;
   // `?id=<contrôle>` : formulaire du contrôle. Sans id → accueil.
@@ -1004,6 +1006,7 @@ GoRoute(
           buildQualityControlRoute(
             canView: () => AuthService().canViewQualityControl,
             deniedRedirect: dashboard,
+            canViewSuperAdmin: () => AuthService().canViewQualityControlDashboard,
             screens: QcRouteScreens(
               home: () => const QualityControlHomeScreen(),
               history: (query) => QualityControlHistoryScreen(initialQuery: query),
@@ -1012,6 +1015,7 @@ GoRoute(
               machine: (type, machine) => QualityControlMachineScreen(type: type, machine: machine),
               form: (id) => QualityControlScreen(controlId: id),
               newForm: (type, machine) => QualityControlScreen.create(productionType: type, machine: machine),
+              superAdmin: () => const QualityControlSuperAdminScreen(),
             ),
           ),
 

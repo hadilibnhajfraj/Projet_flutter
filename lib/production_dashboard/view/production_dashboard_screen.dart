@@ -23,6 +23,7 @@
 // orange, refusée rouge. Unités différentes (m², ml, kg) : jamais additionnées.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart' hide Text;
@@ -844,49 +845,137 @@ class _ProductionDashboardScreenState extends State<ProductionDashboardScreen> {
           ]),
       ]);
 
+  /// Pas « rond » (1, 2, 2,5, 5 × 10ⁿ) donnant environ [ticks] graduations.
+  static double _niceStep(double max, {int ticks = 4}) {
+    if (max <= 0) return 1;
+    final raw = max / ticks;
+    final mag = math.pow(10, (math.log(raw) / math.ln10).floor()).toDouble();
+    final norm = raw / mag;
+    final nice = norm <= 1 ? 1.0 : norm <= 2 ? 2.0 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5.0 : 10.0;
+    return nice * mag;
+  }
+
   /// Barres d'une ligne : quantité validée par jour (un axe, une unité).
+  ///
+  /// Sur un BarChart, fl_chart place un libellé d'axe X par barre (l'option
+  /// `interval` n'y est pas appliquée) : le pas d'affichage des dates est donc
+  /// calculé ici selon la largeur disponible. Toutes les journées restent
+  /// tracées ; la date et la quantité de chacune sont dans l'infobulle.
   Widget _dailyBars(ProductionLineStats l, List<(String, double)> days) {
     final color = _lineColor(l.type);
     final maxY = days.fold<double>(0, (m, d) => d.$2 > m ? d.$2 : m);
-    final interval = (days.length / 8).ceilToDouble().clamp(1, double.infinity).toDouble();
+    final yStep = _niceStep(maxY);
+    final total = days.fold<double>(0, (s, d) => s + d.$2);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
         Container(width: 10, height: 10, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
         const SizedBox(width: 6),
         Expanded(child: fm.Text('${l.label} (${l.unit})', style: tInter(fontSize: 12.5, fontWeight: FontWeight.w700, color: kCrmText))),
+        if (days.isNotEmpty)
+          Text(
+            '${days.length} ${days.length > 1 ? 'jours' : 'jour'} · ${prodFormatQuantity(total, l.unit)}',
+            style: tInter(fontSize: 11.5, color: kCrmTextSub),
+          ),
       ]),
-      const SizedBox(height: 8),
+      const SizedBox(height: 12),
       if (days.isEmpty)
         const QcEmptyState('Aucune production validée sur cette période', icon: Icons.bar_chart_rounded)
       else
-        SizedBox(
-          height: 210,
-          child: BarChart(
-            key: ValueKey('prod-chart-daily-${l.type}'),
-            BarChartData(
-              maxY: maxY <= 0 ? 1 : maxY * 1.15,
-              minY: 0,
-              gridData: _grid,
-              borderData: _border,
-              titlesData: _titles(interval: interval, bottom: (v) => fm.Text(_shortDate(days[v.toInt().clamp(0, days.length - 1)].$1), style: tInter(fontSize: 10, color: kCrmTextSub))),
-              barTouchData: BarTouchData(
-                touchTooltipData: BarTouchTooltipData(
-                  getTooltipColor: (_) => kCrmText,
-                  getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
-                    '${prodFormatDate(days[group.x].$1)}\n${prodFormatQuantity(rod.toY, l.unit)}',
-                    tInter(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white),
+        LayoutBuilder(builder: (context, c) {
+          const leftAxis = 46.0, rightPad = 8.0;
+          final labelStyle = tInter(fontSize: 10.5, color: kCrmTextSub);
+          // Largeur réelle d'une date « 28/09 » (police et zoom du texte) + marge.
+          final labelPainter = TextPainter(
+            text: TextSpan(text: '28/09', style: labelStyle),
+            textDirection: TextDirection.ltr,
+            textScaler: MediaQuery.textScalerOf(context),
+          )..layout();
+          final labelSlot = labelPainter.width + 12;
+          labelPainter.dispose();
+          final plotWidth = math.max(1.0, c.maxWidth - leftAxis - rightPad);
+          final maxLabels = math.max(2, (plotWidth / labelSlot).floor());
+          final labelStep = (days.length / maxLabels).ceil().clamp(1, days.length);
+          final barWidth = (plotWidth / days.length * 0.6).clamp(3.0, 18.0);
+          final compact = c.maxWidth < 600;
+          return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            SizedBox(
+              height: compact ? 220 : 260,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6, right: rightPad),
+                child: BarChart(
+                  key: ValueKey('prod-chart-daily-${l.type}'),
+                  BarChartData(
+                    maxY: maxY <= 0 ? 1 : (maxY * 1.1 / yStep).ceil() * yStep,
+                    minY: 0,
+                    gridData: FlGridData(
+                      drawVerticalLine: false,
+                      horizontalInterval: yStep,
+                      getDrawingHorizontalLine: (_) => const FlLine(color: kCrmBorder, strokeWidth: 0.6),
+                    ),
+                    borderData: _border,
+                    titlesData: FlTitlesData(
+                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: leftAxis,
+                          interval: yStep,
+                          getTitlesWidget: (v, meta) => v == meta.max
+                              ? const SizedBox.shrink()
+                              : fm.Text(prodFormatNumber(v, maxDecimals: yStep < 1 ? 1 : 0), style: tInter(fontSize: 10, color: kCrmTextSub)),
+                        ),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 28,
+                          getTitlesWidget: (v, meta) {
+                            final i = v.toInt();
+                            if (i < 0 || i >= days.length || i % labelStep != 0) return const SizedBox.shrink();
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: fm.Text(_shortDate(days[i].$1), style: labelStyle),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    barTouchData: BarTouchData(
+                      touchTooltipData: BarTouchTooltipData(
+                        getTooltipColor: (_) => kCrmText,
+                        fitInsideHorizontally: true,
+                        fitInsideVertically: true,
+                        tooltipPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        getTooltipItem: (group, gi, rod, ri) => BarTooltipItem(
+                          '${l.label} · ${prodFormatDate(days[group.x].$1)}\n',
+                          tInter(fontSize: 11, color: Colors.white70),
+                          children: [
+                            TextSpan(text: prodFormatQuantity(rod.toY, l.unit), style: tInter(fontSize: 12.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    barGroups: [
+                      for (var i = 0; i < days.length; i++)
+                        BarChartGroupData(x: i, barRods: [
+                          BarChartRodData(toY: days[i].$2, color: color, width: barWidth, borderRadius: const BorderRadius.vertical(top: Radius.circular(3))),
+                        ]),
+                    ],
                   ),
                 ),
               ),
-              barGroups: [
-                for (var i = 0; i < days.length; i++)
-                  BarChartGroupData(x: i, barRods: [
-                    BarChartRodData(toY: days[i].$2, color: color, width: days.length > 20 ? 6 : 14, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
-                  ]),
-              ],
             ),
-          ),
-        ),
+            if (labelStep > 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '1 date sur $labelStep affichée sur l\'axe — survolez ou touchez une barre pour le détail de chaque jour',
+                  style: tInter(fontSize: 11, color: kCrmTextSub),
+                ),
+              ),
+          ]);
+        }),
     ]);
   }
 
@@ -897,7 +986,11 @@ class _ProductionDashboardScreenState extends State<ProductionDashboardScreen> {
         color: kProductionColor,
         children: [
           _pair(
-            _dailyBars(d.promesh, [for (final x in d.daily) if (x.promesh > 0) (x.date, x.promesh)]),
+            // Espace sous PROMESH quand les deux graphiques sont empilés (mobile / tablette).
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: _dailyBars(d.promesh, [for (final x in d.daily) if (x.promesh > 0) (x.date, x.promesh)]),
+            ),
             _dailyBars(d.probar, [for (final x in d.daily) if (x.probar > 0) (x.date, x.probar)]),
           ),
         ],

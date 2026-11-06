@@ -162,6 +162,8 @@ class _FakeApi implements HttpClientAdapter {
   bool own = false;
   bool noAlerts = false;
   int? failWith;
+  // Remplace charts.daily (période chargée : beaucoup de journées).
+  List<Map<String, dynamic>>? daily;
 
   @override
   Future<ResponseBody> fetch(RequestOptions o, Stream<Uint8List>? requestStream, Future<void>? cancelFuture) async {
@@ -172,7 +174,9 @@ class _FakeApi implements HttpClientAdapter {
     if (failWith != null) {
       return ResponseBody.fromString(jsonEncode({'success': false, 'message': 'Accès refusé'}), failWith!, headers: headers);
     }
-    return ResponseBody.fromString(jsonEncode({'success': true, 'data': _dashboard(o.uri.queryParameters, empty: empty, own: own, noAlerts: noAlerts)}), 200, headers: headers);
+    final data = _dashboard(o.uri.queryParameters, empty: empty, own: own, noAlerts: noAlerts);
+    if (daily != null) (data['charts'] as Map)['daily'] = daily;
+    return ResponseBody.fromString(jsonEncode({'success': true, 'data': data}), 200, headers: headers);
   }
 
   @override
@@ -469,6 +473,56 @@ void main() {
         expect(find.byKey(ValueKey('prod-link-$id')), findsOneWidget, reason: id);
       }
       expect(find.textContaining('NaN'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  // Production par jour sur une période chargée : 60 journées PROMESH, 30 PROBAR.
+  final busyDays = [
+    for (var i = 0; i < 60; i++)
+      {
+        'date': '2026-${i < 31 ? '08' : '09'}-${(i < 31 ? i + 1 : i - 30).toString().padLeft(2, '0')}',
+        'promesh': 1000 + i * 37,
+        'probar': i.isEven ? 200 + i * 11 : 0,
+        'fichesPromesh': 1, 'fichesProbar': i.isEven ? 1 : 0, 'dechetsPromesh': 0, 'dechetsProbar': 0,
+      },
+  ];
+  final dayLabel = RegExp(r'^\d\d/\d\d$');
+  for (final width in [1440.0, 820.0, 390.0]) {
+    testWidgets('${width.toInt()}px : production par jour — dates DD/MM sans chevauchement, toutes les journées tracées, détail en infobulle', (tester) async {
+      api.daily = busyDays;
+      await _open(tester, width: width);
+      expect(tester.takeException(), isNull);
+
+      for (final (type, unit, count) in [('promesh', 'm²', 60), ('probar', 'ml', 30)]) {
+        final key = 'prod-chart-daily-$type';
+        final data = tester.widget<BarChart>(find.byKey(ValueKey(key))).data;
+        final expected = [for (final d in busyDays) if ((d[type] as num) > 0) d];
+
+        // Aucune journée retirée, quantités inchangées.
+        expect(data.barGroups, hasLength(count), reason: type);
+        expect([for (final g in data.barGroups) g.barRods.single.toY], [for (final d in expected) (d[type] as num).toDouble()], reason: type);
+
+        // Axe X : quelques dates DD/MM, régulièrement espacées, jamais superposées.
+        final labels = _in(key, find.byWidgetPredicate((w) => w is RichText && dayLabel.hasMatch(w.text.toPlainText())));
+        final rects = [for (final e in labels.evaluate()) tester.getRect(find.byWidget(e.widget))]..sort((a, b) => a.left.compareTo(b.left));
+        expect(rects.length, inInclusiveRange(2, count - 1), reason: '$type ${width}px : ${rects.length} dates');
+        for (var i = 1; i < rects.length; i++) {
+          expect(rects[i].left, greaterThanOrEqualTo(rects[i - 1].right + 4), reason: '$type ${width}px : dates ${i - 1}/$i superposées');
+        }
+        expect((tester.widget<RichText>(labels.first)).text.toPlainText(), '01/08');
+
+        // Une journée sans date sur l'axe reste lisible dans l'infobulle.
+        const hidden = 1;
+        final tip = data.barTouchData.touchTooltipData.getTooltipItem(data.barGroups[hidden], hidden, data.barGroups[hidden].barRods.single, 0)!;
+        final tipText = TextSpan(text: tip.text, children: tip.children).toPlainText();
+        final day = expected[hidden];
+        expect(tipText, contains(prodFormatDate(day['date'] as String)));
+        expect(tipText, contains(prodFormatQuantity(day[type] as num, unit)));
+        expect(data.barTouchData.touchTooltipData.fitInsideHorizontally, isTrue);
+      }
+      expect(find.textContaining('1 date sur'), findsNWidgets(2));
+      expect(find.text('60 jours · ${prodFormatQuantity(busyDays.fold<num>(0, (s, d) => s + (d['promesh'] as num)), 'm²')}'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

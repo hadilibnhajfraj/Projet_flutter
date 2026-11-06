@@ -10,6 +10,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier, visibleForTesting;
 
 import 'package:dash_master_toolkit/providers/api_client.dart';
+import '../model/quality_control_admin.dart';
 import '../model/quality_control_comparison.dart';
 import '../model/quality_control_model.dart';
 
@@ -23,7 +24,9 @@ class QualityControlApiException implements Exception {
   final String? existingId;
   // READING_TIME_EXISTS : id du prélèvement déjà enregistré à cette heure.
   final String? existingReadingId;
-  QualityControlApiException(this.message, {this.code, this.errors = const [], this.existingId, this.existingReadingId});
+  // Code HTTP de la réponse (null : aucune réponse — API injoignable).
+  final int? statusCode;
+  QualityControlApiException(this.message, {this.code, this.errors = const [], this.existingId, this.existingReadingId, this.statusCode});
 
   Set<String> get parameterKeysInError =>
       errors.map((e) => e['parameterKey']?.toString()).whereType<String>().toSet();
@@ -226,6 +229,90 @@ class QualityControlService {
         data is Map ? (data['message']?.toString() ?? 'Erreur serveur') : (e.message ?? 'Erreur réseau'),
         code: data is Map ? data['code']?.toString() : null,
       );
+    }
+  }
+
+  // ── Tableau de bord Super Admin (toutes les fiches, lecture seule) ──────
+
+  // Erreur d'un appel du tableau de bord : message explicite selon le code
+  // HTTP — jamais transformée en liste vide ni en zéros. 404 = le serveur
+  // appelé ne propose pas ces routes (backend non déployé ou mauvaise URL).
+  QualityControlApiException _adminError(DioException e, String path) {
+    final status = e.response?.statusCode;
+    final data = e.response?.data;
+    final server = data is Map ? data['message']?.toString() : null;
+    final code = data is Map ? data['code']?.toString() : null;
+    final base = ApiClient.instance.dio.options.baseUrl;
+    final message = switch (status) {
+      null => 'API injoignable ($base) : vérifiez la connexion ou l\'état du serveur.',
+      404 => 'Tableau de bord Contrôle Qualité indisponible sur $base (HTTP 404 sur $path) : la version déployée du backend ne contient pas encore cette fonctionnalité.',
+      403 => 'Accès réservé au Super Administrateur (HTTP 403).',
+      401 => 'Session expirée (HTTP 401) : reconnectez-vous.',
+      _ => 'Erreur serveur (HTTP $status) : ${server ?? 'réponse invalide'}',
+    };
+    return QualityControlApiException(message, code: code, statusCode: status);
+  }
+
+  // Réponse 200 qui n'a pas la forme attendue (proxy, ancienne version…) :
+  // signalée, jamais lue comme « aucune fiche ».
+  QualityControlApiException _adminUnexpected(String path) =>
+      QualityControlApiException('Réponse inattendue du serveur pour $path : format non reconnu.', code: 'UNEXPECTED_RESPONSE', statusCode: 200);
+
+  /// Indicateurs (GET /quality-control/admin/overview) sur la période donnée.
+  Future<QcAdminOverview> fetchAdminOverview({String? from, String? to}) async {
+    const path = '$_basePath/admin/overview';
+    try {
+      final res = await ApiClient.instance.dio.get(path, queryParameters: {
+        if (from != null && from.isNotEmpty) 'from': from,
+        if (to != null && to.isNotEmpty) 'to': to,
+      });
+      final body = res.data;
+      final data = body is Map ? body['data'] : null;
+      if (data is! Map || data['totals'] is! Map) throw _adminUnexpected(path);
+      return QcAdminOverview.fromJson(Map<String, dynamic>.from(data));
+    } on DioException catch (e) {
+      throw _adminError(e, path);
+    }
+  }
+
+  /// Liste paginée et triée de TOUTES les fiches (GET /quality-control/admin/controls).
+  Future<QualityControlPage> fetchAdminControls({
+    int page = 1,
+    int limit = 20,
+    String? search,
+    String? productionType,
+    String? state,
+    String? status,
+    String? from,
+    String? to,
+    String sort = QcAdminSort.date,
+    bool ascending = false,
+  }) async {
+    const path = '$_basePath/admin/controls';
+    try {
+      final res = await ApiClient.instance.dio.get(path, queryParameters: {
+        'page': page.toString(),
+        'limit': limit.toString(),
+        'sort': sort,
+        'order': ascending ? 'asc' : 'desc',
+        if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+        if (productionType != null && productionType.isNotEmpty) 'productionType': productionType,
+        if (state != null && state.isNotEmpty) 'state': state,
+        if (status != null && status.isNotEmpty) 'status': status,
+        if (from != null && from.isNotEmpty) 'from': from,
+        if (to != null && to.isNotEmpty) 'to': to,
+      });
+      final body = res.data;
+      if (body is! Map || body['data'] is! List || body['pagination'] is! Map) throw _adminUnexpected(path);
+      final p = Map<String, dynamic>.from(body['pagination'] as Map);
+      return QualityControlPage(
+        items: _controls(body['data']),
+        page: (p['page'] as num?)?.toInt() ?? page,
+        totalPages: (p['totalPages'] as num?)?.toInt() ?? 1,
+        total: (p['total'] as num?)?.toInt() ?? 0,
+      );
+    } on DioException catch (e) {
+      throw _adminError(e, path);
     }
   }
 

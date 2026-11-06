@@ -11,6 +11,7 @@
 // /quality-control/probar/machine/:num   machine PROBAR
 // /quality-control/history[?q=]          historique (recherche globale, export)
 // /quality-control/comparison            comparaison qualité période A / B
+// /quality-control/superadmin            tableau de bord Super Admin (toutes les fiches)
 // /quality-control/control/:id[?type=&machine=]  fiche qualité EXISTANTE (édition / lecture)
 // /quality-control/control?type=&machine=        NOUVELLE fiche qualité d'une machine
 // /quality-control/controle?…                    ancien chemin → redirigé (liens existants)
@@ -29,6 +30,8 @@ abstract final class QcPaths {
   static const root = '/quality-control';
   static const history = '/quality-control/history';
   static const comparison = '/quality-control/comparison';
+  // Tableau de bord Contrôle Qualité du Super Administrateur.
+  static const superAdmin = '/quality-control/superadmin';
   static const legacyHistory = '/quality-control/historique';
   static const form = '/quality-control/control';
   static const legacyForm = '/quality-control/controle';
@@ -51,6 +54,7 @@ const kQcRoutedLines = ['PROMESH', 'PROBAR'];
 const qcPageKeyHome = ValueKey<String>('qc-home');
 const qcPageKeyHistory = ValueKey<String>('qc-history');
 const qcPageKeyComparison = ValueKey<String>('qc-comparison');
+const qcPageKeySuperAdmin = ValueKey<String>('qc-superadmin');
 ValueKey<String> qcPageKeyLine(String type) => ValueKey('qc-line-${type.toUpperCase()}');
 ValueKey<String> qcPageKeyMachine(String type, String machine) => ValueKey('qc-machine-${type.toUpperCase()}-$machine');
 ValueKey<String> qcPageKeyForm(String id) => ValueKey('qc-form-$id');
@@ -66,6 +70,7 @@ ValueKey<String> qcPageKeyNewForm(String type, String machine) => ValueKey('qc-f
   final first = seg.first;
   if (first == 'history' || first == 'historique') return ('Historique', module, 'Historique');
   if (first == 'comparison') return ('Comparaison qualité', module, 'Comparaison qualité');
+  if (first == 'superadmin') return ('Tableau de bord Contrôle Qualité', 'Tableau de bord', 'Contrôle Qualité');
   if (first == 'control' || first == 'controle') return ('Contrôle Qualité', module, 'Contrôle Qualité');
   final line = first.toUpperCase();
   if (seg.length >= 3 && seg[1] == 'machine') return ('Machine ${seg[2]}', line, 'Machine ${seg[2]}');
@@ -81,6 +86,8 @@ class QcRouteScreens {
   final Widget Function(String type, String machine) machine;
   final Widget Function(String controlId) form; // ÉDITION (id PostgreSQL)
   final Widget Function(String type, String machine) newForm; // CRÉATION (fiche d'une machine)
+  // Tableau de bord Super Admin (optionnel : sans écran, la route redirige).
+  final Widget Function()? superAdmin;
 
   const QcRouteScreens({
     required this.home,
@@ -90,6 +97,7 @@ class QcRouteScreens {
     required this.machine,
     required this.form,
     required this.newForm,
+    this.superAdmin,
   });
 }
 
@@ -97,6 +105,9 @@ GoRoute buildQualityControlRoute({
   required QcRouteScreens screens,
   required bool Function() canView,
   required String deniedRedirect,
+  // Accès au tableau de bord Super Admin (rôle superadmin) — sinon retour
+  // à l'accueil du module. Le backend revérifie (403 pour tout autre rôle).
+  bool Function()? canViewSuperAdmin,
 }) {
   GoRoute lineRoute(String type) => GoRoute(
         path: type.toLowerCase(),
@@ -127,6 +138,11 @@ GoRoute buildQualityControlRoute({
       GoRoute(
         path: 'comparison',
         pageBuilder: (context, state) => NoTransitionPage(key: qcPageKeyComparison, child: screens.comparison()),
+      ),
+      GoRoute(
+        path: 'superadmin',
+        redirect: (context, state) => screens.superAdmin != null && (canViewSuperAdmin?.call() ?? false) ? null : QcPaths.root,
+        pageBuilder: (context, state) => NoTransitionPage(key: qcPageKeySuperAdmin, child: screens.superAdmin!()),
       ),
       // Formulaire : basé sur type + machine (création) ou sur l'id de la
       // fiche (édition) — jamais sur une production.

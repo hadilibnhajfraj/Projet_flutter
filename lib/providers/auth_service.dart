@@ -284,6 +284,11 @@ bool get canViewQualityControl {
   final r = (userRole ?? '').toLowerCase().trim();
   return r == 'admin' || r == 'superadmin' || r == 'superadmin2' || r == 'controle_qualite';
 }
+
+// Tableau de bord Contrôle Qualité (toutes les fiches) : rôle Super
+// Administrateur uniquement — même règle que le backend
+// (config/qualityControl.js adminDashboardRoles, 403 pour tout autre rôle).
+bool get canViewQualityControlDashboard => (userRole ?? '').toLowerCase().trim() == 'superadmin';
   // ---------------- SIGNUP ----------------
   Future<void> signup({required String email, required String password}) async {
     await ApiClient.instance.dio.post('/auth/signup', data: {

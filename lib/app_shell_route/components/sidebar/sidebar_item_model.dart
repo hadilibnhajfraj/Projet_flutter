@@ -125,6 +125,7 @@ GroupedMenuModel buildDashboardGroup({
   bool canViewCrmKpi = true,
   bool canViewCommercialKpi = false,
   bool canViewProductionDashboard = false,
+  bool canViewQualityDashboard = false,
 }) =>
     GroupedMenuModel(
       name: 'TABLEAU DE BORD',
@@ -146,6 +147,13 @@ GroupedMenuModel buildDashboardGroup({
             name:           'Tableau de bord industriel',
             icon:           Icons.precision_manufacturing_outlined,
             navigationPath: MyRoute.productionDashboardScreen,
+          ),
+        // Super Administrateur uniquement : toutes les fiches de contrôle qualité.
+        if (canViewQualityDashboard)
+          SidebarItemModel(
+            name:           'Tableau de bord Contrôle Qualité',
+            icon:           Icons.verified_user_outlined, // bouclier coché
+            navigationPath: MyRoute.qualityControlSuperAdminScreen,
           ),
       ],
     );
@@ -174,6 +182,8 @@ List<GroupedMenuModel> buildGroupedMenus({
   bool canViewRawMaterialRequests = false,
   bool canValidateRawMaterialRequests = false,
   bool canViewFicheApprovals = false,
+  // Tableau de bord Contrôle Qualité (rôle superadmin).
+  bool canViewQualityDashboard = false,
   // Compte back-office en consultation seule : aucun formulaire de création.
   bool isReadOnly = false,
 }) {
@@ -296,6 +306,8 @@ List<GroupedMenuModel> buildGroupedMenus({
       canViewCommercialKpi:    canViewCommercialKpi,
       canViewProductionDashboard:
           canViewPorPromesh && !hideIndustrialDashboard && !isRestrictedAdmin,
+      // Comptes admin restreints : aucun menu industriel (règle existante).
+      canViewQualityDashboard: canViewQualityDashboard && !isRestrictedAdmin,
     ),
 
     GroupedMenuModel(

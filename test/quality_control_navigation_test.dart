@@ -58,6 +58,48 @@ List<Key?> _shellPageKeys(WidgetTester tester) {
 }
 
 void main() {
+  // En tête : le test « témoin » plus bas provoque volontairement une
+  // assertion du Navigator, qui perturbe les tests de widgets suivants.
+  group('Tableau de bord Contrôle Qualité (Super Admin) — accès', () {
+    final withAdmin = QcRouteScreens(
+      home: _screens.home,
+      history: _screens.history,
+      comparison: _screens.comparison,
+      line: _screens.line,
+      machine: _screens.machine,
+      form: _screens.form,
+      newForm: _screens.newForm,
+      superAdmin: () => _screen('screen:superadmin'),
+    );
+
+    testWidgets('Super Admin : page affichée, puis détail d\'une fiche et retour', (tester) async {
+      final router = await _pump(
+          tester, buildQualityControlRoute(screens: withAdmin, canView: () => true, deniedRedirect: '/dashboard', canViewSuperAdmin: () => true));
+      await _go(tester, router, QcPaths.superAdmin, 'screen:superadmin');
+      await _go(tester, router, QcPaths.control('abc'), 'screen:form:abc');
+      await _go(tester, router, QcPaths.superAdmin, 'screen:superadmin');
+    });
+
+    testWidgets('autre rôle du module (admin, superadmin2, controle_qualite) : renvoyé à l\'accueil du module', (tester) async {
+      final router = await _pump(
+          tester, buildQualityControlRoute(screens: withAdmin, canView: () => true, deniedRedirect: '/dashboard', canViewSuperAdmin: () => false));
+      await _go(tester, router, QcPaths.superAdmin, 'screen:home');
+    });
+
+    testWidgets('sans accès au module : renvoyé au tableau de bord ; sans écran fourni : accueil', (tester) async {
+      var router = await _pump(
+          tester, buildQualityControlRoute(screens: withAdmin, canView: () => false, deniedRedirect: '/dashboard', canViewSuperAdmin: () => false));
+      await _go(tester, router, QcPaths.superAdmin, 'screen:dashboard');
+      router = await _pump(tester, buildQualityControlRoute(screens: _screens, canView: () => true, deniedRedirect: '/dashboard', canViewSuperAdmin: () => true));
+      await _go(tester, router, QcPaths.superAdmin, 'screen:home');
+    });
+
+    test('chemin et fil d\'Ariane', () {
+      expect(QcPaths.superAdmin, '/quality-control/superadmin');
+      expect(qcBreadcrumb(QcPaths.superAdmin), ('Tableau de bord Contrôle Qualité', 'Tableau de bord', 'Contrôle Qualité'));
+    });
+  });
+
   group('Contrôle Qualité — navigation', () {
     testWidgets('parcours complet sans assertion du Navigator', (tester) async {
       final router = await _pump(tester, buildQualityControlRoute(screens: _screens, canView: () => true, deniedRedirect: '/dashboard'));

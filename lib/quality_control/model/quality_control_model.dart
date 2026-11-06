@@ -486,6 +486,8 @@ class QualityControlModel {
   final String? readingId;
   final List<QualityControlHistoryEntry> history;
   final int? notificationsSent;
+  // Dernière modification de la fiche (horodatage serveur, UTC).
+  final DateTime? updatedAt;
 
   const QualityControlModel({
     required this.id,
@@ -524,6 +526,7 @@ class QualityControlModel {
     this.readingId,
     this.history = const [],
     this.notificationsSent,
+    this.updatedAt,
   });
 
   QualityReading? reading(String? id) {
@@ -574,6 +577,7 @@ class QualityControlModel {
       readingId: j['readingId']?.toString(),
       history: maps(j['history']).map(QualityControlHistoryEntry.fromJson).toList(),
       notificationsSent: (j['notificationsSent'] as num?)?.toInt(),
+      updatedAt: DateTime.tryParse(j['updatedAt']?.toString() ?? ''),
     );
   }
 }

@@ -96,6 +96,7 @@ class SideBarWidget extends StatelessWidget {
       canViewRawMaterialRequests: auth.canViewRawMaterialRequests,
       canValidateRawMaterialRequests: auth.isRawMaterialRequestManager,
       canViewFicheApprovals: auth.canViewFicheApprovals,
+      canViewQualityDashboard: auth.canViewQualityControlDashboard,
       isReadOnly: auth.isReadOnly,
     );
 
